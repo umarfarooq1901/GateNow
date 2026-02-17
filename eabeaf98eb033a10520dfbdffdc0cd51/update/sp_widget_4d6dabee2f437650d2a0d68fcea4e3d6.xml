@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[function($scope, $window) {
+  var c = this;
+  
+  // Initialize grid view as default
+  c.gridView = true;
+  
+  // Toggle between grid and list view
+  c.toggleView = function() {
+    c.gridView = !c.gridView;
+  };
+  
+  // View program details - redirect to detail page
+  c.viewDetails = function(program) {
+    // Redirect to grant_program_detail page with sys_id parameter
+    var detailUrl = '?id=grant_program_detail&sys_id=' + program.sys_id;
+    $window.location.href = detailUrl;
+  };
+  
+  // Load programs on initialization
+  c.loadPrograms = function() {
+    c.server.get().then(function(response) {
+      c.data.programs = response.data.programs;
+      c.data.activePrograms = response.data.activePrograms;
+      c.data.availableFunding = response.data.availableFunding;
+      c.data.categories = response.data.categories;
+    });
+  };
+  
+  // Initialize
+  c.loadPrograms();
+}
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.grant-programs-widget {
+  width: 100%;
+  padding: 0;
+  
+  .header-section {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    padding: 60px 40px;
+    text-align: center;
+    color: white;
+    border-radius: 0;
+    
+    .badge {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 8px 20px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      
+      i {
+        margin-right: 8px;
+      }
+    }
+    
+    .main-title {
+      font-size: 42px;
+      font-weight: 700;
+      margin: 0 0 20px 0;
+      color: white;
+    }
+    
+    .subtitle {
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 700px;
+      margin: 0 auto;
+      opacity: 0.95;
+    }
+  }
+  
+  .stats-section {
+    display: flex;
+    justify-content: center;
+    gap: 80px;
+    padding: 40px;
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    
+    .stat-item {
+      text-align: center;
+      
+      .stat-number {
+        font-size: 36px;
+        font-weight: 700;
+        color: #fbbf24;
+        margin-bottom: 8px;
+      }
+      
+      .stat-label {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        color: white;
+      }
+      
+      &amp;.highlight .stat-number {
+        font-size: 40px;
+      }
+    }
+  }
+  
+  .programs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 30px 40px 20px;
+    
+    h2 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0;
+      color: #1f2937;
+    }
+    
+    .view-toggle {
+      background: #1e3a8a;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      
+      &amp;:hover {
+        background: #3b82f6;
+        transform: translateY(-2px);
+      }
+    }
+  }
+  
+  .programs-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 24px;
+    padding: 20px 40px 40px;
+    
+    &amp;.list-view {
+      grid-template-columns: 1fr;
+    }
+    
+    .program-card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      cursor: pointer;
+      
+      &amp;:hover {
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        transform: translateY(-8px);
+        border-color: #3b82f6;
+        
+        .card-footer {
+          opacity: 1;
+          visibility: visible;
+          transform: translateY(0);
+        }
+        
+        .card-body {
+          padding-bottom: 80px;
+        }
+      }
+      
+      .card-header {
+        padding: 16px 20px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        
+        .program-status {
+          display: inline-block;
+          background: #fbbf24;
+          color: #1f2937;
+          padding: 6px 14px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+      }
+      
+      .card-body {
+        padding: 24px 20px;
+        flex-grow: 1;
+        transition: padding 0.3s ease;
+        
+        .program-name {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1f2937;
+          margin: 0 0 16px 0;
+          line-height: 1.4;
+        }
+        
+        .program-description {
+          font-size: 14px;
+          color: #6b7280;
+          line-height: 1.6;
+          margin: 0;
+        }
+      }
+      
+      .card-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 20px;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(10px);
+        transition: all 0.3s ease;
+        
+        .btn-view-details {
+          width: 100%;
+          background: transparent;
+          color: #1e3a8a;
+          border: none;
+          border-radius: 8px;
+          padding: 12px 24px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+          
+          i {
+            margin-left: 8px;
+            transition: margin-left 0.3s ease;
+          }
+          
+          &amp;:hover {
+            color: #3b82f6;
+            
+            i {
+              margin-left: 12px;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  .no-programs {
+    text-align: center;
+    padding: 80px 40px;
+    color: #9ca3af;
+    
+    i {
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+    
+    p {
+      font-size: 16px;
+      margin: 0;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .grant-programs-widget {
+    .header-section {
+      padding: 40px 20px;
+      
+      .main-title {
+        font-size: 28px;
+      }
+    }
+    
+    .stats-section {
+      flex-direction: column;
+      gap: 30px;
+      padding: 30px 20px;
+    }
+    
+    .programs-container {
+      grid-template-columns: 1fr;
+      padding: 20px;
+    }
+  }
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>opportunities_widget</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Opportunities Widget</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  /* Assuming you have a table called 'x_grant_program' or similar
+     Adjust the table name and field names according to your instance */
+  
+  var programTable = 'x_enno_gatenow_grant_program'; // Change this to your actual table name
+  
+  data.programs = [];
+  data.activePrograms = 0;
+  data.availableFunding = '$50B+';
+  data.categories = 0;
+  
+  // Query programs with status "Accepting Proposals"
+  var gr = new GlideRecord(programTable);
+  gr.addQuery('status', 'accepting_proposals'); // Adjust field name and value as needed
+  gr.addQuery('active', true); // Optional: only get active records
+  gr.orderByDesc('sys_created_on');
+  gr.query();
+  
+  var totalFunding = 0;
+  var categorySet = {};
+  
+  while (gr.next()) {
+    var program = {
+      sys_id: gr.getValue('sys_id'),
+      program_name: gr.getValue('program_name') || gr.getValue('name'),
+      description: gr.getValue('description') || gr.getValue('short_description'),
+      status: gr.getDisplayValue('status'),
+      category: gr.getDisplayValue('category'),
+      application_url: gr.getValue('application_url') || ''
+    };
+    
+    data.programs.push(program);
+    
+    // Track categories
+    if (program.category) {
+      categorySet[program.category] = true;
+    }
+    
+    // Calculate total funding if numeric value exists
+    var fundingValue = gr.getValue('funding_amount');
+    if (fundingValue && !isNaN(fundingValue)) {
+      totalFunding += parseFloat(fundingValue);
+    }
+  }
+  
+  // Set statistics
+  data.activePrograms = data.programs.length;
+  data.categories = Object.keys(categorySet).length;
+  
+  // Format funding if calculated
+  if (totalFunding > 0) {
+    if (totalFunding >= 1000000000) {
+      data.availableFunding = '$' + (totalFunding / 1000000000).toFixed(1) + 'B+';
+    } else if (totalFunding >= 1000000) {
+      data.availableFunding = '$' + (totalFunding / 1000000).toFixed(1) + 'M+';
+    } else {
+      data.availableFunding = '$' + totalFunding.toLocaleString();
+    }
+  }
+  
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-02-17 07:53:14</sys_created_on>
+        <sys_id>4d6dabee2f437650d2a0d68fcea4e3d6</sys_id>
+        <sys_mod_count>35</sys_mod_count>
+        <sys_name>Opportunities Widget</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_4d6dabee2f437650d2a0d68fcea4e3d6</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-02-17 10:01:32</sys_updated_on>
+        <template><![CDATA[<div class="grant-programs-widget">
+  <div class="header-section">
+    <div class="badge">
+      <i class="fa fa-lightbulb-o"></i> Funding Opportunities
+    </div>
+    <h1 class="main-title">Discover Grant Programs</h1>
+    <p class="subtitle">
+      Browse through our curated collection of federal transportation grants. 
+      Find the perfect funding opportunity for your infrastructure project.
+    </p>
+  </div>
+
+  <div class="stats-section">
+    <div class="stat-item">
+      <div class="stat-number">{{data.activePrograms}}</div>
+      <div class="stat-label">ACTIVE PROGRAMS</div>
+    </div>
+    <div class="stat-item highlight">
+      <div class="stat-number">{{data.availableFunding}}</div>
+      <div class="stat-label">AVAILABLE FUNDING</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">{{data.categories}}</div>
+      <div class="stat-label">CATEGORIES</div>
+    </div>
+  </div>
+
+  <div class="programs-header">
+    <h2>All Grant Programs</h2>
+    <button class="view-toggle" ng-click="c.toggleView()">
+      <i class="fa" ng-class="c.gridView ? 'fa-th' : 'fa-list'"></i>
+    </button>
+  </div>
+
+  <div class="programs-container" ng-class="{'list-view': !c.gridView}">
+    <div class="program-card" ng-repeat="program in data.programs" ng-click="c.viewDetails(program)">
+      <div class="card-header">
+        <span class="program-status">{{program.status}}</span>
+      </div>
+      <div class="card-body">
+        <h3 class="program-name">{{program.program_name}}</h3>
+        <p class="program-description">{{program.description}}</p>
+      </div>
+      <div class="card-footer">
+        <button class="btn-view-details">
+          View Details <i class="fa fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div ng-if="data.programs.length == 0" class="no-programs">
+    <i class="fa fa-inbox fa-3x"></i>
+    <p>No active grant programs available at this time.</p>
+  </div>
+</div>
+]]></template>
+    </sp_widget>
+</record_update>

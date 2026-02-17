@@ -1,0 +1,2510 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $timeout, spModal) {
+  var c = this;
+
+  // Configuration
+  var CONFIG = {
+    MAX_FILE_SIZE: 10485760, // 10MB
+    ALLOWED_FILE_TYPES: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/jpg',
+      'image/png'
+    ]
+  };
+
+  // Step management
+  c.currentStep = 1;
+  c.totalSteps = 5;
+  c.completedSteps = [];
+  c.errors = {};
+  c.saving = false;
+  c.uploadedFiles = [];
+  c.uploadProgress = 0;
+  c.isDragging = false;
+
+  // Initialize form
+  c.form = angular.merge({
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    email: '',
+    phone_number: '',
+    country: '',
+    city: '',
+    street: '',
+    zip_postal_code: '',
+    ssn: '',
+    race: '',
+    birthdate: '',
+    uei: '',
+    tin_ein: '',
+    applicant_type: '',
+    identity_type: '',
+    gender: '',
+    ethnicity: '',
+    education_level: '',
+    marital_status: '',
+    military_status: '',
+    disability_status: '',
+    citizenship_status: '',
+    grant_program: c.data.program_param || '',
+    proposal_title: '',
+    short_description: '',
+    proposal_description: '',
+		project_goals_and_objectives: '',
+  project_activities_methodology: '', 
+    organization: '',
+    requested_budget: null,
+    project_start_date: '',
+    project_end_date: ''
+  }, c.data.prefill || {});
+
+  /**
+   * Get current step title
+   */
+  c.getStepTitle = function() {
+    var titles = {
+      1: 'Personal Information',
+      2: 'Demographics',
+      3: 'Organization & Identity',
+      4: 'Proposal Details',
+      5: 'Supporting Documents'
+    };
+    return titles[c.currentStep] || '';
+  };
+
+  /**
+   * Navigate to specific step
+   */
+  c.goToStep = function(step) {
+    if (step >= 1 && step <= c.totalSteps && !c.saving) {
+      // Clear errors when navigating
+      c.errors = {};
+      c.currentStep = step;
+      $timeout(function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
+    }
+  };
+
+  /**
+   * Validate current step
+   */
+  c.validateStep = function(step) {
+    c.errors = {};
+    var isValid = true;
+
+    function checkEmpty(val) {
+      return val === undefined || val === null || val === '' || 
+             (typeof val === 'string' && val.trim() === '');
+    }
+
+    function setError(field, message) {
+      c.errors[field] = message;
+      isValid = false;
+    }
+
+    if (step === 1) {
+      if (checkEmpty(c.form.first_name)) setError('first_name', 'First name is required');
+      if (checkEmpty(c.form.last_name)) setError('last_name', 'Last name is required');
+      if (checkEmpty(c.form.email)) setError('email', 'Email is required');
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.form.email)) 
+        setError('email', 'Please enter a valid email address');
+      if (checkEmpty(c.form.phone_number)) setError('phone_number', 'Phone number is required');
+      if (checkEmpty(c.form.birthdate)) setError('birthdate', 'Date of birth is required');
+      if (checkEmpty(c.form.street)) setError('street', 'Street address is required');
+      if (checkEmpty(c.form.city)) setError('city', 'City is required');
+      if (checkEmpty(c.form.zip_postal_code)) setError('zip_postal_code', 'Zip/Postal code is required');
+      if (checkEmpty(c.form.country)) setError('country', 'Country is required');
+    }
+
+    else if (step === 2) {
+      if (checkEmpty(c.form.ssn)) setError('ssn', 'SSN is required');
+      if (checkEmpty(c.form.gender)) setError('gender', 'Gender is required');
+      if (checkEmpty(c.form.race)) setError('race', 'Race is required');
+      if (checkEmpty(c.form.ethnicity)) setError('ethnicity', 'Ethnicity is required');
+      if (checkEmpty(c.form.education_level)) setError('education_level', 'Education level is required');
+      if (checkEmpty(c.form.marital_status)) setError('marital_status', 'Marital status is required');
+      if (checkEmpty(c.form.military_status)) setError('military_status', 'Military status is required');
+      if (checkEmpty(c.form.disability_status)) setError('disability_status', 'Disability status is required');
+      if (checkEmpty(c.form.citizenship_status)) setError('citizenship_status', 'Citizenship status is required');
+    }
+
+    else if (step === 3) {
+      if (checkEmpty(c.form.applicant_type)) setError('applicant_type', 'Applicant type is required');
+      if (checkEmpty(c.form.identity_type)) setError('identity_type', 'Identity type is required');
+      if (checkEmpty(c.form.uei)) setError('uei', 'UEI is required');
+      if (checkEmpty(c.form.tin_ein)) setError('tin_ein', 'TIN/EIN is required');
+      if (checkEmpty(c.form.grant_program)) setError('grant_program', 'Grant program is required');
+    }
+
+ else if (step === 4) {
+  if (checkEmpty(c.form.proposal_title)) setError('proposal_title', 'Proposal title is required');
+  if (checkEmpty(c.form.short_description)) setError('short_description', 'Short description is required');
+  if (checkEmpty(c.form.proposal_description)) setError('proposal_description', 'Proposal description is required');
+  
+  
+  if (checkEmpty(c.form.project_goals_and_objectives)) 
+    setError('project_goals_and_objectives', 'Project goals and objectives are required');
+  if (checkEmpty(c.form.project_activities_methodology)) 
+    setError('project_activities_methodology', 'Project activities and methodology are required');
+  
+  if (!c.form.requested_budget || c.form.requested_budget <= 0) 
+    setError('requested_budget', 'Requested budget is required and must be greater than 0');
+  if (checkEmpty(c.form.project_start_date)) setError('project_start_date', 'Project start date is required');
+  if (checkEmpty(c.form.project_end_date)) setError('project_end_date', 'Project end date is required');
+  
+  // Validate date range
+  if (c.form.project_start_date && c.form.project_end_date) {
+    var start = new Date(c.form.project_start_date);
+    var end = new Date(c.form.project_end_date);
+    if (end <= start) {
+      setError('project_end_date', 'End date must be after start date');
+    }
+  }
+}
+
+
+    else if (step === 5) {
+      if (!c.uploadedFiles || c.uploadedFiles.length === 0) {
+        setError('documents', 'Please upload at least one supporting document');
+      }
+    }
+
+    if (!isValid) {
+      $timeout(function() {
+        var firstError = document.querySelector('.field-error');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+
+    return isValid;
+  };
+
+  /**
+   * Next step
+   */
+  c.nextStep = function() {
+    if (c.validateStep(c.currentStep)) {
+      if (!c.completedSteps.includes(c.currentStep)) {
+        c.completedSteps.push(c.currentStep);
+      }
+      c.currentStep++;
+      $timeout(function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
+    }
+  };
+
+  /**
+   * Previous step
+   */
+  c.prevStep = function() {
+    if (c.currentStep > 1) {
+      c.errors = {};
+      c.currentStep--;
+      $timeout(function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
+    }
+  };
+
+  /**
+   * Remove modal tooltip helper
+   */
+  function removeModalTooltip() {
+    $timeout(function() {
+      var closeButtons = document.querySelectorAll('.modal-header .close, .modal .close');
+      angular.forEach(closeButtons, function(btn) {
+        btn.removeAttribute('data-original-title');
+        btn.removeAttribute('title');
+        btn.blur();
+      });
+      var primaryButton = document.querySelector('.modal-footer .btn-primary');
+      if (primaryButton) primaryButton.focus();
+    }, 100);
+  }
+
+  /**
+   * File upload handlers
+   */
+  c.onFilesSelected = function($files) {
+    if ($files && $files.length > 0) c.addFiles($files);
+  };
+
+  c.onFilesDrop = function($files) {
+    c.isDragging = false;
+    if ($files && $files.length > 0) c.addFiles($files);
+  };
+
+  c.addFiles = function($files) {
+    angular.forEach($files, function(file) {
+      if (file.size > CONFIG.MAX_FILE_SIZE) {
+        spModal.open({
+          title: 'File Size Limit Exceeded',
+          message: 'The file "' + file.name + '" exceeds the 10MB size limit.',
+          buttons: [{ label: 'OK', primary: true }]
+        });
+        removeModalTooltip();
+        return;
+      }
+      if (CONFIG.ALLOWED_FILE_TYPES.indexOf(file.type) === -1) {
+        spModal.open({
+          title: 'Invalid File Format',
+          message: 'The file "' + file.name + '" is not supported. Upload PDF, Word, or image files only.',
+          buttons: [{ label: 'OK', primary: true }]
+        });
+        removeModalTooltip();
+        return;
+      }
+      c.uploadedFiles.push(file);
+    });
+  };
+
+  c.removeFile = function(index) {
+    if (index >= 0 && index < c.uploadedFiles.length) {
+      c.uploadedFiles.splice(index, 1);
+    }
+  };
+
+  c.formatFileSize = function(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    var k = 1024;
+    var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  /**
+   * Convert files to base64
+   */
+  c.convertFilesToBase64 = function(files) {
+    var promises = [];
+    angular.forEach(files, function(file) {
+      var promise = new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            resolve({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              data: e.target.result.split(',')[1]
+            });
+          } catch (error) {
+            reject('Failed to process file: ' + file.name);
+          }
+        };
+        reader.onerror = function() {
+          reject('Failed to read file: ' + file.name);
+        };
+        reader.readAsDataURL(file);
+      });
+      promises.push(promise);
+    });
+    return Promise.all(promises);
+  };
+
+  /**
+   * Save draft
+   */
+  c.saveDraft = function() {
+    c.saving = true;
+    var payload = angular.copy(c.form);
+    payload.action = 'save_draft';
+    payload.applicant_sys_id = c.data.applicant_sys_id || '';
+    payload.current_step = c.currentStep;
+
+    c.server.get(payload).then(
+      function(response) {
+        c.saving = false;
+        if (response.data && response.data.success) {
+          spModal.open({
+            title: 'Draft Saved',
+            message: 'Your progress has been saved. You can return to complete this application later.',
+            buttons: [{ label: 'OK', primary: true }]
+          });
+          removeModalTooltip();
+        }
+      },
+      function() {
+        c.saving = false;
+        spModal.open({
+          title: 'Save Failed',
+          message: 'Unable to save draft. Please try again.',
+          buttons: [{ label: 'OK', primary: true }]
+        });
+        removeModalTooltip();
+      }
+    );
+  };
+
+  /**
+   * Submit final application
+   */
+  c.submit = function() {
+    if (!c.validateStep(5)) return;
+
+    c.saving = true;
+    c.uploadProgress = 0;
+
+    var payload = angular.copy(c.form);
+    payload.action = 'save_applicant';
+    payload.applicant_sys_id = c.data.applicant_sys_id || '';
+
+    if (c.uploadedFiles && c.uploadedFiles.length > 0) {
+      c.uploadProgress = 10;
+      c.convertFilesToBase64(c.uploadedFiles).then(
+        function(filesData) {
+          payload.attachments = filesData;
+          c.uploadProgress = 50;
+          c.submitToServer(payload);
+        },
+        function(err) {
+          c.saving = false;
+          c.uploadProgress = 0;
+          spModal.open({
+            title: 'File Processing Error',
+            message: 'Unable to process files. Please try again.',
+            buttons: [{ label: 'OK', primary: true }]
+          });
+          removeModalTooltip();
+        }
+      );
+    } else {
+      c.submitToServer(payload);
+    }
+  };
+
+  /**
+   * Submit to server
+   */
+  c.submitToServer = function(payload) {
+    c.server.get(payload).then(
+      function(response) {
+        c.saving = false;
+        c.uploadProgress = 0;
+        var data = response && response.data ? response.data : {};
+
+        if (data.success) {
+          spModal.open({
+            title: 'Application Submitted Successfully',
+            message: 'Your grant application has been received and is under review. You will receive a confirmation email shortly.',
+            backdrop: 'static',
+            keyboard: false,
+            buttons: [{ label: 'Go to Dashboard', primary: true }]
+          }).then(function() {
+            window.location.href = '/gap?id=gap_home';
+          });
+          removeModalTooltip();
+        } else {
+          spModal.open({
+            title: 'Submission Error',
+            message: data.error || 'Unable to submit application. Please try again.',
+            buttons: [{ label: 'OK', primary: true }]
+          });
+          removeModalTooltip();
+        }
+      },
+      function(error) {
+        c.saving = false;
+        c.uploadProgress = 0;
+        spModal.open({
+          title: 'Connection Error',
+          message: 'Unable to submit. Please check your connection and try again.',
+          buttons: [{ label: 'OK', primary: true }]
+        });
+        removeModalTooltip();
+      }
+    );
+  };
+
+  /**
+   * Cancel application
+   */
+  c.cancel = function() {
+    spModal.open({
+      title: 'Cancel Application?',
+      message: 'Are you sure you want to cancel? All unsaved progress will be lost.',
+      buttons: [
+        { label: 'No, Continue', cancel: true },
+        { label: 'Yes, Cancel', primary: true }
+      ]
+    }).then(function() {
+      window.location.href = '/gap?id=gap_home';
+    });
+    removeModalTooltip();
+  };
+};
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* Multi-step Form Container */&#13;
+.multistep-grant-form-wrapper {&#13;
+  max-width: 1000px;&#13;
+  margin: 0 auto;&#13;
+  padding: 20px;&#13;
+}&#13;
+&#13;
+/* Progress Bar */&#13;
+.form-progress-bar {&#13;
+  background: #ffffff;&#13;
+  border-radius: 12px;&#13;
+  padding: 30px 20px;&#13;
+  margin-bottom: 30px;&#13;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);&#13;
+}&#13;
+&#13;
+.progress-steps-container {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  position: relative;&#13;
+}&#13;
+&#13;
+.progress-step {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: center;&#13;
+  flex: 0 0 auto;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.3s ease;&#13;
+}&#13;
+&#13;
+.step-circle {&#13;
+  width: 48px;&#13;
+  height: 48px;&#13;
+  border-radius: 50%;&#13;
+  background: #e0e0e0;&#13;
+  border: 3px solid #e0e0e0;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  margin-bottom: 8px;&#13;
+  position: relative;&#13;
+  transition: all 0.3s ease;&#13;
+}&#13;
+&#13;
+.step-number {&#13;
+  font-size: 18px;&#13;
+  font-weight: 700;&#13;
+  color: #757575;&#13;
+  transition: opacity 0.3s ease;&#13;
+}&#13;
+&#13;
+.step-check-icon {&#13;
+  position: absolute;&#13;
+  font-size: 24px;&#13;
+  color: #fff;&#13;
+  opacity: 0;&#13;
+  transition: opacity 0.3s ease;&#13;
+}&#13;
+&#13;
+.step-label {&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  color: #757575;&#13;
+  text-align: center;&#13;
+  transition: color 0.3s ease;&#13;
+}&#13;
+&#13;
+.progress-step.step-active .step-circle {&#13;
+  background: #0066cc;&#13;
+  border-color: #0066cc;&#13;
+}&#13;
+&#13;
+.progress-step.step-active .step-number {&#13;
+  color: #ffffff;&#13;
+}&#13;
+&#13;
+.progress-step.step-active .step-label {&#13;
+  color: #0066cc;&#13;
+}&#13;
+&#13;
+.progress-step.step-completed .step-circle {&#13;
+  background: #28a745;&#13;
+  border-color: #28a745;&#13;
+}&#13;
+&#13;
+.progress-step.step-completed .step-number {&#13;
+  opacity: 0;&#13;
+}&#13;
+&#13;
+.progress-step.step-completed .step-check-icon {&#13;
+  opacity: 1;&#13;
+}&#13;
+&#13;
+.progress-step.step-completed .step-label {&#13;
+  color: #28a745;&#13;
+}&#13;
+&#13;
+.progress-connector {&#13;
+  flex: 1;&#13;
+  height: 3px;&#13;
+  background: #e0e0e0;&#13;
+  margin: 0 10px 32px 10px;&#13;
+  transition: background 0.3s ease;&#13;
+}&#13;
+&#13;
+.progress-connector.connector-completed {&#13;
+  background: #28a745;&#13;
+}&#13;
+&#13;
+/* Page Header */&#13;
+.multistep-page-header {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 16px;&#13;
+  margin-bottom: 24px;&#13;
+}&#13;
+&#13;
+.header-icon-badge {&#13;
+  width: 56px;&#13;
+  height: 56px;&#13;
+  border-radius: 12px;&#13;
+  background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  color: #fff;&#13;
+  font-size: 24px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.header-content-group {&#13;
+  flex: 1;&#13;
+}&#13;
+&#13;
+.page-main-title {&#13;
+  font-size: 28px;&#13;
+  font-weight: 700;&#13;
+  color: #1a1a1a;&#13;
+  margin: 0 0 4px 0;&#13;
+}&#13;
+&#13;
+.page-main-subtitle {&#13;
+  font-size: 15px;&#13;
+  color: #666;&#13;
+  margin: 0;&#13;
+}&#13;
+&#13;
+/* Form Container */&#13;
+.multistep-form-container {&#13;
+  background: #ffffff;&#13;
+  border-radius: 12px;&#13;
+  padding: 32px;&#13;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);&#13;
+}&#13;
+&#13;
+.form-step-content {&#13;
+  min-height: 400px;&#13;
+}&#13;
+&#13;
+/* Form Sections */&#13;
+.form-section-block {&#13;
+  margin-bottom: 32px;&#13;
+}&#13;
+&#13;
+.section-block-header {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  margin-bottom: 20px;&#13;
+  padding-bottom: 16px;&#13;
+  border-bottom: 2px solid #f0f0f0;&#13;
+}&#13;
+&#13;
+.section-header-icon {&#13;
+  width: 40px;&#13;
+  height: 40px;&#13;
+  border-radius: 8px;&#13;
+  background: #e8f2ff;&#13;
+  color: #0066cc;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  font-size: 18px;&#13;
+}&#13;
+&#13;
+.section-block-title {&#13;
+  font-size: 20px;&#13;
+  font-weight: 700;&#13;
+  color: #1a1a1a;&#13;
+  margin: 0;&#13;
+  flex: 1;&#13;
+}&#13;
+&#13;
+.section-block-subtitle {&#13;
+  font-size: 14px;&#13;
+  color: #666;&#13;
+  margin: 4px 0 0 52px;&#13;
+}&#13;
+&#13;
+/* Form Fields Grid */&#13;
+.form-fields-grid {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(2, 1fr);&#13;
+  gap: 20px;&#13;
+}&#13;
+&#13;
+.form-field-wrapper {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+}&#13;
+&#13;
+.form-field-full {&#13;
+  grid-column: 1 / -1;&#13;
+}&#13;
+&#13;
+.field-input-label {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  color: #333;&#13;
+  margin-bottom: 6px;&#13;
+  display: block;&#13;
+}&#13;
+&#13;
+.field-required-mark {&#13;
+  color: #dc3545;&#13;
+  font-weight: 700;&#13;
+}&#13;
+&#13;
+.field-optional-mark {&#13;
+  color: #999;&#13;
+  font-weight: 400;&#13;
+  font-size: 13px;&#13;
+}&#13;
+&#13;
+.field-text-input,&#13;
+.field-select-input,&#13;
+.field-textarea-input {&#13;
+  width: 100%;&#13;
+  padding: 10px 14px;&#13;
+  font-size: 14px;&#13;
+  border: 1px solid #ccc;&#13;
+  border-radius: 6px;&#13;
+  transition: all 0.2s ease;&#13;
+  font-family: inherit;&#13;
+}&#13;
+&#13;
+.field-text-input:focus,&#13;
+.field-select-input:focus,&#13;
+.field-textarea-input:focus {&#13;
+  outline: none;&#13;
+  border-color: #0066cc;&#13;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);&#13;
+}&#13;
+&#13;
+.field-error {&#13;
+  border-color: #dc3545 !important;&#13;
+}&#13;
+&#13;
+.field-error:focus {&#13;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1) !important;&#13;
+}&#13;
+&#13;
+.field-error-text {&#13;
+  font-size: 13px;&#13;
+  color: #dc3545;&#13;
+  margin-top: 4px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 4px;&#13;
+}&#13;
+&#13;
+.field-help-text {&#13;
+  font-size: 12px;&#13;
+  color: #666;&#13;
+  margin-top: 4px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 4px;&#13;
+}&#13;
+&#13;
+.field-input-group {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+}&#13;
+&#13;
+.input-group-prefix {&#13;
+  position: absolute;&#13;
+  left: 14px;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  color: #666;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.field-input-with-prefix {&#13;
+  padding-left: 32px;&#13;
+}&#13;
+&#13;
+.field-date-input {&#13;
+  max-width: 200px;&#13;
+}&#13;
+&#13;
+.field-textarea-input {&#13;
+  resize: vertical;&#13;
+  min-height: 120px;&#13;
+}&#13;
+&#13;
+/* File Upload */&#13;
+.upload-documents-info-box {&#13;
+  background: #f8f9fa;&#13;
+  border: 1px solid #e0e0e0;&#13;
+  border-radius: 8px;&#13;
+  padding: 16px;&#13;
+  margin-bottom: 16px;&#13;
+}&#13;
+&#13;
+.upload-info-title {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  color: #333;&#13;
+  margin: 0 0 10px 0;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+}&#13;
+&#13;
+.upload-checklist {&#13;
+  list-style: none;&#13;
+  padding: 0;&#13;
+  margin: 0;&#13;
+}&#13;
+&#13;
+.upload-checklist li {&#13;
+  font-size: 13px;&#13;
+  color: #666;&#13;
+  padding: 4px 0;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+}&#13;
+&#13;
+.file-upload-zone {&#13;
+  border: 2px dashed #ccc;&#13;
+  border-radius: 10px;&#13;
+  padding: 40px 20px;&#13;
+  text-align: center;&#13;
+  background: #fafafa;&#13;
+  transition: all 0.3s ease;&#13;
+  cursor: pointer;&#13;
+}&#13;
+&#13;
+.file-upload-zone:hover,&#13;
+.file-drag-over {&#13;
+  border-color: #0066cc;&#13;
+  background: #f0f7ff;&#13;
+}&#13;
+&#13;
+.upload-icon-wrapper {&#13;
+  font-size: 48px;&#13;
+  color: #0066cc;&#13;
+  margin-bottom: 12px;&#13;
+}&#13;
+&#13;
+.upload-instruction {&#13;
+  font-size: 15px;&#13;
+  color: #333;&#13;
+  margin: 0 0 16px 0;&#13;
+}&#13;
+&#13;
+.upload-browse-button {&#13;
+  display: inline-block;&#13;
+  padding: 10px 24px;&#13;
+  background: #0066cc;&#13;
+  color: #fff;&#13;
+  border-radius: 6px;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.2s ease;&#13;
+  margin-bottom: 12px;&#13;
+}&#13;
+&#13;
+.upload-browse-button:hover {&#13;
+  background: #0052a3;&#13;
+}&#13;
+&#13;
+.upload-file-input {&#13;
+  display: none;&#13;
+}&#13;
+&#13;
+.upload-help-text {&#13;
+  font-size: 12px;&#13;
+  color: #666;&#13;
+  margin: 0;&#13;
+}&#13;
+&#13;
+.uploaded-files-list {&#13;
+  margin-top: 20px;&#13;
+  border: 1px solid #e0e0e0;&#13;
+  border-radius: 8px;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.uploaded-files-header {&#13;
+  background: #f8f9fa;&#13;
+  padding: 12px 16px;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  color: #333;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  border-bottom: 1px solid #e0e0e0;&#13;
+}&#13;
+&#13;
+.uploaded-files-header i {&#13;
+  color: #28a745;&#13;
+}&#13;
+&#13;
+.file-item {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  padding: 12px 16px;&#13;
+  border-bottom: 1px solid #f0f0f0;&#13;
+  transition: background 0.2s ease;&#13;
+}&#13;
+&#13;
+.file-item:last-child {&#13;
+  border-bottom: none;&#13;
+}&#13;
+&#13;
+.file-item:hover {&#13;
+  background: #f8f9fa;&#13;
+}&#13;
+&#13;
+.file-item-icon {&#13;
+  font-size: 24px;&#13;
+  color: #666;&#13;
+  width: 32px;&#13;
+  text-align: center;&#13;
+}&#13;
+&#13;
+.file-item-details {&#13;
+  flex: 1;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 2px;&#13;
+}&#13;
+&#13;
+.file-item-name {&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  color: #333;&#13;
+}&#13;
+&#13;
+.file-item-size {&#13;
+  font-size: 12px;&#13;
+  color: #999;&#13;
+}&#13;
+&#13;
+.file-item-remove {&#13;
+  width: 32px;&#13;
+  height: 32px;&#13;
+  border-radius: 6px;&#13;
+  border: 1px solid #ddd;&#13;
+  background: #fff;&#13;
+  color: #dc3545;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.2s ease;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+}&#13;
+&#13;
+.file-item-remove:hover {&#13;
+  background: #dc3545;&#13;
+  border-color: #dc3545;&#13;
+  color: #fff;&#13;
+}&#13;
+&#13;
+.upload-progress-bar {&#13;
+  margin-top: 16px;&#13;
+  height: 32px;&#13;
+  background: #f0f0f0;&#13;
+  border-radius: 6px;&#13;
+  position: relative;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.progress-bar-fill {&#13;
+  height: 100%;&#13;
+  background: linear-gradient(90deg, #0066cc 0%, #0099ff 100%);&#13;
+  transition: width 0.3s ease;&#13;
+}&#13;
+&#13;
+.progress-bar-text {&#13;
+  position: absolute;&#13;
+  inset: 0;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  color: #fff;&#13;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);&#13;
+}&#13;
+&#13;
+/* Navigation Buttons */&#13;
+.multistep-nav-actions {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  margin-top: 32px;&#13;
+  padding-top: 24px;&#13;
+  border-top: 2px solid #f0f0f0;&#13;
+}&#13;
+&#13;
+.nav-actions-spacer {&#13;
+  flex: 1;&#13;
+}&#13;
+&#13;
+.btn-nav-back,&#13;
+.btn-nav-next,&#13;
+.btn-nav-submit,&#13;
+.btn-nav-save-draft,&#13;
+.btn-nav-cancel {&#13;
+  padding: 12px 24px;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  border-radius: 8px;&#13;
+  border: none;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.2s ease;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+}&#13;
+&#13;
+.btn-nav-back {&#13;
+  background: #f0f0f0;&#13;
+  color: #333;&#13;
+}&#13;
+&#13;
+.btn-nav-back:hover {&#13;
+  background: #e0e0e0;&#13;
+}&#13;
+&#13;
+.btn-nav-next {&#13;
+  background: #0066cc;&#13;
+  color: #fff;&#13;
+}&#13;
+&#13;
+.btn-nav-next:hover {&#13;
+  background: #0052a3;&#13;
+}&#13;
+&#13;
+.btn-nav-submit {&#13;
+  background: #28a745;&#13;
+  color: #fff;&#13;
+}&#13;
+&#13;
+.btn-nav-submit:hover {&#13;
+  background: #218838;&#13;
+}&#13;
+&#13;
+.btn-nav-save-draft {&#13;
+  background: #6c757d;&#13;
+  color: #fff;&#13;
+}&#13;
+&#13;
+.btn-nav-save-draft:hover {&#13;
+  background: #5a6268;&#13;
+}&#13;
+&#13;
+.btn-nav-cancel {&#13;
+  background: transparent;&#13;
+  color: #666;&#13;
+  border: 1px solid #ddd;&#13;
+}&#13;
+&#13;
+.btn-nav-cancel:hover {&#13;
+  background: #f8f9fa;&#13;
+  border-color: #ccc;&#13;
+}&#13;
+&#13;
+.btn-nav-back:disabled,&#13;
+.btn-nav-next:disabled,&#13;
+.btn-nav-submit:disabled,&#13;
+.btn-nav-save-draft:disabled {&#13;
+  opacity: 0.5;&#13;
+  cursor: not-allowed;&#13;
+}&#13;
+&#13;
+/* Responsive */&#13;
+@media (max-width: 768px) {&#13;
+  .multistep-grant-form-wrapper {&#13;
+    padding: 12px;&#13;
+  }&#13;
+  &#13;
+  .form-progress-bar {&#13;
+    padding: 20px 12px;&#13;
+  }&#13;
+  &#13;
+  .progress-step {&#13;
+    transform: scale(0.85);&#13;
+  }&#13;
+  &#13;
+  .step-label {&#13;
+    font-size: 11px;&#13;
+  }&#13;
+  &#13;
+  .progress-connector {&#13;
+    margin: 0 4px 32px 4px;&#13;
+  }&#13;
+  &#13;
+  .multistep-form-container {&#13;
+    padding: 20px;&#13;
+  }&#13;
+  &#13;
+  .form-fields-grid {&#13;
+    grid-template-columns: 1fr;&#13;
+  }&#13;
+  &#13;
+  .multistep-nav-actions {&#13;
+    flex-wrap: wrap;&#13;
+  }&#13;
+  &#13;
+  .btn-nav-back,&#13;
+  .btn-nav-next,&#13;
+  .btn-nav-submit {&#13;
+    flex: 1 1 100%;&#13;
+  }&#13;
+}&#13;
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>applicant_form</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Applicant_form</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  data.success = false;
+  data.message = "";
+  data.error = "";
+
+  // Initialize input
+  if (typeof input === 'undefined' || input === null) input = {};
+
+  // Merge URL params into input
+  if (data && data.__params && typeof data.__params === 'object') {
+    for (var k in data.__params) {
+      if (data.__params.hasOwnProperty(k)) input[k] = data.__params[k];
+    }
+  }
+
+  /**
+   * Helper function to safely get parameter value
+   */
+  function getParam(obj, key, dflt) {
+    try {
+      if (obj && typeof obj === 'object' && obj[key] !== undefined && obj[key] !== null)
+        return obj[key];
+    } catch(e) {}
+    return dflt;
+  }
+
+  // Table name
+  var applicantTable = 'x_enno_gatenow_service_applicants';
+
+  /**
+   * Get choice list for a field
+   */
+  function getChoicesSys(table, element) {
+    var out = [];
+    var ch = new GlideRecord('sys_choice');
+    ch.addQuery('name', table);
+    ch.addQuery('element', element);
+    ch.addQuery('inactive', false);
+    ch.orderBy('sequence');
+    ch.orderBy('label');
+    ch.query();
+    while (ch.next()) {
+      out.push({
+        value: ch.getValue('value') || '',
+        label: ch.getValue('label') || ''
+      });
+    }
+    return out;
+  }
+
+  // Get program parameter from URL
+  var programParam = $sp.getParameter('program') || '';
+  data.program_param = programParam;
+  
+  if (!data.prefill) data.prefill = {};
+  if (programParam && !data.prefill.program) {
+    data.prefill.program = programParam;
+  }
+
+  // Get applicant ID (for edit mode)
+  var applicantId = $sp.getParameter('applicant') || getParam(input, 'applicant_sys_id', '');
+  data.applicant_sys_id = applicantId;
+
+  // Get action
+  var actionVal = getParam(input, 'action', '');
+  if (!actionVal && data && data.__params && data.__params.action) {
+    actionVal = String(data.__params.action);
+  }
+
+  // ============================================================
+  // ==================== SAVE APPLICANT ========================
+  // ============================================================
+  if (actionVal === 'save_applicant') {
+    try {
+      var gr = new GlideRecord(applicantTable);
+      var isUpdate = false;
+      var targetId = getParam(input, 'applicant_sys_id', '');
+
+      // Check if updating existing record
+      if (targetId && gr.get(targetId)) {
+        isUpdate = true;
+        gs.info('[Intake] Updating existing applicant: ' + targetId);
+      } else {
+        gr.initialize();
+        gs.info('[Intake] Creating new applicant record');
+      }
+if (!isUpdate) {
+      gr.setValue('state', 'new');  
+    }
+      // ==================== PERSONAL INFORMATION ====================
+      gr.setValue('first_name', getParam(input, 'first_name', ''));
+      gr.setValue('middle_name', getParam(input, 'middle_name', ''));
+      gr.setValue('last_name', getParam(input, 'last_name', ''));
+      gr.setValue('email', getParam(input, 'email', ''));
+      gr.setValue('phone_number', getParam(input, 'phone_number', ''));
+      
+      // Address fields
+      gr.setValue('street', getParam(input, 'street', ''));
+      gr.setValue('city', getParam(input, 'city', ''));
+      gr.setValue('state', getParam(input, 'state', ''));
+      gr.setValue('zip_postal_code', getParam(input, 'zip_postal_code', ''));
+      gr.setValue('country', getParam(input, 'country', ''));
+
+      // Birthdate - handle various date formats
+      var bd = getParam(input, 'birthdate', '');
+      if (bd) {
+        bd = String(bd);
+        // Remove time component if present
+        if (bd.indexOf('T') > -1) {
+          bd = bd.split('T')[0];
+        } else if (bd.length > 10) {
+          var dateMatch = bd.match(/\d{4}-\d{2}-\d{2}/);
+          if (dateMatch) bd = dateMatch[0];
+        }
+        gr.setValue('birthdate', bd);
+      }
+
+      // ==================== DEMOGRAPHICS ====================
+      gr.setValue('ssn', getParam(input, 'ssn', ''));
+      gr.setValue('gender', getParam(input, 'gender', ''));
+      gr.setValue('race', getParam(input, 'race', ''));
+      gr.setValue('ethnicity', getParam(input, 'ethnicity', ''));
+      gr.setValue('education_level', getParam(input, 'education_level', ''));
+      gr.setValue('marital_status', getParam(input, 'marital_status', ''));
+      gr.setValue('military_status', getParam(input, 'military_status', ''));
+      gr.setValue('disability_status', getParam(input, 'disability_status', ''));
+      gr.setValue('citizenship_status', getParam(input, 'citizenship_status', ''));
+      gr.setValue('tribal_affiliation', getParam(input, 'tribal_affiliation', ''));
+
+      // ==================== ORGANIZATION & IDENTITY ====================
+      gr.setValue('applicant_type', getParam(input, 'applicant_type', ''));
+      gr.setValue('identity_type', getParam(input, 'identity_type', ''));
+      gr.setValue('uei', getParam(input, 'uei', ''));
+      gr.setValue('tin_ein', getParam(input, 'tin_ein', ''));
+      gr.setValue('organization', getParam(input, 'organization', ''));
+
+      // Program - accept both field names and handle string value
+      var gpRef = getParam(input, 'grant_program', '') || getParam(input, 'program', '');
+      if (gpRef) {
+        gpRef = String(gpRef);
+        // Only set if it's a valid sys_id (32 chars)
+        if (gpRef.length === 32) {
+          gr.setValue('program', gpRef);
+        } else {
+          // Try to set as string if field accepts it
+          gr.setValue('program', gpRef);
+        }
+      }
+
+      // ==================== PROPOSAL DETAILS ====================
+      gr.setValue('proposal_title', getParam(input, 'proposal_title', ''));
+      gr.setValue('short_description', getParam(input, 'short_description', ''));
+      gr.setValue('proposal_description', getParam(input, 'proposal_description', ''));
+      gr.setValue('project_goals_and_objectives', getParam(input, 'project_goals_and_objectives', ''));
+    gr.setValue('project_activities_methodology', getParam(input, 'project_activities_methodology', ''));
+      // Budget
+      var budget = getParam(input, 'requested_budget', '');
+      if (budget !== '') {
+        gr.setValue('requested_budget', budget);
+      }
+
+      // Project dates
+      var startDate = getParam(input, 'project_start_date', '');
+      if (startDate) {
+        startDate = String(startDate);
+        if (startDate.indexOf('T') > -1) startDate = startDate.split('T')[0];
+        gr.setValue('project_start_date', startDate);
+      }
+
+      var endDate = getParam(input, 'project_end_date', '');
+      if (endDate) {
+        endDate = String(endDate);
+        if (endDate.indexOf('T') > -1) endDate = endDate.split('T')[0];
+        gr.setValue('project_end_date', endDate);
+      }
+
+      // Additional proposal fields
+      gr.setValue('project_goals_and_objectives', getParam(input, 'project_goals_and_objectives', ''));
+      gr.setValue('project_activities_methodology', getParam(input, 'project_activities_methodology', ''));
+      gr.setValue('program_category', getParam(input, 'program_category', ''));
+
+      // Submission date (auto-set on creation)
+      if (!isUpdate) {
+        var gdt = new GlideDateTime();
+        gr.setValue('submission_date', gdt.getValue());
+      }
+
+      // Save the record
+      var savedId = isUpdate ? gr.update() : gr.insert();
+      
+      if (!savedId) {
+        gs.error('[Intake] Failed to save applicant record');
+        data.success = false;
+        data.error = 'Failed to save applicant information';
+        return;
+      }
+
+      gs.info('[Intake] Successfully saved applicant: ' + savedId);
+
+      // ============================================================
+      // ======================= ATTACHMENTS =========================
+      // ============================================================
+      var attachments = getParam(input, 'attachments', []);
+
+      if (attachments && attachments.length > 0) {
+        gs.info('[Intake] START: Processing ' + attachments.length + ' attachment(s)');
+
+        var applicantRec = new GlideRecord(applicantTable);
+        if (!applicantRec.get(savedId)) {
+          gs.error('[Intake] Could not retrieve applicant record: ' + savedId);
+        } else {
+          var successCount = 0;
+
+          for (var i = 0; i < attachments.length; i++) {
+            var f = attachments[i];
+            try {
+              gs.info('[Intake] Processing file: ' + f.name + ' | Type: ' + f.type + ' | Size: ' + f.size);
+
+              var gsa = new GlideSysAttachment();
+              var attID = gsa.writeBase64(applicantRec, f.name, f.type, f.data);
+
+              if (attID) {
+                successCount++;
+                gs.info('[Intake] ✓ SUCCESS: Attachment ID: ' + attID + ' - File: ' + f.name);
+              } else {
+                gs.error('[Intake] ✗ FAILED: writeBase64 returned null for: ' + f.name);
+              }
+
+            } catch (err) {
+              gs.error('[Intake] ✗ EXCEPTION for "' + f.name + '": ' + err.toString());
+            }
+          }
+
+          gs.info('[Intake] END: Successfully attached ' + successCount + '/' + attachments.length + ' file(s)');
+        }
+      } else {
+        gs.info('[Intake] No attachments to process');
+      }
+
+      // Success response
+      data.success = true;
+      data.message = isUpdate ? 'Application updated successfully' : 'Application submitted successfully';
+      data.applicant_sys_id = String(savedId);
+
+    } catch (e) {
+      gs.error('[Intake] MAIN ERROR: ' + e.toString());
+      data.success = false;
+      data.error = 'Error: ' + e.message;
+    }
+  }
+
+  // ============================================================
+  // ===================== SAVE DRAFT ===========================
+  // ============================================================
+  else if (actionVal === 'save_draft') {
+    try {
+      var draftGr = new GlideRecord(applicantTable);
+      var isDraftUpdate = false;
+      var draftId = getParam(input, 'applicant_sys_id', '');
+
+      if (draftId && draftGr.get(draftId)) {
+        isDraftUpdate = true;
+        gs.info('[Intake] Updating draft: ' + draftId);
+      } else {
+        draftGr.initialize();
+        gs.info('[Intake] Creating new draft');
+      }
+
+      // Save all available fields (same as save_applicant)
+      draftGr.setValue('first_name', getParam(input, 'first_name', ''));
+      draftGr.setValue('middle_name', getParam(input, 'middle_name', ''));
+      draftGr.setValue('last_name', getParam(input, 'last_name', ''));
+      draftGr.setValue('email', getParam(input, 'email', ''));
+      draftGr.setValue('phone_number', getParam(input, 'phone_number', ''));
+      draftGr.setValue('street', getParam(input, 'street', ''));
+      draftGr.setValue('city', getParam(input, 'city', ''));
+      draftGr.setValue('state', getParam(input, 'state', ''));
+      draftGr.setValue('zip_postal_code', getParam(input, 'zip_postal_code', ''));
+      draftGr.setValue('country', getParam(input, 'country', ''));
+      
+      var draftBd = getParam(input, 'birthdate', '');
+      if (draftBd) {
+        draftBd = String(draftBd);
+        if (draftBd.indexOf('T') > -1) draftBd = draftBd.split('T')[0];
+        draftGr.setValue('birthdate', draftBd);
+      }
+
+      draftGr.setValue('ssn', getParam(input, 'ssn', ''));
+      draftGr.setValue('gender', getParam(input, 'gender', ''));
+      draftGr.setValue('race', getParam(input, 'race', ''));
+      draftGr.setValue('ethnicity', getParam(input, 'ethnicity', ''));
+      draftGr.setValue('education_level', getParam(input, 'education_level', ''));
+      draftGr.setValue('marital_status', getParam(input, 'marital_status', ''));
+      draftGr.setValue('military_status', getParam(input, 'military_status', ''));
+      draftGr.setValue('disability_status', getParam(input, 'disability_status', ''));
+      draftGr.setValue('citizenship_status', getParam(input, 'citizenship_status', ''));
+      draftGr.setValue('tribal_affiliation', getParam(input, 'tribal_affiliation', ''));
+      draftGr.setValue('applicant_type', getParam(input, 'applicant_type', ''));
+      draftGr.setValue('identity_type', getParam(input, 'identity_type', ''));
+      draftGr.setValue('uei', getParam(input, 'uei', ''));
+      draftGr.setValue('tin_ein', getParam(input, 'tin_ein', ''));
+      draftGr.setValue('organization', getParam(input, 'organization', ''));
+      
+      var draftProgram = getParam(input, 'grant_program', '') || getParam(input, 'program', '');
+      if (draftProgram) {
+        draftProgram = String(draftProgram);
+        if (draftProgram.length === 32) {
+          draftGr.setValue('program', draftProgram);
+        } else {
+          draftGr.setValue('program', draftProgram);
+        }
+      }
+
+      draftGr.setValue('proposal_title', getParam(input, 'proposal_title', ''));
+      draftGr.setValue('short_description', getParam(input, 'short_description', ''));
+      draftGr.setValue('proposal_description', getParam(input, 'proposal_description', ''));
+      
+      var draftBudget = getParam(input, 'requested_budget', '');
+      if (draftBudget !== '') {
+        draftGr.setValue('requested_budget', draftBudget);
+      }
+
+      var draftStart = getParam(input, 'project_start_date', '');
+      if (draftStart) {
+        draftStart = String(draftStart);
+        if (draftStart.indexOf('T') > -1) draftStart = draftStart.split('T')[0];
+        draftGr.setValue('project_start_date', draftStart);
+      }
+
+      var draftEnd = getParam(input, 'project_end_date', '');
+      if (draftEnd) {
+        draftEnd = String(draftEnd);
+        if (draftEnd.indexOf('T') > -1) draftEnd = draftEnd.split('T')[0];
+        draftGr.setValue('project_end_date', draftEnd);
+      }
+
+      draftGr.setValue('project_goals_and_objectives', getParam(input, 'project_goals_and_objectives', ''));
+      draftGr.setValue('project_activities_methodology', getParam(input, 'project_activities_methodology', ''));
+      draftGr.setValue('program_category', getParam(input, 'program_category', ''));
+
+      var draftSavedId = isDraftUpdate ? draftGr.update() : draftGr.insert();
+
+      if (!draftSavedId) {
+        gs.error('[Intake] Failed to save draft');
+        data.success = false;
+        data.error = 'Failed to save draft';
+        return;
+      }
+
+      gs.info('[Intake] Draft saved successfully: ' + draftSavedId);
+      data.success = true;
+      data.message = 'Draft saved successfully';
+      data.applicant_sys_id = String(draftSavedId);
+
+    } catch (e) {
+      gs.error('[Intake] Draft save error: ' + e.toString());
+      data.success = false;
+      data.error = 'Error saving draft: ' + e.message;
+    }
+  }
+
+  // ============================================================
+  // ==================== PREFILL EXISTING ======================
+  // ============================================================
+  if (data.applicant_sys_id) {
+    var p = new GlideRecord(applicantTable);
+    if (p.get(data.applicant_sys_id)) {
+      gs.info('[Intake] Prefilling data for: ' + data.applicant_sys_id);
+      
+      data.prefill = {
+        // Personal Information
+        first_name: p.getValue('first_name') || '',
+        middle_name: p.getValue('middle_name') || '',
+        last_name: p.getValue('last_name') || '',
+        email: p.getValue('email') || '',
+        phone_number: p.getValue('phone_number') || '',
+        street: p.getValue('street') || '',
+        city: p.getValue('city') || '',
+        state: p.getValue('state') || '',
+        zip_postal_code: p.getValue('zip_postal_code') || '',
+        country: p.getValue('country') || '',
+        birthdate: p.getDisplayValue('birthdate') || '',
+        
+        // Demographics
+        ssn: p.getValue('ssn') || '',
+        gender: p.getValue('gender') || '',
+        race: p.getValue('race') || '',
+        ethnicity: p.getValue('ethnicity') || '',
+        education_level: p.getValue('education_level') || '',
+        marital_status: p.getValue('marital_status') || '',
+        military_status: p.getValue('military_status') || '',
+        disability_status: p.getValue('disability_status') || '',
+        citizenship_status: p.getValue('citizenship_status') || '',
+        tribal_affiliation: p.getValue('tribal_affiliation') || '',
+        
+        // Organization & Identity
+        applicant_type: p.getValue('applicant_type') || '',
+        identity_type: p.getValue('identity_type') || '',
+        uei: p.getValue('uei') || '',
+        tin_ein: p.getValue('tin_ein') || '',
+        organization: p.getValue('organization') || '',
+        grant_program: p.getValue('program') || data.prefill.program || '',
+        
+        // Proposal Details
+        proposal_title: p.getValue('proposal_title') || '',
+        short_description: p.getValue('short_description') || '',
+        proposal_description: p.getValue('proposal_description') || '',
+        requested_budget: p.getValue('requested_budget') || '',
+        project_start_date: p.getDisplayValue('project_start_date') || '',
+        project_end_date: p.getDisplayValue('project_end_date') || '',
+        project_goals_and_objectives: p.getValue('project_goals_and_objectives') || '',
+        project_activities_methodology: p.getValue('project_activities_methodology') || '',
+        program_category: p.getValue('program_category') || ''
+      };
+    }
+  }
+
+  // ============================================================
+  // ===================== LOAD CHOICES =========================
+  // ============================================================
+  data.choices = {
+    applicant_type: getChoicesSys(applicantTable, 'applicant_type'),
+    identity_type: getChoicesSys(applicantTable, 'identity_type'),
+    gender: getChoicesSys(applicantTable, 'gender'),
+    ethnicity: getChoicesSys(applicantTable, 'ethnicity'),
+    education_level: getChoicesSys(applicantTable, 'education_level'),
+    marital_status: getChoicesSys(applicantTable, 'marital_status'),
+    military_status: getChoicesSys(applicantTable, 'military_status'),
+    disability_status: getChoicesSys(applicantTable, 'disability_status'),
+    citizenship_status: getChoicesSys(applicantTable, 'citizenship_status'),
+    race: getChoicesSys(applicantTable, 'race'),
+    tribal_affiliation: getChoicesSys(applicantTable, 'tribal_affiliation'),
+    state: getChoicesSys(applicantTable, 'state')
+  };
+
+  // ============================================================
+  // ==================== LOAD PROGRAMS =========================
+  // ============================================================
+  data.programs = [];
+  
+  // Try to find the correct grant program table
+  var programTableNames = [
+    'x_enno_gatenow_service_grant_program',  // Most likely based on your scope
+    'x_sysus_grant_life_grant_program',      // Your old table
+    'x_enno_gatenow_grant_program'           // Alternative
+  ];
+  
+  var programTableFound = false;
+  
+  for (var t = 0; t < programTableNames.length; t++) {
+    try {
+      var testGr = new GlideRecord(programTableNames[t]);
+      if (testGr.isValid()) {
+        gs.info('[Intake] Found grant program table: ' + programTableNames[t]);
+        
+        testGr.addActiveQuery();
+        testGr.orderBy('program_name');
+        testGr.query();
+        
+        while (testGr.next()) {
+          data.programs.push({
+            sys_id: testGr.getUniqueValue(),
+            name: testGr.getValue('program_name') || testGr.getValue('name') || testGr.getDisplayValue(),
+            number: testGr.getValue('number') || testGr.getValue('program_number') || '',
+            category: testGr.getValue('category') || testGr.getValue('program_category') || ''
+          });
+        }
+        
+        programTableFound = true;
+        gs.info('[Intake] Loaded ' + data.programs.length + ' grant programs');
+        break;
+      }
+    } catch (ex) {
+      // Table doesn't exist, try next one
+      continue;
+    }
+  }
+  
+  if (!programTableFound) {
+    gs.warn('[Intake] No grant program table found. Please configure program dropdown manually.');
+    // Return empty array - form will still work without program dropdown
+    data.programs = [];
+  }
+
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-02-17 10:39:56</sys_created_on>
+        <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
+        <sys_mod_count>7</sys_mod_count>
+        <sys_name>Applicant_form</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-02-17 16:50:41</sys_updated_on>
+        <template><![CDATA[<div class="multistep-grant-form-wrapper">
+  
+  <!-- Progress Indicator -->
+  <div class="form-progress-bar">
+    <div class="progress-steps-container">
+      <div class="progress-step" 
+           ng-class="{
+             'step-active': c.currentStep === 1,
+             'step-completed': c.currentStep > 1
+           }"
+           ng-click="c.goToStep(1)">
+        <div class="step-circle">
+          <span class="step-number">1</span>
+          <i class="fa fa-check step-check-icon"></i>
+        </div>
+        <span class="step-label">Personal Info</span>
+      </div>
+      
+      <div class="progress-connector" 
+           ng-class="{'connector-completed': c.currentStep > 1}"></div>
+      
+      <div class="progress-step" 
+           ng-class="{
+             'step-active': c.currentStep === 2,
+             'step-completed': c.currentStep > 2
+           }"
+           ng-click="c.goToStep(2)">
+        <div class="step-circle">
+          <span class="step-number">2</span>
+          <i class="fa fa-check step-check-icon"></i>
+        </div>
+        <span class="step-label">Demographics</span>
+      </div>
+      
+      <div class="progress-connector" 
+           ng-class="{'connector-completed': c.currentStep > 2}"></div>
+      
+      <div class="progress-step" 
+           ng-class="{
+             'step-active': c.currentStep === 3,
+             'step-completed': c.currentStep > 3
+           }"
+           ng-click="c.goToStep(3)">
+        <div class="step-circle">
+          <span class="step-number">3</span>
+          <i class="fa fa-check step-check-icon"></i>
+        </div>
+        <span class="step-label">Organization</span>
+      </div>
+      
+      <div class="progress-connector" 
+           ng-class="{'connector-completed': c.currentStep > 3}"></div>
+      
+      <div class="progress-step" 
+           ng-class="{
+             'step-active': c.currentStep === 4,
+             'step-completed': c.currentStep > 4
+           }"
+           ng-click="c.goToStep(4)">
+        <div class="step-circle">
+          <span class="step-number">4</span>
+          <i class="fa fa-check step-check-icon"></i>
+        </div>
+        <span class="step-label">Proposal</span>
+      </div>
+      
+      <div class="progress-connector" 
+           ng-class="{'connector-completed': c.currentStep > 4}"></div>
+      
+      <div class="progress-step" 
+           ng-class="{
+             'step-active': c.currentStep === 5,
+             'step-completed': c.currentStep > 5
+           }"
+           ng-click="c.goToStep(5)">
+        <div class="step-circle">
+          <span class="step-number">5</span>
+          <i class="fa fa-check step-check-icon"></i>
+        </div>
+        <span class="step-label">Documents</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Page Header -->
+  <div class="multistep-page-header">
+    <div class="header-icon-badge">
+      <i class="fa fa-file-text"></i>
+    </div>
+    <div class="header-content-group">
+      <h1 class="page-main-title">Grant Application</h1>
+      <p class="page-main-subtitle">Step {{c.currentStep}} of 5: {{c.getStepTitle()}}</p>
+    </div>
+  </div>
+  
+  <!-- Main Form Container -->
+  <div class="multistep-form-container">
+    
+    <!-- Step 1: Personal Information -->
+    <div ng-show="c.currentStep === 1" class="form-step-content">
+      <div class="form-section-block">
+        <div class="section-block-header">
+          <div class="section-header-icon">
+            <i class="fa fa-user"></i>
+          </div>
+          <h2 class="section-block-title">Personal Information</h2>
+          <p class="section-block-subtitle">Please provide your basic contact details</p>
+        </div>
+        
+        <div class="form-fields-grid">
+          
+          <!-- First Name -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              First Name <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.first_name" 
+                   placeholder="Enter first name"
+                   ng-class="{'field-error': c.errors.first_name}"
+                   required />
+            <span ng-if="c.errors.first_name" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.first_name}}
+            </span>
+          </div>
+          
+          <!-- Middle Name -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Middle Name <span class="field-optional-mark">(Optional)</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.middle_name" 
+                   placeholder="Enter middle name" />
+          </div>
+          
+          <!-- Last Name -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Last Name <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.last_name" 
+                   placeholder="Enter last name"
+                   ng-class="{'field-error': c.errors.last_name}"
+                   required />
+            <span ng-if="c.errors.last_name" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.last_name}}
+            </span>
+          </div>
+          
+          <!-- Email -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Email Address <span class="field-required-mark">*</span>
+            </label>
+            <input type="email" 
+                   class="field-text-input" 
+                   ng-model="c.form.email" 
+                   placeholder="your.email@example.com"
+                   ng-class="{'field-error': c.errors.email}"
+                   required />
+            <span ng-if="c.errors.email" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.email}}
+            </span>
+          </div>
+          
+          <!-- Phone Number -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Phone Number <span class="field-required-mark">*</span>
+            </label>
+            <input type="tel" 
+                   class="field-text-input" 
+                   ng-model="c.form.phone_number" 
+                   placeholder="(555) 123-4567"
+                   ng-class="{'field-error': c.errors.phone_number}"
+                   required />
+            <span ng-if="c.errors.phone_number" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.phone_number}}
+            </span>
+          </div>
+          
+          <!-- Birth Date -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Date of Birth <span class="field-required-mark">*</span>
+            </label>
+            <input type="date" 
+                   class="field-text-input field-date-input" 
+                   ng-model="c.form.birthdate"
+                   ng-class="{'field-error': c.errors.birthdate}"
+                   required />
+            <span ng-if="c.errors.birthdate" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.birthdate}}
+            </span>
+          </div>
+          
+          <!-- Street Address -->
+          <div class="form-field-wrapper form-field-full">
+            <label class="field-input-label">
+              Street Address <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.street" 
+                   placeholder="123 Main Street, Apt 4B"
+                   ng-class="{'field-error': c.errors.street}"
+                   required />
+            <span ng-if="c.errors.street" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.street}}
+            </span>
+          </div>
+          
+          <!-- City -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              City <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.city" 
+                   placeholder="Enter city"
+                   ng-class="{'field-error': c.errors.city}"
+                   required />
+            <span ng-if="c.errors.city" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.city}}
+            </span>
+          </div>
+          
+          <!-- Zip/Postal Code -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Zip / Postal Code <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.zip_postal_code" 
+                   placeholder="12345"
+                   ng-class="{'field-error': c.errors.zip_postal_code}"
+                   required />
+            <span ng-if="c.errors.zip_postal_code" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.zip_postal_code}}
+            </span>
+          </div>
+          
+          <!-- Country -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Country <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.country" 
+                   placeholder="United States"
+                   ng-class="{'field-error': c.errors.country}"
+                   required />
+            <span ng-if="c.errors.country" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.country}}
+            </span>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+    <!-- Step 2: Demographics -->
+    <div ng-show="c.currentStep === 2" class="form-step-content">
+      <div class="form-section-block">
+        <div class="section-block-header">
+          <div class="section-header-icon">
+            <i class="fa fa-users"></i>
+          </div>
+          <h2 class="section-block-title">Demographic Information</h2>
+          <p class="section-block-subtitle">Help us understand your background (required for federal reporting)</p>
+        </div>
+        
+        <div class="form-fields-grid">
+          
+          <!-- SSN -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Social Security Number <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.ssn" 
+                   placeholder="XXX-XX-XXXX"
+                   maxlength="11"
+                   ng-class="{'field-error': c.errors.ssn}"
+                   required />
+            <span class="field-help-text">
+              <i class="fa fa-lock"></i> Your SSN is securely encrypted
+            </span>
+            <span ng-if="c.errors.ssn" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.ssn}}
+            </span>
+          </div>
+          
+          <!-- Gender -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Gender <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.gender"
+                    ng-class="{'field-error': c.errors.gender}"
+                    required>
+              <option value="">-- Select Gender --</option>
+              <option ng-repeat="opt in c.data.choices.gender" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.gender" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.gender}}
+            </span>
+          </div>
+          
+          <!-- Race -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Race <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.race"
+                    ng-class="{'field-error': c.errors.race}"
+                    required>
+              <option value="">-- Select Race --</option>
+              <option ng-repeat="opt in c.data.choices.race" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.race" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.race}}
+            </span>
+          </div>
+          
+          <!-- Ethnicity -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Ethnicity <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.ethnicity"
+                    ng-class="{'field-error': c.errors.ethnicity}"
+                    required>
+              <option value="">-- Select Ethnicity --</option>
+              <option ng-repeat="opt in c.data.choices.ethnicity" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.ethnicity" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.ethnicity}}
+            </span>
+          </div>
+          
+          <!-- Education Level -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Education Level <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.education_level"
+                    ng-class="{'field-error': c.errors.education_level}"
+                    required>
+              <option value="">-- Select Education Level --</option>
+              <option ng-repeat="opt in c.data.choices.education_level" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.education_level" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.education_level}}
+            </span>
+          </div>
+          
+          <!-- Marital Status -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Marital Status <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.marital_status"
+                    ng-class="{'field-error': c.errors.marital_status}"
+                    required>
+              <option value="">-- Select Marital Status --</option>
+              <option ng-repeat="opt in c.data.choices.marital_status" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.marital_status" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.marital_status}}
+            </span>
+          </div>
+          
+          <!-- Military Status -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Military Status <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.military_status"
+                    ng-class="{'field-error': c.errors.military_status}"
+                    required>
+              <option value="">-- Select Military Status --</option>
+              <option ng-repeat="opt in c.data.choices.military_status" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.military_status" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.military_status}}
+            </span>
+          </div>
+          
+          <!-- Disability Status -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Disability Status <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.disability_status"
+                    ng-class="{'field-error': c.errors.disability_status}"
+                    required>
+              <option value="">-- Select Disability Status --</option>
+              <option ng-repeat="opt in c.data.choices.disability_status" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.disability_status" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.disability_status}}
+            </span>
+          </div>
+          
+          <!-- Citizenship Status -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Citizenship Status <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.citizenship_status"
+                    ng-class="{'field-error': c.errors.citizenship_status}"
+                    required>
+              <option value="">-- Select Citizenship Status --</option>
+              <option ng-repeat="opt in c.data.choices.citizenship_status" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.citizenship_status" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.citizenship_status}}
+            </span>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+    <!-- Step 3: Organization & Identity -->
+    <div ng-show="c.currentStep === 3" class="form-step-content">
+      <div class="form-section-block">
+        <div class="section-block-header">
+          <div class="section-header-icon">
+            <i class="fa fa-building"></i>
+          </div>
+          <h2 class="section-block-title">Organization & Identity</h2>
+          <p class="section-block-subtitle">Provide your organization and tax identification details</p>
+        </div>
+        
+        <div class="form-fields-grid">
+          
+          <!-- Applicant Type -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Applicant Type <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.applicant_type"
+                    ng-class="{'field-error': c.errors.applicant_type}"
+                    required>
+              <option value="">-- Select Applicant Type --</option>
+              <option ng-repeat="opt in c.data.choices.applicant_type" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.applicant_type" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.applicant_type}}
+            </span>
+          </div>
+          
+          <!-- Identity Type -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              Identity Type <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.identity_type"
+                    ng-class="{'field-error': c.errors.identity_type}"
+                    required>
+              <option value="">-- Select Identity Type --</option>
+              <option ng-repeat="opt in c.data.choices.identity_type" value="{{opt.value}}">
+                {{opt.label}}
+              </option>
+            </select>
+            <span ng-if="c.errors.identity_type" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.identity_type}}
+            </span>
+          </div>
+          
+          <!-- UEI -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              UEI (Unique Entity Identifier) <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.uei" 
+                   placeholder="12 characters"
+                   maxlength="12"
+                   ng-class="{'field-error': c.errors.uei}"
+                   required />
+            <span class="field-help-text">
+              <i class="fa fa-info-circle"></i> Register at SAM.gov if you don't have a UEI
+            </span>
+            <span ng-if="c.errors.uei" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.uei}}
+            </span>
+          </div>
+          
+          <!-- TIN/EIN -->
+          <div class="form-field-wrapper">
+            <label class="field-input-label">
+              TIN / EIN <span class="field-required-mark">*</span>
+            </label>
+            <input type="text" 
+                   class="field-text-input" 
+                   ng-model="c.form.tin_ein" 
+                   placeholder="XX-XXXXXXX"
+                   maxlength="10"
+                   ng-class="{'field-error': c.errors.tin_ein}"
+                   required />
+            <span class="field-help-text">
+              <i class="fa fa-info-circle"></i> Tax Identification Number or Employer Identification Number
+            </span>
+            <span ng-if="c.errors.tin_ein" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.tin_ein}}
+            </span>
+          </div>
+          
+          <!-- Grant Program -->
+          <div class="form-field-wrapper form-field-full">
+            <label class="field-input-label">
+              Grant Program <span class="field-required-mark">*</span>
+            </label>
+            <select class="field-select-input" 
+                    ng-model="c.form.grant_program"
+                    ng-class="{'field-error': c.errors.grant_program}"
+                    ng-disabled="c.data.program_param"
+                    required>
+              <option value="">-- Select Grant Program --</option>
+              <option ng-repeat="prog in c.data.programs" value="{{prog.sys_id}}">
+                {{prog.number ? prog.number + ' - ' : ''}}{{prog.name}}
+              </option>
+            </select>
+            <span ng-if="c.data.program_param" class="field-help-text">
+              <i class="fa fa-lock"></i> Program pre-selected from grant opportunity
+            </span>
+            <span ng-if="c.errors.grant_program" class="field-error-text">
+              <i class="fa fa-exclamation-circle"></i> {{c.errors.grant_program}}
+            </span>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+  <!-- Step 4: Proposal Details -->
+<div ng-show="c.currentStep === 4" class="form-step-content">
+  <div class="form-section-block">
+    <div class="section-block-header">
+      <div class="section-header-icon">
+        <i class="fa fa-pencil"></i>
+      </div>
+      <h2 class="section-block-title">Proposal Details</h2>
+      <p class="section-block-subtitle">Describe your project and funding requirements</p>
+    </div>
+    
+    <div class="form-fields-grid">
+      
+      <!-- Proposal Title -->
+      <div class="form-field-wrapper form-field-full">
+        <label class="field-input-label">
+          Proposal Title <span class="field-required-mark">*</span>
+        </label>
+        <input type="text" 
+               class="field-text-input" 
+               ng-model="c.form.proposal_title" 
+               placeholder="Enter a descriptive title for your proposal"
+               ng-class="{'field-error': c.errors.proposal_title}"
+               required />
+        <span ng-if="c.errors.proposal_title" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.proposal_title}}
+        </span>
+      </div>
+      
+      <!-- Short Description -->
+      <div class="form-field-wrapper form-field-full">
+        <label class="field-input-label">
+          Short Description <span class="field-required-mark">*</span>
+        </label>
+        <input type="text" 
+               class="field-text-input" 
+               ng-model="c.form.short_description" 
+               placeholder="Brief summary of your proposal (max 500 chars)"
+               maxlength="500"
+               ng-class="{'field-error': c.errors.short_description}"
+               required />
+        <span class="field-help-text">
+          <i class="fa fa-info-circle"></i> {{c.form.short_description ? (500 - c.form.short_description.length) : 500}} characters remaining
+        </span>
+        <span ng-if="c.errors.short_description" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.short_description}}
+        </span>
+      </div>
+      
+      <!-- Proposal Description -->
+      <div class="form-field-wrapper form-field-full">
+        <label class="field-input-label">
+          Proposal Description <span class="field-required-mark">*</span>
+        </label>
+        <textarea class="field-textarea-input" 
+                  rows="8" 
+                  ng-model="c.form.proposal_description" 
+                  placeholder="Detailed description of your project, goals, methodology, timeline, and expected outcomes"
+                  ng-class="{'field-error': c.errors.proposal_description}"
+                  required></textarea>
+        <span class="field-help-text">
+          <i class="fa fa-lightbulb-o"></i> Describe your project objectives, methodology, timeline, and expected impact
+        </span>
+        <span ng-if="c.errors.proposal_description" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.proposal_description}}
+        </span>
+      </div>
+      
+      <!-- ✅ NEW: Project Goals and Objectives -->
+      <div class="form-field-wrapper form-field-full">
+        <label class="field-input-label">
+          Project Goals and Objectives <span class="field-required-mark">*</span>
+        </label>
+        <textarea class="field-textarea-input" 
+                  rows="6" 
+                  ng-model="c.form.project_goals_and_objectives" 
+                  placeholder="Describe the specific goals and measurable objectives your project aims to achieve"
+                  ng-class="{'field-error': c.errors.project_goals_and_objectives}"
+                  required></textarea>
+        <span class="field-help-text">
+          <i class="fa fa-target"></i> List the specific, measurable, achievable goals and outcomes you plan to accomplish
+        </span>
+        <span ng-if="c.errors.project_goals_and_objectives" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.project_goals_and_objectives}}
+        </span>
+      </div>
+      
+      <!-- ✅ NEW: Project Activities/Methodology -->
+      <div class="form-field-wrapper form-field-full">
+        <label class="field-input-label">
+          Project Activities & Methodology <span class="field-required-mark">*</span>
+        </label>
+        <textarea class="field-textarea-input" 
+                  rows="6" 
+                  ng-model="c.form.project_activities_methodology" 
+                  placeholder="Explain the activities, methods, and approaches you will use to accomplish your project goals"
+                  ng-class="{'field-error': c.errors.project_activities_methodology}"
+                  required></textarea>
+        <span class="field-help-text">
+          <i class="fa fa-tasks"></i> Detail the specific activities, strategies, and methods you will employ to achieve your objectives
+        </span>
+        <span ng-if="c.errors.project_activities_methodology" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.project_activities_methodology}}
+        </span>
+      </div>
+      
+      <!-- Organization Name -->
+      <div class="form-field-wrapper">
+        <label class="field-input-label">
+          Organization Name <span class="field-optional-mark">(Optional)</span>
+        </label>
+        <input type="text" 
+               class="field-text-input" 
+               ng-model="c.form.organization" 
+               placeholder="Organization name" />
+      </div>
+      
+      <!-- Requested Budget -->
+      <div class="form-field-wrapper">
+        <label class="field-input-label">
+          Requested Budget <span class="field-required-mark">*</span>
+        </label>
+        <div class="field-input-group">
+          <span class="input-group-prefix">$</span>
+          <input type="number" 
+                 class="field-text-input field-input-with-prefix" 
+                 ng-model="c.form.requested_budget" 
+                 placeholder="50000"
+                 min="0"
+                 step="1000"
+                 ng-class="{'field-error': c.errors.requested_budget}"
+                 required />
+        </div>
+        <span class="field-help-text">
+          <i class="fa fa-dollar"></i> Total budget requested for this project
+        </span>
+        <span ng-if="c.errors.requested_budget" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.requested_budget}}
+        </span>
+      </div>
+      
+      <!-- Project Start Date -->
+      <div class="form-field-wrapper">
+        <label class="field-input-label">
+          Project Start Date <span class="field-required-mark">*</span>
+        </label>
+        <input type="date" 
+               class="field-text-input field-date-input" 
+               ng-model="c.form.project_start_date"
+               ng-class="{'field-error': c.errors.project_start_date}"
+               required />
+        <span ng-if="c.errors.project_start_date" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.project_start_date}}
+        </span>
+      </div>
+      
+      <!-- Project End Date -->
+      <div class="form-field-wrapper">
+        <label class="field-input-label">
+          Project End Date <span class="field-required-mark">*</span>
+        </label>
+        <input type="date" 
+               class="field-text-input field-date-input" 
+               ng-model="c.form.project_end_date"
+               ng-class="{'field-error': c.errors.project_end_date}"
+               required />
+        <span ng-if="c.errors.project_end_date" class="field-error-text">
+          <i class="fa fa-exclamation-circle"></i> {{c.errors.project_end_date}}
+        </span>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+    <!-- Step 5: Documents Upload -->
+    <div ng-show="c.currentStep === 5" class="form-step-content">
+      <div class="form-section-block">
+        <div class="section-block-header">
+          <div class="section-header-icon">
+            <i class="fa fa-paperclip"></i>
+          </div>
+          <h2 class="section-block-title">Supporting Documents</h2>
+          <p class="section-block-subtitle">Upload all required documentation for your application</p>
+        </div>
+        
+        <div class="form-field-wrapper form-field-required">
+          <label class="field-input-label">
+            Upload Application Documents <span class="field-required-mark">*</span>
+          </label>
+          
+          <div class="upload-documents-info-box">
+            <h4 class="upload-info-title">
+              <i class="fa fa-list-ul"></i> Required Documents
+            </h4>
+            <ul class="upload-checklist">
+              <li><i class="fa fa-circle-o"></i> Project Narrative</li>
+              <li><i class="fa fa-circle-o"></i> Detailed Budget and Justification</li>
+              <li><i class="fa fa-circle-o"></i> Timeline / Work Plan</li>
+              <li><i class="fa fa-circle-o"></i> Letters of Support</li>
+              <li><i class="fa fa-circle-o"></i> Compliance Certifications (if applicable)</li>
+            </ul>
+          </div>
+          
+          <div class="file-upload-zone" 
+               ng-class="{'file-drag-over': c.isDragging}"
+               ng-file-drop="c.onFilesDrop($files)"
+               ng-file-drop-available="c.dropSupported = true"
+               ng-model="c.files">
+            
+            <div class="upload-icon-wrapper">
+              <i class="fa fa-cloud-upload"></i>
+            </div>
+            
+            <p class="upload-instruction">
+              <strong>Drag and drop files here</strong> or click to browse
+            </p>
+            
+            <label class="upload-browse-button">
+              <input type="file" 
+                     class="upload-file-input" 
+                     ng-file-select="c.onFilesSelected($files)" 
+                     multiple 
+                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
+              <i class="fa fa-folder-open"></i>
+              Browse Files
+            </label>
+            
+            <p class="upload-help-text">
+              <i class="fa fa-info-circle"></i>
+              Accepted formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB per file)
+            </p>
+          </div>
+          
+          <div ng-if="c.uploadedFiles && c.uploadedFiles.length > 0" class="uploaded-files-list">
+            <div class="uploaded-files-header">
+              <i class="fa fa-check-circle"></i>
+              <span>Uploaded Files ({{c.uploadedFiles.length}})</span>
+            </div>
+            
+            <div class="file-item" ng-repeat="file in c.uploadedFiles">
+              <div class="file-item-icon">
+                <i class="fa" ng-class="{
+                  'fa-file-pdf-o': file.type === 'application/pdf',
+                  'fa-file-word-o': file.type.indexOf('word') > -1 || file.type.indexOf('document') > -1,
+                  'fa-file-image-o': file.type.indexOf('image') > -1,
+                  'fa-file-o': !file.type
+                }"></i>
+              </div>
+              
+              <div class="file-item-details">
+                <span class="file-item-name">{{file.name}}</span>
+                <span class="file-item-size">{{c.formatFileSize(file.size)}}</span>
+              </div>
+              
+              <button type="button" 
+                      class="file-item-remove" 
+                      ng-click="c.removeFile($index)"
+                      title="Remove file">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div ng-if="c.uploadProgress && c.uploadProgress > 0" class="upload-progress-bar">
+            <div class="progress-bar-fill" ng-style="{'width': c.uploadProgress + '%'}"></div>
+            <span class="progress-bar-text">Uploading... {{c.uploadProgress}}%</span>
+          </div>
+          
+          <span ng-if="c.errors.documents" class="field-error-text">
+            <i class="fa fa-exclamation-circle"></i> {{c.errors.documents}}
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Navigation Buttons -->
+    <div class="multistep-nav-actions">
+      <button type="button" 
+              class="btn-nav-back" 
+              ng-click="c.prevStep()" 
+              ng-show="c.currentStep > 1"
+              ng-disabled="c.saving">
+        <i class="fa fa-arrow-left"></i>
+        Previous
+      </button>
+      
+      <div class="nav-actions-spacer"></div>
+      
+      <button type="button" 
+              class="btn-nav-cancel" 
+              ng-click="c.cancel()"
+              ng-disabled="c.saving">
+        <i class="fa fa-times"></i>
+        Cancel
+      </button>
+      
+      <button type="button" 
+              class="btn-nav-save-draft" 
+              ng-click="c.saveDraft()" 
+              ng-disabled="c.saving">
+        <i class="fa fa-save"></i>
+        Save Draft
+      </button>
+      
+      <button type="button" 
+              class="btn-nav-next" 
+              ng-click="c.nextStep()" 
+              ng-show="c.currentStep < 5"
+              ng-disabled="c.saving">
+        Next
+        <i class="fa fa-arrow-right"></i>
+      </button>
+      
+      <button type="button" 
+              class="btn-nav-submit" 
+              ng-click="c.submit()" 
+              ng-show="c.currentStep === 5"
+              ng-disabled="c.saving">
+        <span ng-if="!c.saving">
+          <i class="fa fa-paper-plane"></i>
+          Submit Application
+        </span>
+        <span ng-if="c.saving">
+          <i class="fa fa-spinner fa-spin"></i>
+          Submitting...
+        </span>
+      </button>
+    </div>
+    
+  </div>
+</div>
+]]></template>
+    </sp_widget>
+</record_update>

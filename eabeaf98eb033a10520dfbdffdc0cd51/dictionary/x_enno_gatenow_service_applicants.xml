@@ -3,25 +3,25 @@
         <element label="Submission date" max_length="40" name="submission_date" type="glide_date"/>
         <element choice="1" label="Tribal affiliation" max_length="40" name="tribal_affiliation" type="choice">
             <choice>
-                <element inactive_on_update="false" label="No" sequence="1" value="No"/>
-                <element inactive_on_update="false" label="Yes" sequence="0" value="Yes"/>
+                <element inactive_on_update="false" label="No" sequence="0" value="No"/>
+                <element inactive_on_update="false" label="Yes" sequence="1" value="Yes"/>
             </choice>
         </element>
-        <element label="Proposal Description" max_length="4000" name="proposal_description" type="string"/>
+        <element label="Proposal Description" mandatory="true" max_length="4000" name="proposal_description" type="string"/>
         <element label="TIN / EIN" max_length="40" name="tin_ein" type="string"/>
-        <element choice="1" label="Applicant type" max_length="40" name="applicant_type" type="choice">
+        <element choice="1" label="Applicant type" mandatory="true" max_length="40" name="applicant_type" type="choice">
             <choice>
-                <element inactive_on_update="false" label="Individual" sequence="0" value="Individual"/>
-                <element inactive_on_update="false" label="Organization" sequence="1" value="Organization"/>
-                <element inactive_on_update="false" label="Government" sequence="2" value="Goverment"/>
+                <element inactive_on_update="false" label="Individual" sequence="1" value="Individual"/>
+                <element inactive_on_update="false" label="Organization" sequence="2" value="Organization"/>
+                <element inactive_on_update="false" label="Government" sequence="0" value="Goverment"/>
             </choice>
         </element>
         <element label="Project End Date" max_length="40" name="project_end_date" type="glide_date"/>
-        <element label="Requested Budget" max_length="40" name="requested_budget" type="string"/>
+        <element label="Requested Budget" max_length="38" name="requested_budget" type="currency"/>
         <element label="Street" max_length="40" name="street" type="string"/>
-        <element label="Phone number" max_length="40" name="phone_number" type="integer"/>
+        <element label="Phone number" mandatory="true" max_length="40" name="phone_number" type="integer"/>
         <element label="Country" max_length="40" name="country" type="string"/>
-        <element choice="1" label="Citizenship status" max_length="40" name="citizenship_status" type="choice">
+        <element choice="1" label="Citizenship status" mandatory="true" max_length="40" name="citizenship_status" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Non-Immigrant" sequence="1" value="Non-Immigrant"/>
                 <element inactive_on_update="false" label="Citizen" sequence="0" value="Citizen"/>
@@ -32,14 +32,24 @@
         <element choice="1" label="Gender" max_length="40" name="gender" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Other" sequence="2" value="Other"/>
-                <element inactive_on_update="false" label="Male" sequence="0" value="Male"/>
-                <element inactive_on_update="false" label="Female" sequence="1" value="Female"/>
+                <element inactive_on_update="false" label="Male" sequence="1" value="Male"/>
+                <element inactive_on_update="false" label="Female" sequence="0" value="Female"/>
             </choice>
         </element>
-        <element choice="1" label="State" max_length="40" name="state" type="choice">
-            <choice/>
+        <element choice="1" label="State" mandatory="true" max_length="40" name="state" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="New" sequence="0" value="new"/>
+                <element inactive_on_update="false" label="Declined by Applicant" sequence="6" value="declined_by_applicant"/>
+                <element inactive_on_update="false" label="Declined by Agency" sequence="4" value="declined_by_agency"/>
+                <element inactive_on_update="false" label="Review in Progress" sequence="2" value="review_in_progress"/>
+                <element inactive_on_update="false" label="Award Pending" sequence="3" value="award_pending"/>
+                <element inactive_on_update="false" label="Ready for Review" sequence="1" value="ready_for_review"/>
+                <element inactive_on_update="false" label="Ineligible" sequence="7" value="ineligible"/>
+                <element inactive_on_update="false" label="Award Acknowledged" sequence="5" value="award_acknowledged"/>
+                <element inactive_on_update="false" label="Closed" sequence="8" value="closed"/>
+            </choice>
         </element>
-        <element label="Middle name" max_length="40" name="middle_name" type="string"/>
+        <element label="Middle name" mandatory="true" max_length="40" name="middle_name" type="string"/>
         <element choice="1" label="Marital status" max_length="40" name="marital_status" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Single" sequence="2" value="Single"/>
@@ -49,7 +59,7 @@
             </choice>
         </element>
         <element label="Applicant" max_length="40" name="applicant" type="string"/>
-        <element choice="1" label="Identity type" max_length="40" name="identity_type" type="choice">
+        <element choice="1" label="Identity type" mandatory="true" max_length="40" name="identity_type" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Driver's License Number" sequence="0" value="Driver's License Number"/>
                 <element inactive_on_update="false" label="State Identification Number" sequence="3" value="State Identification Number"/>
@@ -66,9 +76,9 @@
             </choice>
         </element>
         <element label="Project Start Date" max_length="40" name="project_start_date" type="glide_date"/>
-        <element label="Last name" max_length="40" name="last_name" type="string"/>
+        <element label="Last name" mandatory="true" max_length="40" name="last_name" type="string"/>
         <element label="Organization" max_length="40" name="organization" type="string"/>
-        <element label="First name" max_length="40" name="first_name" type="string"/>
+        <element label="First name" mandatory="true" max_length="40" name="first_name" type="string"/>
         <element choice="1" label="Race" max_length="40" name="race" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Asian" sequence="1" value="Asian"/>
@@ -79,13 +89,13 @@
                 <element inactive_on_update="false" label="Black or African American" sequence="2" value="Black or African American"/>
             </choice>
         </element>
-        <element label="Proposal Title" max_length="500" name="proposal_title" type="string"/>
+        <element label="Proposal Title" mandatory="true" max_length="500" name="proposal_title" type="string"/>
         <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" read_only="true" type="string" use_dynamic_default="true"/>
-        <element label="Short Description" max_length="4000" name="short_description" type="string"/>
+        <element label="Short Description" mandatory="true" max_length="4000" name="short_description" type="string"/>
         <element label="Zip / Postal code" max_length="40" name="zip_postal_code" type="string"/>
-        <element label="Program" max_length="40" name="program" type="string"/>
+        <element label="Program" max_length="40" name="program" reference="x_enno_gatenow_grant_program" type="reference"/>
         <element label="Program Category" max_length="40" name="program_category" type="string"/>
-        <element label="User" max_length="40" name="user" type="string"/>
+        <element label="User" max_length="40" name="user" reference="sys_user" type="reference"/>
         <element choice="1" label="Disability status" max_length="40" name="disability_status" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Yes, I have a disability" sequence="2" value="Yes, I have a disability"/>
@@ -100,7 +110,7 @@
                 <element inactive_on_update="false" label="Hispanic or Latino" sequence="0" value="Hispanic or Latino"/>
             </choice>
         </element>
-        <element label="Project Goals and Objectives " max_length="4000" name="project_goals_and_objectives" type="string"/>
+        <element label="Project Goals and Objectives " mandatory="true" max_length="4000" name="project_goals_and_objectives" type="string"/>
         <element label="City" max_length="40" name="city" type="string"/>
         <element choice="1" label="Education level" max_length="40" name="education_level" type="choice">
             <choice>
@@ -117,9 +127,9 @@
         </element>
         <element label="UEI" max_length="40" name="uei" type="string"/>
         <element label="SSN" max_length="40" name="ssn" type="string"/>
-        <element label="Email" max_length="40" name="email" type="string"/>
-        <element label="Review group" max_length="40" name="review_group" type="string"/>
-        <element label="Birthdate" max_length="40" name="birthdate" type="glide_date"/>
-        <element label="Project Activities/Methodology " max_length="4000" name="project_activities_methodology" type="string"/>
+        <element label="Email" mandatory="true" max_length="40" name="email" type="string"/>
+        <element label="Review group" mandatory="true" max_length="40" name="review_group" reference="sys_user_group" type="reference"/>
+        <element label="Birthdate" mandatory="true" max_length="40" name="birthdate" type="glide_date"/>
+        <element label="Project Activities/Methodology " mandatory="true" max_length="4000" name="project_activities_methodology" type="string"/>
     </element>
 </database>
