@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $element) {
+  var c = this;
+
+  c.scrollLeft = function() {
+    var track = document.getElementById('gpUpcomingTrack');
+    if (!track) return;
+    track.scrollBy({ left: -track.clientWidth, behavior: 'smooth' });
+  };
+
+  c.scrollRight = function() {
+    var track = document.getElementById('gpUpcomingTrack');
+    if (!track) return;
+    track.scrollBy({ left: track.clientWidth, behavior: 'smooth' });
+  };
+};
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>$gp-bg: #f5f7fb;
+$gp-card-bg: #ffffff;
+$gp-primary: #0a1f61;
+$gp-primary-text: #ffffff;
+$gp-muted-text: #64748b;
+$gp-border: #e2e8f0;
+$gp-shadow: rgba(15, 23, 42, 0.08);
+
+/* Section */
+
+.gp-upcoming {
+  margin: 5rem 0;
+  background-color: transparent;    /* remove panel background */
+  padding: 5rem 0;
+}
+
+.gp-upcoming__inner {
+  max-width: 100rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Header */
+
+.gp-upcoming__header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.gp-upcoming__title {
+  margin: 0 0 0.8rem;
+  font-size: 3.5rem !important;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.gp-upcoming__subtitle {
+  margin: 0;
+  font-size: 1.3rem !important;
+  color: $gp-muted-text;
+}
+
+/* Card */
+
+.gp-upcoming__card-inner {
+  background-color: $gp-card-bg;
+  border-radius: 1.25rem;
+  border: 1px solid $gp-border;
+  padding: 2.25rem 2rem;
+ 
+  display: flex;
+  flex-direction: column;
+  height: 270px;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    border-color 0.2s ease;
+
+  &amp;:hover {
+    transform: translateY(-4px);
+    border-color: rgba($gp-primary, 0.28);
+ 
+  }
+}
+
+.gp-upcoming__description {
+  margin: 0 0 1.8rem;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: $gp-muted-text;
+}
+
+/* Eyebrow */
+
+.gp-upcoming__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.gp-upcoming__eyebrow-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.gp-upcoming__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background-color: #cbd5e1;
+}
+
+/* Title */
+
+.gp-upcoming__card-title {
+  margin: 0 0 1.5rem;
+  font-size: 1.75rem !important;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+/* Info row */
+
+.gp-upcoming__info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem 1rem;
+  margin-bottom: 1.9rem;
+
+  @media (min-width: 1100px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.gp-upcoming__info-block {
+  min-width: 0;
+}
+
+.gp-upcoming__info-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.2rem;
+}
+
+.gp-upcoming__info-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Bottom row */
+
+.gp-upcoming__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: auto;
+}
+
+/* Link CTA */
+
+.gp-upcoming__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: $gp-primary;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.gp-upcoming__link-icon {
+  font-size: 1rem;
+  transform: translateX(0);
+  transition: transform 0.16s ease;
+}
+
+.gp-upcoming__link:hover .gp-upcoming__link-icon {
+  transform: translateX(3px);
+}
+
+/* Horizontal row container */
+
+.gp-upcoming__row {
+  position: relative;
+}
+
+/* Track: horizontal scroll of cards */
+
+.gp-upcoming__row-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  gap: 2rem;
+  padding-bottom: 0.5rem;
+
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gp-upcoming__row-track::-webkit-scrollbar {
+  display: none;
+}
+
+/* Cards in track */
+
+.gp-upcoming__card {
+  flex: 0 0 32%;
+  min-width: 280px;
+}
+
+/* Bottom arrows (carousel controls) */
+
+.gp-upcoming__nav-bottom {
+  margin-top: 4.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.8rem;
+}
+
+.gp-upcoming__nav-btn {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 999px;
+  border: 1px solid $gp-border;
+  background-color: #ffffff;
+  color: $gp-muted-text;
+  font-size: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px $gp-shadow;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.gp-upcoming__nav-btn:hover {
+  background-color: $gp-primary;
+  color: $gp-primary-text;
+  border-color: $gp-primary;
+  transform: translateY(-1px);
+}
+
+/* Empty state */
+
+.gp-upcoming__empty {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  color: $gp-muted-text;
+}
+
+/* Mobile */
+
+@media (max-width: 768px) {
+  .gp-upcoming {
+    padding: 3.75rem 0;
+  }
+
+  .gp-upcoming__card-inner {
+    padding: 1.9rem 1.5rem;
+  }
+
+  .gp-upcoming__card {
+    flex: 0 0 85%;
+  }
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>upcoming_published_programs</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Upcoming Published Programs</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  data.programs = [];
+
+  var opts = options || {};
+  if (typeof opts === "string" && opts.trim().length > 0) {
+    try { opts = JSON.parse(opts); } catch (e) { opts = {}; }
+  }
+
+  var gr = new GlideRecord('x_enno_gatenow_grant_program');
+  gr.addQuery('active', true);
+  gr.addQuery('status', 'Published');
+  gr.addNotNullQuery('proposal_open_date');
+  gr.orderBy('proposal_open_date');
+  gr.query();
+
+  while (gr.next()) {
+    var rec = {};
+    rec.sys_id             = gr.getUniqueValue();
+    rec.program_name       = gr.getDisplayValue('program_name');
+    rec.program_category   = gr.getDisplayValue('program_category');
+    rec.program_description = gr.getDisplayValue('program_description');
+    rec.proposal_open_date = gr.getDisplayValue('proposal_open_date');
+    rec.award_type         = gr.getDisplayValue('award_type');
+    rec.status             = gr.getDisplayValue('program_status') || 'Upcoming';
+
+    data.programs.push(rec);
+  }
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-02-16 08:17:01</sys_created_on>
+        <sys_id>b649225a2f0fb250d2a0d68fcea4e32e</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_name>Upcoming Published Programs</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_b649225a2f0fb250d2a0d68fcea4e32e</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-02-16 08:22:05</sys_updated_on>
+        <template><![CDATA[<section class="gp-upcoming">
+  <div class="gp-upcoming__inner container">
+
+    <header class="gp-upcoming__header">
+      <h2 class="gp-upcoming__title">
+        Upcoming Grant Programs
+      </h2>
+      <p class="gp-upcoming__subtitle">
+        Funding opportunities — applications opening soon
+      </p>
+    </header>
+
+    <!-- Horizontal carousel -->
+    <div class="gp-upcoming__row" ng-if="c.data.programs.length">
+
+      <div class="gp-upcoming__row-track" id="gpUpcomingTrack">
+        <article class="gp-upcoming__card"
+                 ng-repeat="program in c.data.programs track by program.sys_id">
+          <div class="gp-upcoming__card-inner">
+
+            <div class="gp-upcoming__eyebrow"
+                 ng-if="program.program_category || program.status">
+              <span class="gp-upcoming__eyebrow-text" ng-if="program.program_category">
+                {{program.program_category}}
+              </span>
+              <span class="gp-upcoming__dot"
+                    ng-if="program.program_category && program.status"></span>
+              <span class="gp-upcoming__eyebrow-text" ng-if="program.status">
+                {{program.status}}
+              </span>
+            </div>
+
+            <h3 class="gp-upcoming__card-title">
+              {{program.program_name}}
+            </h3>
+
+            <p class="gp-upcoming__description"
+               ng-if="program.program_description">
+              {{program.program_description | limitTo: 120}}{{program.program_description.length > 120 ? '…' : ''}}
+            </p>
+
+            <div class="gp-upcoming__info">
+              <div class="gp-upcoming__info-block">
+                <div class="gp-upcoming__info-label">Opens</div>
+                <div class="gp-upcoming__info-value">
+                  {{program.proposal_open_date}}
+                </div>
+              </div>
+              <div class="gp-upcoming__info-block">
+                <div class="gp-upcoming__info-label">Award type</div>
+                <div class="gp-upcoming__info-value">
+                  {{program.award_type}}
+                </div>
+              </div>
+            </div>
+
+            <div class="gp-upcoming__bottom">
+              <a class="gp-upcoming__link"
+                 href="gap?id=published_view_details&program_id={{program.sys_id}}">
+                Explore program
+                <span class="gp-upcoming__link-icon">→</span>
+              </a>
+            </div>
+
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- Bottom arrows -->
+    <div class="gp-upcoming__nav-bottom"
+         ng-if="c.data.programs.length > 1">
+      <button type="button"
+              class="gp-upcoming__nav-btn"
+              ng-click="c.scrollLeft()"
+              aria-label="Previous programs">
+        ‹
+      </button>
+      <button type="button"
+              class="gp-upcoming__nav-btn"
+              ng-click="c.scrollRight()"
+              aria-label="Next programs">
+        ›
+      </button>
+    </div>
+
+    <div class="gp-upcoming__empty" ng-if="!c.data.programs.length">
+      No upcoming programs available at this time.
+    </div>
+  </div>
+</section>
+]]></template>
+    </sp_widget>
+</record_update>
