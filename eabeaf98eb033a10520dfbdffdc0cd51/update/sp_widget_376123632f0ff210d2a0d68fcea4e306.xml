@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[function(spUtil, $window) {
+  var c = this;
+
+  c.searchText = '';
+  c.statusFilter = '';
+
+  c.filteredReviews = function() {
+    var list = c.data.reviews || [];
+
+    return list.filter(function(r) {
+      if (c.statusFilter && r.status !== c.statusFilter)
+        return false;
+
+      if (c.searchText) {
+        var txt = c.searchText.toLowerCase();
+        var num = (r.number || '').toLowerCase();
+        var prog = (r.program || '').toLowerCase();
+        if (num.indexOf(txt) === -1 && prog.indexOf(txt) === -1)
+          return false;
+      }
+      return true;
+    });
+  };
+
+  // Redirect to Review Detail portal page
+  c.openRecord = function(rev) {
+    if (!rev || !rev.sys_id)
+      return;
+
+    var url = '/review?id=review_proposal_detail_page&sys_id=' + rev.sys_id;
+    $window.location.href = url;
+  };
+}
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.grant-review-widget {
+  background: #f8fafc;
+  padding: 16px 20px;
+  border-radius: 4px;
+}
+
+.gr-header {
+  margin-bottom: 12px;
+}
+
+.gr-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.gr-subtitle {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.gr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gr-search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.gr-status-filter {
+  flex: 0 0 180px;
+}
+
+/* Card grid */
+.gr-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.gr-card {
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.gr-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.gr-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.gr-number {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.gr-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.gr-card-body {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.gr-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  gap: 6px;
+}
+
+.gr-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gr-value {
+  text-align: right;
+  flex: 1;
+}
+
+/* Footer */
+.gr-card-footer {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.gr-view-btn {
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+/* Mobile tweaks */
+@media (max-width: 576px) {
+  .gr-card {
+    padding: 10px;
+  }
+
+  .gr-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .gr-value {
+    text-align: left;
+  }
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>proposal_review</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Proposal Review</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  data.canRead = true; // or check roles here
+  data.reviews = [];
+
+  var userId = gs.getUserID();
+
+  // Get groups for current user
+  var groups = [];
+  var grMem = new GlideRecord('sys_user_grmember');
+  grMem.addQuery('user', userId);
+  grMem.query();
+  while (grMem.next()) {
+    groups.push(grMem.getValue('group'));
+  }
+
+  if (groups.length === 0)
+    return;
+
+  // READ: only reviews whose assignment_group is in user's groups
+  var gr = new GlideRecord('x_enno_gatenow_grant_review'); // change if your table name differs
+  gr.addQuery('assignment_group', 'IN', groups.join(','));
+  gr.orderBy('number');
+  gr.query();
+
+  while (gr.next()) {
+    data.reviews.push({
+      sys_id: gr.getUniqueValue(),
+      number: gr.getValue('number'),
+      reviewer: gr.getDisplayValue('u_reviewer'),
+      assignment_group: gr.getDisplayValue('assignment_group'),
+      decision_type: gr.getDisplayValue('u_decision_type'),
+      status: gr.getDisplayValue('u_status'),
+      score: gr.getValue('u_score'),
+      applicant: gr.getDisplayValue('u_applicant'),
+      program: gr.getDisplayValue('u_program'),
+      review_notes: gr.getValue('u_review_notes') || ''
+    });
+  }
+
+  // SAVE
+  if (input && input.action == 'save_review' && input.review_sys_id) {
+    var reviewId = String(input.review_sys_id);
+    var form = input.form || {};
+
+    var grUpdate = new GlideRecord('x_enno_gatenow_grant_review');
+    if (grUpdate.get(reviewId)) {
+
+      // security: make sure still in user group
+      if (groups.indexOf(grUpdate.getValue('assignment_group')) == -1) {
+        data.success = false;
+        data.error = 'You are not allowed to update this review.';
+        return;
+      }
+
+      if (form.decision_type)
+        grUpdate.setValue('u_decision_type', form.decision_type);
+
+      if (form.status)
+        grUpdate.setValue('u_status', form.status);
+
+      if (!gs.nil(form.score))
+        grUpdate.setValue('u_score', form.score);
+
+      if (!gs.nil(form.review_notes))
+        grUpdate.setValue('u_review_notes', form.review_notes);
+
+      grUpdate.update();
+      data.success = true;
+    } else {
+      data.success = false;
+      data.error = 'Review record not found.';
+    }
+  }
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-02-20 09:34:16</sys_created_on>
+        <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_name>Proposal Review</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-02-20 10:22:35</sys_updated_on>
+        <template><![CDATA[<div class="grant-review-widget" ng-if="data.canRead">
+
+  <div class="gr-header">
+    <h2 class="gr-title">My Grant Reviews</h2>
+    <p class="gr-subtitle" ng-if="data.reviews.length">
+      You have {{data.reviews.length}} review task(s) assigned to your group.
+    </p>
+    <p class="gr-subtitle" ng-if="!data.reviews.length">
+      No grant reviews are currently assigned to your groups.
+    </p>
+  </div>
+
+  <div class="gr-filters" ng-if="data.reviews.length">
+    <input type="text"
+           class="form-control gr-search"
+           placeholder="Search by number or program"
+           ng-model="c.searchText">
+
+    <select class="form-control gr-status-filter"
+            ng-model="c.statusFilter">
+      <option value="">All statuses</option>
+      <option value="Review in progress">Review in progress</option>
+      <option value="Review completed">Review completed</option>
+      <option value="On hold">On hold</option>
+    </select>
+  </div>
+
+  <div class="gr-card-grid" ng-if="data.reviews.length">
+    <div class="gr-card"
+         ng-repeat="rev in c.filteredReviews()">
+
+      <div class="gr-card-header">
+        <span class="gr-number">{{rev.number}}</span>
+        <span class="gr-badge">{{rev.status}}</span>
+      </div>
+
+      <div class="gr-card-body">
+        <div class="gr-row">
+          <span class="gr-label">Program</span>
+          <span class="gr-value">{{rev.program}}</span>
+        </div>
+        <div class="gr-row">
+          <span class="gr-label">Applicant</span>
+          <span class="gr-value">{{rev.applicant}}</span>
+        </div>
+        <div class="gr-row">
+          <span class="gr-label">Score</span>
+          <span class="gr-value">{{rev.score || 'N/A'}}</span>
+        </div>
+        <div class="gr-row">
+          <span class="gr-label">Decision</span>
+          <span class="gr-value">{{rev.decision_type || 'N/A'}}</span>
+        </div>
+      </div>
+
+      <div class="gr-card-footer">
+        <button class="btn btn-link gr-view-btn"
+                type="button"
+                ng-click="c.openRecord(rev)">
+          View details
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="alert alert-danger" ng-if="!data.canRead">
+  You do not have permission to view grant reviews.
+</div>
+]]></template>
+    </sp_widget>
+</record_update>

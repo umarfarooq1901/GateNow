@@ -1,0 +1,537 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function ($scope, snAnalytics) {
+  var c = this;
+
+  $scope.featureClicked = function (item) {
+    if (!snAnalytics) return;
+
+    var payload = {
+      name: "GPA feature clicked",
+      data: {
+        feature_title: item.title,
+        feature_href: item.href
+      }
+    };
+    snAnalytics.addEvent(payload);
+  };
+};
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>$gpa-bg: #f5f7fb;
+$gpa-card-bg: #ffffff;
+$gpa-border: #e2e8f0;
+$gpa-primary: #0a1f61;
+$gpa-primary-soft: rgba(10, 31, 97, 0.08);
+$gpa-text-main: #0f172a;
+$gpa-text-muted: #6b7280;
+
+.gpa-features {
+  margin: 4rem 0rem 4rem 0rem;
+  background-color: $gpa-bg;
+  padding: 6rem 0 !important;
+
+  @media (min-width: 640px) {
+    padding: 5rem 0;
+  }
+}
+
+.gpa-features__inner {
+  max-width: 100rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Header */
+
+.gpa-features__header {
+  max-width: 60rem;
+  margin: 0 auto 4rem;
+}
+
+.gpa-features__title {
+  margin: 0 0 1rem;
+  font-size: 3.5rem !important;
+  font-weight: 700;
+  color: $gpa-text-main;
+
+  @media (min-width: 640px) {
+    font-size: 2.5rem;
+  }
+}
+
+.gpa-features__subtitle {
+  margin: 0;
+  font-size: 1.3rem !important;
+  color: $gpa-text-muted;
+}
+
+/* Grid - Updated for 4 cards */
+
+.gpa-features__grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr)); // Mobile: 1 column
+  gap: 2rem;
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); // Tablet: 2 columns
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)); // Desktop: 4 columns
+  }
+}
+
+/* Card */
+
+.gpa-feature-card {
+  background-color: $gpa-card-bg;
+  border-radius: 1.25rem;
+  border: 2px solid $gpa-border;
+  padding: 1.75rem 1.75rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background-color 0.18s ease;
+
+  &amp;:hover {
+    border-color: rgba($gpa-primary, 0.55);
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+    transform: translateY(-3px);
+    background-color: #ffffff;
+  }
+}
+
+.gpa-feature-card__header {
+  margin-bottom: 1.5rem;
+}
+
+.gpa-feature-card__icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  background-color: $gpa-primary-soft;
+  color: $gpa-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  font-size: 1.8rem !important;
+}
+
+.gpa-feature-card__title {
+  margin: 0 0 0.4rem;
+  font-size: 1.8rem !important;
+  font-weight: 600;
+  color: $gpa-text-main;
+}
+
+.gpa-feature-card__description {
+  margin: 0;
+  font-size: 1.3rem !important;
+  line-height: 1.6;
+  color: $gpa-text-muted;
+}
+
+/* Footer link */
+
+.gpa-feature-card__footer {
+  margin-top: 0.5rem;
+}
+
+.gpa-feature-card__link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.3rem !important;
+  font-weight: 600;
+  color: $gpa-primary;
+  text-decoration: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+
+  &amp;:hover {
+    text-decoration: underline;
+  }
+}
+
+.gpa-feature-card__link-icon {
+  margin-left: 0.4rem;
+  font-size: 1rem !important;
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>feature_section</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Feature Section</name>
+        <option_schema/>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[(function () {
+  function optVal(opt, fallback) {
+    if (!opt) return fallback || "";
+    if (typeof opt === "string") return opt;
+    if (opt.value) return opt.value;
+    return fallback || "";
+  }
+
+  data.heading = optVal(options.heading, "Everything You Need to Succeed");
+  data.subheading = optVal(
+    options.subheading,
+    "Our portal streamlines the grant application process from start to finish"
+  );
+
+  // ✅ UPDATED: 4 feature cards with improved content
+  data.features = [
+     {
+      iconClass: "fa fa-file-text-o",
+      title: "Browse Grant Programs",
+      description: "Explore available funding opportunities tailored to your transportation projects.",
+      href: "/applicant?id=opportunities_page"
+    },
+  ];
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-02-17 07:41:02</sys_created_on>
+        <sys_id>10daa3e62f437650d2a0d68fcea4e346</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_name>Feature Section</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_10daa3e62f437650d2a0d68fcea4e346</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-02-19 12:07:08</sys_updated_on>
+        <template><![CDATA[<section class="gpa-features">
+  <div class="gpa-features__inner container">
+
+    <!-- Heading / subheading -->
+    <div class="gpa-features__header text-center">
+      <h1 class="gpa-features__title">
+        {{data.heading}}
+      </h1>
+      <p class="gpa-features__subtitle">
+        {{data.subheading}}
+      </p>
+    </div>
+
+    <!-- Feature cards -->
+    <div class="gpa-features__grid">
+      <div class="gpa-feature-card" ng-repeat="item in data.features">
+        <div class="gpa-feature-card__header">
+          <div class="gpa-feature-card__icon">
+            <i class="{{item.iconClass}}"></i>
+          </div>
+          <h3 class="gpa-feature-card__title">
+            {{item.title}}
+          </h3>
+          <p class="gpa-feature-card__description">
+            {{item.description}}
+          </p>
+        </div>
+        <div class="gpa-feature-card__footer">
+          <a ng-href="{{item.href}}"
+             class="gpa-feature-card__link"
+             ng-click="featureClicked(item)">
+            Get Started
+            <span class="gpa-feature-card__link-icon">➜</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>253cd7823b92b6d0677f04e0b5e45a33</instance_id>
+        <instance_name>enablenowincdemo1</instance_name>
+        <name>sp_widget_10daa3e62f437650d2a0d68fcea4e346</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function ($scope, snAnalytics) {
+  var c = this;
+
+  $scope.featureClicked = function (item) {
+    if (!snAnalytics) return;
+
+    var payload = {
+      name: "GPA feature clicked",
+      data: {
+        feature_title: item.title,
+        feature_href: item.href
+      }
+    };
+    snAnalytics.addEvent(payload);
+  };
+};
+]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;$gpa-bg: #f5f7fb;
+$gpa-card-bg: #ffffff;
+$gpa-border: #e2e8f0;
+$gpa-primary: #0a1f61;
+$gpa-primary-soft: rgba(10, 31, 97, 0.08);
+$gpa-text-main: #0f172a;
+$gpa-text-muted: #6b7280;
+
+.gpa-features {
+  margin: 4rem 0rem 4rem 0rem;
+  background-color: $gpa-bg;
+  padding: 6rem 0 !important;
+
+  @media (min-width: 640px) {
+    padding: 5rem 0;
+  }
+}
+
+.gpa-features__inner {
+  max-width: 100rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Header */
+
+.gpa-features__header {
+  max-width: 60rem;
+  margin: 0 auto 4rem;
+}
+
+.gpa-features__title {
+  margin: 0 0 1rem;
+  font-size: 3.5rem !important;
+  font-weight: 700;
+  color: $gpa-text-main;
+
+  @media (min-width: 640px) {
+    font-size: 2.5rem;
+  }
+}
+
+.gpa-features__subtitle {
+  margin: 0;
+  font-size: 1.3rem !important;
+  color: $gpa-text-muted;
+}
+
+/* Grid - Updated for 4 cards */
+
+.gpa-features__grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr)); // Mobile: 1 column
+  gap: 2rem;
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); // Tablet: 2 columns
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)); // Desktop: 4 columns
+  }
+}
+
+/* Card */
+
+.gpa-feature-card {
+  background-color: $gpa-card-bg;
+  border-radius: 1.25rem;
+  border: 2px solid $gpa-border;
+  padding: 1.75rem 1.75rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background-color 0.18s ease;
+
+  &amp;amp;:hover {
+    border-color: rgba($gpa-primary, 0.55);
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+    transform: translateY(-3px);
+    background-color: #ffffff;
+  }
+}
+
+.gpa-feature-card__header {
+  margin-bottom: 1.5rem;
+}
+
+.gpa-feature-card__icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  background-color: $gpa-primary-soft;
+  color: $gpa-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  font-size: 1.8rem !important;
+}
+
+.gpa-feature-card__title {
+  margin: 0 0 0.4rem;
+  font-size: 1.8rem !important;
+  font-weight: 600;
+  color: $gpa-text-main;
+}
+
+.gpa-feature-card__description {
+  margin: 0;
+  font-size: 1.3rem !important;
+  line-height: 1.6;
+  color: $gpa-text-muted;
+}
+
+/* Footer link */
+
+.gpa-feature-card__footer {
+  margin-top: 0.5rem;
+}
+
+.gpa-feature-card__link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.3rem !important;
+  font-weight: 600;
+  color: $gpa-primary;
+  text-decoration: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+
+  &amp;amp;:hover {
+    text-decoration: underline;
+  }
+}
+
+.gpa-feature-card__link-icon {
+  margin-left: 0.4rem;
+  font-size: 1rem !important;
+}
+&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;true&lt;/has_preview&gt;&lt;id&gt;feature_section&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Feature Section&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;true&lt;/public&gt;&lt;roles/&gt;&lt;script&gt;&lt;![CDATA[(function () {
+  function optVal(opt, fallback) {
+    if (!opt) return fallback || "";
+    if (typeof opt === "string") return opt;
+    if (opt.value) return opt.value;
+    return fallback || "";
+  }
+
+  data.heading = optVal(options.heading, "Everything You Need to Succeed");
+  data.subheading = optVal(
+    options.subheading,
+    "Our portal streamlines the grant application process from start to finish"
+  );
+
+  // ✅ UPDATED: 4 feature cards with improved content
+  data.features = [
+     {
+      iconClass: "fa fa-file-text-o",
+      title: "Browse Grant Programs",
+      description: "Explore available funding opportunities tailored to your transportation projects.",
+      href: "/applicant?id=opportunities_page"
+    },
+  ];
+})();
+]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;adnan.tariq&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-02-17 07:41:02&lt;/sys_created_on&gt;&lt;sys_id&gt;10daa3e62f437650d2a0d68fcea4e346&lt;/sys_id&gt;&lt;sys_mod_count&gt;4&lt;/sys_mod_count&gt;&lt;sys_name&gt;Feature Section&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_10daa3e62f437650d2a0d68fcea4e346&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;umar.farooq&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-02-19 12:07:08&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;section class="gpa-features"&gt;
+  &lt;div class="gpa-features__inner container"&gt;
+
+    &lt;!-- Heading / subheading --&gt;
+    &lt;div class="gpa-features__header text-center"&gt;
+      &lt;h1 class="gpa-features__title"&gt;
+        {{data.heading}}
+      &lt;/h1&gt;
+      &lt;p class="gpa-features__subtitle"&gt;
+        {{data.subheading}}
+      &lt;/p&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Feature cards --&gt;
+    &lt;div class="gpa-features__grid"&gt;
+      &lt;div class="gpa-feature-card" ng-repeat="item in data.features"&gt;
+        &lt;div class="gpa-feature-card__header"&gt;
+          &lt;div class="gpa-feature-card__icon"&gt;
+            &lt;i class="{{item.iconClass}}"&gt;&lt;/i&gt;
+          &lt;/div&gt;
+          &lt;h3 class="gpa-feature-card__title"&gt;
+            {{item.title}}
+          &lt;/h3&gt;
+          &lt;p class="gpa-feature-card__description"&gt;
+            {{item.description}}
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div class="gpa-feature-card__footer"&gt;
+          &lt;a ng-href="{{item.href}}"
+             class="gpa-feature-card__link"
+             ng-click="featureClicked(item)"&gt;
+            Get Started
+            &lt;span class="gpa-feature-card__link-icon"&gt;➜&lt;/span&gt;
+          &lt;/a&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/section&gt;
+]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>1733860423</payload_hash>
+        <record_name>Feature Section</record_name>
+        <reverted_from/>
+        <source>ec9886932f4b7210d2a0d68fcea4e3f5</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-02-19 12:07:08</sys_created_on>
+        <sys_id>d51bfe5b2f8f7210d2a0d68fcea4e39e</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>19c75cbfbe00000001</sys_recorded_at>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-02-19 12:07:08</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>d51bfe5b468f72109e0ba5ba9354659d</update_guid>
+        <update_guid_history>d51bfe5b468f72109e0ba5ba9354659d:1733860423,2dc03fe6c1837650b1bcb3a90e612375:-1501308650,80cbaf2a824376509403882cfbde3ae9:1933600472,a96b272a144376508c593dc7d233b1f9:707331601,37fa2be6fb437650092b0fffb175f803:194885735</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Feature Section">20ee1e202f5f7a10d2a0d68fcea4e317</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-02-23 07:16:20</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>0d376fe67cc0430e80b95740479e1661</sys_id>
+        <sys_metadata>10daa3e62f437650d2a0d68fcea4e346</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Feature Section</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_10daa3e62f437650d2a0d68fcea4e346</sys_update_name>
+        <sys_update_version display_value="sp_widget_10daa3e62f437650d2a0d68fcea4e346">d51bfe5b2f8f7210d2a0d68fcea4e39e</sys_update_version>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-02-23 07:16:20</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

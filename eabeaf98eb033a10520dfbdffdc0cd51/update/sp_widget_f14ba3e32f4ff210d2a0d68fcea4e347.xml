@@ -1,0 +1,1423 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[function($window, spModal) {
+  var c = this;
+
+  c.form = {
+    score:    c.data.score      || '',
+    comments: c.data.work_notes || ''
+  };
+
+  c.newNote   = '';
+  c.saving    = false;
+  c.addingNote = false;
+  c.error     = '';
+
+  // Helper: format file size
+  c.formatSize = function(bytes) {
+    if (!bytes) return '';
+    var kb = (parseInt(bytes) / 1024).toFixed(2);
+    return kb + ' KB';
+  };
+
+  // ── SUBMIT REVIEW ──
+  c.submit = function() {
+    if (!c.data.found) {
+      c.error = 'No record found.';
+      return;
+    }
+    c.saving = true;
+    c.error  = '';
+
+    c.data.action = 'submit_review';
+    c.data.form   = angular.copy(c.form);
+
+    c.server.update().then(function() {
+      c.saving = false;
+      if (c.data.success) {
+        spModal.alert('✅ Review submitted successfully!').then(function() {
+          // Stay on page in read-only mode — no redirect
+          c.form.comments = '';
+        });
+      } else {
+        c.error = c.data.error || 'An unexpected server error occurred.';
+      }
+    });
+  };
+
+  // ── ADD WORK NOTE ON SUBMITTED RECORD ──
+  c.addNote = function() {
+    if (!c.newNote || !c.newNote.trim()) return;
+
+    c.addingNote = true;
+    c.error      = '';
+
+    c.data.action = 'add_note';
+    c.data.form   = { comments: c.newNote };
+
+    c.server.update().then(function() {
+      c.addingNote = false;
+      if (c.data.success) {
+        c.newNote = '';
+        spModal.alert('✅ Work note added successfully!');
+      } else {
+        c.error = c.data.error || 'Failed to add note.';
+      }
+    });
+  };
+}
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ══════════════════════════════════════
+   BASE
+══════════════════════════════════════ */
+.grd-wrap {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #f0f4ff 0%, #fafafa 100%);
+  min-height: 100vh;
+  padding: 32px 24px;
+  box-sizing: border-box;
+}
+
+/* ══════════════════════════════════════
+   HEADER
+══════════════════════════════════════ */
+.grd-header { margin-bottom: 28px; }
+.grd-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.grd-task-chip {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+}
+.grd-badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.grd-badge-submitted {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+/* ══════════════════════════════════════
+   SUBMITTED BANNER
+══════════════════════════════════════ */
+.grd-submitted-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.grd-submitted-icon { font-size: 32px; line-height: 1; }
+.grd-submitted-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #15803d;
+}
+.grd-submitted-msg {
+  margin: 0;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.5;
+}
+
+/* ══════════════════════════════════════
+   CARDS
+══════════════════════════════════════ */
+.grd-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s;
+  margin-bottom: 20px;
+}
+.grd-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.grd-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.grd-card-icon { font-size: 18px; }
+.grd-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ══════════════════════════════════════
+   PROGRAM CARD
+══════════════════════════════════════ */
+.grd-program-card { margin-bottom: 20px; }
+.grd-program-header {
+  background: linear-gradient(135deg, #065f46, #10b981);
+  margin: -24px -24px 20px;
+  padding: 16px 24px;
+  border-radius: 11px 11px 0 0;
+  border-bottom: none;
+}
+.grd-program-header .grd-card-title,
+.grd-program-header .grd-card-icon { color: #fff; }
+.grd-program-desc {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+  margin-top: 4px;
+}
+.grd-desc-text {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+/* ══════════════════════════════════════
+   APPLICANT CARD
+══════════════════════════════════════ */
+.grd-applicant-card { margin-bottom: 20px; }
+.grd-applicant-header {
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  margin: -24px -24px 20px;
+  padding: 16px 24px;
+  border-radius: 11px 11px 0 0;
+  border-bottom: none;
+}
+.grd-applicant-header .grd-card-title,
+.grd-applicant-header .grd-card-icon { color: #fff; }
+
+/* ══════════════════════════════════════
+   INFO GRID
+══════════════════════════════════════ */
+.grd-applicant-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.grd-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.grd-info-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.grd-info-value {
+  font-size: 14px;
+  color: #1e293b;
+  font-weight: 500;
+}
+.grd-info-badge {
+  display: inline-block;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+}
+.grd-info-link { color: #2563eb; text-decoration: none; }
+.grd-info-link:hover { text-decoration: underline; }
+
+/* ══════════════════════════════════════
+   DOCUMENTS
+══════════════════════════════════════ */
+.grd-docs-section {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+}
+.grd-docs-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 12px;
+}
+.grd-doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: box-shadow 0.2s;
+}
+.grd-doc-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.grd-doc-left { display: flex; align-items: center; gap: 10px; }
+.grd-doc-icon { font-size: 22px; }
+.grd-doc-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+}
+.grd-doc-size { margin: 0; font-size: 11px; color: #94a3b8; }
+.grd-doc-download {
+  font-size: 18px;
+  color: #3b82f6;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.grd-doc-download:hover { background: #eff6ff; }
+
+/* ══════════════════════════════════════
+   TWO COLUMN GRID
+══════════════════════════════════════ */
+.grd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* ══════════════════════════════════════
+   FORM FIELDS
+══════════════════════════════════════ */
+.grd-field { margin-bottom: 18px; }
+.grd-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.req { color: #ef4444; }
+.grd-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1e293b;
+  background: #f8fafc;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  outline: none;
+  -webkit-appearance: none;
+}
+.grd-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  background: #fff;
+}
+.grd-textarea { resize: vertical; min-height: 100px; }
+.grd-char-hint {
+  text-align: right;
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 4px 0 0;
+}
+
+/* ══════════════════════════════════════
+   SCORE BUTTONS
+══════════════════════════════════════ */
+.grd-score-wrap { margin-bottom: 8px; }
+.grd-score-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.grd-score-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.grd-score-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: #eef2ff;
+  transform: translateY(-2px);
+}
+.score-active.score-low  { background: #fef2f2; border-color: #ef4444; color: #ef4444; }
+.score-active.score-mid  { background: #fffbeb; border-color: #f59e0b; color: #f59e0b; }
+.score-active.score-high { background: #f0fdf4; border-color: #22c55e; color: #22c55e; }
+.grd-score-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin: 6px 0 0;
+}
+
+/* ══════════════════════════════════════
+   SCORE BAR
+══════════════════════════════════════ */
+.score-bar-wrap {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.score-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+/* ══════════════════════════════════════
+   SCORE DISPLAY (READONLY)
+══════════════════════════════════════ */
+.grd-score-display {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 8px 0 10px;
+}
+.grd-score-number {
+  font-size: 40px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+.grd-score-denom {
+  font-size: 16px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* ══════════════════════════════════════
+   WORK NOTES INPUT
+══════════════════════════════════════ */
+.grd-note-input-wrap { margin-bottom: 16px; }
+.grd-note-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+/* ══════════════════════════════════════
+   ACTIVITY STREAM
+══════════════════════════════════════ */
+.grd-activity-stream {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.grd-activity-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 12px;
+}
+.grd-activity-item {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.grd-activity-avatar {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.grd-activity-body {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  flex: 1;
+}
+.grd-activity-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.grd-activity-user {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.grd-activity-time {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.grd-activity-text {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.grd-activity-empty {
+  text-align: center;
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 20px 0;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 8px;
+}
+
+/* ══════════════════════════════════════
+   READONLY FIELD
+══════════════════════════════════════ */
+.grd-readonly {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.grd-readonly-icon { font-size: 14px; }
+
+/* ══════════════════════════════════════
+   ALERTS
+══════════════════════════════════════ */
+.grd-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.grd-alert-danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+
+/* ══════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════ */
+.grd-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+.grd-btn {
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.grd-btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+.grd-btn-ghost {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+.grd-btn-ghost:hover { background: #f1f5f9; }
+.grd-btn-primary {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+}
+.grd-btn-primary:hover:not([disabled]) {
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  box-shadow: 0 4px 14px rgba(99,102,241,0.45);
+  transform: translateY(-1px);
+}
+.grd-btn-primary[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .grd-wrap { padding: 20px 16px; }
+  .grd-grid { grid-template-columns: 1fr; }
+  .grd-applicant-grid { grid-template-columns: 1fr; }
+  .grd-actions { flex-direction: column; }
+  .grd-btn { justify-content: center; }
+  .grd-score-buttons { gap: 6px; }
+  .grd-score-btn { width: 34px; height: 34px; font-size: 12px; }
+  .grd-note-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>review_proposal_detail</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Review Proposal Detail</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  data.found     = false;
+  data.success   = false;
+  data.error     = '';
+  data.submitted = false;
+
+  var userId = gs.getUserID();
+
+  var groups = [];
+  var grMem = new GlideRecord('sys_user_grmember');
+  grMem.addQuery('user', userId);
+  grMem.query();
+  while (grMem.next()) {
+    groups.push(grMem.getValue('group'));
+  }
+
+  var sysId = $sp.getParameter('sys_id');
+  if (!sysId) return;
+
+  var gr = new GlideRecord('x_enno_gatenow_grant_review');
+  if (!gr.get(sysId)) return;
+
+  if (groups.indexOf(gr.getValue('assignment_group')) === -1) return;
+
+  // ── HANDLE ADD WORK NOTE ──
+  if (input && input.action === 'add_note' && input.form) {
+    if (input.form.comments) {
+      gr.work_notes = input.form.comments;
+      gr.update();
+    }
+    data.found     = true;
+    data.success   = true;
+    data.submitted = true;
+  }
+
+  // ── HANDLE SUBMIT ──
+  if (input && input.action === 'submit_review' && input.form) {
+    var f = input.form;
+    if (f.score)    gr.setValue('score', parseInt(f.score, 10));
+    if (f.comments) gr.work_notes = f.comments;
+    gr.setValue('reviewer', userId);
+    gr.setValue('status', 'Submitted');
+    gr.update();
+
+    data.found     = true;
+    data.success   = true;
+    data.submitted = true;
+  }
+
+  // ── CHECK STATUS ──
+  var currentStatus = (gr.getValue('status') || '').toString().toLowerCase().trim();
+  if (currentStatus === 'submitted' || currentStatus === 'review completed') {
+    data.submitted = true;
+  }
+
+  // ── LOAD APPLICANT INFO ──
+    // ── LOAD APPLICANT INFO ──
+  var applicantSysId = gr.getValue('applicant');
+  var applicant = {};
+  if (applicantSysId) {
+    var appGr = new GlideRecord('x_enno_gatenow_service_applicants');
+    if (appGr.get(applicantSysId)) {
+
+      // Basic Info
+      applicant.number          = appGr.getValue('number')                      || '';
+      applicant.first_name      = appGr.getValue('first_name')                   || '';
+      applicant.middle_name     = appGr.getValue('middle_name')                  || '';
+      applicant.last_name       = appGr.getValue('last_name')                    || '';
+      applicant.email           = appGr.getValue('email')                       || '';
+      applicant.phone           = appGr.getValue('phone_number')                || '';
+      applicant.gender          = appGr.getDisplayValue('gender')               || '';
+      applicant.dob             = appGr.getDisplayValue('birthdate')            || '';
+      applicant.marital_status  = appGr.getDisplayValue('marital_status')       || '';
+      applicant.race            = appGr.getDisplayValue('race')                 || '';
+      applicant.ethnicity       = appGr.getDisplayValue('ethnicity')            || '';
+      applicant.education       = appGr.getDisplayValue('education_level')      || '';
+      applicant.military_status = appGr.getDisplayValue('military_status')      || '';
+      applicant.applicant_type  = appGr.getDisplayValue('applicant_type')       || '';
+      applicant.tribal          = appGr.getDisplayValue('tribal_affiliation')   || '';
+      applicant.citizenship     = appGr.getDisplayValue('citizenship_status')   || '';
+      applicant.identity_type   = appGr.getDisplayValue('identity_type')        || '';
+      applicant.disability      = appGr.getDisplayValue('disability_status')    || '';
+      applicant.ssn             = appGr.getValue('ssn')                         || '';
+      applicant.tin             = appGr.getValue('tin_ein')                     || '';
+      applicant.uei             = appGr.getValue('uei')                         || '';
+      applicant.street          = appGr.getValue('street')                      || '';
+      applicant.city            = appGr.getValue('city')                        || '';
+      applicant.country         = appGr.getValue('country')                     || '';
+      applicant.zip             = appGr.getValue('zip_postal_code')             || '';
+
+      // Proposal Info
+      applicant.organization        = appGr.getValue('organization')                || '';
+      applicant.program_category    = appGr.getDisplayValue('program_category')     || '';
+      applicant.requested_budget    = appGr.getDisplayValue('requested_budget')     || '';
+      applicant.short_desc          = appGr.getValue('short_description')           || '';
+      applicant.proposal_desc       = appGr.getValue('proposal_description')        || '';
+      applicant.goals               = appGr.getValue('project_goals_and_objectives')|| '';
+      applicant.methodology         = appGr.getValue('project_activities_methodology')|| '';
+      applicant.project_start       = appGr.getDisplayValue('project_start_date')   || '';
+      applicant.project_end         = appGr.getDisplayValue('project_end_date')     || '';
+      applicant.submission_date     = appGr.getDisplayValue('submission_date')      || '';
+      applicant.state               = appGr.getDisplayValue('state')                || '';
+
+    
+
+      // ✅ Applicant Attachments — GlideRecord query only, no GlideSysAttachment
+      var appDocs = [];
+      var appAttGr = new GlideRecord('sys_attachment');
+      appAttGr.addQuery('table_name', 'x_enno_gatenow_service_applicants');
+      appAttGr.addQuery('table_sys_id', appGr.getUniqueValue());
+      appAttGr.query();
+      while (appAttGr.next()) {
+        appDocs.push({
+          name:   appAttGr.getValue('file_name'),
+          size:   appAttGr.getValue('size_bytes'),
+          sys_id: appAttGr.getValue('sys_id'),
+          url:    '/sys_attachment.do?sys_id=' + appAttGr.getValue('sys_id')
+        });
+      }
+      applicant.documents = appDocs;
+    }
+  }
+
+  // ── LOAD PROGRAM INFO ──
+    // ── LOAD PROGRAM INFO ──
+  var programSysId = gr.getValue('program');
+  var program = {};
+  if (programSysId) {
+    var progGr = new GlideRecord('x_enno_gatenow_grant_program');
+    if (progGr.get(programSysId)) {
+      program.name               = progGr.getDisplayValue('program_name')               || '';
+      program.number             = progGr.getValue('number')                    || '';
+      program.start_date         = progGr.getDisplayValue('start_date')         || '';
+			program.category           = progGr.getDisplayValue('category') || '';
+      program.end_date           = progGr.getDisplayValue('end_date')           || '';
+      program.status             = progGr.getDisplayValue('status')             || '';
+      program.budget             = progGr.getDisplayValue('program_budget')             || '';
+      program.description        = progGr.getValue('program_description')       || '';
+      program.synopsis           = progGr.getValue('synopsis')                  || '';
+      program.terms              = progGr.getValue('terms_and_conditions')      || '';
+      program.eligibility        = progGr.getValue('eligibility_summary')       || '';
+      program.summary_statement  = progGr.getValue('summary_statement')         || '';
+
+     
+
+      // ✅ Program Attachments — GlideRecord query only, no GlideSysAttachment
+      var progDocs = [];
+      var progAttGr = new GlideRecord('sys_attachment');
+      progAttGr.addQuery('table_name', 'x_enno_gatenow_grant_program');
+      progAttGr.addQuery('table_sys_id', progGr.getUniqueValue());
+      progAttGr.query();
+      while (progAttGr.next()) {
+        progDocs.push({
+          name:   progAttGr.getValue('file_name'),
+          size:   progAttGr.getValue('size_bytes'),
+          sys_id: progAttGr.getValue('sys_id'),
+          url:    '/sys_attachment.do?sys_id=' + progAttGr.getValue('sys_id')
+        });
+      }
+      program.documents = progDocs;
+    }
+  }
+
+  // ── LOAD WORK NOTES ACTIVITY STREAM ──
+  var workNotesList = [];
+  var jrnlGr = new GlideRecord('sys_journal_field');
+  jrnlGr.addQuery('name', 'x_enno_gatenow_grant_review');
+  jrnlGr.addQuery('element', 'work_notes');
+  jrnlGr.addQuery('element_id', gr.getUniqueValue());
+  jrnlGr.orderByDesc('sys_created_on');
+  jrnlGr.query();
+  while (jrnlGr.next()) {
+    workNotesList.push({
+      value:   jrnlGr.getValue('value'),
+      created: jrnlGr.getDisplayValue('sys_created_on'),
+      user:    jrnlGr.getDisplayValue('sys_created_by')
+    });
+  }
+
+  // ── LOAD FORM DATA ──
+  data.found            = true;
+  data.sys_id           = gr.getUniqueValue();
+  data.number           = gr.getValue('number');
+  data.assignment_group = gr.getDisplayValue('assignment_group');
+  data.status           = gr.getDisplayValue('status');
+  data.score            = gr.getValue('score');
+  data.work_notes       = gr.getValue('work_notes') || '';
+  data.work_notes_list  = workNotesList;
+  data.applicant        = applicant;
+  data.program          = program;
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-02-20 10:17:06</sys_created_on>
+        <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
+        <sys_mod_count>58</sys_mod_count>
+        <sys_name>Review Proposal Detail</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-02-23 11:21:57</sys_updated_on>
+        <template><![CDATA[<!-- Access Denied -->
+<div class="grd-alert grd-alert-danger" ng-if="!data.found">
+  <span>]]>🔒<![CDATA[</span> Record not found or you do not have access to this review.
+</div>
+
+<!-- ══ READ-ONLY VIEW — after submission ══ -->
+<div class="grd-wrap" ng-if="data.found && data.submitted">
+
+  <div class="grd-header">
+    <div class="grd-header-left">
+      <span class="grd-task-chip">{{data.number}}</span>
+      <span class="grd-badge grd-badge-submitted">✅ {{data.status}}</span>
+    </div>
+  </div>
+
+  <!-- Submitted Banner -->
+  <div class="grd-submitted-banner">
+    <span class="grd-submitted-icon">]]>🔒<![CDATA[</span>
+    <div>
+      <h3 class="grd-submitted-title">Review Submitted</h3>
+      <p class="grd-submitted-msg">
+        This review has been submitted. Score and decision are locked,
+        but you can still add work notes below.
+      </p>
+    </div>
+  </div>
+
+<!-- Program Details Card -->
+<div class="grd-card grd-program-card">
+  <div class="grd-card-header grd-program-header">
+    <span class="grd-card-icon">]]>📁<![CDATA[</span>
+    <h4 class="grd-card-title">Program Details</h4>
+    <span class="grd-header-sub">{{data.program.number}}</span>
+  </div>
+
+  <!-- Key Info Grid -->
+  <div class="grd-applicant-grid">
+    <div class="grd-info-field">
+      <span class="grd-info-label">PROGRAM NAME</span>
+      <span class="grd-info-value">{{data.program.name}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">STATUS</span>
+      <span class="grd-info-value">{{data.program.status}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">START DATE</span>
+      <span class="grd-info-value">{{data.program.start_date}}</span>
+    </div>
+    <div class="grd-info-field">
+  <span class="grd-info-label">PROGRAM CATEGORY</span>
+  <span class="grd-info-value">{{data.program.category}}</span>
+</div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">END DATE</span>
+      <span class="grd-info-value">{{data.program.end_date}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">BUDGET</span>
+      <span class="grd-info-value">{{data.program.budget}}</span>
+    </div>
+  </div>
+
+  <!-- Full width text fields -->
+  <div class="grd-section-divider"></div>
+ 
+
+  <div class="grd-info-field grd-info-full" ng-if="data.program.description">
+    <span class="grd-info-label">PROGRAM DESCRIPTION</span>
+    <p class="grd-desc-text">{{data.program.description}}</p>
+  </div>
+
+  <div class="grd-info-field grd-info-full" ng-if="data.program.synopsis">
+    <span class="grd-info-label">SYNOPSIS</span>
+    <p class="grd-desc-text">{{data.program.synopsis}}</p>
+  </div>
+
+  <div class="grd-info-field grd-info-full" ng-if="data.program.eligibility">
+    <span class="grd-info-label">ELIGIBILITY SUMMARY</span>
+    <p class="grd-desc-text">{{data.program.eligibility}}</p>
+  </div>
+
+  <div class="grd-info-field grd-info-full" ng-if="data.program.terms">
+    <span class="grd-info-label">TERMS AND CONDITIONS</span>
+    <p class="grd-desc-text">{{data.program.terms}}</p>
+  </div>
+
+  <div class="grd-info-field grd-info-full" ng-if="data.program.summary_statement">
+    <span class="grd-info-label">SUMMARY STATEMENT</span>
+    <p class="grd-desc-text">{{data.program.summary_statement}}</p>
+  </div>
+
+  <!-- Program Documents -->
+  <div class="grd-docs-section"
+       ng-if="data.program.documents && data.program.documents.length > 0">
+    <div class="grd-section-divider"></div>
+    <div class="grd-docs-header">
+      <span>]]>📎<![CDATA[</span>
+      <span>Program Documents ({{data.program.documents.length}})</span>
+    </div>
+    <div class="grd-doc-item" ng-repeat="doc in data.program.documents">
+      <div class="grd-doc-left">
+        <span class="grd-doc-icon">]]>📄<![CDATA[</span>
+        <div>
+          <p class="grd-doc-name">{{doc.name}}</p>
+          <p class="grd-doc-size">{{c.formatSize(doc.size)}}</p>
+        </div>
+      </div>
+      <a class="grd-doc-download" href="{{doc.url}}" target="_blank">⬇</a>
+    </div>
+  </div>
+
+</div>
+
+  <!-- Applicant Information Card -->
+  <!-- Applicant Information Card -->
+<div class="grd-card grd-applicant-card">
+  <div class="grd-card-header grd-applicant-header">
+    <span class="grd-card-icon">]]>👤<![CDATA[</span>
+    <h4 class="grd-card-title">Applicant Information</h4>
+    <span class="grd-header-sub">{{data.applicant.number}}</span>
+  </div>
+
+  <!-- Personal Details -->
+  <div class="grd-applicant-grid">
+    <div class="grd-info-field">
+      <span class="grd-info-label">FULL NAME</span>
+      <span class="grd-info-value">{{c.data.applicant.first_name}} {{c.data.applicant.middle_name}} {{c.data.applicant.last_name}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">DATE OF BIRTH</span>
+      <span class="grd-info-value">{{data.applicant.dob}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">EMAIL</span>
+      <a class="grd-info-value grd-info-link"
+         href="mailto:{{data.applicant.email}}">{{data.applicant.email}}</a>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">PHONE</span>
+      <span class="grd-info-value">{{data.applicant.phone}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">GENDER</span>
+      <span class="grd-info-value">{{data.applicant.gender}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">MARITAL STATUS</span>
+      <span class="grd-info-value">{{data.applicant.marital_status}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">RACE</span>
+      <span class="grd-info-value">{{data.applicant.race}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">ETHNICITY</span>
+      <span class="grd-info-value">{{data.applicant.ethnicity}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">EDUCATION LEVEL</span>
+      <span class="grd-info-value">{{data.applicant.education}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">MILITARY STATUS</span>
+      <span class="grd-info-value">{{data.applicant.military_status}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">DISABILITY STATUS</span>
+      <span class="grd-info-value">{{data.applicant.disability}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">TRIBAL AFFILIATION</span>
+      <span class="grd-info-value">{{data.applicant.tribal}}</span>
+    </div>
+  </div>
+
+  <!-- Identity & Legal -->
+  <div class="grd-section-divider"></div>
+  <div class="grd-applicant-grid">
+    <div class="grd-info-field">
+      <span class="grd-info-label">APPLICANT TYPE</span>
+      <span class="grd-info-value">{{data.applicant.applicant_type}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">CITIZENSHIP STATUS</span>
+      <span class="grd-info-value">{{data.applicant.citizenship}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">IDENTITY TYPE</span>
+      <span class="grd-info-value">{{data.applicant.identity_type}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">SSN</span>
+      <span class="grd-info-value">{{data.applicant.ssn}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">TIN / EIN</span>
+      <span class="grd-info-value">{{data.applicant.tin}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">UEI</span>
+      <span class="grd-info-value">{{data.applicant.uei}}</span>
+    </div>
+  </div>
+
+  <!-- Address -->
+  <div class="grd-section-divider"></div>
+  <div class="grd-applicant-grid">
+    <div class="grd-info-field">
+      <span class="grd-info-label">STREET</span>
+      <span class="grd-info-value">{{data.applicant.street}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">CITY</span>
+      <span class="grd-info-value">{{data.applicant.city}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">COUNTRY</span>
+      <span class="grd-info-value">{{data.applicant.country}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">ZIP / POSTAL CODE</span>
+      <span class="grd-info-value">{{data.applicant.zip}}</span>
+    </div>
+  </div>
+
+  <!-- Proposal Details -->
+  <div class="grd-section-divider"></div>
+  <div class="grd-applicant-grid">
+    <div class="grd-info-field">
+      <span class="grd-info-label">ORGANIZATION</span>
+      <span class="grd-info-value">{{data.applicant.organization}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">STATE</span>
+      <span class="grd-info-value">{{data.applicant.state}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">PROGRAM CATEGORY</span>
+      <span class="grd-info-value">{{data.applicant.program_category}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">REQUESTED BUDGET</span>
+      <span class="grd-info-value">{{data.applicant.requested_budget}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">PROJECT START DATE</span>
+      <span class="grd-info-value">{{data.applicant.project_start}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">PROJECT END DATE</span>
+      <span class="grd-info-value">{{data.applicant.project_end}}</span>
+    </div>
+    <div class="grd-info-field">
+      <span class="grd-info-label">SUBMISSION DATE</span>
+      <span class="grd-info-value">{{data.applicant.submission_date}}</span>
+    </div>
+  </div>
+
+  <!-- Full width text fields -->
+  <div class="grd-info-field grd-info-full" ng-if="data.applicant.short_desc">
+    <span class="grd-info-label">SHORT DESCRIPTION</span>
+    <p class="grd-desc-text">{{data.applicant.short_desc}}</p>
+  </div>
+  <div class="grd-info-field grd-info-full" ng-if="data.applicant.proposal_desc">
+    <span class="grd-info-label">PROPOSAL DESCRIPTION</span>
+    <p class="grd-desc-text">{{data.applicant.proposal_desc}}</p>
+  </div>
+  <div class="grd-info-field grd-info-full" ng-if="data.applicant.goals">
+    <span class="grd-info-label">PROJECT GOALS &amp; OBJECTIVES</span>
+    <p class="grd-desc-text">{{data.applicant.goals}}</p>
+  </div>
+  <div class="grd-info-field grd-info-full" ng-if="data.applicant.methodology">
+    <span class="grd-info-label">PROJECT ACTIVITIES / METHODOLOGY</span>
+    <p class="grd-desc-text">{{data.applicant.methodology}}</p>
+  </div>
+
+  <!-- Documents -->
+  <div class="grd-docs-section"
+       ng-if="data.applicant.documents && data.applicant.documents.length > 0">
+    <div class="grd-docs-header">
+      <span>]]>📎<![CDATA[</span>
+      <span>Applicant Documents ({{data.applicant.documents.length}})</span>
+    </div>
+    <div class="grd-doc-item" ng-repeat="doc in data.applicant.documents">
+      <div class="grd-doc-left">
+        <span class="grd-doc-icon">]]>📄<![CDATA[</span>
+        <div>
+          <p class="grd-doc-name">{{doc.name}}</p>
+          <p class="grd-doc-size">{{c.formatSize(doc.size)}}</p>
+        </div>
+      </div>
+      <a class="grd-doc-download" href="{{doc.url}}" target="_blank">⬇</a>
+    </div>
+  </div>
+
+</div>
+
+
+  <!-- Readonly Score + Work Notes -->
+  <div class="grd-grid">
+
+    <!-- Score readonly -->
+    <div class="grd-card">
+      <div class="grd-card-header">
+        <span class="grd-card-icon">]]>📋<![CDATA[</span>
+        <h4 class="grd-card-title">Review Details</h4>
+      </div>
+      <div class="grd-field">
+        <span class="grd-info-label">SCORE</span>
+        <div class="grd-score-display">
+          <span class="grd-score-number">{{data.score}}</span>
+          <span class="grd-score-denom">/ 10</span>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar"
+               ng-style="{'width': (data.score / 10 * 100) + '%',
+                          'background': data.score >= 7 ? '#22c55e' :
+                                        data.score >= 4 ? '#f59e0b' : '#ef4444'}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Work Notes + Add Note + Activity Stream -->
+    <div class="grd-card">
+      <div class="grd-card-header">
+        <span class="grd-card-icon">]]>📝<![CDATA[</span>
+        <h4 class="grd-card-title">Work Notes</h4>
+      </div>
+
+      <!-- Add new note -->
+      <div class="grd-note-input-wrap">
+        <textarea class="grd-input grd-textarea"
+                  rows="3"
+                  ng-model="c.newNote"
+                  placeholder="Add a new work note…"></textarea>
+        <div class="grd-note-actions">
+          <span class="grd-char-hint">{{(c.newNote || '').length}} characters</span>
+          <button type="button"
+                  class="grd-btn grd-btn-primary grd-btn-sm"
+                  ng-click="c.addNote()"
+                  ng-disabled="!c.newNote || c.addingNote">
+            <span ng-if="!c.addingNote">➕ Add Note</span>
+            <span ng-if="c.addingNote">⏳ Adding…</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Activity Stream -->
+      <div class="grd-activity-stream"
+           ng-if="data.work_notes_list && data.work_notes_list.length > 0">
+        <div class="grd-activity-header">
+          <span>]]>🕓<![CDATA[</span> Previous Notes ({{data.work_notes_list.length}})
+        </div>
+        <div class="grd-activity-item" ng-repeat="note in data.work_notes_list">
+          <div class="grd-activity-avatar">
+            {{note.user.charAt(0).toUpperCase()}}
+          </div>
+          <div class="grd-activity-body">
+            <div class="grd-activity-meta">
+              <span class="grd-activity-user">{{note.user}}</span>
+              <span class="grd-activity-time">{{note.created}}</span>
+            </div>
+            <p class="grd-activity-text">{{note.value}}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grd-activity-empty"
+           ng-if="!data.work_notes_list || data.work_notes_list.length === 0">
+        <span>]]>💬<![CDATA[</span> No previous notes yet.
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="grd-alert grd-alert-danger" ng-if="c.error">
+    <span>⚠️</span> {{c.error}}
+  </div>
+
+  <!-- Actions -->
+  <div class="grd-actions">
+    <a class="grd-btn grd-btn-ghost"
+       href="https://enablenowincdemo1.service-now.com/review">
+      ← Back to Reviews
+    </a>
+  </div>
+
+</div>
+
+<!-- ══ EDITABLE FORM VIEW — before submission ══ -->
+<div class="grd-wrap" ng-if="data.found && !data.submitted">
+
+  <div class="grd-header">
+    <div class="grd-header-left">
+      <span class="grd-task-chip">{{data.number}}</span>
+      <span class="grd-badge">{{data.status}}</span>
+    </div>
+  </div>
+
+  <!-- Program Details Card -->
+  <div class="grd-card grd-program-card">
+    <div class="grd-card-header grd-program-header">
+      <span class="grd-card-icon">]]>📁<![CDATA[</span>
+      <h4 class="grd-card-title">Program Details</h4>
+    </div>
+    <div class="grd-applicant-grid">
+      <div class="grd-info-field">
+        <span class="grd-info-label">PROGRAM NAME</span>
+        <span class="grd-info-value">{{data.program.name}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">PROGRAM NUMBER</span>
+        <span class="grd-info-value grd-info-badge">{{data.program.number}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">START DATE</span>
+        <span class="grd-info-value">{{data.program.start_date}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">END DATE</span>
+        <span class="grd-info-value">{{data.program.end_date}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">STATUS</span>
+        <span class="grd-info-value">{{data.program.status}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">BUDGET</span>
+        <span class="grd-info-value">{{data.program.budget}}</span>
+      </div>
+    </div>
+    <div class="grd-program-desc" ng-if="data.program.description">
+      <span class="grd-info-label">DESCRIPTION</span>
+      <p class="grd-desc-text">{{data.program.description}}</p>
+    </div>
+  </div>
+
+  <!-- Applicant Information Card -->
+  <div class="grd-card grd-applicant-card">
+    <div class="grd-card-header grd-applicant-header">
+      <span class="grd-card-icon">]]>👤<![CDATA[</span>
+      <h4 class="grd-card-title">Applicant Information</h4>
+    </div>
+    <div class="grd-applicant-grid">
+      <div class="grd-info-field">
+        <span class="grd-info-label">FULL NAME</span>
+        <span class="grd-info-value">{{data.applicant.name}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">APPLICANT NUMBER</span>
+        <span class="grd-info-value grd-info-badge">{{data.applicant.number}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">EMAIL</span>
+        <a class="grd-info-value grd-info-link"
+           href="mailto:{{data.applicant.email}}">{{data.applicant.email}}</a>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">PHONE</span>
+        <span class="grd-info-value">{{data.applicant.phone}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">GENDER</span>
+        <span class="grd-info-value">{{data.applicant.gender}}</span>
+      </div>
+      <div class="grd-info-field">
+        <span class="grd-info-label">EDUCATION LEVEL</span>
+        <span class="grd-info-value">{{data.applicant.education}}</span>
+      </div>
+    </div>
+    <div class="grd-docs-section"
+         ng-if="data.applicant.documents && data.applicant.documents.length > 0">
+      <div class="grd-docs-header">
+        <span>]]>📎<![CDATA[</span>
+        <span>Applicant Documents ({{data.applicant.documents.length}})</span>
+      </div>
+      <div class="grd-doc-item" ng-repeat="doc in data.applicant.documents">
+        <div class="grd-doc-left">
+          <span class="grd-doc-icon">]]>📄<![CDATA[</span>
+          <div>
+            <p class="grd-doc-name">{{doc.name}}</p>
+            <p class="grd-doc-size">{{c.formatSize(doc.size)}}</p>
+          </div>
+        </div>
+        <a class="grd-doc-download" href="{{doc.url}}" target="_blank">⬇</a>
+      </div>
+    </div>
+  </div>
+
+  <form name="reviewDetailForm" novalidate ng-submit="c.submit()">
+    <div class="grd-grid">
+
+      <!-- Score -->
+      <div class="grd-card">
+        <div class="grd-card-header">
+          <span class="grd-card-icon">]]>📋<![CDATA[</span>
+          <h4 class="grd-card-title">Review Details</h4>
+        </div>
+        <div class="grd-score-wrap">
+          <label class="grd-label">Score (1–10) <span class="req">*</span></label>
+          <div class="grd-score-buttons">
+            <button type="button"
+                    class="grd-score-btn"
+                    ng-repeat="n in [1,2,3,4,5,6,7,8,9,10]"
+                    ng-class="{
+                      'score-low':    c.form.score == n && n <= 3,
+                      'score-mid':    c.form.score == n && n >= 4 && n <= 6,
+                      'score-high':   c.form.score == n && n >= 7,
+                      'score-active': c.form.score == n
+                    }"
+                    ng-click="c.form.score = n">
+              {{n}}
+            </button>
+          </div>
+          <div class="score-bar-wrap" ng-if="c.form.score">
+            <div class="score-bar"
+                 ng-style="{'width': (c.form.score / 10 * 100) + '%',
+                            'background': c.form.score >= 7 ? '#22c55e' :
+                                          c.form.score >= 4 ? '#f59e0b' : '#ef4444'}">
+            </div>
+          </div>
+          <p class="grd-score-hint" ng-if="c.form.score">
+            <span ng-if="c.form.score >= 7">]]>🟢<![CDATA[ Strong score</span>
+            <span ng-if="c.form.score >= 4 && c.form.score < 7">]]>🟡<![CDATA[ Moderate score</span>
+            <span ng-if="c.form.score < 4">]]>🔴<![CDATA[ Low score</span>
+            — {{c.form.score}} / 10
+          </p>
+          <input type="number" ng-model="c.form.score"
+                 min="1" max="10" required
+                 style="position:absolute;opacity:0;width:0;height:0;">
+        </div>
+      </div>
+
+      <!-- Work Notes -->
+      <div class="grd-card">
+        <div class="grd-card-header">
+          <span class="grd-card-icon">]]>📝<![CDATA[</span>
+          <h4 class="grd-card-title">Work Notes</h4>
+        </div>
+        <div class="grd-note-input-wrap">
+          <textarea class="grd-input grd-textarea"
+                    rows="4"
+                    ng-model="c.form.comments"
+                    placeholder="Add a work note…"></textarea>
+          <p class="grd-char-hint">{{(c.form.comments || '').length}} characters</p>
+        </div>
+        <div class="grd-activity-stream"
+             ng-if="data.work_notes_list && data.work_notes_list.length > 0">
+          <div class="grd-activity-header">
+            <span>]]>🕓<![CDATA[</span> Previous Notes ({{data.work_notes_list.length}})
+          </div>
+          <div class="grd-activity-item" ng-repeat="note in data.work_notes_list">
+            <div class="grd-activity-avatar">
+              {{note.user.charAt(0).toUpperCase()}}
+            </div>
+            <div class="grd-activity-body">
+              <div class="grd-activity-meta">
+                <span class="grd-activity-user">{{note.user}}</span>
+                <span class="grd-activity-time">{{note.created}}</span>
+              </div>
+              <p class="grd-activity-text">{{note.value}}</p>
+            </div>
+          </div>
+        </div>
+        <div class="grd-activity-empty"
+             ng-if="!data.work_notes_list || data.work_notes_list.length === 0">
+          <span>]]>💬<![CDATA[</span> No previous notes yet.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="grd-alert grd-alert-danger" ng-if="c.error">
+      <span>⚠️</span> {{c.error}}
+    </div>
+
+    <div class="grd-actions">
+      <a class="grd-btn grd-btn-ghost"
+         href="https://enablenowincdemo1.service-now.com/review">
+        ← Back to Reviews
+      </a>
+      <button type="submit"
+              class="grd-btn grd-btn-primary"
+              ng-disabled="reviewDetailForm.$invalid || c.saving">
+        <span ng-if="!c.saving">Submit Review</span>
+        <span ng-if="c.saving">⏳ Submitting…</span>
+      </button>
+    </div>
+
+  </form>
+</div>
+]]></template>
+    </sp_widget>
+</record_update>

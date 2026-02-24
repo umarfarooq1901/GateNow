@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ux_client_script">
+    <sys_ux_client_script action="INSERT_OR_UPDATE">
+        <controller_preset/>
+        <includes/>
+        <macroponent display_value="Record Page">6051a72bebcbfa10520dfbdffdc0cd2d</macroponent>
+        <name>On Embedded Queries Fetched</name>
+        <preset/>
+        <required_translations>[]</required_translations>
+        <script><![CDATA[/**
+ * @param {params} params
+ * @param {api} params.api
+ * @param {any} params.event
+ * @param {any} params.imports
+ * @param {ApiHelpers} params.helpers
+ */
+function handler({
+    api,
+    event,
+    helpers,
+    imports
+}) {
+    if (event.name === "DATA_FETCH_SUCCEEDED") {
+        var output = api.data.km_record_page_fetch_embedded_queries_1.output;
+        if (output.success) {
+            var content = output.content;
+            if (content) {
+                var query = api.context.props.query;
+                for (var fieldName in content) {
+                    var queryKey = '^' + fieldName + '=';
+                    if (query && query.indexOf(queryKey) > -1)
+                        continue;
+                    api.emit("KB_VIEW#SET_FIELD", {
+                        fieldName: fieldName,
+                        value: content[fieldName]
+                    });
+                }
+            }
+        }
+    }
+}]]></script>
+        <script_api_version>2.0.0</script_api_version>
+        <sys_class_name>sys_ux_client_script</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-02-20 09:32:43</sys_created_on>
+        <sys_id>8951a72bebcbfa10520dfbdffdc0cda4</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>On Embedded Queries Fetched</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ux_client_script_8951a72bebcbfa10520dfbdffdc0cda4</sys_update_name>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-02-20 09:32:43</sys_updated_on>
+        <target>macroponent</target>
+        <type>default</type>
+    </sys_ux_client_script>
+</record_update>

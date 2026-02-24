@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ux_client_script">
+    <sys_ux_client_script action="INSERT_OR_UPDATE">
+        <controller_preset/>
+        <includes/>
+        <macroponent display_value="My Record Page">467f2ae4eb93b250520dfbdffdc0cdb5</macroponent>
+        <name>Multitask Selector - On Close</name>
+        <preset/>
+        <required_translations>[
+    {
+        "message": "&lt;b&gt;Selected tasks:&lt;/b&gt; {0}"
+    }
+]</required_translations>
+        <script><![CDATA[/**
+* @param {params} params
+* @param {api} params.api
+* @param {any} params.event
+* @param {any} params.imports
+* @param {ApiHelpers} params.helpers
+*/
+async function handler({api, event, helpers, imports}) {
+    if (api.state.genAiSourceRecordId && !api.state.isGenAiGenerating) {
+        var sysIdStr = api.data.record.form.fields.source?.displayValue;
+        if (sysIdStr) {
+            var message = await helpers.translate("<b>Selected tasks:</b> {0}", sysIdStr);
+            var content = `<span>${message}</span>`;
+            api.emit("NOW_UXF_PAGE#ADD_NOTIFICATIONS", {
+                items: [{
+                    id: "gaps_tasks",
+                    status: "info",
+                    icon: "circle-info-outline",
+                    content: {
+                        type: "html",
+                        value: content
+                    },
+                    action: {
+                        type: "dismiss"
+                    }
+                }]
+            });
+        }
+    }
+}]]></script>
+        <script_api_version>2.0.0</script_api_version>
+        <sys_class_name>sys_ux_client_script</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-02-23 08:28:49</sys_created_on>
+        <sys_id>567f6ae4eb93b250520dfbdffdc0cd15</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Multitask Selector - On Close</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ux_client_script_567f6ae4eb93b250520dfbdffdc0cd15</sys_update_name>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-02-23 08:28:49</sys_updated_on>
+        <target>macroponent</target>
+        <type>default</type>
+    </sys_ux_client_script>
+</record_update>
