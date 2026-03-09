@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[function($scope, $location, $window) {
+    var c = this;
+
+    c.searchQuery = '';
+    c.statusFilter = '';
+
+    // --- Pagination Setup ---
+    c.currentPage = 1;
+    c.itemsPerPage = 6; // Adjust this to show however many cards you want per page
+
+    $scope.filterPrograms = function(program) {
+        var matchesSearch = !c.searchQuery ||
+            (program.name && program.name.toLowerCase().indexOf(c.searchQuery.toLowerCase()) > -1) ||
+            (program.description && program.description.toLowerCase().indexOf(c.searchQuery.toLowerCase()) > -1);
+
+        var matchesStatus = !c.statusFilter || program.status === c.statusFilter;
+
+        return matchesSearch && matchesStatus;
+    };
+    c.goBack = function() {
+      // UPDATED TO USE $window FOR ABSOLUTE URLS
+      $window.location.href = 'https://enablenowincdemo1.service-now.com/applicant?id=applicant_dashboard';
+  };
+    // --- Pagination Logic ---
+    // Reset to page 1 whenever user searches or filters
+    $scope.$watchGroup(['c.searchQuery', 'c.statusFilter'], function() {
+        c.currentPage = 1;
+    });
+
+    // Set active page
+    c.changePage = function(page) {
+        c.currentPage = page;
+    };
+
+    // Calculate total pages based on current active filters
+    c.totalPages = function(totalItems) {
+        return Math.ceil(totalItems / c.itemsPerPage);
+    };
+
+    // Return array of numbers to repeat pagination buttons
+    c.getPages = function(totalItems) {
+        var pages = [];
+        var total = c.totalPages(totalItems);
+        for (var i = 1; i <= total; i++) {
+            pages.push(i);
+        }
+        return pages;
+    };
+
+    // Provide angular with math evaluation for the 'Showing X to Y' string
+    c.getMathMin = function(a, b) {
+        return Math.min(a, b);
+    };
+
+     c.viewDetails = function(sysId) {
+        // Redirects to your new page and passes the program's sys_id in the URL
+        $location.url('?id=program_dashboard_detail&sys_id=' + sysId);
+    };
+}
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.browse-programs-widget {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 24px;
+  background: #f5f6fa;
+  min-height: 100vh;
+  margin-top:4%
+}
+
+/* Header */
+.bp-header { margin-bottom: 20px; }
+.bp-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin: 0 0 4px; }
+.bp-subtitle { font-size: 14px; color: #666; margin: 0; }
+
+/* Toolbar */
+.bp-toolbar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.bp-search-wrap, .bp-filter-wrap {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  gap: 8px;
+}
+.bp-search-wrap { flex: 1; }
+.bp-filter-wrap { min-width: 180px; }
+.bp-search-input, .bp-filter-select {
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #333;
+  background: transparent;
+  width: 100%;
+}
+
+/* Grid */
+.bp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+/* Card */
+.bp-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 22px 18px;
+  border: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s;
+}
+.bp-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
+
+/* Top Row */
+.bp-card-toprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bp-grant-type { font-size: 12px; color: #888; }
+
+/* Badge */
+.bp-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1.5px solid;
+}
+.bp-badge-accepting {
+  color: #2ecc71;
+  border-color: #2ecc71;
+  background: #f0fff6;
+}
+.bp-badge-upcoming {
+  color: #9b59b6;
+  border-color: #9b59b6;
+  background: #f9f0ff;
+}
+.bp-badge-closed {
+  color: #e74c3c;
+  border-color: #e74c3c;
+  background: #fff5f5;
+}
+
+/* Card Content */
+.bp-card-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0;
+}
+.bp-card-desc {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Meta */
+.bp-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #444;
+}
+.bp-meta-amount { font-weight: 600; color: #1a1a2e; }
+.bp-meta-sep { color: #bbb; }
+.bp-meta-awards { color: #555; }
+.bp-card-deadline { color: #666; }
+
+/* Button */
+.bp-btn-view {
+  margin-top: 6px;
+  background: #2d4de0;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  width: 100%;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bp-btn-view:hover { background: #1a35c4; }
+
+/* Empty */
+.bp-empty { text-align: center; color: #aaa; padding: 40px; grid-column: 1/-1; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .bp-grid { grid-template-columns: 1fr; }
+  .bp-toolbar { flex-direction: column; }
+}
+/* ── Pagination ── */
+.bp-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 28px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.bp-page-info {
+  font-size: 13px;
+  color: #666;
+}
+
+.bp-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bp-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bp-page-btn:hover:not([disabled]) {
+  background: #f0f3ff;
+  border-color: #2d4de0;
+  color: #2d4de0;
+}
+
+.bp-page-btn[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.bp-page-btn.bp-page-active {
+  background: #2d4de0;
+  color: #fff;
+  border-color: #2d4de0;
+  font-weight: 700;
+}
+
+/* Back Button */
+.bp-btn-back {
+  background: #fff;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px; /* Spaces the SVG icon and text */
+}
+
+.bp-btn-back:hover {
+  background: #f0f3ff;
+  border-color: #2d4de0;
+  color: #2d4de0;
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>dashboard_programs</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Dashboard Programs</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    data.programs = [];
+
+    var gr = new GlideRecord('x_enno_gatenow_grant_program');
+    var qc = gr.addQuery('status', 'accepting_proposals');
+    qc.addOrCondition('status', 'published');
+    gr.orderByDesc('sys_created_on');
+    gr.query();
+
+    while (gr.next()) {
+        data.programs.push({
+            sys_id:        gr.getUniqueValue(),
+            name:          gr.getDisplayValue('program_name'),
+            description:   gr.getDisplayValue('short_description'),
+            status:        gr.status.getDisplayValue(),
+            total_funding: gr.getValue('program_budget'),
+            close_date:    gr.getValue('proposal_close_date')
+        });
+    }
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-03-07 16:56:18</sys_created_on>
+        <sys_id>42765e242fe33210d2a0d68fcea4e32e</sys_id>
+        <sys_mod_count>71</sys_mod_count>
+        <sys_name>Dashboard Programs</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_42765e242fe33210d2a0d68fcea4e32e</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-03-08 17:25:53</sys_updated_on>
+        <template><![CDATA[<div class="browse-programs-widget">
+  <div class="bp-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <h2 class="bp-title">Browse Programs</h2>
+      <p class="bp-subtitle">Explore available funding opportunities</p>
+    </div>
+    
+    <!-- New Back Button -->
+    <button class="bp-btn-back" ng-click="c.goBack()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+      </svg>
+      Back
+    </button>
+  </div>
+
+
+  <div class="bp-toolbar">
+    <div class="bp-search-wrap">
+      <span class="bp-search-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#888" viewBox="0 0 16 16">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+        </svg>
+      </span>
+      <input type="text"
+             class="bp-search-input"
+             placeholder="Search programs..."
+             ng-model="c.searchQuery" />
+    </div>
+    <div class="bp-filter-wrap">
+      <span class="bp-filter-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#888" viewBox="0 0 16 16">
+          <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .354.854l-4.5 4.5A.5.5 0 0 1 9.5 6.5v4.793l-3 1.5V6.5a.5.5 0 0 1-.146-.354L1.146 1.854A.5.5 0 0 1 1.5 1.5z"/>
+        </svg>
+      </span>
+      <select class="bp-filter-select" ng-model="c.statusFilter">
+        <option value="">All Status</option>
+        <option value="Accepting Proposals">Accepting Proposals</option>
+        <option value="Published">Upcoming Proposals</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="bp-grid">
+    <!-- Catch the filtered array so we can paginate the accurate search results -->
+    <div class="bp-empty" ng-if="(filteredPrograms = (data.programs | filter:filterPrograms)).length === 0">
+      <p>No programs found.</p>
+    </div>
+
+    <!-- Added limitTo filter to slice the items per page -->
+    <div class="bp-card"
+         ng-repeat="program in filteredPrograms | limitTo: c.itemsPerPage : (c.currentPage - 1) * c.itemsPerPage">
+
+      <div class="bp-card-toprow">
+        <span class="bp-badge"
+              ng-class="{
+                'bp-badge-accepting': program.status === 'Accepting Proposals',
+                'bp-badge-upcoming':  program.status === 'Published',
+                'bp-badge-closed':    program.status === 'Closed'
+              }">
+          {{program.status}}
+        </span>
+      </div>
+
+      <h3 class="bp-card-title">{{program.name}}</h3>
+      <p class="bp-card-desc">{{program.description}}</p>
+
+      <div class="bp-card-meta" ng-if="program.total_funding">
+        <span class="bp-meta-icon">$</span>
+        <span class="bp-meta-amount">{{program.total_funding}}</span>
+      </div>
+
+      <div class="bp-card-meta bp-card-deadline" ng-if="program.close_date">
+        <span class="bp-meta-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#666" viewBox="0 0 16 16">
+            <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+          </svg>
+        </span>
+        <span>Closes {{program.close_date}}</span>
+      </div>
+
+      <button class="bp-btn-view" ng-click="c.viewDetails(program.sys_id)">
+        View Details
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Pagination Controls (Uses your existing CSS classes) -->
+  <div class="bp-pagination" ng-if="filteredPrograms.length > c.itemsPerPage">
+    <div class="bp-page-info">
+      Showing {{ ((c.currentPage - 1) * c.itemsPerPage) + 1 }} to {{ c.getMathMin(c.currentPage * c.itemsPerPage, filteredPrograms.length) }} of {{ filteredPrograms.length }} programs
+    </div>
+    <div class="bp-page-controls">
+      <button class="bp-page-btn" ng-disabled="c.currentPage === 1" ng-click="c.changePage(c.currentPage - 1)">Prev</button>
+      
+      <button class="bp-page-btn" 
+              ng-repeat="page in c.getPages(filteredPrograms.length) track by $index"
+              ng-class="{'bp-page-active': c.currentPage === page}"
+              ng-click="c.changePage(page)">
+        {{page}}
+      </button>
+      
+      <button class="bp-page-btn" ng-disabled="c.currentPage === c.totalPages(filteredPrograms.length)" ng-click="c.changePage(c.currentPage + 1)">Next</button>
+    </div>
+  </div>
+
+</div>
+]]></template>
+    </sp_widget>
+</record_update>

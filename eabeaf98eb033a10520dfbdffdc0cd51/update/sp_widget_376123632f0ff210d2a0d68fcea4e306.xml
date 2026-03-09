@@ -1,170 +1,1367 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[function(spUtil, $window) {
+        <client_script><![CDATA[function(spUtil, $window, $timeout, $scope) {
   var c = this;
 
-  c.searchText = '';
+  // ── Live session user from SP's $scope.user ───────────────
+  // $scope.user is injected by Service Portal automatically —
+  // it always reflects the current logged-in session in real time.
+  c.sessionUser = {
+    name:     ($scope.user && $scope.user.name)   || c.data.currentUser.name   || 'Reviewer',
+    email:    c.data.currentUser.email            || '',
+    sys_id:   ($scope.user && $scope.user.sys_id) || c.data.currentUser.sys_id || '',
+    initials: ($window.NOW && $window.NOW.user_initials) ? $window.NOW.user_initials : c.data.currentUser.initials || 'R',
+    loggedIn: $scope.user && $scope.user.logged_in
+  };
+
+  // ── Sidebar navigation ────────────────────────────────────
+  c.activeSection = 'home';
+  c.sidebarOpen   = true;
+
+  c.navTo = function(section) {
+    c.activeSection = section;
+  };
+
+  c.toggleSidebar = function() {
+    c.sidebarOpen = !c.sidebarOpen;
+  };
+
+  // ── Profile dropdown ──────────────────────────────────────
+  c.profileOpen = false;
+
+  c.toggleProfile = function($event) {
+    $event.stopPropagation();
+    c.profileOpen = !c.profileOpen;
+  };
+
+  c.closeProfile = function() {
+    c.profileOpen = false;
+  };
+
+  // ── Logout — uses /logout.do (same as Coral theme) ────────
+  c.logout = function() {
+   $window.location.href = c.data.logoutUrl || '/login.do?logout=true';
+  };
+
+  // ── Go to profile page ────────────────────────────────────
+  c.goToProfile = function() {
+    c.profileOpen = false;
+    $window.location.href = c.data.profilePage || '?id=user_profile';
+  };
+
+  // ── Search & filter ───────────────────────────────────────
+  c.searchText   = '';
   c.statusFilter = '';
 
-  c.filteredReviews = function() {
-    var list = c.data.reviews || [];
+  // ── Animated stat counters ────────────────────────────────
+  c.animatedStats = { total: 0, inProgress: 0, completed: 0, onHold: 0 };
 
-    return list.filter(function(r) {
-      if (c.statusFilter && r.status !== c.statusFilter)
-        return false;
+  function animateCount(key, target) {
+    if (!target || target === 0) return;
+    var step     = Math.ceil(target / 30);
+    var current  = 0;
+    var interval = setInterval(function() {
+      current += step;
+      if (current >= target) {
+        current = target;
+        clearInterval(interval);
+      }
+      c.animatedStats[key] = current;
+      $timeout(function() {}, 0);
+    }, 30);
+  }
 
+  $timeout(function() {
+    var s = c.data.stats || {};
+    animateCount('total',      s.total      || 0);
+    animateCount('inProgress', s.inProgress || 0);
+    animateCount('completed',  s.completed  || 0);
+    animateCount('onHold',     s.onHold     || 0);
+  }, 300);
+
+  // ── Filtered proposal list (excludes completed) ───────────
+  c.filteredProposals = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      if (r.status === 'Review completed') return false;
+      if (c.statusFilter && r.status !== c.statusFilter) return false;
       if (c.searchText) {
         var txt = c.searchText.toLowerCase();
-        var num = (r.number || '').toLowerCase();
-        var prog = (r.program || '').toLowerCase();
-        if (num.indexOf(txt) === -1 && prog.indexOf(txt) === -1)
-          return false;
+        var num = (r.number    || '').toLowerCase();
+        var prg = (r.program   || '').toLowerCase();
+        var app = (r.applicant || '').toLowerCase();
+        if (num.indexOf(txt) === -1 &&
+            prg.indexOf(txt) === -1 &&
+            app.indexOf(txt) === -1) return false;
       }
       return true;
     });
   };
 
-  // Redirect to Review Detail portal page
-  c.openRecord = function(rev) {
-    if (!rev || !rev.sys_id)
-      return;
+  // ── Completed reviews list ────────────────────────────────
+  c.completedReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.status === 'Review completed';
+    });
+  };
 
-    var url = '/review?id=review_proposal_detail_page&sys_id=' + rev.sys_id;
-    $window.location.href = url;
+  // ── Recent activity (home panel) ──────────────────────────
+  c.recentActivity = function() {
+    return (c.data.reviews || []).slice(0, 5);
+  };
+
+  // ── Open proposal detail page ─────────────────────────────
+  c.openRecord = function(rev) {
+    if (!rev || !rev.sys_id) return;
+    $window.location.href = '/review?id=review_proposal_detail_page&sys_id=' + rev.sys_id;
+  };
+
+  // ── Score bar width helper ────────────────────────────────
+  c.scoreWidth = function(score) {
+    if (!score) return '0%';
+    return Math.min(Math.round((score / 100) * 100), 100) + '%';
   };
 }
 ]]></client_script>
         <controller_as>c</controller_as>
-        <css>.grant-review-widget {
-  background: #f8fafc;
-  padding: 16px 20px;
-  border-radius: 4px;
-}
-
-.gr-header {
-  margin-bottom: 12px;
-}
-
-.gr-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.gr-subtitle {
-  margin: 4px 0 0;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.gr-filters {
+        <css>/* ═══════════════════════════════════════════════════
+   SHELL &amp; LAYOUT
+═══════════════════════════════════════════════════ */
+.rvd-shell {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  min-height: 100vh;
+  background: #f0f2f8;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  overflow: hidden;
+  margin-top:4.5%;
+}
+/* ═══════════════════════════════════════════════════
+   SIDEBAR PROFILE &amp; DROPDOWN
+═══════════════════════════════════════════════════ */
+.rvd-sidebar__footer {
+  padding: 12px 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  position: relative;
 }
 
-.gr-search {
-  flex: 1 1 220px;
-  min-width: 0;
+.rvd-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s;
+  user-select: none;
+  position: relative;
 }
 
-.gr-status-filter {
-  flex: 0 0 180px;
+.rvd-profile-card:hover,
+.rvd-profile-card--open {
+  background: rgba(255,255,255,0.10);
 }
 
-/* Card grid */
-.gr-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+.rvd-profile-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+  border: 2px solid rgba(255,255,255,0.2);
 }
 
-.gr-card {
-  background: #ffffff;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  padding: 10px 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+.rvd-profile-details {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  gap: 1px;
+  overflow: hidden;
+  transition: opacity 0.2s, width 0.3s;
 }
 
-.gr-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+.rvd-sidebar--collapsed .rvd-profile-details,
+.rvd-sidebar--collapsed .rvd-profile-caret {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
 }
 
-.gr-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.gr-number {
+.rvd-profile-name {
+  font-size: 12.5px;
   font-weight: 600;
-  font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.gr-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 999px;
+.rvd-profile-role {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rvd-profile-caret {
   font-size: 10px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+  transition: transform 0.2s;
 }
 
-.gr-card-body {
-  font-size: 12px;
-  color: #4b5563;
+/* Dropdown */
+.rvd-profile-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  right: 10px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.12);
+  overflow: hidden;
+  z-index: 200;
+  animation: rvdDropUp 0.18s cubic-bezier(.4,0,.2,1);
 }
 
-.gr-row {
+@keyframes rvdDropUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+.rvd-dropdown-head {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 2px;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  background: #fafafa;
 }
 
-.gr-label {
+.rvd-dropdown-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.rvd-dropdown-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rvd-dropdown-email {
+  font-size: 11.5px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+.rvd-dropdown-divider {
+  height: 1px;
+  background: #f3f4f6;
+}
+
+.rvd-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  font-weight: 500;
+}
+
+.rvd-dropdown-item i {
+  font-size: 14px;
+  color: #9ca3af;
+  width: 18px;
+  text-align: center;
+}
+
+.rvd-dropdown-item:hover {
+  background: #f9fafb;
+  color: #111827;
+}
+
+.rvd-dropdown-item--danger {
+  color: #ef4444;
+}
+
+.rvd-dropdown-item--danger i {
+  color: #ef4444;
+}
+
+.rvd-dropdown-item--danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ═══════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════ */
+.rvd-sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 60%, #3730a3 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  transition: width 0.3s cubic-bezier(.4,0,.2,1),
+              min-width 0.3s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+  box-shadow: 4px 0 24px rgba(49,46,129,0.18);
+  z-index: 100;
+}
+
+.rvd-sidebar--collapsed {
+  width: 64px;
+  min-width: 64px;
+}
+
+.rvd-sidebar--collapsed .rvd-brand-text,
+.rvd-sidebar--collapsed .rvd-nav__label,
+.rvd-sidebar--collapsed .rvd-nav__badge,
+.rvd-sidebar--collapsed .rvd-reviewer-info {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  overflow: hidden;
+}
+
+.rvd-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.rvd-brand-icon {
+  width: 36px;
+  height: 36px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.rvd-brand-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  transition: opacity 0.2s, width 0.3s;
+}
+
+/* Nav */
+.rvd-nav {
+  flex: 1;
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rvd-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, transform 0.15s;
+  text-decoration: none;
+  position: relative;
+  white-space: nowrap;
+}
+
+.rvd-nav__item:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  transform: translateX(2px);
+}
+
+.rvd-nav__item--active {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-weight: 600;
+}
+
+.rvd-nav__item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: #818cf8;
+  border-radius: 0 3px 3px 0;
+}
+
+.rvd-nav__icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.rvd-nav__label {
+  font-size: 13.5px;
+  transition: opacity 0.2s, width 0.3s;
+}
+
+.rvd-nav__badge {
+  margin-left: auto;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  transition: opacity 0.2s;
+}
+
+.rvd-nav__badge--green {
+  background: #10b981;
+}
+
+/* Sidebar footer */
+.rvd-sidebar__footer {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.rvd-reviewer-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rvd-reviewer-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.rvd-reviewer-info {
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.2s, width 0.3s;
+  overflow: hidden;
+}
+
+.rvd-reviewer-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.rvd-reviewer-role {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════
+   MAIN AREA
+═══════════════════════════════════════════════════ */
+.rvd-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+/* Topbar */
+.rvd-topbar {
+  height: 60px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  flex-shrink: 0;
+}
+
+.rvd-topbar__toggle {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.rvd-topbar__toggle:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.rvd-topbar__breadcrumb {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.rvd-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.rvd-topbar__date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #9ca3af;
+}
+
+/* Content area */
+.rvd-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 28px 40px;
+}
+
+/* ═══════════════════════════════════════════════════
+   WELCOME BANNER
+═══════════════════════════════════════════════════ */
+.rvd-welcome-banner {
+  background: linear-gradient(135deg, #3730a3 0%, #6d28d9 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  overflow: hidden;
+  position: relative;
+}
+
+.rvd-welcome-banner::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: 80px;
+  width: 160px;
+  height: 160px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 50%;
+}
+
+.rvd-welcome-banner::after {
+  content: '';
+  position: absolute;
+  bottom: -30px;
+  right: 40px;
+  width: 100px;
+  height: 100px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 50%;
+}
+
+.rvd-welcome-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px;
+}
+
+.rvd-welcome-sub {
+  font-size: 13.5px;
+  color: rgba(255,255,255,0.7);
+  max-width: 480px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.rvd-welcome-illustration {
+  font-size: 56px;
+  color: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════
+   STAT CARDS
+═══════════════════════════════════════════════════ */
+.rvd-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.rvd-stat-card {
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: default;
+}
+
+.rvd-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+}
+
+.rvd-stat-card--blue  { background: linear-gradient(135deg,#eff6ff,#dbeafe); }
+.rvd-stat-card--amber { background: linear-gradient(135deg,#fffbeb,#fef3c7); }
+.rvd-stat-card--green { background: linear-gradient(135deg,#ecfdf5,#d1fae5); }
+.rvd-stat-card--red   { background: linear-gradient(135deg,#fef2f2,#fee2e2); }
+
+.rvd-stat-card__icon {
+  font-size: 22px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rvd-stat-card--blue  .rvd-stat-card__icon { background: #dbeafe; color: #1d4ed8; }
+.rvd-stat-card--amber .rvd-stat-card__icon { background: #fde68a; color: #b45309; }
+.rvd-stat-card--green .rvd-stat-card__icon { background: #a7f3d0; color: #047857; }
+.rvd-stat-card--red   .rvd-stat-card__icon { background: #fecaca; color: #b91c1c; }
+
+.rvd-stat-card__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.rvd-stat-card__num {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.rvd-stat-card--blue  .rvd-stat-card__num { color: #1e40af; }
+.rvd-stat-card--amber .rvd-stat-card__num { color: #92400e; }
+.rvd-stat-card--green .rvd-stat-card__num { color: #065f46; }
+.rvd-stat-card--red   .rvd-stat-card__num { color: #991b1b; }
+
+.rvd-stat-card__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rvd-stat-card__glow {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  opacity: 0.15;
+}
+
+.rvd-stat-card--blue  .rvd-stat-card__glow { background: #3b82f6; }
+.rvd-stat-card--amber .rvd-stat-card__glow { background: #f59e0b; }
+.rvd-stat-card--green .rvd-stat-card__glow { background: #10b981; }
+.rvd-stat-card--red   .rvd-stat-card__glow { background: #ef4444; }
+
+/* ═══════════════════════════════════════════════════
+   HOME PANELS
+═══════════════════════════════════════════════════ */
+.rvd-home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.rvd-panel {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+.rvd-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.rvd-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rvd-panel__title i {
+  color: #6366f1;
+}
+
+.rvd-panel__link {
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  color: #6366f1;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.rvd-panel__link:hover { color: #4f46e5; }
+
+.rvd-panel__body {
+  padding: 12px 20px 20px;
+}
+
+/* Activity list */
+.rvd-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f9fafb;
+  cursor: pointer;
+  transition: background 0.12s;
+  border-radius: 6px;
+}
+
+.rvd-activity-item:hover { background: #fafafa; }
+.rvd-activity-item:last-child { border-bottom: none; }
+
+.rvd-activity-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rvd-dot--amber { background: #f59e0b; }
+.rvd-dot--green { background: #10b981; }
+.rvd-dot--red   { background: #ef4444; }
+
+.rvd-activity-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rvd-activity-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rvd-activity-prog {
+  font-size: 11.5px;
+  color: #9ca3af;
+}
+
+.rvd-activity-status {
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
   font-weight: 600;
   white-space: nowrap;
 }
 
-.gr-value {
-  text-align: right;
-  flex: 1;
+/* Progress bars */
+.rvd-progress-item {
+  margin-bottom: 16px;
 }
 
-/* Footer */
-.gr-card-footer {
-  margin-top: 8px;
+.rvd-progress-meta {
   display: flex;
-  justify-content: flex-end;
-}
-
-.gr-view-btn {
-  padding: 2px 0;
+  justify-content: space-between;
   font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 5px;
+  font-weight: 500;
 }
 
-/* Mobile tweaks */
-@media (max-width: 576px) {
-  .gr-card {
-    padding: 10px;
-  }
+.rvd-progress-track {
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
 
-  .gr-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.rvd-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.8s cubic-bezier(.4,0,.2,1);
+}
 
-  .gr-value {
-    text-align: left;
+.rvd-progress-fill--amber { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.rvd-progress-fill--green { background: linear-gradient(90deg, #10b981, #34d399); }
+.rvd-progress-fill--red   { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* Donut bar */
+.rvd-donut-row {
+  display: flex;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 20px;
+  gap: 2px;
+}
+
+.rvd-donut-segment {
+  height: 100%;
+  border-radius: 999px;
+  transition: flex 0.8s cubic-bezier(.4,0,.2,1);
+}
+
+.rvd-legend-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.rvd-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+.rvd-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ═══════════════════════════════════════════════════
+   SECTION HEADER
+═══════════════════════════════════════════════════ */
+.rvd-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.rvd-section-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 4px;
+}
+
+.rvd-section-sub {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.5;
+}
+
+.rvd-completed-badge {
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   FILTER BAR
+═══════════════════════════════════════════════════ */
+.rvd-filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.rvd-filter-search {
+  flex: 1;
+  min-width: 220px;
+  position: relative;
+}
+
+.rvd-filter-search__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.rvd-filter-search__input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px 0 36px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: #111827;
+  background: #fff;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.rvd-filter-search__input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+
+.rvd-filter-select {
+  height: 40px;
+  padding: 0 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.18s;
+}
+
+.rvd-filter-select:focus {
+  border-color: #6366f1;
+}
+
+/* ═══════════════════════════════════════════════════
+   PROPOSAL CARDS
+═══════════════════════════════════════════════════ */
+.rvd-proposal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.rvd-proposal-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 1.5px solid #f3f4f6;
+  padding: 18px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform 0.2s cubic-bezier(.4,0,.2,1),
+              box-shadow 0.2s,
+              border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.rvd-proposal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.rvd-proposal-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(99,102,241,0.12);
+  border-color: #e0e7ff;
+}
+
+.rvd-proposal-card:hover::before {
+  opacity: 1;
+}
+
+.rvd-proposal-card__num-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.rvd-proposal-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+
+.rvd-proposal-program {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
+.rvd-proposal-applicant {
+  font-size: 12.5px;
+  color: #9ca3af;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rvd-proposal-card__mid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.rvd-info-pair {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+}
+
+.rvd-info-pair__label {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.rvd-info-pair__val {
+  color: #374151;
+  font-weight: 600;
+}
+
+.rvd-score-val {
+  color: #6366f1 !important;
+}
+
+/* Score bar */
+.rvd-proposal-card__score-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rvd-score-track {
+  flex: 1;
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rvd-score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(.4,0,.2,1);
+}
+
+.rvd-score-pct {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Card footer */
+.rvd-proposal-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.rvd-group-tag {
+  font-size: 11.5px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rvd-open-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: gap 0.15s;
+}
+
+.rvd-proposal-card:hover .rvd-open-link {
+  gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════
+   CHIPS
+═══════════════════════════════════════════════════ */
+.rvd-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rvd-chip--amber { background: #fef3c7; color: #b45309; }
+.rvd-chip--green { background: #d1fae5; color: #065f46; }
+.rvd-chip--red   { background: #fee2e2; color: #991b1b; }
+.rvd-chip--blue  { background: #dbeafe; color: #1d4ed8; }
+
+/* ═══════════════════════════════════════════════════
+   COMPLETED TABLE
+═══════════════════════════════════════════════════ */
+.rvd-completed-table-wrap {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+.rvd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.rvd-table thead th {
+  padding: 14px 18px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9ca3af;
+  background: #fafafa;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.rvd-table-row td {
+  padding: 14px 18px;
+  border-bottom: 1px solid #f9fafb;
+  color: #374151;
+  vertical-align: middle;
+}
+
+.rvd-table-row:last-child td {
+  border-bottom: none;
+}
+
+.rvd-table-row {
+  transition: background 0.12s;
+}
+
+.rvd-table-row:hover {
+  background: #fafafa;
+}
+
+.rvd-score-pill {
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.rvd-muted {
+  color: #d1d5db;
+}
+
+.rvd-tbl-btn {
+  background: none;
+  border: 1.5px solid #e5e7eb;
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #6366f1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rvd-tbl-btn:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+/* ═══════════════════════════════════════════════════
+   EMPTY STATE
+═══════════════════════════════════════════════════ */
+.rvd-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.rvd-empty-state i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+  color: #d1d5db;
+}
+
+.rvd-empty-state h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 8px;
+}
+
+.rvd-empty-state p {
+  font-size: 13.5px;
+  max-width: 360px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.rvd-empty-state--sm {
+  padding: 24px 16px;
+}
+
+.rvd-empty-state--sm i {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+/* ═══════════════════════════════════════════════════
+   NO ACCESS
+═══════════════════════════════════════════════════ */
+.rvd-no-access {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  text-align: center;
+  color: #9ca3af;
+  padding: 40px;
+}
+
+.rvd-no-access i {
+  font-size: 52px;
+  color: #ef4444;
+  margin-bottom: 20px;
+}
+
+.rvd-no-access h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 8px;
+}
+
+.rvd-no-access p {
+  font-size: 13.5px;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .rvd-stats-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .rvd-home-grid {
+    grid-template-columns: 1fr;
+  }
+  .rvd-sidebar {
+    width: 64px;
+    min-width: 64px;
+  }
+  .rvd-brand-text,
+  .rvd-nav__label,
+  .rvd-nav__badge,
+  .rvd-reviewer-info {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .rvd-stats-row {
+    grid-template-columns: 1fr;
+  }
+  .rvd-content {
+    padding: 16px;
+  }
+  .rvd-welcome-banner {
+    padding: 20px;
+  }
+  .rvd-welcome-illustration {
+    display: none;
+  }
+  .rvd-proposal-grid {
+    grid-template-columns: 1fr;
   }
 }
 </css>
@@ -184,78 +1381,114 @@
         <public>false</public>
         <roles/>
         <script><![CDATA[(function() {
-  data.canRead = true; // or check roles here
+
+  // ── Logged-in user info for sidebar profile ──────────────
+  var userGr = new GlideRecord('sys_user');
+  if (userGr.get(gs.getUserID())) {
+    data.currentUser = {
+      sys_id:     userGr.getUniqueValue(),
+      name:       userGr.getDisplayValue('name')  || 'Reviewer',
+      first_name: userGr.getValue('first_name')   || '',
+      last_name:  userGr.getValue('last_name')    || '',
+      email:      userGr.getValue('email')        || '',
+      title:      userGr.getValue('title')        || 'Grant Reviewer',
+      initials:   (userGr.getValue('first_name') || 'R').charAt(0).toUpperCase() +
+                  (userGr.getValue('last_name')  || '').charAt(0).toUpperCase()
+    };
+  } else {
+    data.currentUser = {
+      name: 'Guest', first_name: '', last_name: '',
+      email: '', title: '', initials: 'G', sys_id: ''
+    };
+  }
+
+  // ── Portal logout URL ─────────────────────────────────────
+  var portalRecord = $sp.getPortalRecord();
+  data.logoutUrl   = '/login.do?logout=true';
+  data.profilePage = '?id=user_profile';
+
+  // ── Access control ────────────────────────────────────────
+  data.canRead = true;
   data.reviews = [];
+  data.stats   = { total: 0, inProgress: 0, completed: 0, onHold: 0 };
 
   var userId = gs.getUserID();
 
-  // Get groups for current user
+  // ── Get groups for current user ───────────────────────────
   var groups = [];
-  var grMem = new GlideRecord('sys_user_grmember');
+  var grMem  = new GlideRecord('sys_user_grmember');
   grMem.addQuery('user', userId);
   grMem.query();
   while (grMem.next()) {
     groups.push(grMem.getValue('group'));
   }
 
-  if (groups.length === 0)
-    return;
+  if (groups.length === 0) return;
 
-  // READ: only reviews whose assignment_group is in user's groups
-  var gr = new GlideRecord('x_enno_gatenow_grant_review'); // change if your table name differs
-  gr.addQuery('assignment_group', 'IN', groups.join(','));
+  // ── Load reviews: active (assigned to group) OR completed (group was a reviewer) ──
+  var gr = new GlideRecord('x_enno_gatenow_grant_review');
+
+  // Condition 1: review is currently assigned to user's group (any status)
+  var qc = gr.addQuery('assignment_group', 'IN', groups.join(','));
+
+  // Condition 2: review is completed AND user's group was part of the reviewer list
+  for (var i = 0; i < groups.length; i++) {
+    var orCond = qc.addOrCondition('status', 'Review completed');
+    orCond.addCondition('reviewer', 'CONTAINS', groups[i]);
+  }
+
   gr.orderBy('number');
   gr.query();
 
   while (gr.next()) {
+    var status = gr.getDisplayValue('status');
+    data.stats.total++;
+    if (status === 'Review in progress')  data.stats.inProgress++;
+    else if (status === 'Review completed') data.stats.completed++;
+    else if (status === 'Escalated')        data.stats.onHold++;
+
     data.reviews.push({
-      sys_id: gr.getUniqueValue(),
-      number: gr.getValue('number'),
-      reviewer: gr.getDisplayValue('u_reviewer'),
+      sys_id:           gr.getUniqueValue(),
+      number:           gr.getValue('number'),
+      reviewer:         gr.getDisplayValue('u_reviewer'),
       assignment_group: gr.getDisplayValue('assignment_group'),
-      decision_type: gr.getDisplayValue('u_decision_type'),
-      status: gr.getDisplayValue('u_status'),
-      score: gr.getValue('u_score'),
-      applicant: gr.getDisplayValue('u_applicant'),
-      program: gr.getDisplayValue('u_program'),
-      review_notes: gr.getValue('u_review_notes') || ''
+      decision_type:    gr.getDisplayValue('u_decision_type'),
+      status:           status,
+      score:            gr.getValue('u_score'),
+      applicant:        gr.getDisplayValue('u_applicant'),
+      program:          gr.getDisplayValue('u_program'),
+      review_notes:     gr.getValue('u_review_notes') || ''
     });
   }
 
-  // SAVE
+  // ── Save review ───────────────────────────────────────────
   if (input && input.action == 'save_review' && input.review_sys_id) {
     var reviewId = String(input.review_sys_id);
-    var form = input.form || {};
+    var form     = input.form || {};
 
     var grUpdate = new GlideRecord('x_enno_gatenow_grant_review');
     if (grUpdate.get(reviewId)) {
 
-      // security: make sure still in user group
       if (groups.indexOf(grUpdate.getValue('assignment_group')) == -1) {
         data.success = false;
-        data.error = 'You are not allowed to update this review.';
+        data.error   = 'You are not allowed to update this review.';
         return;
       }
 
-      if (form.decision_type)
-        grUpdate.setValue('u_decision_type', form.decision_type);
-
-      if (form.status)
-        grUpdate.setValue('u_status', form.status);
-
-      if (!gs.nil(form.score))
-        grUpdate.setValue('u_score', form.score);
-
-      if (!gs.nil(form.review_notes))
-        grUpdate.setValue('u_review_notes', form.review_notes);
+      if (form.decision_type)         grUpdate.setValue('u_decision_type',  form.decision_type);
+      if (form.status)                grUpdate.setValue('u_status',         form.status);
+      if (!gs.nil(form.score))        grUpdate.setValue('u_score',          form.score);
+      if (!gs.nil(form.review_notes)) grUpdate.setValue('u_review_notes',   form.review_notes);
 
       grUpdate.update();
       data.success = true;
+
     } else {
       data.success = false;
-      data.error = 'Review record not found.';
+      data.error   = 'Review record not found.';
     }
   }
+
 })();
 ]]></script>
         <servicenow>false</servicenow>
@@ -263,84 +1496,469 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>8</sys_mod_count>
+        <sys_mod_count>21</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-02-20 10:22:35</sys_updated_on>
-        <template><![CDATA[<div class="grant-review-widget" ng-if="data.canRead">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-03-06 11:11:03</sys_updated_on>
+        <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
-  <div class="gr-header">
-    <h2 class="gr-title">My Grant Reviews</h2>
-    <p class="gr-subtitle" ng-if="data.reviews.length">
-      You have {{data.reviews.length}} review task(s) assigned to your group.
-    </p>
-    <p class="gr-subtitle" ng-if="!data.reviews.length">
-      No grant reviews are currently assigned to your groups.
-    </p>
-  </div>
+  <!-- ══════════════════════════════════════════════════════
+       SIDEBAR
+  ══════════════════════════════════════════════════════ -->
+  <aside class="rvd-sidebar" ng-class="{'rvd-sidebar--collapsed': !c.sidebarOpen}">
 
-  <div class="gr-filters" ng-if="data.reviews.length">
-    <input type="text"
-           class="form-control gr-search"
-           placeholder="Search by number or program"
-           ng-model="c.searchText">
-
-    <select class="form-control gr-status-filter"
-            ng-model="c.statusFilter">
-      <option value="">All statuses</option>
-      <option value="Review in progress">Review in progress</option>
-      <option value="Review completed">Review completed</option>
-      <option value="On hold">On hold</option>
-    </select>
-  </div>
-
-  <div class="gr-card-grid" ng-if="data.reviews.length">
-    <div class="gr-card"
-         ng-repeat="rev in c.filteredReviews()">
-
-      <div class="gr-card-header">
-        <span class="gr-number">{{rev.number}}</span>
-        <span class="gr-badge">{{rev.status}}</span>
-      </div>
-
-      <div class="gr-card-body">
-        <div class="gr-row">
-          <span class="gr-label">Program</span>
-          <span class="gr-value">{{rev.program}}</span>
-        </div>
-        <div class="gr-row">
-          <span class="gr-label">Applicant</span>
-          <span class="gr-value">{{rev.applicant}}</span>
-        </div>
-        <div class="gr-row">
-          <span class="gr-label">Score</span>
-          <span class="gr-value">{{rev.score || 'N/A'}}</span>
-        </div>
-        <div class="gr-row">
-          <span class="gr-label">Decision</span>
-          <span class="gr-value">{{rev.decision_type || 'N/A'}}</span>
-        </div>
-      </div>
-
-      <div class="gr-card-footer">
-        <button class="btn btn-link gr-view-btn"
-                type="button"
-                ng-click="c.openRecord(rev)">
-          View details
-        </button>
-      </div>
-
+    <div class="rvd-sidebar__brand">
+      <div class="rvd-brand-icon"><i class="fa fa-balance-scale"></i></div>
+      <span class="rvd-brand-text">ReviewBoard</span>
     </div>
+
+    <nav class="rvd-nav">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'home'}"
+         ng-click="c.navTo('home')">
+        <i class="fa fa-home rvd-nav__icon"></i>
+        <span class="rvd-nav__label">Dashboard</span>
+      </a>
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'proposals'}"
+         ng-click="c.navTo('proposals')">
+        <i class="fa fa-file-text-o rvd-nav__icon"></i>
+        <span class="rvd-nav__label">Proposals</span>
+        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length > 0">
+          {{c.filteredProposals().length}}
+        </span>
+      </a>
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'agreements'}"
+         ng-click="c.navTo('agreements')">
+        <i class="fa fa-handshake-o rvd-nav__icon"></i>
+        <span class="rvd-nav__label">Agreements</span>
+      </a>
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'completed'}"
+         ng-click="c.navTo('completed')">
+        <i class="fa fa-check-circle-o rvd-nav__icon"></i>
+        <span class="rvd-nav__label">Completed Reviews</span>
+        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length > 0">
+          {{c.completedReviews().length}}
+        </span>
+      </a>
+    </nav>
+
+   <div class="rvd-sidebar__footer">
+
+  <!-- Profile Card — clickable dropdown trigger -->
+  <div class="rvd-profile-card"
+       ng-click="c.toggleProfile($event)"
+       ng-class="{'rvd-profile-card--open': c.profileOpen}">
+
+    <!-- Avatar with initials -->
+    <div class="rvd-profile-avatar">
+      {{c.data.currentUser.initials}}
+    </div>
+
+    <div class="rvd-profile-details">
+      <span class="rvd-profile-name">{{c.data.currentUser.first_name}} {{c.data.currentUser.last_name}}</span>
+      <span class="rvd-profile-role">{{c.data.currentUser.title || 'Grant Reviewer'}}</span>
+    </div>
+
+    <i class="fa rvd-profile-caret"
+       ng-class="c.profileOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+  </div>
+
+  <!-- Dropdown Menu -->
+  <div class="rvd-profile-dropdown" ng-show="c.profileOpen">
+
+    <!-- User info header -->
+    <div class="rvd-dropdown-head">
+      <div class="rvd-dropdown-avatar">{{c.data.currentUser.initials}}</div>
+      <div>
+        <div class="rvd-dropdown-name">{{c.data.currentUser.name}}</div>
+        <div class="rvd-dropdown-email">{{c.data.currentUser.email}}</div>
+      </div>
+    </div>
+
+    <div class="rvd-dropdown-divider"></div>
+
+    <!-- Profile link -->
+    <button class="rvd-dropdown-item" ng-click="c.goToProfile()">
+      <i class="fa fa-user-circle-o"></i>
+      View Profile
+    </button>
+
+    <div class="rvd-dropdown-divider"></div>
+
+    <!-- Logout -->
+    <button class="rvd-dropdown-item rvd-dropdown-item--danger" ng-click="c.logout()">
+      <i class="fa fa-sign-out"></i>
+      Sign Out
+    </button>
+
   </div>
 
 </div>
 
-<div class="alert alert-danger" ng-if="!data.canRead">
-  You do not have permission to view grant reviews.
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════════════════════ -->
+  <div class="rvd-main" ng-class="{'rvd-main--expanded': !c.sidebarOpen}">
+
+    <!-- Top Bar -->
+    <header class="rvd-topbar">
+      <button class="rvd-topbar__toggle" ng-click="c.toggleSidebar()">
+        <i class="fa fa-bars"></i>
+      </button>
+      <div class="rvd-topbar__breadcrumb">
+        <span ng-if="c.activeSection === 'home'">Dashboard Overview</span>
+        <span ng-if="c.activeSection === 'proposals'">Active Proposals</span>
+        <span ng-if="c.activeSection === 'agreements'">Agreements</span>
+        <span ng-if="c.activeSection === 'completed'">Completed Reviews</span>
+      </div>
+      <div class="rvd-topbar__right">
+        <div class="rvd-topbar__date">
+          <i class="fa fa-calendar-o"></i>
+          <span>Grant Review Portal</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ════════════ HOME / DASHBOARD ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'home'">
+
+      <!-- Welcome Banner -->
+      <div class="rvd-welcome-banner">
+        <div class="rvd-welcome-text">
+          <h1 class="rvd-welcome-title">Welcome back to your review workspace</h1>
+          <p class="rvd-welcome-sub">Here's a snapshot of everything happening across your assigned proposals. Stay on top of your review queue and keep things moving.</p>
+        </div>
+        <div class="rvd-welcome-illustration">
+          <i class="fa fa-clipboard"></i>
+        </div>
+      </div>
+
+      <!-- Stat Cards -->
+      <div class="rvd-stats-row">
+
+        <div class="rvd-stat-card rvd-stat-card--blue">
+          <div class="rvd-stat-card__icon"><i class="fa fa-inbox"></i></div>
+          <div class="rvd-stat-card__body">
+            <span class="rvd-stat-card__num">{{c.animatedStats.total}}</span>
+            <span class="rvd-stat-card__label">Total Assigned</span>
+          </div>
+          <div class="rvd-stat-card__glow"></div>
+        </div>
+
+        <div class="rvd-stat-card rvd-stat-card--amber">
+          <div class="rvd-stat-card__icon"><i class="fa fa-spinner"></i></div>
+          <div class="rvd-stat-card__body">
+            <span class="rvd-stat-card__num">{{c.animatedStats.inProgress}}</span>
+            <span class="rvd-stat-card__label">In Progress</span>
+          </div>
+          <div class="rvd-stat-card__glow"></div>
+        </div>
+
+        <div class="rvd-stat-card rvd-stat-card--green">
+          <div class="rvd-stat-card__icon"><i class="fa fa-check-circle"></i></div>
+          <div class="rvd-stat-card__body">
+            <span class="rvd-stat-card__num">{{c.animatedStats.completed}}</span>
+            <span class="rvd-stat-card__label">Completed</span>
+          </div>
+          <div class="rvd-stat-card__glow"></div>
+        </div>
+
+        <div class="rvd-stat-card rvd-stat-card--red">
+          <div class="rvd-stat-card__icon"><i class="fa fa-pause-circle"></i></div>
+          <div class="rvd-stat-card__body">
+            <span class="rvd-stat-card__num">{{c.animatedStats.onHold}}</span>
+            <span class="rvd-stat-card__label">Escalated</span>
+          </div>
+          <div class="rvd-stat-card__glow"></div>
+        </div>
+
+      </div>
+
+      <!-- Two-column lower section -->
+      <div class="rvd-home-grid">
+
+        <!-- Recent Activity -->
+        <div class="rvd-panel">
+          <div class="rvd-panel__head">
+            <h3 class="rvd-panel__title"><i class="fa fa-clock-o"></i> Recent Activity</h3>
+            <button class="rvd-panel__link" ng-click="c.navTo('proposals')">See all →</button>
+          </div>
+          <div class="rvd-panel__body">
+            <div ng-if="!c.recentActivity().length" class="rvd-empty-state rvd-empty-state--sm">
+              <i class="fa fa-inbox"></i>
+              <p>Nothing assigned yet.</p>
+            </div>
+            <div class="rvd-activity-item"
+                 ng-repeat="rev in c.recentActivity()"
+                 ng-click="c.openRecord(rev)">
+              <div class="rvd-activity-dot"
+                   ng-class="{
+                     'rvd-dot--amber': rev.status === 'Review in progress',
+                     'rvd-dot--green': rev.status === 'Review completed',
+                     'rvd-dot--red':   rev.status === 'On hold'
+                   }"></div>
+              <div class="rvd-activity-body">
+                <span class="rvd-activity-num">{{rev.number}}</span>
+                <span class="rvd-activity-prog">{{rev.program}}</span>
+              </div>
+              <span class="rvd-activity-status
+                    {{rev.status === 'Review completed' ? 'rvd-chip--green' :
+                      rev.status === 'On hold'          ? 'rvd-chip--red'   :
+                                                          'rvd-chip--amber'}}">
+                {{rev.status}}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Overview -->
+        <div class="rvd-panel">
+          <div class="rvd-panel__head">
+            <h3 class="rvd-panel__title"><i class="fa fa-bar-chart"></i> Progress Overview</h3>
+          </div>
+          <div class="rvd-panel__body">
+
+            <div ng-if="data.stats.total === 0" class="rvd-empty-state rvd-empty-state--sm">
+              <i class="fa fa-bar-chart"></i>
+              <p>No data yet.</p>
+            </div>
+
+            <div ng-if="data.stats.total > 0">
+
+              <div class="rvd-progress-item">
+                <div class="rvd-progress-meta">
+                  <span>In Progress</span>
+                  <span>{{data.stats.inProgress}} / {{data.stats.total}}</span>
+                </div>
+                <div class="rvd-progress-track">
+                  <div class="rvd-progress-fill rvd-progress-fill--amber"
+                       ng-style="{'width': (data.stats.inProgress / data.stats.total * 100) + '%'}"></div>
+                </div>
+              </div>
+
+              <div class="rvd-progress-item">
+                <div class="rvd-progress-meta">
+                  <span>Completed</span>
+                  <span>{{data.stats.completed}} / {{data.stats.total}}</span>
+                </div>
+                <div class="rvd-progress-track">
+                  <div class="rvd-progress-fill rvd-progress-fill--green"
+                       ng-style="{'width': (data.stats.completed / data.stats.total * 100) + '%'}"></div>
+                </div>
+              </div>
+
+              <div class="rvd-progress-item">
+                <div class="rvd-progress-meta">
+                  <span>On Hold</span>
+                  <span>{{data.stats.onHold}} / {{data.stats.total}}</span>
+                </div>
+                <div class="rvd-progress-track">
+                  <div class="rvd-progress-fill rvd-progress-fill--red"
+                       ng-style="{'width': (data.stats.onHold / data.stats.total * 100) + '%'}"></div>
+                </div>
+              </div>
+
+              <!-- Donut-style visual -->
+              <div class="rvd-donut-row">
+                <div class="rvd-donut-segment"
+                     ng-style="{'flex': data.stats.inProgress, 'background': '#f59e0b'}"
+                     ng-if="data.stats.inProgress > 0"
+                     title="In Progress: {{data.stats.inProgress}}"></div>
+                <div class="rvd-donut-segment"
+                     ng-style="{'flex': data.stats.completed, 'background': '#10b981'}"
+                     ng-if="data.stats.completed > 0"
+                     title="Completed: {{data.stats.completed}}"></div>
+                <div class="rvd-donut-segment"
+                     ng-style="{'flex': data.stats.onHold, 'background': '#ef4444'}"
+                     ng-if="data.stats.onHold > 0"
+                     title="On Hold: {{data.stats.onHold}}"></div>
+              </div>
+
+              <div class="rvd-legend-row">
+                <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#f59e0b"></span>In Progress</span>
+                <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#10b981"></span>Completed</span>
+                <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#ef4444"></span>On Hold</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ════════════ PROPOSALS ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'proposals'">
+
+      <div class="rvd-section-header">
+        <div>
+          <h2 class="rvd-section-title">Active Proposals</h2>
+          <p class="rvd-section-sub">Review and score proposals assigned to your team. Completed reviews move to the Completed Reviews section.</p>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="rvd-filter-bar">
+        <div class="rvd-filter-search">
+          <i class="fa fa-search rvd-filter-search__icon"></i>
+          <input type="text" class="rvd-filter-search__input"
+                 placeholder="Search by number, program or applicant..."
+                 ng-model="c.searchText" />
+        </div>
+        <select class="rvd-filter-select" ng-model="c.statusFilter">
+          <option value="">All Statuses</option>
+          <option value="Review in progress">In Progress</option>
+          <option value="On hold">On Hold</option>
+        </select>
+      </div>
+
+      <!-- Empty state -->
+      <div class="rvd-empty-state" ng-if="!c.filteredProposals().length">
+        <i class="fa fa-file-text-o"></i>
+        <h3>No proposals to review right now</h3>
+        <p>When proposals get assigned to your group, they'll show up here ready for your review.</p>
+      </div>
+
+      <!-- Cards -->
+      <div class="rvd-proposal-grid" ng-if="c.filteredProposals().length">
+        <div class="rvd-proposal-card"
+             ng-repeat="rev in c.filteredProposals()"
+             ng-click="c.openRecord(rev)">
+
+          <div class="rvd-proposal-card__top">
+            <div class="rvd-proposal-card__num-row">
+              <span class="rvd-proposal-num">{{rev.number}}</span>
+              <span class="rvd-chip
+                    {{rev.status === 'Review completed' ? 'rvd-chip--green' :
+                      rev.status === 'On hold'          ? 'rvd-chip--red'   :
+                                                          'rvd-chip--amber'}}">
+                {{rev.status || 'Pending'}}
+              </span>
+            </div>
+            <h4 class="rvd-proposal-program">{{rev.program || 'Untitled Program'}}</h4>
+            <p class="rvd-proposal-applicant"><i class="fa fa-user-o"></i> {{rev.applicant || '—'}}</p>
+          </div>
+
+          <div class="rvd-proposal-card__mid">
+            <div class="rvd-info-pair">
+              <span class="rvd-info-pair__label">Decision</span>
+              <span class="rvd-info-pair__val">{{rev.decision_type || 'Pending'}}</span>
+            </div>
+            <div class="rvd-info-pair">
+              <span class="rvd-info-pair__label">Reviewer</span>
+              <span class="rvd-info-pair__val">{{rev.reviewer || '—'}}</span>
+            </div>
+            <div class="rvd-info-pair" ng-if="rev.score">
+              <span class="rvd-info-pair__label">Score</span>
+              <span class="rvd-info-pair__val rvd-score-val">{{rev.score}}</span>
+            </div>
+          </div>
+
+          <div class="rvd-proposal-card__score-bar" ng-if="rev.score">
+            <div class="rvd-score-track">
+              <div class="rvd-score-fill"
+                   ng-style="{'width': c.scoreWidth(rev.score)}"></div>
+            </div>
+            <span class="rvd-score-pct">{{rev.score}}/100</span>
+          </div>
+
+          <div class="rvd-proposal-card__footer">
+            <span class="rvd-group-tag"><i class="fa fa-users"></i> {{rev.assignment_group}}</span>
+            <span class="rvd-open-link">Open Review <i class="fa fa-arrow-right"></i></span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ AGREEMENTS ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'agreements'">
+      <div class="rvd-section-header">
+        <div>
+          <h2 class="rvd-section-title">Agreements</h2>
+          <p class="rvd-section-sub">Grant agreements linked to proposals your team has reviewed.</p>
+        </div>
+      </div>
+      <div class="rvd-empty-state">
+        <i class="fa fa-handshake-o"></i>
+        <h3>Agreements coming soon</h3>
+        <p>Once proposals move through the review pipeline, associated agreements will appear here for your reference and sign-off.</p>
+      </div>
+    </div>
+
+    <!-- ════════════ COMPLETED REVIEWS ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'completed'">
+
+      <div class="rvd-section-header">
+        <div>
+          <h2 class="rvd-section-title">Completed Reviews</h2>
+          <p class="rvd-section-sub">All proposals your team has fully reviewed. These are read-only records of your completed work.</p>
+        </div>
+        <div class="rvd-completed-badge">
+          <i class="fa fa-check-circle"></i>
+          {{c.completedReviews().length}} Completed
+        </div>
+      </div>
+
+      <div class="rvd-empty-state" ng-if="!c.completedReviews().length">
+        <i class="fa fa-check-circle-o"></i>
+        <h3>No completed reviews yet</h3>
+        <p>Proposals you finish reviewing will be archived here automatically.</p>
+      </div>
+
+      <div class="rvd-completed-table-wrap" ng-if="c.completedReviews().length">
+        <table class="rvd-table">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Program</th>
+              <th>Applicant</th>
+              <th>Score</th>
+              <th>Decision</th>
+              <th>Reviewer</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="rev in c.completedReviews()" class="rvd-table-row">
+              <td><span class="rvd-proposal-num">{{rev.number}}</span></td>
+              <td>{{rev.program || '—'}}</td>
+              <td>{{rev.applicant || '—'}}</td>
+              <td>
+                <span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}</span>
+                <span class="rvd-muted" ng-if="!rev.score">—</span>
+              </td>
+              <td>
+                <span class="rvd-chip rvd-chip--green" ng-if="rev.decision_type">{{rev.decision_type}}</span>
+                <span class="rvd-muted" ng-if="!rev.decision_type">Pending</span>
+              </td>
+              <td>{{rev.reviewer || '—'}}</td>
+              <td>
+                <button class="rvd-tbl-btn" ng-click="c.openRecord(rev)">
+                  View <i class="fa fa-external-link"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+  <!-- end rvd-main -->
+
+</div>
+
+<div class="rvd-no-access" ng-if="!data.canRead">
+  <i class="fa fa-lock"></i>
+  <h3>Access Restricted</h3>
+  <p>You don't have the required permissions to access the review dashboard. Please reach out to your administrator.</p>
 </div>
 ]]></template>
     </sp_widget>

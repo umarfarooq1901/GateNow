@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function() {
+  /* widget controller */
+  var c = this;
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.projects-container {
+  padding: 20px;
+  background-color: #f9fafb;
+  font-family: 'SourceSansPro', Helvetica, Arial, sans-serif;
+
+  .header-section {
+    margin-bottom: 25px;
+    h2 { margin: 0; font-weight: 600; color: #0f172a; }
+  }
+
+  .project-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+
+      .title-group {
+        display: flex;
+        gap: 15px;
+        .project-icon {
+          background: #7c3aed;
+          color: white;
+          width: 45px;
+          height: 45px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 20px;
+        }
+        .project-name { margin: 0; font-size: 18px; font-weight: 600; }
+        .project-id { font-size: 13px; }
+      }
+    }
+
+    /* Consolidated Metadata Alignment */
+ 
+.metadata-row {
+  display: flex;
+  justify-content: flex-start; /* Aligns columns to the left */
+  width: 100%;
+  margin-bottom: 25px;
+  gap: 0; /* Remove gap; flex: 1 handles the spacing */
+
+  .meta-item {
+    flex: 1; /* Forces all 3 columns to be exactly the same width */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Keeps the status pill and text aligned left */
+
+    label {
+      display: block;
+      color: #64748b;
+      font-size: 13px;
+      margin-bottom: 8px; /* Consistent gap between label and data */
+      font-weight: 500;
+    }
+
+    /* Style for Date Text */
+    .date-text {
+      font-weight: 600;
+      font-size: 14px;
+      color: #1e293b;
+      min-height: 24px; /* Prevents card collapse if date is missing */
+    }
+
+    /* Style for Status Pill (Matches your green pill exactly) */
+    .status-pill-small {
+      background: #f0fdf4; 
+      color: #16a34a; 
+      padding: 4px 12px; 
+      border-radius: 12px; 
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+      width: auto; /* Background ONLY wraps the text */
+      line-height: 1.2;
+    }
+  }
+}
+    .progress-section {
+      margin-bottom: 25px;
+      .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        label { font-weight: 600; color: #1e293b; }
+        .progress-percent { color: #2563eb; font-weight: 700; }
+      }
+      .progress { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
+      .progress-bar { background-color: #3b82f6; height: 100%; }
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 25px;
+
+      .action-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 15px;
+        border: none;
+        border-radius: 8px;
+        text-align: left;
+        transition: transform 0.2s;
+        
+        &amp;:hover { transform: translateY(-2px); }
+        strong { display: block; font-size: 14px; color: #1e293b; }
+        span { font-size: 12px; color: #64748b; }
+
+        &amp;.baseline { background: #eff6ff; i { color: #2563eb; }}
+        &amp;.monthly { background: #f0fdf4; i { color: #16a34a; }}
+        &amp;.change { background: #fffbeb; i { color: #d97706; }}
+      }
+    }
+
+    /* Final Timeline Logic (Removed redundant activity-list) */
+    .activity-section {
+      border-top: 1px solid #f1f5f9;
+      padding-top: 15px;
+      label { font-weight: 600; color: #1e293b; display: block; margin-bottom: 15px; }
+
+      .timeline-container {
+        padding-left: 5px;
+
+        .timeline-item {
+          display: flex;
+          gap: 15px;
+          position: relative;
+          padding-bottom: 20px;
+
+          .timeline-visual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 12px;
+            position: relative;
+
+            .dot {
+              width: 10px; height: 10px; border-radius: 50%; z-index: 2;
+              &amp;.created-dot { background: #22c55e; } 
+              &amp;.phase-dot   { background: #3b82f6; } 
+              &amp;.report-dot  { background: #7c3aed; } 
+            }
+
+            .ma-tl-line {
+              width: 2px;
+              background: #e2e8f0;
+              position: absolute;
+              top: 10px;
+              bottom: -10px;
+              left: 5px;
+              z-index: 1;
+            }
+          }
+
+          .timeline-content {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: -3px;
+
+            .activity-text { font-size: 13px; color: #334155; font-weight: 500; }
+            .activity-date { font-size: 12px; color: #94a3b8; }
+          }
+        }
+      }
+    }
+  }
+}
+
+/* Global Badges */
+.active-pill {
+  background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
+  padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.status-pill-small {
+  background: #f0fdf4; color: #16a34a; padding: 2px 10px; border-radius: 12px; font-size: 12px;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>my_project</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>My Project</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    var loggedInUser = gs.getUserID(); // Identify current user
+    data.projects = [];
+    
+    var gr = new GlideRecord('pm_project');
+    gr.addActiveQuery();
+    
+    // Dot-walking to find projects where the linked applicant record points to the logged-in user
+    gr.addQuery('x_enno_gatenow_applicant.user', loggedInUser); 
+    gr.addQuery('state', 'IN', '2,3'); 
+    gr.orderByDesc('sys_created_on');
+    gr.query();
+    
+    while (gr.next()) {
+        var projectId = gr.getUniqueValue();
+        
+        var projectObj = {
+            sys_id: projectId,
+            name: gr.getDisplayValue('short_description'),
+            number: gr.getValue('number'),
+            // Use getValue to get the backend value 'initiating' for your ng-if logic
+            phase: gr.getValue('phase'), 
+            start_date: gr.getDisplayValue('work_start'),
+            end_date: gr.getDisplayValue('work_end'),
+            percent_complete: gr.getValue('percent_complete') || 0,
+            agreement_status: gr.getDisplayValue('state'),
+            activities: []
+        };
+
+        // --- EVENT 1: Project Creation ---
+        projectObj.activities.push({
+            label: "Project created",
+            date: gr.getDisplayValue('sys_created_on').split(' ')[0],
+            sortDate: gr.sys_created_on.getGlideObject().getNumericValue(),
+            type: 'created'
+        });
+
+        // --- EVENT 2: Phase Changes from Audit Table ---
+        var audit = new GlideRecord('sys_audit');
+        audit.addQuery('tablename', 'pm_project');
+        audit.addQuery('documentkey', projectId);
+        audit.addQuery('fieldname', 'phase'); 
+        audit.orderByDesc('sys_created_on');
+        audit.setLimit(2);
+        audit.query();
+        while (audit.next()) {
+            projectObj.activities.push({
+                label: "Phase changed from " + audit.oldvalue + " to " + audit.newvalue,
+                date: audit.getDisplayValue('sys_created_on').split(' ')[0],
+                sortDate: audit.sys_created_on.getGlideObject().getNumericValue(),
+                type: 'phase'
+            });
+        }
+
+        // --- EVENT 3: Reports from project_status Table ---
+        var reports = new GlideRecord('project_status');
+        reports.addQuery('project', projectId);
+        reports.orderByDesc('sys_created_on');
+        reports.setLimit(2);
+        reports.query();
+        while (reports.next()) {
+            var reportType = reports.getDisplayValue('x_enno_gatenow_report_status');
+            projectObj.activities.push({
+                label: reportType + " submitted",
+                date: reports.getDisplayValue('sys_created_on').split(' ')[0],
+                sortDate: reports.sys_created_on.getGlideObject().getNumericValue(),
+                type: 'report'
+            });
+        }
+
+        // Final Sort: Newest activity at the top
+        projectObj.activities.sort(function(a, b) {
+            return b.sortDate - a.sortDate;
+        });
+        
+        data.projects.push(projectObj);
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-03-04 09:10:31</sys_created_on>
+        <sys_id>8b1f452feb53b690520dfbdffdc0cd1f</sys_id>
+        <sys_mod_count>32</sys_mod_count>
+        <sys_name>My Project</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_8b1f452feb53b690520dfbdffdc0cd1f</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-03-06 15:07:44</sys_updated_on>
+        <template><![CDATA[<div class="projects-container">
+  <div class="header-section">
+    <h2>My Projects</h2>
+    <p class="text-muted">Manage your active grant projects</p>
+  </div>
+
+  <div ng-repeat="project in data.projects" class="project-card">
+    
+    <div class="card-header-row">
+      <div class="title-group">
+        <div class="project-icon">
+          <i class="fa fa-folder-open"></i>
+        </div>
+        <div>
+          <h3 class="project-name">{{project.name}}</h3>
+          <span class="project-id text-muted">Project ID: {{project.number}}</span>
+        </div>
+      </div>
+      <span class="status-badge active-pill">Active</span>
+    </div>
+
+    <div class="metadata-row">
+      <div class="meta-item">
+        <label>Agreement Status</label>
+        <span class="status-pill-small">{{project.agreement_status}}</span>
+      </div>
+      <div class="meta-item">
+        <label>Start Date</label>
+        <span class="date-text">{{project.start_date}}</span>
+      </div>
+      <div class="meta-item">
+        <label>End Date</label>
+        <span class="date-text">{{project.end_date}}</span>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="progress-labels">
+        <label>Project Progress</label>
+        <span class="progress-percent">{{project.percent_complete}}%</span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar" role="progressbar" 
+             ng-style="{'width': project.percent_complete + '%'}">
+        </div>
+      </div>
+    </div>
+
+ <div class="actions-row">
+  <button ng-if="project.phase == 'initiate'" 
+          class="action-btn baseline" 
+          ng-click="c.openReport('baseline', project.sys_id)">
+    <i class="fa fa-file-text-o"></i>
+    <div>
+      <strong>Baseline Report</strong>
+      <span>Submit baseline data</span>
+    </div>
+  </button>
+  
+  <button ng-if="project.phase != 'initiate'" 
+          class="action-btn monthly" 
+          ng-click="c.openReport('monthly', project.sys_id)">
+    <i class="fa fa-calendar-check-o"></i>
+    <div>
+      <strong>Monthly Report</strong>
+      <span>Submit progress</span>
+    </div>
+  </button>
+  
+  <button class="action-btn change" ng-click="c.openReport('change', project.sys_id)">
+    <i class="fa fa-pencil-square-o"></i>
+    <div>
+      <strong>Change Request</strong>
+      <span>Request changes</span>
+    </div>
+  </button>
+</div>
+
+<div class="activity-section">
+  <label>Recent Activity</label>
+  <div class="timeline-container">
+    <div ng-repeat="activity in project.activities | limitTo: 3" class="timeline-item">
+      
+      <div class="timeline-visual">
+        <span class="dot" ng-class="{
+          'created-dot': activity.type == 'created', 
+          'phase-dot': activity.type == 'phase', 
+          'report-dot': activity.type == 'report'}"></span>
+        
+        <div class="ma-tl-line" ng-if="!$last"></div>
+      </div>
+      
+      <div class="timeline-content">
+        <span class="activity-text">{{activity.label}}</span>
+        <span class="activity-date text-muted">{{activity.date}}</span>
+      </div>
+      
+    </div>
+  </div>
+</div>
+</div>
+  </div>
+</div>]]></template>
+    </sp_widget>
+</record_update>

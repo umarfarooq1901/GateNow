@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function(spUtil) {
+  var c = this;
+
+  c.updateChoice = function(award, statusValue) {
+      // Logic triggers immediately without the confirm() wrapper
+      c.data.action = 'update_award_choice';
+      c.data.target_id = award.sys_id;
+      c.data.new_status = statusValue;
+
+      c.server.update().then(function() {
+        // Updates local UI status
+        award.applicant_response = statusValue; 
+        
+        // Optional: remove this line if you also want to hide the top info message bar
+        spUtil.addInfoMessage("Your response has been successfully recorded.");
+      });
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ========================================
+   AWARDS PAGE - HIGH FIDELITY STYLING
+======================================== */
+
+.awards-page-wrapper {
+  /* CHANGE THIS: From 1100px to 100% */
+  width: 100% !important; 
+  max-width: none !important; 
+  
+  /* Centers the content but allows it to fill the screen */
+  margin: 2rem auto;
+  padding: 0 20px; /* Small padding so it doesn't touch the very edge */
+  
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: #111827;
+}
+/* Page Header */
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-subtitle {
+  color: #6b7280;
+  margin: 4px 0 0 0;
+}
+
+/* Main Award Card */
+.award-full-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #f3f4f6;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  margin-bottom: 24px;
+}
+
+/* Header Row: Prevents Stacking */
+.card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.icon-sq {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.green-sq { background: #10b981; color: white; }
+
+.grant-name {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.award-id {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Metrics Row: This fixes the vertical stacking from your screenshot */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
+.metric-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: fit-content; /* Prevents items from stretching */
+}
+
+.metric-icon-sq {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* Specific Shading for Metric Icons */
+.bg-green-light  { background: #ecfdf5; color: #10b981; }
+.bg-blue-light   { background: #eff6ff; color: #3b82f6; }
+.bg-purple-light { background: #f5f3ff; color: #8b5cf6; }
+
+.metric-text label {
+  display: block;
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+.metric-text strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Action Shaded Box: Matching the light-blue panel exactly */
+.action-shaded-box {
+  background-color: #f0f7ff;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.action-shaded-box h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin: 0 0 8px 0;
+}
+
+.action-shaded-box p {
+  color: #3b82f6;
+  font-size: 15px;
+  margin: 0 0 24px 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+/* Accept/Reject Button Styles */
+.btn-accept {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-reject {
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* Status Pill */
+.status-badge-pill {
+  background: #eff6ff;
+  color: #3b82f6;
+  border: 1px solid #dbeafe;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Award Details Footer */
+.award-footer {
+  border-top: 1px solid #f3f4f6;
+  padding-top: 24px;
+}
+
+.footer-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 16px;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.footer-col label {
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.footer-col p {
+  font-weight: 700;
+  font-size: 15px;
+  margin: 0;
+}
+
+
+
+
+
+
+
+
+.awards-empty {
+  text-align: center;
+  padding: 60px 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 2px dashed #e5e7eb; /* Adds a clean, empty-look border */
+  margin-top: 20px;
+}
+
+.empty-heading {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.empty-message {
+  font-size: 16px;
+  color: #6b7280;
+  max-width: 500px;
+  margin: 0 auto;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>my_awards</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>My Awards</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    var currentUser = gs.getUserID();
+    data.awards = [];
+
+    /* --- 1. HANDLE STATUS UPDATE ACTION --- */
+    // This block catches the 'Accept' or 'Reject' clicks from the Client Controller
+    if (input && input.action === 'update_award_choice') {
+        var upGr = new GlideRecord('x_enno_gatenow_grant_awards');
+        if (upGr.get(input.target_id)) {
+            // Maps input to 'acknowledged' (Accept) or 'rejected' (Reject) backend choices
+            upGr.setValue('applicant_response', input.new_status);
+            upGr.update();
+        }
+    }
+
+    /* --- 2. IDENTIFY THE APPLICANT --- */
+    // Finds the Applicant record associated with the logged-in user
+    var applicantIds = [];
+    var applGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    applGR.addQuery('user', currentUser);
+    applGR.query();
+    
+    while (applGR.next()) {
+        applicantIds.push(applGR.getUniqueValue());
+    }
+
+   /* --- 3. FETCH AWARD DATA --- */
+    if (applicantIds.length > 0) {
+        var gr = new GlideRecord('x_enno_gatenow_grant_awards');
+        gr.addQuery('applicant', 'IN', applicantIds.join(','));
+        gr.orderByDesc('sys_created_on');
+        gr.query();
+
+        while (gr.next()) {
+            // Get the raw value and force it to lowercase for the HTML ng-if
+           var rawResponse = String(gr.getValue('applicant_response') || '').toLowerCase(); 
+
+    data.awards.push({
+        sys_id: gr.getUniqueValue(),
+        number: gr.getDisplayValue('number'),
+        
+        // Use your specific field name: program_name
+        program_name: gr.getDisplayValue('program_name'), 
+        
+        proposal_number: gr.getDisplayValue('applicant'),
+        effective_date_of_award: gr.getDisplayValue('effective_date_of_award'), 
+        award_amount: parseFloat(gr.getValue('build_grant_amount') || 0),
+        applicant_response: rawResponse, 
+        applicant_response_display: gr.getDisplayValue('applicant_response')
+            });
+        }
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-03-03 08:54:13</sys_created_on>
+        <sys_id>f7910093eb1ff290520dfbdffdc0cdb5</sys_id>
+        <sys_mod_count>51</sys_mod_count>
+        <sys_name>My Awards</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_f7910093eb1ff290520dfbdffdc0cdb5</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-03-05 05:21:11</sys_updated_on>
+        <template><![CDATA[<section class="awards-page-wrapper">
+  <div class="page-header">
+    <h1 class="page-title">My Awards</h1>
+    <p class="page-subtitle">Manage your awarded grants</p>
+  </div>
+
+  <div class="awards-list-container">
+    
+    <div class="awards-empty" ng-if="data.awards.length === 0">
+      <h3 class="empty-heading">No Awards Yet</h3>
+      <p class="empty-message">Grant awards will appear here once your proposals are reviewed and approved by the committee</p>
+    </div>
+
+    <div class="award-full-card" ng-repeat="award in data.awards">
+      
+      <div class="card-top-row">
+        <div class="header-main">
+          <div class="icon-sq green-sq">
+            <i class="fa fa-certificate"></i>
+          </div>
+          <div class="title-meta">
+            <h2 class="grant-name">{{award.program_name}}</h2> 
+            <span class="award-id">Award ID: {{award.number}}</span>
+          </div>
+        </div>
+        
+        <div class="status-badge-pill" ng-class="award.applicant_response">
+          {{award.applicant_response_display}}
+        </div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-item">
+          <div class="metric-icon-sq bg-green-light"><i class="fa fa-usd"></i></div>
+          <div class="metric-text">
+            <label>Award Amount</label>
+            <strong>{{award.award_amount | currency:'$':0}}</strong>
+          </div>
+        </div>
+        
+        <div class="metric-item">
+          <div class="metric-icon-sq bg-blue-light"><i class="fa fa-calendar"></i></div>
+          <div class="metric-text">
+            <label>Decision Date</label>
+            <strong>{{award.effective_date_of_award}}</strong>
+          </div>
+        </div>
+
+        <div class="metric-item">
+          <div class="metric-icon-sq bg-purple-light"><i class="fa fa-archive"></i></div>
+          <div class="metric-text">
+            <label>Application</label>
+            <strong>{{award.proposal_number}}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-shaded-box" ng-if="award.applicant_response === 'pending'">
+        <h3>Action Required</h3>
+        <p>Please review and accept or reject this award. Accepting will proceed you to the agreement initiation.</p>
+        <div class="action-buttons">
+          <button class="btn-accept" ng-click="c.updateChoice(award, 'acknowledged')">
+            <i class="fa fa-check"></i> Accept Award
+          </button>
+          <button class="btn-reject" ng-click="c.updateChoice(award, 'rejected')">
+            <i class="fa fa-times"></i> Reject Award
+          </button>
+        </div>
+      </div>
+
+    </div> 
+  </div> 
+</section>]]></template>
+    </sp_widget>
+</record_update>

@@ -1,0 +1,671 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[function($scope, $location, $window, $http) {
+  var c = this;
+
+  // Set active page based on current URL
+  var currentUrl = $window.location.href;
+  if (currentUrl.indexOf('program_dashboard') > -1)              c.activePage = 'programs';
+  else if (currentUrl.indexOf('my_application_page') > -1) c.activePage = 'applications';
+  else if (currentUrl.indexOf('my_awards_page') > -1)    c.activePage = 'awards';
+  else if (currentUrl.indexOf('my_project_page') > -1)  c.activePage = 'projects';
+  else if (currentUrl.indexOf('applicant_dashboard') > -1) c.activePage = 'dashboard';
+  else                                                      c.activePage = 'dashboard';
+
+  // Navigate to a portal page
+  c.goTo = function(pageId) {
+    $window.location.href = 'https://enablenowincdemo1.service-now.com/applicant?id=' + pageId;
+  };
+
+  // Legacy setPage (kept for any existing references)
+  c.setPage = function(page) {
+    c.activePage = page;
+  };
+
+  // Badge class mapper
+  c.getBadgeClass = function(state) {
+    if (!state) return 'badge-draft';
+    var map = {
+      'under_review': 'badge-review',
+      'draft':        'badge-draft',
+      'approved':     'badge-approved',
+      'submitted':    'badge-submitted',
+      'rejected':     'badge-rejected'
+    };
+    return map[state.toLowerCase()] || 'badge-draft';
+  };
+}
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ESCAPE PORTAL CONTAINER */
+.gn-layout {
+  margin-left: -15px;
+  margin-right: -15px;
+  margin-top: 35px;
+}
+
+/* RESET */
+.gn-layout *, .gn-layout *:before, .gn-layout *:after {
+  box-sizing: border-box;
+}
+
+/* LAYOUT */
+.gn-layout {
+  display: flex;
+  min-height: 100vh;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #f4f6fb;
+  width: calc(100% + 30px);
+  position: relative;
+  align-items: flex-start;
+}
+
+/* ── SIDEBAR ── */
+.gn-sidebar {
+  width: 220px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  padding: 28px 14px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  align-self: flex-start;
+}
+.gn-nav {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.gn-nav li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 4px;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.gn-nav li:hover  { background: #f5f3ff; color: #5443AD; }
+.gn-nav li.active { background: #EEEDFB; color: #5443AD; font-weight: 600; }
+.nav-icon  { width: 20px; text-align: center; font-size: 15px; }
+.nav-label { font-size: 14px; }
+
+/* ── MAIN ── */
+.gn-main {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #f4f6fb;
+  padding: 20px 24px 40px;
+  flex: 1;
+  min-height: 100vh;
+  margin: 0;
+  overflow-y: auto;
+}
+
+/* ── HERO BANNER ── */
+.gn-banner {
+  background: linear-gradient(135deg, #3D3180, #5443AD, #6B5FBF);
+  border-radius: 16px;
+  padding: 36px 48px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+  color: #fff;
+  min-height: 180px;
+}
+.gn-banner-top { display: flex; flex-direction: column; }
+.gn-banner h2 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.gn-banner p {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.88;
+  color: #fff;
+}
+.gn-banner-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.btn-primary {
+  background: #fff;
+  color: #5443AD;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13px;
+  display: inline-block;
+}
+.btn-primary:hover { background: #EEEDFB; text-decoration: none; color: #5443AD; }
+
+.btn-outline {
+  border: 2px solid rgba(255,255,255,0.75);
+  color: #fff;
+  padding: 9px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+.btn-outline:hover { background: rgba(255,255,255,0.15); text-decoration: none; color: #fff; }
+
+/* ── SUMMARY CARDS ── */
+.gn-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.gn-card-new {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid #f1f5f9;
+  min-height: 148px;
+}
+.gn-card-new-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gn-card-new-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.gn-card-new-icon.blue   { background: #EEEDFB; color: #5443AD; }
+.gn-card-new-icon.orange { background: #fff7ed; color: #ea580c; }
+.gn-card-new-icon.green  { background: #f0fdf4; color: #16a34a; }
+.gn-card-new-icon.purple { background: #faf5ff; color: #7B6EC4; }
+
+.gn-card-new-toptext {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.gn-card-new-body { display: flex; flex-direction: column; gap: 2px; }
+.gn-card-new-val  { font-size: 30px; font-weight: 700; color: #1e1e2e; line-height: 1.1; }
+.gn-card-new-lbl  { font-size: 13px; color: #6b7280; margin-top: 2px; }
+.gn-card-new-footer {
+  font-size: 12px;
+  font-weight: 500;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* Color utilities */
+.blue-text   { color: #5443AD !important; }
+.orange-text { color: #ea580c !important; }
+.green-text  { color: #16a34a !important; }
+.purple-text { color: #7B6EC4 !important; }
+
+/* ── TWO COLUMN GRID ── */
+.gn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* ── PANELS ── */
+.gn-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.gn-panel-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e1e2e;
+  margin-bottom: 16px;
+}
+.gn-view-all { font-size: 13px; color: #5443AD; text-decoration: none; font-weight: 500; }
+.gn-view-all:hover { text-decoration: underline; }
+
+/* ── APP ROWS ── */
+.gn-app-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.gn-app-row:last-child { border-bottom: none; }
+.gn-app-name { font-size: 14px; font-weight: 600; color: #1e1e2e; }
+.gn-app-id   { font-size: 12px; color: #6b7280; margin-top: 3px; }
+.gn-app-time { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+
+/* ── BADGES ── */
+.gn-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 20px;
+  white-space: nowrap;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+.badge-review    { background: #fff7ed; color: #ea580c; }
+.badge-draft     { background: #f1f5f9; color: #475569; }
+.badge-approved  { background: #f0fdf4; color: #16a34a; }
+.badge-submitted { background: #EEEDFB; color: #5443AD; }
+.badge-rejected  { background: #fef2f2; color: #dc2626; }
+
+/* ── PROGRAM ROWS ── */
+.gn-prog-row {
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.gn-prog-row:last-child { border-bottom: none; }
+.gn-prog-name   { font-size: 14px; font-weight: 600; color: #1e1e2e; }
+.gn-prog-desc   { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.gn-prog-footer { display: flex; justify-content: space-between; margin-top: 8px; }
+.gn-prog-budget { font-size: 12px; font-weight: 600; color: #1e1e2e; }
+.gn-prog-close  { font-size: 12px; color: #9ca3af; }
+
+/* ── QUICK ACTIONS ── */
+.gn-qa-panel { margin-top: 0; }
+.gn-qa-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.gn-qa-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.gn-qa-card:hover { background: #EEEDFB; text-decoration: none; }
+.gn-qa-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.gn-qa-icon.blue   { background: #EEEDFB; color: #5443AD; }
+.gn-qa-icon.green  { background: #f0fdf4; color: #16a34a; }
+.gn-qa-icon.purple { background: #faf5ff; color: #7B6EC4; }
+.gn-qa-title { font-size: 13px; font-weight: 600; color: #1e1e2e; }
+.gn-qa-sub   { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+/* ── EMPTY STATE ── */
+.gn-empty {
+  font-size: 13px;
+  color: #9ca3af;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1100px) {
+  .gn-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 860px) {
+  .gn-grid    { grid-template-columns: 1fr; }
+  .gn-qa-grid { grid-template-columns: 1fr; }
+  .gn-sidebar { display: none; }
+  .gn-cards   { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .gn-cards { grid-template-columns: 1fr; }
+  .gn-main  { padding: 16px; }
+  .gn-banner { padding: 24px 20px 20px; }
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>applicant_dashboard_widget</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Applicant Dashboard Widget</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+
+  var userId   = gs.getUserID();
+  var userName = gs.getUserDisplayName();
+
+  data.user = { name: userName || 'User', sys_id: userId || '' };
+  data.totalApplications  = 0;
+  data.newThisMonth       = 0;
+  data.pendingAwards      = 0;
+  data.activeProjects     = 0;
+  data.awardsReceived     = 0;
+  data.recentApplications = [];
+  data.openPrograms       = [];
+
+ // Total Applications
+try {
+  var appGR = new GlideRecord('x_enno_gatenow_service_applicants');
+  appGR.addQuery('sys_created_by', gs.getUserName());
+  appGR.query();
+  while (appGR.next()) { data.totalApplications++; }
+} catch(e) { gs.debug('Dashboard-totalApps: ' + e.message); }
+
+// New This Month
+try {
+  var monthAgo = new GlideDateTime();
+  monthAgo.addMonthsLocalTime(-1);
+  var newGR = new GlideRecord('x_enno_gatenow_service_applicants');
+  newGR.addQuery('sys_created_by', gs.getUserName());
+  newGR.addQuery('sys_created_on', '>=', monthAgo.getValue());
+  newGR.query();
+  while (newGR.next()) { data.newThisMonth++; }
+} catch(e) { gs.debug('Dashboard-newThisMonth: ' + e.message); }
+
+
+
+// ── Step 1: Get applicant sys_ids where user = current logged-in user ──
+var userId       = gs.getUserID();
+var applicantIds = [];
+
+try {
+  var applicantGR = new GlideRecord('x_enno_gatenow_service_applicants');
+  applicantGR.addQuery('user', userId);   // user reference field on applicant table
+  applicantGR.query();
+  while (applicantGR.next()) {
+    applicantIds.push(applicantGR.getUniqueValue());
+  }
+} catch(e) { gs.debug('Dashboard-applicantIds: ' + e.message); }
+
+// ── Step 2: Count awards using collected applicant IDs ──
+data.pendingAwards  = 0;
+data.awardsReceived = 0;
+
+if (applicantIds.length > 0) {
+  var idString = applicantIds.join(',');
+
+  // Pending Awards
+  try {
+    var pendingGR = new GlideRecord('x_enno_gatenow_grant_awards');
+    pendingGR.addQuery('applicant', 'IN', idString);
+    pendingGR.addQuery('applicant_response', 'Pending');
+    pendingGR.query();
+    while (pendingGR.next()) { data.pendingAwards++; }
+  } catch(e) { gs.debug('Dashboard-pendingAwards: ' + e.message); }
+
+  // Awards Received
+  try {
+    var projGR = new GlideRecord('pm_project');
+     projGR.addQuery('applicant', 'IN', idString);
+  
+   projGR.query();
+    while (projGR.next()) { data.activeProjects++; }
+  } catch(e) { gs.debug('Dashboard-activeProjects: ' + e.message); }
+
+} else {
+  gs.debug('Dashboard-awards: No applicant records found for user: ' + userId);
+}
+
+
+
+
+  // Recent Applications
+ // Recent Applications — submitted by logged-in user
+try {
+  var recGR = new GlideRecord('x_enno_gatenow_service_applicants');
+  recGR.addQuery('sys_created_by', gs.getUserName());
+  recGR.orderByDesc('sys_updated_on');
+  recGR.setLimit(5);
+  recGR.query();
+  while (recGR.next()) {
+    data.recentApplications.push({
+      number:         recGR.getValue('number') || '',
+      program_name:   recGR.getDisplayValue('program') || '',
+      state:          recGR.getValue('state') || '',
+      state_display:  recGR.getDisplayValue('state') || '',
+      sys_updated_on: recGR.getDisplayValue('sys_updated_on') || ''
+    });
+  }
+} catch(e) { gs.debug('Dashboard-recentApps: ' + e.message); }
+
+
+  // Open Programs
+  try {
+    var progGR = new GlideRecord('x_enno_gatenow_grant_program');
+    progGR.addQuery('status', 'accepting_proposals');
+    progGR.orderBy('proposal_close_date');
+    progGR.setLimit(5);
+    progGR.query();
+    while (progGR.next()) {
+      data.openPrograms.push({
+        name:              progGR.getValue('program_name') || '',
+        short_description: progGR.getValue('program_description') || '',
+        budget:            progGR.getDisplayValue('program_budget') || '',
+        close_date:        progGR.getDisplayValue('proposal_close_date') || ''
+      });
+    }
+  } catch(e) { gs.debug('Dashboard-openPrograms: ' + e.message); }
+
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-03-02 18:54:14</sys_created_on>
+        <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
+        <sys_mod_count>97</sys_mod_count>
+        <sys_name>Applicant Dashboard Widget</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-03-09 08:28:40</sys_updated_on>
+        <template><![CDATA[<div class="gn-layout">
+
+  <!-- SIDEBAR -->
+  <nav class="gn-sidebar">
+    <ul class="gn-nav">
+      <!-- Dashboard -->
+      <li ng-class="{'active': c.activePage === 'dashboard'}"
+          ng-click="c.goTo('applicant_dashboard')">
+        <span class="nav-icon"><i class="fa fa-th-large"></i></span>
+        <span class="nav-label">Dashboard</span>
+      </li>
+
+      <!-- Programs -->
+      <li ng-class="{'active': c.activePage === 'programs'}"
+          ng-click="c.goTo('program_dashboard')">
+        <span class="nav-icon"><i class="fa fa-search"></i></span>
+        <span class="nav-label">Programs</span>
+      </li>
+
+      <!-- Applications -->
+      <li ng-class="{'active': c.activePage === 'applications'}"
+          ng-click="c.goTo('my_application_page')">
+        <span class="nav-icon"><i class="fa fa-file-text-o"></i></span>
+        <span class="nav-label">Applications</span>
+      </li>
+
+      <!-- Awards -->
+      <li ng-class="{'active': c.activePage === 'awards'}"
+          ng-click="c.goTo('my_awards_page')">
+        <span class="nav-icon"><i class="fa fa-trophy"></i></span>
+        <span class="nav-label">Awards</span>
+      </li>
+
+      <!-- Projects -->
+      <li ng-class="{'active': c.activePage === 'projects'}"
+          ng-click="c.goTo('my_project_page')">
+        <span class="nav-icon"><i class="fa fa-briefcase"></i></span>
+        <span class="nav-label">Projects</span>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="gn-main">
+
+    <!-- Hero Banner -->
+    <div class="gn-banner">
+      <div class="gn-banner-top">
+        <h2>Hi, {{c.data.user.name}}</h2>
+        <p>Manage your grant applications and track your progress.</p>
+      </div>
+      <div class="gn-banner-btns">
+        <a href="https://enablenowincdemo1.service-now.com/applicant?id=opportunities_programs" class="btn-primary">Explore Programs</a>
+        <a href="/applicant?id=applications" class="btn-outline">View Applications</a>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="gn-cards">
+
+      <!-- Total Applications -->
+      <div class="gn-card-new">
+        <div class="gn-card-new-header">
+          <div class="gn-card-new-icon blue"><i class="fa fa-file-text"></i></div>
+          <span class="gn-card-new-toptext">Total</span>
+        </div>
+        <div class="gn-card-new-body">
+          <div class="gn-card-new-val">{{c.data.totalApplications || 0}}</div>
+          <div class="gn-card-new-lbl">Total Applications</div>
+        </div>
+        <div class="gn-card-new-footer blue-text">↑ {{c.data.newThisMonth || 0}} this month</div>
+      </div>
+
+      <!-- Pending Awards -->
+      <div class="gn-card-new">
+        <div class="gn-card-new-header">
+          <div class="gn-card-new-icon orange"><i class="fa fa-id-badge"></i></div>
+          <span class="gn-card-new-toptext">Pending</span>
+        </div>
+        <div class="gn-card-new-body">
+          <div class="gn-card-new-val">{{c.data.pendingAwards || 0}}</div>
+          <div class="gn-card-new-lbl">Pending Awards</div>
+        </div>
+        <div class="gn-card-new-footer orange-text"><i class="fa fa-exclamation-circle"></i> Action required</div>
+      </div>
+
+      <!-- Active Projects -->
+      <div class="gn-card-new">
+        <div class="gn-card-new-header">
+          <div class="gn-card-new-icon green"><i class="fa fa-suitcase"></i></div>
+          <span class="gn-card-new-toptext">Active</span>
+        </div>
+        <div class="gn-card-new-body">
+          <div class="gn-card-new-val">{{c.data.activeProjects || 0}}</div>
+          <div class="gn-card-new-lbl">Active Projects</div>
+        </div>
+        <div class="gn-card-new-footer green-text"><i class="fa fa-check-circle"></i> On track</div>
+      </div>
+
+    </div>
+
+    <!-- Two Column Grid -->
+    <div class="gn-grid">
+
+      <div class="gn-panel">
+        <div class="gn-panel-hdr">
+          <span>Recent Applications</span>
+          <a href="/applicant?id=applications" class="gn-view-all">View all</a>
+        </div>
+        <div ng-repeat="app in c.data.recentApplications" class="gn-app-row">
+          <div>
+            <div class="gn-app-name">{{app.program_name}}</div>
+            <div class="gn-app-id">Application ID: {{app.number}}</div>
+            <div class="gn-app-time"><i class="fa fa-clock-o"></i> Updated {{app.sys_updated_on}}</div>
+          </div>
+          <span class="gn-badge" ng-class="c.getBadgeClass(app.state)">{{app.state_display}}</span>
+        </div>
+        <div ng-if="!c.data.recentApplications || !c.data.recentApplications.length" class="gn-empty">No applications yet.</div>
+      </div>
+
+      <div class="gn-panel">
+        <div class="gn-panel-hdr">
+          <span>Open Programs</span>
+          <a href="/applicant?id=programs" class="gn-view-all">View all</a>
+        </div>
+        <div ng-repeat="prog in c.data.openPrograms" class="gn-prog-row">
+          <div class="gn-prog-name">{{prog.name}}</div>
+          <div class="gn-prog-desc">{{prog.short_description}}</div>
+          <div class="gn-prog-footer">
+            <span class="gn-prog-budget">Budget: {{prog.budget}}</span>
+            <span class="gn-prog-close">Closes {{prog.close_date}}</span>
+          </div>
+        </div>
+        <div ng-if="!c.data.openPrograms || !c.data.openPrograms.length" class="gn-empty">No open programs currently.</div>
+      </div>
+
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="gn-panel gn-qa-panel">
+      <div class="gn-panel-hdr"><span>Quick Actions</span></div>
+      <div class="gn-qa-grid">
+        <a href="https://enablenowincdemo1.service-now.com/applicant?id=opportunities_programs" class="gn-qa-card">
+          <div class="gn-qa-icon blue"><i class="fa fa-th-list"></i></div>
+          <div>
+            <div class="gn-qa-title">Browse Programs</div>
+            <div class="gn-qa-sub">Find funding opportunities</div>
+          </div>
+        </a>
+        <a href="/applicant?id=awards" class="gn-qa-card">
+          <div class="gn-qa-icon green"><i class="fa fa-star"></i></div>
+          <div>
+            <div class="gn-qa-title">Manage Awards</div>
+            <div class="gn-qa-sub">Review pending awards</div>
+          </div>
+        </a>
+        <a href="/applicant?id=projects" class="gn-qa-card">
+          <div class="gn-qa-icon purple"><i class="fa fa-briefcase"></i></div>
+          <div>
+            <div class="gn-qa-title">Active Projects</div>
+            <div class="gn-qa-sub">Track project progress</div>
+          </div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+]]></template>
+    </sp_widget>
+</record_update>

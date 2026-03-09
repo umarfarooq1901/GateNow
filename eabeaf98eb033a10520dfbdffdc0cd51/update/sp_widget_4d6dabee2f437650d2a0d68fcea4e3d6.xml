@@ -1,300 +1,407 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[function($scope, $window) {
+        <client_script><![CDATA[api.controller = function($scope, $window) {
   var c = this;
-  
-  // Initialize grid view as default
-  c.gridView = true;
-  
-  // Toggle between grid and list view
-  c.toggleView = function() {
-    c.gridView = !c.gridView;
-  };
-  
-  // View program details - redirect to detail page
-  c.viewDetails = function(program) {
-    // Redirect to grant_program_detail page with sys_id parameter
-    var detailUrl = '?id=grant_program_detail&sys_id=' + program.sys_id;
-    $window.location.href = detailUrl;
-  };
-  
-  // Load programs on initialization
-  c.loadPrograms = function() {
-    c.server.get().then(function(response) {
-      c.data.programs = response.data.programs;
-      c.data.activePrograms = response.data.activePrograms;
-      c.data.availableFunding = response.data.availableFunding;
-      c.data.categories = response.data.categories;
+
+  c.gridView       = true;
+  c.activeCategory = 'all';
+  c.filtered       = angular.copy(c.data.programs) || [];
+
+  c.filterBy = function(cat) {
+    c.activeCategory = cat;
+
+    if (cat === 'all') {
+      c.filtered = c.data.programs;
+      return;
+    }
+
+    c.filtered = c.data.programs.filter(function(p) {
+      return (p.program_category || '').trim() === cat.trim();
     });
   };
-  
-  // Initialize
-  c.loadPrograms();
-}
+
+  c.viewDetails = function(program) {
+    $window.location.href = '?id=grant_program_detail&sys_id=' + program.sys_id;
+  };
+};
 ]]></client_script>
         <controller_as>c</controller_as>
-        <css>.grant-programs-widget {
-  width: 100%;
-  padding: 0;
-  
-  .header-section {
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-    padding: 60px 40px;
-    text-align: center;
-    color: white;
-    border-radius: 0;
-    
-    .badge {
-      display: inline-block;
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 20px;
-      padding: 8px 20px;
-      margin-bottom: 20px;
-      font-size: 14px;
-      
-      i {
-        margin-right: 8px;
-      }
-    }
-    
-    .main-title {
-      font-size: 42px;
-      font-weight: 700;
-      margin: 0 0 20px 0;
-      color: white;
-    }
-    
-    .subtitle {
-      font-size: 16px;
-      line-height: 1.6;
-      max-width: 700px;
-      margin: 0 auto;
-      opacity: 0.95;
-    }
-  }
-  
-  .stats-section {
-    display: flex;
-    justify-content: center;
-    gap: 80px;
-    padding: 40px;
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    
-    .stat-item {
-      text-align: center;
-      
-      .stat-number {
-        font-size: 36px;
-        font-weight: 700;
-        color: #fbbf24;
-        margin-bottom: 8px;
-      }
-      
-      .stat-label {
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 1px;
-        color: white;
-      }
-      
-      &amp;.highlight .stat-number {
-        font-size: 40px;
-      }
-    }
-  }
-  
-  .programs-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 30px 40px 20px;
-    
-    h2 {
-      font-size: 24px;
-      font-weight: 600;
-      margin: 0;
-      color: #1f2937;
-    }
-    
-    .view-toggle {
-      background: #1e3a8a;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 10px 16px;
-      cursor: pointer;
-      font-size: 16px;
-      transition: all 0.3s ease;
-      
-      &amp;:hover {
-        background: #3b82f6;
-        transform: translateY(-2px);
-      }
-    }
-  }
-  
-  .programs-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 24px;
-    padding: 20px 40px 40px;
-    
-    &amp;.list-view {
-      grid-template-columns: 1fr;
-    }
-    
-    .program-card {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      overflow: hidden;
-      transition: all 0.3s ease;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      cursor: pointer;
-      
-      &amp;:hover {
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-        transform: translateY(-8px);
-        border-color: #3b82f6;
-        
-        .card-footer {
-          opacity: 1;
-          visibility: visible;
-          transform: translateY(0);
-        }
-        
-        .card-body {
-          padding-bottom: 80px;
-        }
-      }
-      
-      .card-header {
-        padding: 16px 20px;
-        background: #f9fafb;
-        border-bottom: 1px solid #e5e7eb;
-        
-        .program-status {
-          display: inline-block;
-          background: #fbbf24;
-          color: #1f2937;
-          padding: 6px 14px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-      }
-      
-      .card-body {
-        padding: 24px 20px;
-        flex-grow: 1;
-        transition: padding 0.3s ease;
-        
-        .program-name {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1f2937;
-          margin: 0 0 16px 0;
-          line-height: 1.4;
-        }
-        
-        .program-description {
-          font-size: 14px;
-          color: #6b7280;
-          line-height: 1.6;
-          margin: 0;
-        }
-      }
-      
-      .card-footer {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 20px;
-        background: white;
-        border-top: 1px solid #e5e7eb;
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(10px);
-        transition: all 0.3s ease;
-        
-        .btn-view-details {
-          width: 100%;
-          background: transparent;
-          color: #1e3a8a;
-          border: none;
-          border-radius: 8px;
-          padding: 12px 24px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s ease;
-          
-          i {
-            margin-left: 8px;
-            transition: margin-left 0.3s ease;
-          }
-          
-          &amp;:hover {
-            color: #3b82f6;
-            
-            i {
-              margin-left: 12px;
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  .no-programs {
-    text-align: center;
-    padding: 80px 40px;
-    color: #9ca3af;
-    
-    i {
-      margin-bottom: 20px;
-      opacity: 0.5;
-    }
-    
-    p {
-      font-size: 16px;
-      margin: 0;
-    }
-  }
-}
-
-@media (max-width: 768px) {
-  .grant-programs-widget {
-    .header-section {
-      padding: 40px 20px;
-      
-      .main-title {
-        font-size: 28px;
-      }
-    }
-    
-    .stats-section {
-      flex-direction: column;
-      gap: 30px;
-      padding: 30px 20px;
-    }
-    
-    .programs-container {
-      grid-template-columns: 1fr;
-      padding: 20px;
-    }
-  }
-}
+        <css>/* ─── Reset ───────────────────────────────────────────── */&#13;
+.gp-programs-wrapper *,&#13;
+.gp-programs-wrapper *::before,&#13;
+.gp-programs-wrapper *::after {&#13;
+  box-sizing: border-box;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+/* ─── Wrapper ─────────────────────────────────────────── */&#13;
+.gp-programs-wrapper {&#13;
+  font-family: 'Inter', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;&#13;
+  width: calc(100% + 30px);&#13;
+  margin-left: -15px;&#13;
+  margin-right: -15px;&#13;
+}&#13;
+&#13;
+/* ════════════════════════════════════════════════════════&#13;
+   HERO HEADER — purple gradient&#13;
+════════════════════════════════════════════════════════ */&#13;
+.gp-programs-hero {&#13;
+  background: linear-gradient(114deg, rgb(84, 60, 168) 17%, rgb(88, 107, 199) 114%);&#13;
+  padding: 64px 0 56px;&#13;
+}&#13;
+&#13;
+.gp-programs-hero-inner {&#13;
+  max-width: 1200px;&#13;
+  margin: 0 auto;&#13;
+  padding: 0 60px;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: flex-start;&#13;
+  gap: 0;&#13;
+}&#13;
+&#13;
+/* Badge */&#13;
+.gp-badge {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  background: rgba(255,255,255,0.12);&#13;
+  border: 1px solid rgba(255,255,255,0.28);&#13;
+  color: rgba(255,255,255,0.92);&#13;
+  font-size: 11px;&#13;
+  font-weight: 500;&#13;
+  letter-spacing: 0.08em;&#13;
+  text-transform: uppercase;&#13;
+  padding: 6px 14px;&#13;
+  border-radius: 100px;&#13;
+  margin-bottom: 20px;&#13;
+  backdrop-filter: blur(6px);&#13;
+}&#13;
+&#13;
+.gp-badge-dot {&#13;
+  width: 6px;&#13;
+  height: 6px;&#13;
+  border-radius: 50%;&#13;
+  background: #7dd3fc;&#13;
+  box-shadow: 0 0 6px rgba(125,211,252,0.8);&#13;
+  flex-shrink: 0;&#13;
+  animation: gpPulse 2.2s ease-in-out infinite;&#13;
+}&#13;
+&#13;
+@keyframes gpPulse {&#13;
+  0%,100% { transform: scale(1); opacity: 1; }&#13;
+  50%      { transform: scale(1.6); opacity: 0.5; }&#13;
+}&#13;
+&#13;
+/* Title */&#13;
+.gp-programs-title {&#13;
+  font-size: clamp(22px, 2.4vw, 32px);&#13;
+  font-weight: 700;&#13;
+  color: #ffffff;&#13;
+  line-height: 1.2;&#13;
+  letter-spacing: -0.02em;&#13;
+  margin-bottom: 14px;&#13;
+}&#13;
+&#13;
+/* Subtitle */&#13;
+.gp-programs-subtitle {&#13;
+  font-size: 14px;&#13;
+  color: rgba(255,255,255,0.72);&#13;
+  line-height: 1.7;&#13;
+  margin-bottom: 40px;&#13;
+}&#13;
+&#13;
+/* Stats row */&#13;
+.gp-stats {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 0;&#13;
+  background: rgba(255,255,255,0.10);&#13;
+  border: 1px solid rgba(255,255,255,0.16);&#13;
+  border-radius: 14px;&#13;
+  padding: 20px 32px;&#13;
+  backdrop-filter: blur(6px);&#13;
+}&#13;
+&#13;
+.gp-stat {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: center;&#13;
+  gap: 4px;&#13;
+  padding: 0 32px;&#13;
+}&#13;
+&#13;
+.gp-stat:first-child { padding-left: 0; }&#13;
+.gp-stat:last-child  { padding-right: 0; }&#13;
+&#13;
+.gp-stat-num {&#13;
+  font-size: 26px;&#13;
+  font-weight: 700;&#13;
+  color: #ffffff;&#13;
+  line-height: 1;&#13;
+}&#13;
+&#13;
+.gp-stat-label {&#13;
+  font-size: 11px;&#13;
+  font-weight: 500;&#13;
+  color: rgba(255,255,255,0.60);&#13;
+  text-transform: uppercase;&#13;
+  letter-spacing: 0.06em;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gp-stat-divider {&#13;
+  width: 1px;&#13;
+  height: 36px;&#13;
+  background: rgba(255,255,255,0.20);&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+/* ════════════════════════════════════════════════════════&#13;
+   BODY — white background&#13;
+════════════════════════════════════════════════════════ */&#13;
+.gp-programs-body {&#13;
+  background: #f9f9fb;&#13;
+  padding: 40px 0 64px;&#13;
+}&#13;
+&#13;
+.gp-programs-body-inner {&#13;
+  max-width: 1200px;&#13;
+  margin: 0 auto;&#13;
+  padding: 0 60px;&#13;
+}&#13;
+&#13;
+/* ─── Filter bar ──────────────────────────────────────── */&#13;
+.gp-filter-bar {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  gap: 20px;&#13;
+  margin-bottom: 28px;&#13;
+  flex-wrap: wrap;&#13;
+}&#13;
+&#13;
+.gp-filter-tabs {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  flex-wrap: wrap;&#13;
+}&#13;
+&#13;
+.gp-filter-tab {&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  color: #6b7280;&#13;
+  background: #ffffff;&#13;
+  border: 1px solid #e5e7eb;&#13;
+  border-radius: 100px;&#13;
+  padding: 7px 16px;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.18s ease;&#13;
+  white-space: nowrap;&#13;
+  font-family: inherit;&#13;
+}&#13;
+&#13;
+.gp-filter-tab:hover {&#13;
+  border-color: #5443ad;&#13;
+  color: #5443ad;&#13;
+}&#13;
+&#13;
+.gp-filter-tab--active {&#13;
+  background: #5443ad;&#13;
+  border-color: #5443ad;&#13;
+  color: #ffffff !important;&#13;
+}&#13;
+&#13;
+/* View toggle */&#13;
+.gp-view-toggle {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 4px;&#13;
+  background: #ffffff;&#13;
+  border: 1px solid #e5e7eb;&#13;
+  border-radius: 8px;&#13;
+  padding: 4px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gp-toggle-btn {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 30px;&#13;
+  height: 30px;&#13;
+  border-radius: 6px;&#13;
+  border: none;&#13;
+  background: transparent;&#13;
+  color: #9ca3af;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.18s ease;&#13;
+}&#13;
+&#13;
+.gp-toggle-btn--active {&#13;
+  background: #5443ad;&#13;
+  color: #ffffff;&#13;
+}&#13;
+&#13;
+/* ─── Grid ────────────────────────────────────────────── */&#13;
+.gp-grid {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(3, 1fr);&#13;
+  gap: 20px;&#13;
+}&#13;
+&#13;
+.gp-grid--list {&#13;
+  grid-template-columns: 1fr;&#13;
+}&#13;
+&#13;
+/* ─── Card ────────────────────────────────────────────── */&#13;
+.gp-card {&#13;
+  background: #ffffff;&#13;
+  border: 1px solid #e9eaf0;&#13;
+  border-radius: 14px;&#13;
+  padding: 24px 24px 20px;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  cursor: pointer;&#13;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;&#13;
+}&#13;
+&#13;
+.gp-card:hover {&#13;
+  box-shadow: 0 8px 32px rgba(84,67,173,0.12);&#13;
+  transform: translateY(-3px);&#13;
+  border-color: rgba(84,67,173,0.30);&#13;
+}&#13;
+&#13;
+/* List view card overrides */&#13;
+.gp-grid--list .gp-card {&#13;
+  flex-direction: row;&#13;
+  align-items: center;&#13;
+  gap: 24px;&#13;
+  padding: 20px 24px;&#13;
+}&#13;
+&#13;
+.gp-grid--list .gp-card-meta  { flex-direction: row; gap: 16px; margin-bottom: 0; }&#13;
+.gp-grid--list .gp-card-footer { margin-top: 0; margin-left: auto; flex-shrink: 0; }&#13;
+.gp-grid--list .gp-card-desc  { display: none; }&#13;
+.gp-grid--list .gp-card-title { margin-bottom: 6px; font-size: 14px; }&#13;
+.gp-grid--list .gp-card-badge { margin-bottom: 6px; }&#13;
+&#13;
+/* Card badge */&#13;
+.gp-card-badge {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  background: rgba(84,67,173,0.08);&#13;
+  color: #5443ad;&#13;
+  font-size: 10px;&#13;
+  font-weight: 600;&#13;
+  text-transform: uppercase;&#13;
+  letter-spacing: 0.07em;&#13;
+  padding: 4px 10px;&#13;
+  border-radius: 100px;&#13;
+  margin-bottom: 12px;&#13;
+  width: fit-content;&#13;
+}&#13;
+&#13;
+/* Card title */&#13;
+.gp-card-title {&#13;
+  font-size: 15px;&#13;
+  font-weight: 700;&#13;
+  color: #0f172a;&#13;
+  line-height: 1.4;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+/* Card description */&#13;
+.gp-card-desc {&#13;
+  font-size: 13px;&#13;
+  color: #6b7280;&#13;
+  line-height: 1.6;&#13;
+  margin-bottom: 16px;&#13;
+  flex: 1;&#13;
+}&#13;
+&#13;
+/* Card meta */&#13;
+.gp-card-meta {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 6px;&#13;
+  margin-bottom: 18px;&#13;
+}&#13;
+&#13;
+.gp-card-meta-row {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 6px;&#13;
+  font-size: 12px;&#13;
+  color: #6b7280;&#13;
+}&#13;
+&#13;
+.gp-meta-icon {&#13;
+  width: 13px;&#13;
+  height: 13px;&#13;
+  color: #9ca3af;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+/* Card footer CTA */&#13;
+.gp-card-footer {&#13;
+  margin-top: auto;&#13;
+  padding-top: 16px;&#13;
+  border-top: 1px solid #f1f1f4;&#13;
+}&#13;
+&#13;
+.gp-card-link {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 6px;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  color: #5443ad;&#13;
+  transition: gap 0.18s ease;&#13;
+}&#13;
+&#13;
+.gp-card:hover .gp-card-link {&#13;
+  gap: 9px;&#13;
+}&#13;
+&#13;
+/* ─── Empty state ─────────────────────────────────────── */&#13;
+.gp-empty {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: center;&#13;
+  gap: 14px;&#13;
+  padding: 64px 0;&#13;
+  color: #9ca3af;&#13;
+  font-size: 14px;&#13;
+}&#13;
+&#13;
+/* ─── Responsive ──────────────────────────────────────── */&#13;
+@media (max-width: 1024px) {&#13;
+  .gp-programs-hero-inner,&#13;
+  .gp-programs-body-inner { padding: 0 40px; }&#13;
+  .gp-grid { grid-template-columns: repeat(2, 1fr); }&#13;
+}&#13;
+&#13;
+@media (max-width: 768px) {&#13;
+  .gp-programs-hero      { padding: 48px 0 44px; }&#13;
+  .gp-programs-hero-inner,&#13;
+  .gp-programs-body-inner { padding: 0 24px; }&#13;
+  .gp-grid               { grid-template-columns: 1fr; }&#13;
+  .gp-stats              { flex-wrap: wrap; gap: 16px; padding: 16px 20px; }&#13;
+  .gp-stat               { padding: 0 16px; }&#13;
+  .gp-stat-divider       { display: none; }&#13;
+}&#13;
+&#13;
+@media (max-width: 520px) {&#13;
+  .gp-programs-hero-inner,&#13;
+  .gp-programs-body-inner { padding: 0 16px; }&#13;
+  .gp-programs-title      { font-size: 22px; }&#13;
+  .gp-filter-tabs         { gap: 6px; }&#13;
+  .gp-filter-tab          { font-size: 12px; padding: 6px 12px; }&#13;
+}&#13;
 </css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -312,65 +419,39 @@
         <public>false</public>
         <roles/>
         <script><![CDATA[(function() {
-  /* Assuming you have a table called 'x_grant_program' or similar
-     Adjust the table name and field names according to your instance */
-  
-  var programTable = 'x_enno_gatenow_grant_program'; // Change this to your actual table name
-  
-  data.programs = [];
+  data.programs     = [];
+  data.categoryList = [];
   data.activePrograms = 0;
-  data.availableFunding = '$50B+';
-  data.categories = 0;
-  
-  // Query programs with status "Accepting Proposals"
-  var gr = new GlideRecord(programTable);
-  gr.addQuery('status', 'accepting_proposals'); // Adjust field name and value as needed
-  gr.addQuery('active', true); // Optional: only get active records
+  data.totalPrograms  = 0;
+  data.categories     = 0;
+
+  var gr = new GlideRecord('x_enno_gatenow_grant_program');
+  gr.addQuery('active', true);
   gr.orderByDesc('sys_created_on');
   gr.query();
-  
-  var totalFunding = 0;
-  var categorySet = {};
-  
+
+  var catSet = {};
+
   while (gr.next()) {
-    var program = {
-      sys_id: gr.getValue('sys_id'),
-      program_name: gr.getValue('program_name') || gr.getValue('name'),
-      description: gr.getValue('description') || gr.getValue('short_description'),
-      status: gr.getDisplayValue('status'),
-      category: gr.getDisplayValue('category'),
-      application_url: gr.getValue('application_url') || ''
-    };
-    
-    data.programs.push(program);
-    
-    // Track categories
-    if (program.category) {
-      categorySet[program.category] = true;
-    }
-    
-    // Calculate total funding if numeric value exists
-    var fundingValue = gr.getValue('funding_amount');
-    if (fundingValue && !isNaN(fundingValue)) {
-      totalFunding += parseFloat(fundingValue);
-    }
+    var cat = gr.getDisplayValue('category') || ''; // ← confirm this exact field name in your table
+
+    data.programs.push({
+      sys_id:              gr.getUniqueValue(),
+      program_name:        gr.getDisplayValue('program_name'),
+      program_description: gr.getDisplayValue('program_description'),
+      program_category:    cat,                              // ← must match what filter compares
+      program_budget:      gr.getDisplayValue('program_budget'),
+      proposal_open_date:  gr.getDisplayValue('proposal_open_date'),
+      status:              gr.getDisplayValue('status')
+    });
+
+    if (cat) catSet[cat] = true;
   }
-  
-  // Set statistics
+
+  data.totalPrograms  = data.programs.length;
   data.activePrograms = data.programs.length;
-  data.categories = Object.keys(categorySet).length;
-  
-  // Format funding if calculated
-  if (totalFunding > 0) {
-    if (totalFunding >= 1000000000) {
-      data.availableFunding = '$' + (totalFunding / 1000000000).toFixed(1) + 'B+';
-    } else if (totalFunding >= 1000000) {
-      data.availableFunding = '$' + (totalFunding / 1000000).toFixed(1) + 'M+';
-    } else {
-      data.availableFunding = '$' + totalFunding.toLocaleString();
-    }
-  }
-  
+  data.categoryList   = Object.keys(catSet).sort();         // ← drives the filter tab buttons
+  data.categories     = data.categoryList.length;
 })();
 ]]></script>
         <servicenow>false</servicenow>
@@ -378,69 +459,159 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 07:53:14</sys_created_on>
         <sys_id>4d6dabee2f437650d2a0d68fcea4e3d6</sys_id>
-        <sys_mod_count>35</sys_mod_count>
+        <sys_mod_count>40</sys_mod_count>
         <sys_name>Opportunities Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4d6dabee2f437650d2a0d68fcea4e3d6</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-02-17 10:01:32</sys_updated_on>
-        <template><![CDATA[<div class="grant-programs-widget">
-  <div class="header-section">
-    <div class="badge">
-      <i class="fa fa-lightbulb-o"></i> Funding Opportunities
-    </div>
-    <h1 class="main-title">Discover Grant Programs</h1>
-    <p class="subtitle">
-      Browse through our curated collection of federal transportation grants. 
-      Find the perfect funding opportunity for your infrastructure project.
-    </p>
-  </div>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-02-25 07:25:52</sys_updated_on>
+        <template><![CDATA[<div class="gp-programs-wrapper">
 
-  <div class="stats-section">
-    <div class="stat-item">
-      <div class="stat-number">{{data.activePrograms}}</div>
-      <div class="stat-label">ACTIVE PROGRAMS</div>
-    </div>
-    <div class="stat-item highlight">
-      <div class="stat-number">{{data.availableFunding}}</div>
-      <div class="stat-label">AVAILABLE FUNDING</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-number">{{data.categories}}</div>
-      <div class="stat-label">CATEGORIES</div>
-    </div>
-  </div>
-
-  <div class="programs-header">
-    <h2>All Grant Programs</h2>
-    <button class="view-toggle" ng-click="c.toggleView()">
-      <i class="fa" ng-class="c.gridView ? 'fa-th' : 'fa-list'"></i>
-    </button>
-  </div>
-
-  <div class="programs-container" ng-class="{'list-view': !c.gridView}">
-    <div class="program-card" ng-repeat="program in data.programs" ng-click="c.viewDetails(program)">
-      <div class="card-header">
-        <span class="program-status">{{program.status}}</span>
+  <!-- HEADER -->
+  <div class="gp-programs-hero">
+    <div class="gp-programs-hero-inner">
+      <div class="gp-badge">
+        <span class="gp-badge-dot"></span>
+        Federal Grant Programs
       </div>
-      <div class="card-body">
-        <h3 class="program-name">{{program.program_name}}</h3>
-        <p class="program-description">{{program.description}}</p>
-      </div>
-      <div class="card-footer">
-        <button class="btn-view-details">
-          View Details <i class="fa fa-arrow-right"></i>
-        </button>
+      <h1 class="gp-programs-title">Discover Grant Programs</h1>
+      <p class="gp-programs-subtitle">
+        Browse our curated collection of federal transportation grants.<br>
+        Find the right funding opportunity for your infrastructure project.
+      </p>
+
+      <!-- Stats -->
+      <div class="gp-stats">
+        <div class="gp-stat">
+          <span class="gp-stat-num">{{data.activePrograms}}</span>
+          <span class="gp-stat-label">Active Programs</span>
+        </div>
+        <div class="gp-stat-divider"></div>
+        <div class="gp-stat">
+          <span class="gp-stat-num">{{data.categories}}</span>
+          <span class="gp-stat-label">Categories</span>
+        </div>
+        <div class="gp-stat-divider"></div>
+        <div class="gp-stat">
+          <span class="gp-stat-num">{{data.totalPrograms}}</span>
+          <span class="gp-stat-label">Total Programs</span>
+        </div>
       </div>
     </div>
   </div>
 
-  <div ng-if="data.programs.length == 0" class="no-programs">
-    <i class="fa fa-inbox fa-3x"></i>
-    <p>No active grant programs available at this time.</p>
+  <!-- FILTER + GRID -->
+  <div class="gp-programs-body">
+    <div class="gp-programs-body-inner">
+
+      <!-- Filter bar -->
+      <div class="gp-filter-bar">
+        <div class="gp-filter-tabs">
+          <button class="gp-filter-tab"
+                  ng-class="{'gp-filter-tab--active': c.activeCategory === 'all'}"
+                  ng-click="c.filterBy('all')">
+            All
+          </button>
+          <button class="gp-filter-tab"
+                  ng-repeat="cat in data.categoryList track by $index"
+                  ng-class="{'gp-filter-tab--active': c.activeCategory === cat}"
+                  ng-click="c.filterBy(cat)">
+            {{cat}}
+          </button>
+        </div>
+
+        <!-- View toggle -->
+        <div class="gp-view-toggle">
+          <button class="gp-toggle-btn"
+                  ng-class="{'gp-toggle-btn--active': c.gridView}"
+                  ng-click="c.gridView = true"
+                  title="Grid view">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+              <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor"/>
+              <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor"/>
+              <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor"/>
+              <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/>
+            </svg>
+          </button>
+          <button class="gp-toggle-btn"
+                  ng-class="{'gp-toggle-btn--active': !c.gridView}"
+                  ng-click="c.gridView = false"
+                  title="List view">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+              <rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/>
+              <rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/>
+              <rect x="1" y="12" width="14" height="2" rx="1" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Program cards -->
+      <div class="gp-grid" ng-class="{'gp-grid--list': !c.gridView}"
+           ng-if="c.filtered.length">
+        <article class="gp-card"
+                 ng-repeat="program in c.filtered track by program.sys_id"
+                 ng-click="c.viewDetails(program)">
+
+          <div class="gp-card-badge" ng-if="program.program_category">
+            {{program.program_category}}
+          </div>
+
+          <h3 class="gp-card-title">{{program.program_name}}</h3>
+
+          <p class="gp-card-desc" ng-if="program.program_description">
+            {{program.program_description | limitTo:110}}{{program.program_description.length > 110 ? '…' : ''}}
+          </p>
+
+          <div class="gp-card-meta">
+            <div class="gp-card-meta-row" ng-if="program.program_budget">
+              <svg class="gp-meta-icon" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+                <path d="M8 4.5v7M6 6.5c0-.83.9-1.5 2-1.5s2 .67 2 1.5S9.1 8 8 8s-2 .67-2 1.5S6.9 11 8 11s2-.67 2-1.5"
+                      stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+              <span>{{program.program_budget}}</span>
+            </div>
+            <div class="gp-card-meta-row" ng-if="program.proposal_open_date">
+              <svg class="gp-meta-icon" viewBox="0 0 16 16" fill="none">
+                <rect x="1.5" y="2.5" width="13" height="12" rx="1.5"
+                      stroke="currentColor" stroke-width="1.3"/>
+                <path d="M1.5 6h13M5 1.5v2M11 1.5v2"
+                      stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span>Opens {{program.proposal_open_date}}</span>
+            </div>
+          </div>
+
+          <div class="gp-card-footer">
+            <span class="gp-card-link">
+              View Details
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </span>
+          </div>
+
+        </article>
+      </div>
+
+      <!-- Empty state -->
+      <div class="gp-empty" ng-if="!c.filtered.length">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+             stroke="#c4b5fd" stroke-width="1.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <p>No programs found for this category.</p>
+      </div>
+
+    </div>
   </div>
+
 </div>
 ]]></template>
     </sp_widget>

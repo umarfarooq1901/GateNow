@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function() {
+  /* widget controller */
+  var c = this;
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ─── Reset ───────────────────────────────────────────── */&#13;
+.gnf-footer *,&#13;
+.gnf-footer *::before,&#13;
+.gnf-footer *::after {&#13;
+  box-sizing: border-box;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+/* ─── Footer wrapper ──────────────────────────────────── */&#13;
+.gnf-footer {&#13;
+  font-family: 'Inter', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;&#13;
+  background: #1c1c1e;&#13;
+  width: calc(100% + 30px);&#13;
+  margin-left: -15px;&#13;
+  margin-right: -15px;&#13;
+}&#13;
+&#13;
+/* ─── Inner container ─────────────────────────────────── */&#13;
+.gnf-inner {&#13;
+  max-width: 1200px;&#13;
+  margin: 0 auto;&#13;
+  padding: 0 60px;&#13;
+}&#13;
+&#13;
+/* ─── TOP ROW: brand + nav ────────────────────────────── */&#13;
+.gnf-top {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  gap: 60px;&#13;
+  padding: 52px 0 44px;&#13;
+}&#13;
+&#13;
+/* ─── Brand block ─────────────────────────────────────── */&#13;
+.gnf-brand {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 14px;&#13;
+  flex: 0 0 auto;&#13;
+  max-width: 260px;&#13;
+}&#13;
+&#13;
+.gnf-logo {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+}&#13;
+&#13;
+.gnf-logo-icon {&#13;
+  color: #ffffff;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gnf-logo-name {&#13;
+  font-size: 17px;&#13;
+  font-weight: 600;&#13;
+  color: #ffffff;&#13;
+  letter-spacing: -0.01em;&#13;
+}&#13;
+&#13;
+.gnf-tagline {&#13;
+  font-size: 13px;&#13;
+  font-weight: 400;&#13;
+  color: rgba(255, 255, 255, 0.45);&#13;
+  line-height: 1.65;&#13;
+}&#13;
+&#13;
+/* ─── Nav columns ─────────────────────────────────────── */&#13;
+.gnf-nav {&#13;
+  display: flex;&#13;
+  gap: 64px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gnf-col {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 14px;&#13;
+  min-width: 120px;&#13;
+}&#13;
+&#13;
+.gnf-col-heading {&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  color: #ffffff;&#13;
+  letter-spacing: 0.01em;&#13;
+}&#13;
+&#13;
+.gnf-col-list {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 11px;&#13;
+}&#13;
+&#13;
+.gnf-link {&#13;
+  font-size: 13px;&#13;
+  font-weight: 400;&#13;
+  color: rgba(255, 255, 255, 0.50);&#13;
+  text-decoration: none !important;&#13;
+  transition: color 0.18s ease;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gnf-link:hover {&#13;
+  color: rgba(255, 255, 255, 0.85);&#13;
+}&#13;
+&#13;
+/* ─── BOTTOM BAR ──────────────────────────────────────── */&#13;
+.gnf-bottom {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  gap: 20px;&#13;
+  padding: 20px 0 24px;&#13;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);&#13;
+}&#13;
+&#13;
+.gnf-copyright {&#13;
+  font-size: 12px;&#13;
+  font-weight: 400;&#13;
+  color: rgba(255, 255, 255, 0.35);&#13;
+}&#13;
+&#13;
+.gnf-legal {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 24px;&#13;
+}&#13;
+&#13;
+.gnf-legal-link {&#13;
+  font-size: 12px;&#13;
+  font-weight: 400;&#13;
+  color: rgba(255, 255, 255, 0.35);&#13;
+  text-decoration: none !important;&#13;
+  transition: color 0.18s ease;&#13;
+}&#13;
+&#13;
+.gnf-legal-link:hover {&#13;
+  color: rgba(255, 255, 255, 0.70);&#13;
+}&#13;
+&#13;
+/* ─── Responsive ──────────────────────────────────────── */&#13;
+@media (max-width: 1024px) {&#13;
+  .gnf-inner { padding: 0 40px; }&#13;
+  .gnf-nav   { gap: 40px; }&#13;
+}&#13;
+&#13;
+@media (max-width: 768px) {&#13;
+  .gnf-top {&#13;
+    flex-direction: column;&#13;
+    gap: 40px;&#13;
+    padding: 40px 0 36px;&#13;
+  }&#13;
+  .gnf-inner  { padding: 0 32px; }&#13;
+  .gnf-brand  { max-width: 100%; }&#13;
+  .gnf-nav    { gap: 32px; flex-wrap: wrap; }&#13;
+}&#13;
+&#13;
+@media (max-width: 520px) {&#13;
+  .gnf-inner  { padding: 0 20px; }&#13;
+  .gnf-nav    { gap: 28px; }&#13;
+  .gnf-bottom {&#13;
+    flex-direction: column;&#13;
+    align-items: flex-start;&#13;
+    gap: 10px;&#13;
+  }&#13;
+}&#13;
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>footer_applicant</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Footer Applicant</name>
+        <option_schema/>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  /* populate the 'data' object */
+  /* e.g., data.table = $sp.getValue('table'); */
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-02-25 06:47:54</sys_created_on>
+        <sys_id>db3bacd92f13be10d2a0d68fcea4e397</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_name>Footer Applicant</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_db3bacd92f13be10d2a0d68fcea4e397</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-02-25 10:33:13</sys_updated_on>
+        <template><![CDATA[<footer class="gnf-footer">
+  <div class="gnf-inner">
+
+    <!-- TOP ROW -->
+    <div class="gnf-top">
+
+      <!-- Brand -->
+      <div class="gnf-brand">
+        <div class="gnf-logo">
+          <svg class="gnf-logo-icon" viewBox="0 0 24 24" fill="none"
+               xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+            <circle cx="5"  cy="5"  r="2" fill="currentColor" opacity="0.9"/>
+            <circle cx="12" cy="5"  r="2" fill="currentColor" opacity="0.7"/>
+            <circle cx="19" cy="5"  r="2" fill="currentColor" opacity="0.5"/>
+            <circle cx="5"  cy="12" r="2" fill="currentColor" opacity="0.7"/>
+            <circle cx="12" cy="12" r="2" fill="currentColor" opacity="1.0"/>
+            <circle cx="19" cy="12" r="2" fill="currentColor" opacity="0.6"/>
+            <circle cx="5"  cy="19" r="2" fill="currentColor" opacity="0.5"/>
+            <circle cx="12" cy="19" r="2" fill="currentColor" opacity="0.6"/>
+            <circle cx="19" cy="19" r="2" fill="currentColor" opacity="0.4"/>
+          </svg>
+          <span class="gnf-logo-name">GateNow</span>
+        </div>
+        <p class="gnf-tagline">
+          Simplifying federal grant applications<br>
+          for transportation infrastructure.
+        </p>
+      </div>
+
+      <!-- Nav columns -->
+      <nav class="gnf-nav">
+
+        <div class="gnf-col">
+          <p class="gnf-col-heading">Programs</p>
+          <ul class="gnf-col-list">
+            <li><a href="?id=opportunities_programs" class="gnf-link">Browse Grants</a></li>
+            <li><a href="?id=eligibility" class="gnf-link">Eligibility</a></li>
+            <li><a href="?id=applicant_form" class="gnf-link">Application Guide</a></li>
+          </ul>
+        </div>
+
+        <div class="gnf-col">
+          <p class="gnf-col-heading">Resources</p>
+          <ul class="gnf-col-list">
+            <li><a href="?id=faq" class="gnf-link">FAQs</a></li>
+            <li><a href="?id=documentation" class="gnf-link">Documentation</a></li>
+            <li><a href="?id=support" class="gnf-link">Support</a></li>
+          </ul>
+        </div>
+
+        <div class="gnf-col">
+          <p class="gnf-col-heading">Contact</p>
+          <ul class="gnf-col-list">
+            <li><a href="?id=contact" class="gnf-link">Get in Touch</a></li>
+            <li><a href="?id=feedback" class="gnf-link">Feedback</a></li>
+          </ul>
+        </div>
+
+      </nav>
+    </div>
+
+    <!-- BOTTOM BAR -->
+    <div class="gnf-bottom">
+      <p class="gnf-copyright">© 2026 GateNow. All rights reserved.</p>
+      <div class="gnf-legal">
+        <a href="?id=privacy" class="gnf-legal-link">Privacy Policy</a>
+        <a href="?id=terms" class="gnf-legal-link">Terms of Service</a>
+      </div>
+    </div>
+
+  </div>
+</footer>
+]]></template>
+    </sp_widget>
+</record_update>
