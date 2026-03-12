@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[function($scope, $location, $window) {
+        <client_script><![CDATA[api.controller = function($scope, $location, $window) {
     var c = this;
 
     c.searchQuery = '';
@@ -9,7 +9,7 @@
 
     // --- Pagination Setup ---
     c.currentPage = 1;
-    c.itemsPerPage = 6; // Adjust this to show however many cards you want per page
+    c.itemsPerPage = 9; // Adjust this to show however many cards you want per page
 
     $scope.filterPrograms = function(program) {
         var matchesSearch = !c.searchQuery ||
@@ -67,7 +67,7 @@
   padding: 24px;
   background: #f5f6fa;
   min-height: 100vh;
-  margin-top:4%
+  margin-top:3%;
 }
 
 /* Header */
@@ -104,7 +104,7 @@
 /* Grid */
 .bp-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
@@ -184,7 +184,7 @@
 /* Button */
 .bp-btn-view {
   margin-top: 6px;
-  background: #2d4de0;
+  background: linear-gradient(135deg, #3D3180, #5443AD, #6B5FBF);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -193,9 +193,14 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, box-shadow 0.2s;
 }
-.bp-btn-view:hover { background: #1a35c4; }
+
+.bp-btn-view:hover {
+  background: linear-gradient(135deg, #6a35aa, #4a2278);
+  box-shadow: 0 4px 12px rgba(91, 45, 142, 0.35);
+}
+
 
 /* Empty */
 .bp-empty { text-align: center; color: #aaa; padding: 40px; grid-column: 1/-1; }
@@ -279,7 +284,83 @@
   border-color: #2d4de0;
   color: #2d4de0;
 }
-</css>
+// BREADCRUMB
+// ===========================
+.detail-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;               // ← increased gap between all items including arrows
+  margin-bottom:2px;
+  margin-top: -8px;        // ← nudges it up slightly without breaking flow
+  font-size: 13px;
+}
+
+.breadcrumb-link {
+  color: #666;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+
+  &amp;:hover {
+    color: #2d4de0;
+  }
+}
+
+.breadcrumb-sep {
+  color: #bbb;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;          // ← adds breathing room on both sides of the arrow
+}
+
+.breadcrumb-current {
+  color: #1a1a2e;
+  font-weight: 600;
+}
+/* Category Tag */
+.bp-category-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7b3fc4;
+  background: #f3ecfc;
+  border: 1px solid #d4b3f0;
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+
+/* Meta label/value pairs */
+.bp-meta-label {
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+
+.bp-meta-value {
+  font-size: 13px;
+  color: #1a1a2e;
+  font-weight: 600;
+}
+/* ═══════════════════════════════════════
+   LAYOUT — sidebar + main content
+═══════════════════════════════════════ */
+.gn-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 5px solid #e5e7eb;
+  position: sticky;
+  top: 2%;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 10;
+  margin-top:-2%;
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -294,8 +375,9 @@
         <name>Dashboard Programs</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>snc_external</roles>
         <script><![CDATA[(function() {
+		data.sideBar = $sp.getWidget('sidebar_dashboard');
     data.programs = [];
 
     var gr = new GlideRecord('x_enno_gatenow_grant_program');
@@ -306,12 +388,15 @@
 
     while (gr.next()) {
         data.programs.push({
-            sys_id:        gr.getUniqueValue(),
-            name:          gr.getDisplayValue('program_name'),
-            description:   gr.getDisplayValue('short_description'),
-            status:        gr.status.getDisplayValue(),
-            total_funding: gr.getValue('program_budget'),
-            close_date:    gr.getValue('proposal_close_date')
+            sys_id:         gr.getUniqueValue(),
+            name:           gr.getDisplayValue('program_name'),
+            description:    gr.getDisplayValue('short_description'),
+            status:         gr.status.getDisplayValue(),
+            total_funding:  gr.getValue('program_budget'),
+            close_date:     gr.getValue('proposal_close_date'),
+            award_type:     gr.getDisplayValue('award_type'),       // ← new
+            open_date:      gr.getValue('proposal_open_date'),      // ← new
+            category:       gr.getDisplayValue('category')          // ← new
         });
     }
 })();
@@ -321,22 +406,25 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-07 16:56:18</sys_created_on>
         <sys_id>42765e242fe33210d2a0d68fcea4e32e</sys_id>
-        <sys_mod_count>71</sys_mod_count>
+        <sys_mod_count>92</sys_mod_count>
         <sys_name>Dashboard Programs</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_42765e242fe33210d2a0d68fcea4e32e</sys_update_name>
         <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-03-08 17:25:53</sys_updated_on>
-        <template><![CDATA[<div class="browse-programs-widget">
+        <sys_updated_on>2026-03-10 09:34:04</sys_updated_on>
+        <template><![CDATA[<div class="gn-layout">
+  
+	<div class="sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+<div class="browse-programs-widget">
   <div class="bp-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
     <div>
       <h2 class="bp-title">Browse Programs</h2>
       <p class="bp-subtitle">Explore available funding opportunities</p>
     </div>
-    
-    <!-- New Back Button -->
     <button class="bp-btn-back" ng-click="c.goBack()">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
         <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
@@ -345,6 +433,11 @@
     </button>
   </div>
 
+  <nav class="detail-breadcrumb">
+    <i class="fa fa-angle-right breadcrumb-sep"></i>
+    <a href="/applicant?id=applicant_dashboard" class="breadcrumb-link">Dashboard</a>
+    <span class="breadcrumb-current">{{data.program.title}}</span>
+  </nav>
 
   <div class="bp-toolbar">
     <div class="bp-search-wrap">
@@ -373,12 +466,11 @@
   </div>
 
   <div class="bp-grid">
-    <!-- Catch the filtered array so we can paginate the accurate search results -->
+
     <div class="bp-empty" ng-if="(filteredPrograms = (data.programs | filter:filterPrograms)).length === 0">
       <p>No programs found.</p>
     </div>
 
-    <!-- Added limitTo filter to slice the items per page -->
     <div class="bp-card"
          ng-repeat="program in filteredPrograms | limitTo: c.itemsPerPage : (c.currentPage - 1) * c.itemsPerPage">
 
@@ -391,14 +483,30 @@
               }">
           {{program.status}}
         </span>
+        <span class="bp-category-tag" ng-if="program.category">{{program.category}}</span>
       </div>
 
       <h3 class="bp-card-title">{{program.name}}</h3>
-      <p class="bp-card-desc">{{program.description}}</p>
+      <p class="bp-card-desc" ng-if="program.description">{{program.description}}</p>
+
+      <div class="bp-card-meta" ng-if="program.award_type">
+        <span class="bp-meta-label">Award Type:</span>
+        <span class="bp-meta-value">{{program.award_type}}</span>
+      </div>
 
       <div class="bp-card-meta" ng-if="program.total_funding">
         <span class="bp-meta-icon">$</span>
         <span class="bp-meta-amount">{{program.total_funding}}</span>
+      </div>
+
+      <div class="bp-card-meta" ng-if="program.open_date">
+        <span class="bp-meta-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#2ecc71" viewBox="0 0 16 16">
+            <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+          </svg>
+        </span>
+        <span class="bp-meta-label">Opens:</span>
+        <span>{{program.open_date}}</span>
       </div>
 
       <div class="bp-card-meta bp-card-deadline" ng-if="program.close_date">
@@ -407,35 +515,35 @@
             <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
           </svg>
         </span>
-        <span>Closes {{program.close_date}}</span>
+        <span class="bp-meta-label">Closes:</span>
+        <span>{{program.close_date}}</span>
       </div>
 
       <button class="bp-btn-view" ng-click="c.viewDetails(program.sys_id)">
         View Details
       </button>
 
-    </div>
-  </div>
+    </div>  <!-- /.bp-card -->
 
-  <!-- Pagination Controls (Uses your existing CSS classes) -->
+  </div>  <!-- /.bp-grid -->
+
   <div class="bp-pagination" ng-if="filteredPrograms.length > c.itemsPerPage">
     <div class="bp-page-info">
       Showing {{ ((c.currentPage - 1) * c.itemsPerPage) + 1 }} to {{ c.getMathMin(c.currentPage * c.itemsPerPage, filteredPrograms.length) }} of {{ filteredPrograms.length }} programs
     </div>
     <div class="bp-page-controls">
       <button class="bp-page-btn" ng-disabled="c.currentPage === 1" ng-click="c.changePage(c.currentPage - 1)">Prev</button>
-      
-      <button class="bp-page-btn" 
+      <button class="bp-page-btn"
               ng-repeat="page in c.getPages(filteredPrograms.length) track by $index"
               ng-class="{'bp-page-active': c.currentPage === page}"
               ng-click="c.changePage(page)">
         {{page}}
       </button>
-      
       <button class="bp-page-btn" ng-disabled="c.currentPage === c.totalPages(filteredPrograms.length)" ng-click="c.changePage(c.currentPage + 1)">Next</button>
     </div>
   </div>
 
+</div>  <!-- /.browse-programs-widget -->
 </div>
 ]]></template>
     </sp_widget>

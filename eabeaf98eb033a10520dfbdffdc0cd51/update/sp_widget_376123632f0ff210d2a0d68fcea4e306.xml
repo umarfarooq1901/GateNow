@@ -4,9 +4,6 @@
         <client_script><![CDATA[function(spUtil, $window, $timeout, $scope) {
   var c = this;
 
-  // ── Live session user from SP's $scope.user ───────────────
-  // $scope.user is injected by Service Portal automatically —
-  // it always reflects the current logged-in session in real time.
   c.sessionUser = {
     name:     ($scope.user && $scope.user.name)   || c.data.currentUser.name   || 'Reviewer',
     email:    c.data.currentUser.email            || '',
@@ -15,58 +12,159 @@
     loggedIn: $scope.user && $scope.user.logged_in
   };
 
-  // ── Sidebar navigation ────────────────────────────────────
   c.activeSection = 'home';
   c.sidebarOpen   = true;
 
   c.navTo = function(section) {
     c.activeSection = section;
+    // reset proposal page when switching to proposals
+    if (section === 'proposals') c.proposalPage = 1;
   };
+  c.toggleSidebar = function() { c.sidebarOpen = !c.sidebarOpen; };
 
-  c.toggleSidebar = function() {
-    c.sidebarOpen = !c.sidebarOpen;
-  };
-
-  // ── Profile dropdown ──────────────────────────────────────
   c.profileOpen = false;
-
   c.toggleProfile = function($event) {
     $event.stopPropagation();
     c.profileOpen = !c.profileOpen;
   };
-
-  c.closeProfile = function() {
-    c.profileOpen = false;
-  };
-
-  // ── Logout — uses /logout.do (same as Coral theme) ────────
   c.logout = function() {
-   $window.location.href = c.data.logoutUrl || '/login.do?logout=true';
+    $window.location.href = c.data.logoutUrl || '/login.do?logout=true';
   };
-
-  // ── Go to profile page ────────────────────────────────────
   c.goToProfile = function() {
     c.profileOpen = false;
     $window.location.href = c.data.profilePage || '?id=user_profile';
   };
 
-  // ── Search & filter ───────────────────────────────────────
-  c.searchText   = '';
-  c.statusFilter = '';
+  // ── Filters ───────────────────────────────────────────────
+  c.searchText      = '';
+  c.statusFilter    = '';
+  c.categoryFilter  = '';
+  c.programFilter   = '';
 
-  // ── Animated stat counters ────────────────────────────────
+  // ── Pagination ────────────────────────────────────────────
+  c.proposalPage    = 1;
+  c.pageSize        = 12;  // 12 cards per page (4x3 grid)
+
+  // Reset to page 1 whenever any filter changes
+  $scope.$watchGroup(
+    ['c.searchText', 'c.statusFilter', 'c.categoryFilter', 'c.programFilter'],
+    function() { c.proposalPage = 1; }
+  );
+
+  // ── Unique category list for dropdown ─────────────────────
+  c.categoryOptions = function() {
+    var seen = {};
+    var opts = [];
+    (c.data.reviews || []).forEach(function(r) {
+      if (r.status !== 'Review completed' && r.program_category && !seen[r.program_category]) {
+        seen[r.program_category] = true;
+        opts.push(r.program_category);
+      }
+    });
+    return opts.sort();
+  };
+
+  // ── Unique program name list for dropdown ──────────────────
+  c.programOptions = function() {
+    var seen = {};
+    var opts = [];
+    (c.data.reviews || []).forEach(function(r) {
+      if (r.status !== 'Review completed' && r.program && !seen[r.program]) {
+        seen[r.program] = true;
+        opts.push(r.program);
+      }
+    });
+    return opts.sort();
+  };
+
+  // ── Full filtered list (no pagination) ────────────────────
+  c.filteredProposals = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      if (r.status === 'Review completed') return false;
+      if (c.statusFilter   && r.status           !== c.statusFilter)   return false;
+      if (c.categoryFilter && r.program_category !== c.categoryFilter) return false;
+      if (c.programFilter  && r.program          !== c.programFilter)  return false;
+      if (c.searchText) {
+        var txt = c.searchText.toLowerCase();
+        var num = (r.number           || '').toLowerCase();
+        var prg = (r.program          || '').toLowerCase();
+        var app = (r.applicant        || '').toLowerCase();
+        var cat = (r.program_category || '').toLowerCase();
+        if (num.indexOf(txt) === -1 &&
+            prg.indexOf(txt) === -1 &&
+            app.indexOf(txt) === -1 &&
+            cat.indexOf(txt) === -1) return false;
+      }
+      return true;
+    });
+  };
+
+  // ── Paginated slice shown on current page ─────────────────
+  c.pagedProposals = function() {
+    var all   = c.filteredProposals();
+    var start = (c.proposalPage - 1) * c.pageSize;
+    return all.slice(start, start + c.pageSize);
+  };
+
+  // ── Total pages ───────────────────────────────────────────
+  c.totalPages = function() {
+    return Math.ceil(c.filteredProposals().length / c.pageSize) || 1;
+  };
+
+  // ── Page numbers array for rendering buttons ──────────────
+  c.pageNumbers = function() {
+    var total  = c.totalPages();
+    var current = c.proposalPage;
+    var pages  = [];
+    var start  = Math.max(1, current - 2);
+    var end    = Math.min(total, current + 2);
+    if (start > 1)     pages.push(1);
+    if (start > 2)     pages.push('...');
+    for (var i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('...');
+    if (end < total)   pages.push(total);
+    return pages;
+  };
+
+  c.goToPage = function(p) {
+    if (p === '...' || p < 1 || p > c.totalPages()) return;
+    c.proposalPage = p;
+  };
+
+  c.prevPage = function() { if (c.proposalPage > 1) c.proposalPage--; };
+  c.nextPage = function() { if (c.proposalPage < c.totalPages()) c.proposalPage++; };
+
+  // ── Completed reviews ─────────────────────────────────────
+  c.completedReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.status === 'Review completed';
+    });
+  };
+
+  c.recentActivity = function() {
+    return (c.data.reviews || []).slice(0, 5);
+  };
+
+  c.openRecord = function(rev) {
+    if (!rev || !rev.sys_id) return;
+    $window.location.href = '/review?id=review_proposal_detail_page&sys_id=' + rev.sys_id;
+  };
+
+  c.scoreWidth = function(score) {
+    if (!score) return '0%';
+    return Math.min(Math.round((parseInt(score) / 10) * 100), 100) + '%';
+  };
+
+  // ── Animated stats ────────────────────────────────────────
   c.animatedStats = { total: 0, inProgress: 0, completed: 0, onHold: 0 };
 
   function animateCount(key, target) {
     if (!target || target === 0) return;
-    var step     = Math.ceil(target / 30);
-    var current  = 0;
+    var step = Math.ceil(target / 30);
+    var current = 0;
     var interval = setInterval(function() {
       current += step;
-      if (current >= target) {
-        current = target;
-        clearInterval(interval);
-      }
+      if (current >= target) { current = target; clearInterval(interval); }
       c.animatedStats[key] = current;
       $timeout(function() {}, 0);
     }, 30);
@@ -79,48 +177,6 @@
     animateCount('completed',  s.completed  || 0);
     animateCount('onHold',     s.onHold     || 0);
   }, 300);
-
-  // ── Filtered proposal list (excludes completed) ───────────
-  c.filteredProposals = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      if (r.status === 'Review completed') return false;
-      if (c.statusFilter && r.status !== c.statusFilter) return false;
-      if (c.searchText) {
-        var txt = c.searchText.toLowerCase();
-        var num = (r.number    || '').toLowerCase();
-        var prg = (r.program   || '').toLowerCase();
-        var app = (r.applicant || '').toLowerCase();
-        if (num.indexOf(txt) === -1 &&
-            prg.indexOf(txt) === -1 &&
-            app.indexOf(txt) === -1) return false;
-      }
-      return true;
-    });
-  };
-
-  // ── Completed reviews list ────────────────────────────────
-  c.completedReviews = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      return r.status === 'Review completed';
-    });
-  };
-
-  // ── Recent activity (home panel) ──────────────────────────
-  c.recentActivity = function() {
-    return (c.data.reviews || []).slice(0, 5);
-  };
-
-  // ── Open proposal detail page ─────────────────────────────
-  c.openRecord = function(rev) {
-    if (!rev || !rev.sys_id) return;
-    $window.location.href = '/review?id=review_proposal_detail_page&sys_id=' + rev.sys_id;
-  };
-
-  // ── Score bar width helper ────────────────────────────────
-  c.scoreWidth = function(score) {
-    if (!score) return '0%';
-    return Math.min(Math.round((score / 100) * 100), 100) + '%';
-  };
 }
 ]]></client_script>
         <controller_as>c</controller_as>
@@ -155,6 +211,61 @@
   user-select: none;
   position: relative;
 }
+/* Results meta bar */
+.rvd-results-meta {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+.rvd-results-meta a {
+  color: #6366f1;
+  text-decoration: none;
+  cursor: pointer;
+}
+.rvd-results-meta a:hover { text-decoration: underline; }
+
+/* Pagination */
+.rvd-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 32px;
+  padding-bottom: 24px;
+}
+.rvd-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rvd-page-btn:hover:not([disabled]):not(.rvd-page-btn--ellipsis) {
+  background: #f3f4f6;
+  border-color: #6366f1;
+  color: #6366f1;
+}
+.rvd-page-btn--active {
+  background: #6366f1 !important;
+  border-color: #6366f1 !important;
+  color: #fff !important;
+}
+.rvd-page-btn--ellipsis {
+  border: none;
+  background: transparent;
+  cursor: default;
+  color: #9ca3af;
+}
+.rvd-page-btn--nav { font-size: 12px; }
+.rvd-page-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 
 .rvd-profile-card:hover,
 .rvd-profile-card--open {
@@ -1428,10 +1539,8 @@
   // ── Load reviews: active (assigned to group) OR completed (group was a reviewer) ──
   var gr = new GlideRecord('x_enno_gatenow_grant_review');
 
-  // Condition 1: review is currently assigned to user's group (any status)
   var qc = gr.addQuery('assignment_group', 'IN', groups.join(','));
 
-  // Condition 2: review is completed AND user's group was part of the reviewer list
   for (var i = 0; i < groups.length; i++) {
     var orCond = qc.addOrCondition('status', 'Review completed');
     orCond.addCondition('reviewer', 'CONTAINS', groups[i]);
@@ -1443,22 +1552,52 @@
   while (gr.next()) {
     var status = gr.getDisplayValue('status');
     data.stats.total++;
-    if (status === 'Review in progress')  data.stats.inProgress++;
+    if (status === 'Review in progress')    data.stats.inProgress++;
     else if (status === 'Review completed') data.stats.completed++;
     else if (status === 'Escalated')        data.stats.onHold++;
 
+    // ── Look up program_name + number from the program reference field ──
+    var programName     = '';
+    var programCategory = '';
+    var programNumber   = '';
+    var programSysId    = gr.getValue('program');
+    if (programSysId) {
+      var progGr = new GlideRecord('x_enno_gatenow_grant_program');
+      if (progGr.get(programSysId)) {
+        programName     = progGr.getDisplayValue('program_name') || '';
+        programCategory = progGr.getDisplayValue('category')     || '';
+        programNumber   = progGr.getValue('number')              || '';
+      }
+    }
+
+    // ── Look up applicant name + number from the applicant reference field ──
+    var applicantName   = '';
+    var applicantNumber = '';
+    var applicantSysId  = gr.getValue('applicant');
+    if (applicantSysId) {
+      var appGr = new GlideRecord('x_enno_gatenow_service_applicants');
+      if (appGr.get(applicantSysId)) {
+        applicantName   = ((appGr.getValue('first_name') || '') + ' ' +
+                           (appGr.getValue('last_name')  || '')).trim();
+        applicantNumber = appGr.getValue('number') || '';
+      }
+    }
+
     data.reviews.push({
-      sys_id:           gr.getUniqueValue(),
-      number:           gr.getValue('number'),
-      reviewer:         gr.getDisplayValue('u_reviewer'),
-      assignment_group: gr.getDisplayValue('assignment_group'),
-      decision_type:    gr.getDisplayValue('u_decision_type'),
-      status:           status,
-      score:            gr.getValue('u_score'),
-      applicant:        gr.getDisplayValue('u_applicant'),
-      program:          gr.getDisplayValue('u_program'),
-      review_notes:     gr.getValue('u_review_notes') || ''
+      sys_id:            gr.getUniqueValue(),
+      number:            gr.getValue('number')                  || '',
+      status:            status,
+      assignment_group:  gr.getDisplayValue('assignment_group') || '',
+      score:             gr.getValue('score')                   || '',
+      applicant:         applicantName,
+      applicant_number:  applicantNumber,        
+      program:           programName,
+      program_number:    programNumber,          
+      program_category:  programCategory,
+      reviewer:          gr.getDisplayValue('reviewer')         || '',
+      decision_type:     gr.getDisplayValue('decision_type')    || ''
     });
+
   }
 
   // ── Save review ───────────────────────────────────────────
@@ -1475,10 +1614,10 @@
         return;
       }
 
-      if (form.decision_type)         grUpdate.setValue('u_decision_type',  form.decision_type);
-      if (form.status)                grUpdate.setValue('u_status',         form.status);
-      if (!gs.nil(form.score))        grUpdate.setValue('u_score',          form.score);
-      if (!gs.nil(form.review_notes)) grUpdate.setValue('u_review_notes',   form.review_notes);
+      if (form.decision_type)         grUpdate.setValue('decision_type',  form.decision_type);
+      if (form.status)                grUpdate.setValue('status',         form.status);
+      if (!gs.nil(form.score))        grUpdate.setValue('score',          form.score);
+      if (!gs.nil(form.review_notes)) grUpdate.setValue('work_notes',     form.review_notes);
 
       grUpdate.update();
       data.success = true;
@@ -1496,120 +1635,70 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>21</sys_mod_count>
+        <sys_mod_count>29</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-06 11:11:03</sys_updated_on>
+        <sys_updated_on>2026-03-10 08:58:00</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
-  <!-- ══════════════════════════════════════════════════════
-       SIDEBAR
-  ══════════════════════════════════════════════════════ -->
+  <!-- SIDEBAR — unchanged -->
   <aside class="rvd-sidebar" ng-class="{'rvd-sidebar--collapsed': !c.sidebarOpen}">
-
     <div class="rvd-sidebar__brand">
       <div class="rvd-brand-icon"><i class="fa fa-balance-scale"></i></div>
       <span class="rvd-brand-text">ReviewBoard</span>
     </div>
-
     <nav class="rvd-nav">
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'home'}"
-         ng-click="c.navTo('home')">
-        <i class="fa fa-home rvd-nav__icon"></i>
-        <span class="rvd-nav__label">Dashboard</span>
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'home'}" ng-click="c.navTo('home')">
+        <i class="fa fa-home rvd-nav__icon"></i><span class="rvd-nav__label">Dashboard</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'proposals'}"
-         ng-click="c.navTo('proposals')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'proposals'}" ng-click="c.navTo('proposals')">
         <i class="fa fa-file-text-o rvd-nav__icon"></i>
         <span class="rvd-nav__label">Proposals</span>
-        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length > 0">
-          {{c.filteredProposals().length}}
-        </span>
+        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length > 0">{{c.filteredProposals().length}}</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'agreements'}"
-         ng-click="c.navTo('agreements')">
-        <i class="fa fa-handshake-o rvd-nav__icon"></i>
-        <span class="rvd-nav__label">Agreements</span>
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'agreements'}" ng-click="c.navTo('agreements')">
+        <i class="fa fa-handshake-o rvd-nav__icon"></i><span class="rvd-nav__label">Agreements</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'completed'}"
-         ng-click="c.navTo('completed')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'completed'}" ng-click="c.navTo('completed')">
         <i class="fa fa-check-circle-o rvd-nav__icon"></i>
         <span class="rvd-nav__label">Completed Reviews</span>
-        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length > 0">
-          {{c.completedReviews().length}}
-        </span>
+        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length > 0">{{c.completedReviews().length}}</span>
       </a>
     </nav>
-
-   <div class="rvd-sidebar__footer">
-
-  <!-- Profile Card — clickable dropdown trigger -->
-  <div class="rvd-profile-card"
-       ng-click="c.toggleProfile($event)"
-       ng-class="{'rvd-profile-card--open': c.profileOpen}">
-
-    <!-- Avatar with initials -->
-    <div class="rvd-profile-avatar">
-      {{c.data.currentUser.initials}}
-    </div>
-
-    <div class="rvd-profile-details">
-      <span class="rvd-profile-name">{{c.data.currentUser.first_name}} {{c.data.currentUser.last_name}}</span>
-      <span class="rvd-profile-role">{{c.data.currentUser.title || 'Grant Reviewer'}}</span>
-    </div>
-
-    <i class="fa rvd-profile-caret"
-       ng-class="c.profileOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-  </div>
-
-  <!-- Dropdown Menu -->
-  <div class="rvd-profile-dropdown" ng-show="c.profileOpen">
-
-    <!-- User info header -->
-    <div class="rvd-dropdown-head">
-      <div class="rvd-dropdown-avatar">{{c.data.currentUser.initials}}</div>
-      <div>
-        <div class="rvd-dropdown-name">{{c.data.currentUser.name}}</div>
-        <div class="rvd-dropdown-email">{{c.data.currentUser.email}}</div>
+    <div class="rvd-sidebar__footer">
+      <div class="rvd-profile-card" ng-click="c.toggleProfile($event)" ng-class="{'rvd-profile-card--open': c.profileOpen}">
+        <div class="rvd-profile-avatar">{{c.data.currentUser.initials}}</div>
+        <div class="rvd-profile-details">
+          <span class="rvd-profile-name">{{c.data.currentUser.first_name}} {{c.data.currentUser.last_name}}</span>
+          <span class="rvd-profile-role">{{c.data.currentUser.title || 'Grant Reviewer'}}</span>
+        </div>
+        <i class="fa rvd-profile-caret" ng-class="c.profileOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="rvd-profile-dropdown" ng-show="c.profileOpen">
+        <div class="rvd-dropdown-head">
+          <div class="rvd-dropdown-avatar">{{c.data.currentUser.initials}}</div>
+          <div>
+            <div class="rvd-dropdown-name">{{c.data.currentUser.name}}</div>
+            <div class="rvd-dropdown-email">{{c.data.currentUser.email}}</div>
+          </div>
+        </div>
+        <div class="rvd-dropdown-divider"></div>
+        <button class="rvd-dropdown-item" ng-click="c.goToProfile()"><i class="fa fa-user-circle-o"></i> View Profile</button>
+        <div class="rvd-dropdown-divider"></div>
+        <button class="rvd-dropdown-item rvd-dropdown-item--danger" ng-click="c.logout()"><i class="fa fa-sign-out"></i> Sign Out</button>
       </div>
     </div>
-
-    <div class="rvd-dropdown-divider"></div>
-
-    <!-- Profile link -->
-    <button class="rvd-dropdown-item" ng-click="c.goToProfile()">
-      <i class="fa fa-user-circle-o"></i>
-      View Profile
-    </button>
-
-    <div class="rvd-dropdown-divider"></div>
-
-    <!-- Logout -->
-    <button class="rvd-dropdown-item rvd-dropdown-item--danger" ng-click="c.logout()">
-      <i class="fa fa-sign-out"></i>
-      Sign Out
-    </button>
-
-  </div>
-
-</div>
-
   </aside>
 
-  <!-- ══════════════════════════════════════════════════════
-       MAIN CONTENT
-  ══════════════════════════════════════════════════════ -->
+  <!-- MAIN CONTENT -->
   <div class="rvd-main" ng-class="{'rvd-main--expanded': !c.sidebarOpen}">
 
-    <!-- Top Bar -->
     <header class="rvd-topbar">
-      <button class="rvd-topbar__toggle" ng-click="c.toggleSidebar()">
-        <i class="fa fa-bars"></i>
-      </button>
+      <button class="rvd-topbar__toggle" ng-click="c.toggleSidebar()"><i class="fa fa-bars"></i></button>
       <div class="rvd-topbar__breadcrumb">
         <span ng-if="c.activeSection === 'home'">Dashboard Overview</span>
         <span ng-if="c.activeSection === 'proposals'">Active Proposals</span>
@@ -1618,29 +1707,21 @@
       </div>
       <div class="rvd-topbar__right">
         <div class="rvd-topbar__date">
-          <i class="fa fa-calendar-o"></i>
-          <span>Grant Review Portal</span>
+          <i class="fa fa-calendar-o"></i><span>Grant Review Portal</span>
         </div>
       </div>
     </header>
 
-    <!-- ════════════ HOME / DASHBOARD ════════════ -->
+    <!-- HOME — unchanged -->
     <div class="rvd-content" ng-show="c.activeSection === 'home'">
-
-      <!-- Welcome Banner -->
       <div class="rvd-welcome-banner">
         <div class="rvd-welcome-text">
           <h1 class="rvd-welcome-title">Welcome back to your review workspace</h1>
-          <p class="rvd-welcome-sub">Here's a snapshot of everything happening across your assigned proposals. Stay on top of your review queue and keep things moving.</p>
+          <p class="rvd-welcome-sub">Here's a snapshot of everything happening across your assigned proposals.</p>
         </div>
-        <div class="rvd-welcome-illustration">
-          <i class="fa fa-clipboard"></i>
-        </div>
+        <div class="rvd-welcome-illustration"><i class="fa fa-clipboard"></i></div>
       </div>
-
-      <!-- Stat Cards -->
       <div class="rvd-stats-row">
-
         <div class="rvd-stat-card rvd-stat-card--blue">
           <div class="rvd-stat-card__icon"><i class="fa fa-inbox"></i></div>
           <div class="rvd-stat-card__body">
@@ -1649,7 +1730,6 @@
           </div>
           <div class="rvd-stat-card__glow"></div>
         </div>
-
         <div class="rvd-stat-card rvd-stat-card--amber">
           <div class="rvd-stat-card__icon"><i class="fa fa-spinner"></i></div>
           <div class="rvd-stat-card__body">
@@ -1658,7 +1738,6 @@
           </div>
           <div class="rvd-stat-card__glow"></div>
         </div>
-
         <div class="rvd-stat-card rvd-stat-card--green">
           <div class="rvd-stat-card__icon"><i class="fa fa-check-circle"></i></div>
           <div class="rvd-stat-card__body">
@@ -1667,7 +1746,6 @@
           </div>
           <div class="rvd-stat-card__glow"></div>
         </div>
-
         <div class="rvd-stat-card rvd-stat-card--red">
           <div class="rvd-stat-card__icon"><i class="fa fa-pause-circle"></i></div>
           <div class="rvd-stat-card__body">
@@ -1676,13 +1754,8 @@
           </div>
           <div class="rvd-stat-card__glow"></div>
         </div>
-
       </div>
-
-      <!-- Two-column lower section -->
       <div class="rvd-home-grid">
-
-        <!-- Recent Activity -->
         <div class="rvd-panel">
           <div class="rvd-panel__head">
             <h3 class="rvd-panel__title"><i class="fa fa-clock-o"></i> Recent Activity</h3>
@@ -1690,119 +1763,66 @@
           </div>
           <div class="rvd-panel__body">
             <div ng-if="!c.recentActivity().length" class="rvd-empty-state rvd-empty-state--sm">
-              <i class="fa fa-inbox"></i>
-              <p>Nothing assigned yet.</p>
+              <i class="fa fa-inbox"></i><p>Nothing assigned yet.</p>
             </div>
-            <div class="rvd-activity-item"
-                 ng-repeat="rev in c.recentActivity()"
-                 ng-click="c.openRecord(rev)">
-              <div class="rvd-activity-dot"
-                   ng-class="{
-                     'rvd-dot--amber': rev.status === 'Review in progress',
-                     'rvd-dot--green': rev.status === 'Review completed',
-                     'rvd-dot--red':   rev.status === 'On hold'
-                   }"></div>
+            <div class="rvd-activity-item" ng-repeat="rev in c.recentActivity()" ng-click="c.openRecord(rev)">
+              <div class="rvd-activity-dot" ng-class="{'rvd-dot--amber': rev.status === 'Review in progress','rvd-dot--green': rev.status === 'Review completed','rvd-dot--red': rev.status === 'On hold'}"></div>
               <div class="rvd-activity-body">
                 <span class="rvd-activity-num">{{rev.number}}</span>
-                <span class="rvd-activity-prog">{{rev.program}}</span>
+                <span class="rvd-activity-prog">{{rev.program || '—'}}</span>
               </div>
-              <span class="rvd-activity-status
-                    {{rev.status === 'Review completed' ? 'rvd-chip--green' :
-                      rev.status === 'On hold'          ? 'rvd-chip--red'   :
-                                                          'rvd-chip--amber'}}">
-                {{rev.status}}
-              </span>
+              <span class="rvd-activity-status {{rev.status === 'Review completed' ? 'rvd-chip--green' : rev.status === 'On hold' ? 'rvd-chip--red' : 'rvd-chip--amber'}}">{{rev.status}}</span>
             </div>
           </div>
         </div>
-
-        <!-- Progress Overview -->
         <div class="rvd-panel">
           <div class="rvd-panel__head">
             <h3 class="rvd-panel__title"><i class="fa fa-bar-chart"></i> Progress Overview</h3>
           </div>
           <div class="rvd-panel__body">
-
             <div ng-if="data.stats.total === 0" class="rvd-empty-state rvd-empty-state--sm">
-              <i class="fa fa-bar-chart"></i>
-              <p>No data yet.</p>
+              <i class="fa fa-bar-chart"></i><p>No data yet.</p>
             </div>
-
             <div ng-if="data.stats.total > 0">
-
               <div class="rvd-progress-item">
-                <div class="rvd-progress-meta">
-                  <span>In Progress</span>
-                  <span>{{data.stats.inProgress}} / {{data.stats.total}}</span>
-                </div>
-                <div class="rvd-progress-track">
-                  <div class="rvd-progress-fill rvd-progress-fill--amber"
-                       ng-style="{'width': (data.stats.inProgress / data.stats.total * 100) + '%'}"></div>
-                </div>
+                <div class="rvd-progress-meta"><span>In Progress</span><span>{{data.stats.inProgress}} / {{data.stats.total}}</span></div>
+                <div class="rvd-progress-track"><div class="rvd-progress-fill rvd-progress-fill--amber" ng-style="{'width': (data.stats.inProgress / data.stats.total * 100) + '%'}"></div></div>
               </div>
-
               <div class="rvd-progress-item">
-                <div class="rvd-progress-meta">
-                  <span>Completed</span>
-                  <span>{{data.stats.completed}} / {{data.stats.total}}</span>
-                </div>
-                <div class="rvd-progress-track">
-                  <div class="rvd-progress-fill rvd-progress-fill--green"
-                       ng-style="{'width': (data.stats.completed / data.stats.total * 100) + '%'}"></div>
-                </div>
+                <div class="rvd-progress-meta"><span>Completed</span><span>{{data.stats.completed}} / {{data.stats.total}}</span></div>
+                <div class="rvd-progress-track"><div class="rvd-progress-fill rvd-progress-fill--green" ng-style="{'width': (data.stats.completed / data.stats.total * 100) + '%'}"></div></div>
               </div>
-
               <div class="rvd-progress-item">
-                <div class="rvd-progress-meta">
-                  <span>On Hold</span>
-                  <span>{{data.stats.onHold}} / {{data.stats.total}}</span>
-                </div>
-                <div class="rvd-progress-track">
-                  <div class="rvd-progress-fill rvd-progress-fill--red"
-                       ng-style="{'width': (data.stats.onHold / data.stats.total * 100) + '%'}"></div>
-                </div>
+                <div class="rvd-progress-meta"><span>On Hold</span><span>{{data.stats.onHold}} / {{data.stats.total}}</span></div>
+                <div class="rvd-progress-track"><div class="rvd-progress-fill rvd-progress-fill--red" ng-style="{'width': (data.stats.onHold / data.stats.total * 100) + '%'}"></div></div>
               </div>
-
-              <!-- Donut-style visual -->
               <div class="rvd-donut-row">
-                <div class="rvd-donut-segment"
-                     ng-style="{'flex': data.stats.inProgress, 'background': '#f59e0b'}"
-                     ng-if="data.stats.inProgress > 0"
-                     title="In Progress: {{data.stats.inProgress}}"></div>
-                <div class="rvd-donut-segment"
-                     ng-style="{'flex': data.stats.completed, 'background': '#10b981'}"
-                     ng-if="data.stats.completed > 0"
-                     title="Completed: {{data.stats.completed}}"></div>
-                <div class="rvd-donut-segment"
-                     ng-style="{'flex': data.stats.onHold, 'background': '#ef4444'}"
-                     ng-if="data.stats.onHold > 0"
-                     title="On Hold: {{data.stats.onHold}}"></div>
+                <div class="rvd-donut-segment" ng-style="{'flex': data.stats.inProgress, 'background': '#f59e0b'}" ng-if="data.stats.inProgress > 0"></div>
+                <div class="rvd-donut-segment" ng-style="{'flex': data.stats.completed, 'background': '#10b981'}" ng-if="data.stats.completed > 0"></div>
+                <div class="rvd-donut-segment" ng-style="{'flex': data.stats.onHold, 'background': '#ef4444'}" ng-if="data.stats.onHold > 0"></div>
               </div>
-
               <div class="rvd-legend-row">
                 <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#f59e0b"></span>In Progress</span>
                 <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#10b981"></span>Completed</span>
                 <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#ef4444"></span>On Hold</span>
               </div>
-
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- ════════════ PROPOSALS ════════════ -->
+    <!-- ════════════ PROPOSALS — UPDATED ════════════ -->
     <div class="rvd-content" ng-show="c.activeSection === 'proposals'">
 
       <div class="rvd-section-header">
         <div>
           <h2 class="rvd-section-title">Active Proposals</h2>
-          <p class="rvd-section-sub">Review and score proposals assigned to your team. Completed reviews move to the Completed Reviews section.</p>
+          <p class="rvd-section-sub">Review and score proposals assigned to your team.</p>
         </div>
       </div>
 
-      <!-- Filters -->
+      <!-- ── FILTER BAR: search + status + category + program ── -->
       <div class="rvd-filter-bar">
         <div class="rvd-filter-search">
           <i class="fa fa-search rvd-filter-search__icon"></i>
@@ -1815,19 +1835,41 @@
           <option value="Review in progress">In Progress</option>
           <option value="On hold">On Hold</option>
         </select>
+        <select class="rvd-filter-select" ng-model="c.categoryFilter">
+          <option value="">All Categories</option>
+          <option ng-repeat="cat in c.categoryOptions()" value="{{cat}}">{{cat}}</option>
+        </select>
+        <select class="rvd-filter-select" ng-model="c.programFilter">
+          <option value="">All Programs</option>
+          <option ng-repeat="prg in c.programOptions()" value="{{prg}}">{{prg}}</option>
+        </select>
       </div>
 
-      <!-- Empty state -->
+      <!-- ── RESULTS META: showing x of y ── -->
+      <div class="rvd-results-meta" ng-if="c.filteredProposals().length">
+        <span>
+          Showing
+          <strong>{{(c.proposalPage - 1) * c.pageSize + 1}}–{{Math.min(c.proposalPage * c.pageSize, c.filteredProposals().length)}}</strong>
+          of <strong>{{c.filteredProposals().length}}</strong> proposals
+        </span>
+        <span ng-if="c.categoryFilter || c.programFilter || c.statusFilter || c.searchText">
+          &nbsp;·&nbsp;
+          <a href="" ng-click="c.searchText=''; c.statusFilter=''; c.categoryFilter=''; c.programFilter=''">
+            <i class="fa fa-times-circle"></i> Clear all filters
+          </a>
+        </span>
+      </div>
+
       <div class="rvd-empty-state" ng-if="!c.filteredProposals().length">
         <i class="fa fa-file-text-o"></i>
-        <h3>No proposals to review right now</h3>
-        <p>When proposals get assigned to your group, they'll show up here ready for your review.</p>
+        <h3>No proposals match your filters</h3>
+        <p>Try adjusting or clearing the filters above.</p>
       </div>
 
-      <!-- Cards -->
+      <!-- ── PROPOSAL CARDS — paginated ── -->
       <div class="rvd-proposal-grid" ng-if="c.filteredProposals().length">
         <div class="rvd-proposal-card"
-             ng-repeat="rev in c.filteredProposals()"
+             ng-repeat="rev in c.pagedProposals()"
              ng-click="c.openRecord(rev)">
 
           <div class="rvd-proposal-card__top">
@@ -1840,31 +1882,46 @@
                 {{rev.status || 'Pending'}}
               </span>
             </div>
-            <h4 class="rvd-proposal-program">{{rev.program || 'Untitled Program'}}</h4>
-            <p class="rvd-proposal-applicant"><i class="fa fa-user-o"></i> {{rev.applicant || '—'}}</p>
+            <h4 class="rvd-proposal-program">{{rev.program || 'No Program'}}</h4>
+            <p class="rvd-proposal-applicant">
+              <i class="fa fa-user-o"></i> {{rev.applicant || '—'}}
+            </p>
           </div>
 
           <div class="rvd-proposal-card__mid">
             <div class="rvd-info-pair">
+              <span class="rvd-info-pair__label">Program No.</span>
+              <span class="rvd-info-pair__val">
+                <span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span>
+                <span ng-if="!rev.program_number">—</span>
+              </span>
+            </div>
+            <div class="rvd-info-pair">
+              <span class="rvd-info-pair__label">Applicant No.</span>
+              <span class="rvd-info-pair__val">
+                <span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span>
+                <span ng-if="!rev.applicant_number">—</span>
+              </span>
+            </div>
+            <div class="rvd-info-pair">
+              <span class="rvd-info-pair__label">Category</span>
+              <span class="rvd-info-pair__val">{{rev.program_category || '—'}}</span>
+            </div>
+            <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Decision</span>
               <span class="rvd-info-pair__val">{{rev.decision_type || 'Pending'}}</span>
             </div>
-            <div class="rvd-info-pair">
-              <span class="rvd-info-pair__label">Reviewer</span>
-              <span class="rvd-info-pair__val">{{rev.reviewer || '—'}}</span>
-            </div>
             <div class="rvd-info-pair" ng-if="rev.score">
               <span class="rvd-info-pair__label">Score</span>
-              <span class="rvd-info-pair__val rvd-score-val">{{rev.score}}</span>
+              <span class="rvd-info-pair__val rvd-score-val">{{rev.score}}/10</span>
             </div>
           </div>
 
           <div class="rvd-proposal-card__score-bar" ng-if="rev.score">
             <div class="rvd-score-track">
-              <div class="rvd-score-fill"
-                   ng-style="{'width': c.scoreWidth(rev.score)}"></div>
+              <div class="rvd-score-fill" ng-style="{'width': c.scoreWidth(rev.score)}"></div>
             </div>
-            <span class="rvd-score-pct">{{rev.score}}/100</span>
+            <span class="rvd-score-pct">{{rev.score}}/10</span>
           </div>
 
           <div class="rvd-proposal-card__footer">
@@ -1874,9 +1931,36 @@
 
         </div>
       </div>
+
+      <!-- ── PAGINATION ── -->
+      <div class="rvd-pagination" ng-if="c.totalPages() > 1">
+        <button class="rvd-page-btn rvd-page-btn--nav"
+                ng-click="c.prevPage()"
+                ng-disabled="c.proposalPage === 1">
+          <i class="fa fa-chevron-left"></i>
+        </button>
+
+        <button class="rvd-page-btn"
+                ng-repeat="p in c.pageNumbers() track by $index"
+                ng-click="c.goToPage(p)"
+                ng-class="{
+                  'rvd-page-btn--active': p === c.proposalPage,
+                  'rvd-page-btn--ellipsis': p === '...'
+                }"
+                ng-disabled="p === '...'">
+          {{p}}
+        </button>
+
+        <button class="rvd-page-btn rvd-page-btn--nav"
+                ng-click="c.nextPage()"
+                ng-disabled="c.proposalPage === c.totalPages()">
+          <i class="fa fa-chevron-right"></i>
+        </button>
+      </div>
+
     </div>
 
-    <!-- ════════════ AGREEMENTS ════════════ -->
+    <!-- AGREEMENTS — unchanged -->
     <div class="rvd-content" ng-show="c.activeSection === 'agreements'">
       <div class="rvd-section-header">
         <div>
@@ -1887,40 +1971,38 @@
       <div class="rvd-empty-state">
         <i class="fa fa-handshake-o"></i>
         <h3>Agreements coming soon</h3>
-        <p>Once proposals move through the review pipeline, associated agreements will appear here for your reference and sign-off.</p>
+        <p>Once proposals move through the review pipeline, associated agreements will appear here.</p>
       </div>
     </div>
 
-    <!-- ════════════ COMPLETED REVIEWS ════════════ -->
+    <!-- COMPLETED REVIEWS — unchanged -->
     <div class="rvd-content" ng-show="c.activeSection === 'completed'">
-
       <div class="rvd-section-header">
         <div>
           <h2 class="rvd-section-title">Completed Reviews</h2>
-          <p class="rvd-section-sub">All proposals your team has fully reviewed. These are read-only records of your completed work.</p>
+          <p class="rvd-section-sub">All proposals your team has fully reviewed. These are read-only records.</p>
         </div>
         <div class="rvd-completed-badge">
-          <i class="fa fa-check-circle"></i>
-          {{c.completedReviews().length}} Completed
+          <i class="fa fa-check-circle"></i> {{c.completedReviews().length}} Completed
         </div>
       </div>
-
       <div class="rvd-empty-state" ng-if="!c.completedReviews().length">
         <i class="fa fa-check-circle-o"></i>
         <h3>No completed reviews yet</h3>
         <p>Proposals you finish reviewing will be archived here automatically.</p>
       </div>
-
       <div class="rvd-completed-table-wrap" ng-if="c.completedReviews().length">
         <table class="rvd-table">
           <thead>
             <tr>
-              <th>Reference</th>
+              <th>Review No.</th>
               <th>Program</th>
+              <th>Program No.</th>
               <th>Applicant</th>
+              <th>Applicant No.</th>
+              <th>Category</th>
               <th>Score</th>
               <th>Decision</th>
-              <th>Reviewer</th>
               <th></th>
             </tr>
           </thead>
@@ -1928,16 +2010,24 @@
             <tr ng-repeat="rev in c.completedReviews()" class="rvd-table-row">
               <td><span class="rvd-proposal-num">{{rev.number}}</span></td>
               <td>{{rev.program || '—'}}</td>
+              <td>
+                <span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span>
+                <span ng-if="!rev.program_number">—</span>
+              </td>
               <td>{{rev.applicant || '—'}}</td>
               <td>
-                <span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}</span>
+                <span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span>
+                <span ng-if="!rev.applicant_number">—</span>
+              </td>
+              <td>{{rev.program_category || '—'}}</td>
+              <td>
+                <span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}/10</span>
                 <span class="rvd-muted" ng-if="!rev.score">—</span>
               </td>
               <td>
                 <span class="rvd-chip rvd-chip--green" ng-if="rev.decision_type">{{rev.decision_type}}</span>
                 <span class="rvd-muted" ng-if="!rev.decision_type">Pending</span>
               </td>
-              <td>{{rev.reviewer || '—'}}</td>
               <td>
                 <button class="rvd-tbl-btn" ng-click="c.openRecord(rev)">
                   View <i class="fa fa-external-link"></i>
@@ -1947,18 +2037,15 @@
           </tbody>
         </table>
       </div>
-
     </div>
 
   </div>
-  <!-- end rvd-main -->
-
 </div>
 
 <div class="rvd-no-access" ng-if="!data.canRead">
   <i class="fa fa-lock"></i>
   <h3>Access Restricted</h3>
-  <p>You don't have the required permissions to access the review dashboard. Please reach out to your administrator.</p>
+  <p>You don't have the required permissions to access the review dashboard.</p>
 </div>
 ]]></template>
     </sp_widget>

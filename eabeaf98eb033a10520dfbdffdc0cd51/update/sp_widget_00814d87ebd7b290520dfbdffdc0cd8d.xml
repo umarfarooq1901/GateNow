@@ -1,26 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[function($scope, $location, $window, $http) {
+        <client_script><![CDATA[api.controller = function($scope, $location, $window, $http) {
   var c = this;
-
-  // Set active page based on current URL
-  var currentUrl = $window.location.href;
-  if (currentUrl.indexOf('program_dashboard') > -1)              c.activePage = 'programs';
-  else if (currentUrl.indexOf('my_application_page') > -1) c.activePage = 'applications';
-  else if (currentUrl.indexOf('my_awards_page') > -1)    c.activePage = 'awards';
-  else if (currentUrl.indexOf('my_project_page') > -1)  c.activePage = 'projects';
-  else if (currentUrl.indexOf('applicant_dashboard') > -1) c.activePage = 'dashboard';
-  else                                                      c.activePage = 'dashboard';
 
   // Navigate to a portal page
   c.goTo = function(pageId) {
     $window.location.href = 'https://enablenowincdemo1.service-now.com/applicant?id=' + pageId;
-  };
-
-  // Legacy setPage (kept for any existing references)
-  c.setPage = function(page) {
-    c.activePage = page;
   };
 
   // Badge class mapper
@@ -38,7 +24,29 @@
 }
 ]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ESCAPE PORTAL CONTAINER */
+        <css>/* ═══════════════════════════════════════
+   LAYOUT — sidebar + main content
+═══════════════════════════════════════ */
+.gn-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 5px solid #e5e7eb;
+  position: sticky;
+  top: 2%;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 10;
+  margin-top:-2%;
+}
+
+/* ESCAPE PORTAL CONTAINER */
 .gn-layout {
   margin-left: -15px;
   margin-right: -15px;
@@ -60,43 +68,6 @@
   position: relative;
   align-items: flex-start;
 }
-
-/* ── SIDEBAR ── */
-.gn-sidebar {
-  width: 220px;
-  background: #ffffff;
-  border-right: 1px solid #e5e7eb;
-  padding: 28px 14px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  align-self: flex-start;
-}
-.gn-nav {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.gn-nav li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: #6b7280;
-  margin-bottom: 4px;
-  transition: background 0.15s, color 0.15s;
-  user-select: none;
-}
-.gn-nav li:hover  { background: #f5f3ff; color: #5443AD; }
-.gn-nav li.active { background: #EEEDFB; color: #5443AD; font-weight: 600; }
-.nav-icon  { width: 20px; text-align: center; font-size: 15px; }
-.nav-label { font-size: 14px; }
 
 /* ── MAIN ── */
 .gn-main {
@@ -342,7 +313,6 @@
 @media (max-width: 860px) {
   .gn-grid    { grid-template-columns: 1fr; }
   .gn-qa-grid { grid-template-columns: 1fr; }
-  .gn-sidebar { display: none; }
   .gn-cards   { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
@@ -365,10 +335,10 @@
         <name>Applicant Dashboard Widget</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>snc_external</roles>
         <script><![CDATA[(function() {
-
-  var userId   = gs.getUserID();
+	data.sideBar = $sp.getWidget('sidebar_dashboard');
+	var userId   = gs.getUserID();
   var userName = gs.getUserDisplayName();
 
   data.user = { name: userName || 'User', sys_id: userId || '' };
@@ -380,91 +350,86 @@
   data.recentApplications = [];
   data.openPrograms       = [];
 
- // Total Applications
-try {
-  var appGR = new GlideRecord('x_enno_gatenow_service_applicants');
-  appGR.addQuery('sys_created_by', gs.getUserName());
-  appGR.query();
-  while (appGR.next()) { data.totalApplications++; }
-} catch(e) { gs.debug('Dashboard-totalApps: ' + e.message); }
-
-// New This Month
-try {
-  var monthAgo = new GlideDateTime();
-  monthAgo.addMonthsLocalTime(-1);
-  var newGR = new GlideRecord('x_enno_gatenow_service_applicants');
-  newGR.addQuery('sys_created_by', gs.getUserName());
-  newGR.addQuery('sys_created_on', '>=', monthAgo.getValue());
-  newGR.query();
-  while (newGR.next()) { data.newThisMonth++; }
-} catch(e) { gs.debug('Dashboard-newThisMonth: ' + e.message); }
-
-
-
-// ── Step 1: Get applicant sys_ids where user = current logged-in user ──
-var userId       = gs.getUserID();
-var applicantIds = [];
-
-try {
-  var applicantGR = new GlideRecord('x_enno_gatenow_service_applicants');
-  applicantGR.addQuery('user', userId);   // user reference field on applicant table
-  applicantGR.query();
-  while (applicantGR.next()) {
-    applicantIds.push(applicantGR.getUniqueValue());
-  }
-} catch(e) { gs.debug('Dashboard-applicantIds: ' + e.message); }
-
-// ── Step 2: Count awards using collected applicant IDs ──
-data.pendingAwards  = 0;
-data.awardsReceived = 0;
-
-if (applicantIds.length > 0) {
-  var idString = applicantIds.join(',');
-
-  // Pending Awards
+  // Total Applications
   try {
-    var pendingGR = new GlideRecord('x_enno_gatenow_grant_awards');
-    pendingGR.addQuery('applicant', 'IN', idString);
-    pendingGR.addQuery('applicant_response', 'Pending');
-    pendingGR.query();
-    while (pendingGR.next()) { data.pendingAwards++; }
-  } catch(e) { gs.debug('Dashboard-pendingAwards: ' + e.message); }
+    var appGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    appGR.addQuery('sys_created_by', gs.getUserName());
+    appGR.query();
+    while (appGR.next()) { data.totalApplications++; }
+  } catch(e) { gs.debug('Dashboard-totalApps: ' + e.message); }
 
-  // Awards Received
+  // New This Month
   try {
-    var projGR = new GlideRecord('pm_project');
-     projGR.addQuery('applicant', 'IN', idString);
-  
-   projGR.query();
-    while (projGR.next()) { data.activeProjects++; }
+    var monthAgo = new GlideDateTime();
+    monthAgo.addMonthsLocalTime(-1);
+    var newGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    newGR.addQuery('sys_created_by', gs.getUserName());
+    newGR.addQuery('sys_created_on', '>=', monthAgo.getValue());
+    newGR.query();
+    while (newGR.next()) { data.newThisMonth++; }
+  } catch(e) { gs.debug('Dashboard-newThisMonth: ' + e.message); }
+    
+  // Active Projects (Fixed)
+  try {
+    var projectGR = new GlideRecord('pm_project');
+    projectGR.addActiveQuery();
+    // Dot-walking to find projects where the linked applicant record points to the logged-in user
+    projectGR.addQuery('x_enno_gatenow_applicant.user', userId); 
+     
+    projectGR.query();
+    
+    // Add the while loop to actually count the records
+    while (projectGR.next()) { 
+        data.activeProjects++; 
+    }
   } catch(e) { gs.debug('Dashboard-activeProjects: ' + e.message); }
 
-} else {
-  gs.debug('Dashboard-awards: No applicant records found for user: ' + userId);
-}
+  // ── Step 1: Get applicant sys_ids where user = current logged-in user ──
+  var applicantIds = [];
+  try {
+    var applicantGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    applicantGR.addQuery('user', userId);  // 'user' is the reference field pointing to sys_user
+    applicantGR.query();
+    while (applicantGR.next()) {
+      applicantIds.push(applicantGR.getUniqueValue());
+    }
+  } catch(e) { gs.debug('Dashboard-applicantIds: ' + e.message); }
 
+  // Removed the line that was resetting data.activeProjects = 0; here
 
+  if (applicantIds.length > 0) {
+    var idString = applicantIds.join(',');
 
+    // Pending Awards
+    try {
+      var pendingGR = new GlideRecord('x_enno_gatenow_grant_awards');
+      pendingGR.addQuery('applicant', 'IN', idString);
+      pendingGR.addQuery('applicant_response', 'Pending');
+      pendingGR.query();
+      while (pendingGR.next()) { data.pendingAwards++; }
+    } catch(e) { gs.debug('Dashboard-pendingAwards: ' + e.message); }
+
+  } else {
+    gs.debug('Dashboard-awards: No applicant records found for user: ' + userId);
+  }
 
   // Recent Applications
- // Recent Applications — submitted by logged-in user
-try {
-  var recGR = new GlideRecord('x_enno_gatenow_service_applicants');
-  recGR.addQuery('sys_created_by', gs.getUserName());
-  recGR.orderByDesc('sys_updated_on');
-  recGR.setLimit(5);
-  recGR.query();
-  while (recGR.next()) {
-    data.recentApplications.push({
-      number:         recGR.getValue('number') || '',
-      program_name:   recGR.getDisplayValue('program') || '',
-      state:          recGR.getValue('state') || '',
-      state_display:  recGR.getDisplayValue('state') || '',
-      sys_updated_on: recGR.getDisplayValue('sys_updated_on') || ''
-    });
-  }
-} catch(e) { gs.debug('Dashboard-recentApps: ' + e.message); }
-
+  try {
+    var recGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    recGR.addQuery('sys_created_by', gs.getUserName());
+    recGR.orderByDesc('sys_updated_on');
+    recGR.setLimit(5);
+    recGR.query();
+    while (recGR.next()) {
+      data.recentApplications.push({
+        number:         recGR.getValue('number') || '',
+        program_name:   recGR.getDisplayValue('program') || '',
+        state:          recGR.getValue('state') || '',
+        state_display:  recGR.getDisplayValue('state') || '',
+        sys_updated_on: recGR.getDisplayValue('sys_updated_on') || ''
+      });
+    }
+  } catch(e) { gs.debug('Dashboard-recentApps: ' + e.message); }
 
   // Open Programs
   try {
@@ -490,56 +455,19 @@ try {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-02 18:54:14</sys_created_on>
         <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
-        <sys_mod_count>97</sys_mod_count>
+        <sys_mod_count>119</sys_mod_count>
         <sys_name>Applicant Dashboard Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
         <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-03-09 08:28:40</sys_updated_on>
+        <sys_updated_on>2026-03-10 09:31:20</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
-
-  <!-- SIDEBAR -->
-  <nav class="gn-sidebar">
-    <ul class="gn-nav">
-      <!-- Dashboard -->
-      <li ng-class="{'active': c.activePage === 'dashboard'}"
-          ng-click="c.goTo('applicant_dashboard')">
-        <span class="nav-icon"><i class="fa fa-th-large"></i></span>
-        <span class="nav-label">Dashboard</span>
-      </li>
-
-      <!-- Programs -->
-      <li ng-class="{'active': c.activePage === 'programs'}"
-          ng-click="c.goTo('program_dashboard')">
-        <span class="nav-icon"><i class="fa fa-search"></i></span>
-        <span class="nav-label">Programs</span>
-      </li>
-
-      <!-- Applications -->
-      <li ng-class="{'active': c.activePage === 'applications'}"
-          ng-click="c.goTo('my_application_page')">
-        <span class="nav-icon"><i class="fa fa-file-text-o"></i></span>
-        <span class="nav-label">Applications</span>
-      </li>
-
-      <!-- Awards -->
-      <li ng-class="{'active': c.activePage === 'awards'}"
-          ng-click="c.goTo('my_awards_page')">
-        <span class="nav-icon"><i class="fa fa-trophy"></i></span>
-        <span class="nav-label">Awards</span>
-      </li>
-
-      <!-- Projects -->
-      <li ng-class="{'active': c.activePage === 'projects'}"
-          ng-click="c.goTo('my_project_page')">
-        <span class="nav-icon"><i class="fa fa-briefcase"></i></span>
-        <span class="nav-label">Projects</span>
-      </li>
-    </ul>
-  </nav>
-
+  
+	<div class="sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
   <!-- MAIN -->
   <div class="gn-main">
 
@@ -551,7 +479,7 @@ try {
       </div>
       <div class="gn-banner-btns">
         <a href="https://enablenowincdemo1.service-now.com/applicant?id=opportunities_programs" class="btn-primary">Explore Programs</a>
-        <a href="/applicant?id=applications" class="btn-outline">View Applications</a>
+        <a href="https://enablenowincdemo1.service-now.com/applicant?id=my_application_page" class="btn-outline">View Applications</a>
       </div>
     </div>
 
