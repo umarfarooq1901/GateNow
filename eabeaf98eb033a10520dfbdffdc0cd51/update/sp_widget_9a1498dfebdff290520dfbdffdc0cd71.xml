@@ -1,10 +1,82 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window) { // INJECTED $window HERE
+        <client_script><![CDATA[api.controller = function($scope, $window) {
+
   var c = this;
 
-  // ── View Modal ──────────────────────────────
+  // ── Dropdown Choices ────────────────────────────────────────────────────
+  c.choices = {
+    gender: [
+      { value: 'Female', label: 'Female' },
+      { value: 'Male',   label: 'Male' },
+      { value: 'Other',  label: 'Other' }
+    ],
+    marital_status: [
+      { value: 'Single',   label: 'Single' },
+      { value: 'Married',  label: 'Married' },
+      { value: 'Divorced', label: 'Divorced' },
+      { value: 'Widowed',  label: 'Widowed' }
+    ],
+    race: [
+      { value: 'American Indian or Alaska Native',    label: 'American Indian or Alaska Native' },
+      { value: 'Asian',                            label: 'Asian' },
+      { value: 'Black or African American',           label: 'Black or African American' },
+      { value: 'Native Hawaiian or Other pacific Islander', label: 'Native Hawaiian or Other Pacific Islander' },
+      { value: 'White',                            label: 'White' },
+      { value: 'I do not wish to provide this informantion',                      label: 'I do not wish to provide this information' }
+    ],
+    ethnicity: [
+      { value: 'Hispanic or Latino',     label: 'Hispanic or Latino' },
+      { value: 'Not Hispanic or Latino', label: 'Not Hispanic or Latino' },
+      { value: 'I do not wish to provide this information',         label: 'I do not wish to provide this information' }
+    ],
+    education_level: [
+      { value: 'Associate degree',    label: 'Associate degree' },
+      { value: 'bachelor_degree',    label: "Bachelor's degree" },
+      { value: 'Doctorate',    label: 'Doctorate' },
+      { value: 'High school or equivalent',  label: 'High school or equivalent' },
+      { value: 'Masters degree',      label: "Master's degree" },
+      { value: 'Professional', label: 'Professional' },
+      { value: 'Some college coursework completed', label: 'Some college coursework completed' },
+      { value: 'Technical or occupational certificate',    label: 'Technical or occupational certificate' },
+      { value: 'Other',        label: 'Other' }
+    ],
+    military_status: [
+      { value: 'active_duty', label: 'Active duty' },
+      { value: 'veterans',    label: 'Veterans' },
+      { value: 'no_military_duty', label: 'No military duty' },
+      { value: 'i_do_not_wish_to_provide_this_information', label: 'I do not wish to provide this information' }
+    ],
+    disability_status: [
+      { value: 'yes',         label: 'Yes, I have a disability' },
+      { value: 'no',          label: 'No, I do not have a disability' },
+      { value: 'do_not_wish', label: 'I do not wish to provide this information' }
+    ],
+    citizenship_status: [
+      { value: 'Citizen',            label: 'Citizen' },
+      { value: 'Non-Immigrant',      label: 'Non-Immigrant' },
+      { value: 'Permanent Resident', label: 'Permanent Resident' },
+      { value: 'Undocumented',       label: 'Undocumented' }
+    ],
+    tribal_affiliation: [
+      { value: 'Yes', label: 'Yes' },
+      { value: 'No',  label: 'No' }
+    ],
+    applicant_type: [
+      { value: 'Government',   label: 'Government' },
+      { value: 'Individual',   label: 'Individual' },
+      { value: 'Organization', label: 'Organization' }
+    ],
+    identity_type: [
+      { value: 'Drivers License Number',        label: "Driver's License Number" },
+      { value: 'Medicare Number',        label: 'Medicare Number' },
+      { value: 'Social Security Number', label: 'Social Security Number' },
+      { value: 'State Identification Number',        label: 'State Identification Number' }
+    ]
+  };
+
+  // ── View Modal ──────────────────────────────────────────────────────────
   c.modalOpen = false;
   c.selected  = {};
   c.activeTab = 'personal';
@@ -15,13 +87,23 @@
     c.modalOpen = true;
     document.body.style.overflow = 'hidden';
   };
+
   c.closeModal = function() {
     c.modalOpen = false;
-    c.selected  = {};
+    if (!c.editOpen) c.selected = {};
     document.body.style.overflow = '';
   };
+
   c.setTab = function(tab) { c.activeTab = tab; };
 
+  // Opens edit from View modal footer — capture app ref before closing
+  c.openEditFromView = function(app) {
+    var target  = app;
+    c.modalOpen = false;
+    c.openEdit(target);
+  };
+
+  // ── Utilities ───────────────────────────────────────────────────────────
   c.formatBytes = function(bytes) {
     if (!bytes || bytes == 0) return '0 B';
     var b = parseInt(bytes);
@@ -29,6 +111,7 @@
     if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
     return (b / 1048576).toFixed(1) + ' MB';
   };
+
   c.getFileIcon = function(ct) {
     if (!ct) return 'fa-file-o';
     if (ct.indexOf('pdf')   > -1) return 'fa-file-pdf-o';
@@ -37,81 +120,111 @@
     if (ct.indexOf('excel') > -1 || ct.indexOf('sheet') > -1) return 'fa-file-excel-o';
     return 'fa-file-o';
   };
-  
-  // --- Navigation ---
+
+  // ── Navigation ──────────────────────────────────────────────────────────
   c.goBack = function() {
-      // UPDATED TO USE $window FOR ABSOLUTE URLS
-      $window.location.href = 'https://enablenowincdemo1.service-now.com/applicant?id=applicant_dashboard';
+    $window.location.href = '/applicant?id=applicant_dashboard';
   };
 
+  // ── Per-row Timeline Toggle ─────────────────────────────────────────────
+  c.expandedApp = null;
+  c.appTimeline = [];
 
-  // ── Edit Modal ──────────────────────────────
+  c.toggleTimeline = function(app) {
+    if (c.expandedApp === app.sys_id) {
+      c.expandedApp = null;
+      c.appTimeline = [];
+      return;
+    }
+    c.expandedApp = app.sys_id;
+    c.appTimeline = (c.data.timeline || []).filter(function(item) {
+      return item.app_num === app.number;
+    });
+  };
+
+  // ── Edit Modal State ────────────────────────────────────────────────────
   c.editOpen    = false;
   c.editData    = {};
   c.editTab     = 'personal';
   c.editSaving  = false;
+  c.editLoading = false;
   c.editSuccess = false;
   c.editError   = '';
 
+  // ── Upload State ────────────────────────────────────────────────────────
+  c.uploadingFiles = [];
+  c.uploadError    = '';
+  c.isDragging     = false;
+
+  // ── Open Edit ───────────────────────────────────────────────────────────
   c.openEdit = function(app) {
-    c.editData = {
-      sys_id:               app.sys_id,
-      number:               app.number,
-      // Personal
-      first_name:           app.first_name,
-      middle_name:          app.middle_name,
-      last_name:            app.last_name,
-      birthdate:            app.birthdate,
-      phone:                app.phone,
-      email:                app.email,
-      gender:               app.gender,
-      marital_status:       app.marital_status,
-      race:                 app.race,
-      ethnicity:            app.ethnicity,
-      education_level:      app.education_level,
-      military_status:      app.military_status,
-      // Address
-      street:               app.street,
-      city:                 app.city,
-      country:              app.country,
-      zip:                  app.zip_postal_code,
-      // Identity
-      applicant_type:       app.applicant_type,
-      tribal_affiliation:   app.tribal_affiliation,
-      citizenship_status:   app.citizenship_status,
-      identity_type:        app.identity_type,
-      disability_status:    app.disability_status,
-      ssn:                  app.ssn,
-      tin_ein:              app.tin_ein,
-      uei:                  app.uei,
-      // Program
-      organization:         app.organization,
-      start_date:           app.start_date,
-      end_date:             app.end_date,
-      submission_date:      app.submission_date,
-      requested_budget:     app.requested_budget,
-      // Proposal
-      short_description:    app.short_description,
-      proposal_description: app.proposal_description,
-      project_goals:        app.project_goals_and_objectives,
-      project_activities:   app.project_activities_methodology
-    };
+    c.selected    = app;
+    c.editData    = { sys_id: app.sys_id, number: app.number };
     c.editTab     = 'personal';
     c.editSuccess = false;
     c.editError   = '';
+    c.editSaving  = false;
+    c.editLoading = true;
+    c.uploadingFiles = [];
+    c.uploadError    = '';
     c.editOpen    = true;
     document.body.style.overflow = 'hidden';
+
+    $scope.server.get({
+      action: 'getApplication',
+      sys_id:  app.sys_id
+    }).then(function(r) {
+      c.editLoading = false;
+
+      if (r.data.error) {
+        c.editError = r.data.error;
+        return;
+      }
+
+      var d      = r.data.application;
+      c.selected = d;
+
+      c.editData = {
+        sys_id:               d.sys_id,
+        number:               d.number,
+        first_name:           d.first_name,
+        middle_name:          d.middle_name,
+        last_name:            d.last_name,
+        birthdate:            d.birthdate,
+        phone:                d.phone,
+        email:                d.email,
+        gender:               d.gender,
+        marital_status:       d.marital_status,
+        race:                 d.race,
+        ethnicity:            d.ethnicity,
+        education_level:      d.education_level,
+        military_status:      d.military_status,
+        street:               d.street,
+        city:                 d.city,
+        country:              d.country,
+        zip:                  d.zip,
+        applicant_type:       d.applicant_type,
+        citizenship_status:   d.citizenship_status,
+        identity_type:        d.identity_type,
+        tribal_affiliation:   d.tribal_affiliation,
+        disability_status:    d.disability_status,
+        ssn:                  d.ssn,
+        tin_ein:              d.tin_ein,
+        uei:                  d.uei,
+        organization:         d.organization,
+        start_date:           d.start_date,
+        end_date:             d.end_date,
+        submission_date:      d.submission_date,
+        requested_budget:     d.requested_budget,
+        short_description:    d.short_description,
+        proposal_description: d.proposal_description,
+        project_goals:        d.project_goals,
+        project_activities:   d.project_activities
+      };
+    });
   };
 
-  c.closeEdit = function() {
-    c.editOpen   = false;
-    c.editData   = {};
-    c.editSaving = false;
-    document.body.style.overflow = '';
-  };
-
-  c.setEditTab = function(tab) { c.editTab = tab; };
-
+  // ── Save Edit ───────────────────────────────────────────────────────────
   c.saveEdit = function() {
     if (c.editSaving) return;
     c.editSaving  = true;
@@ -121,7 +234,6 @@
     $scope.server.get({
       action:               'updateApplication',
       sys_id:               c.editData.sys_id,
-      // Personal
       first_name:           c.editData.first_name,
       middle_name:          c.editData.middle_name,
       last_name:            c.editData.last_name,
@@ -134,27 +246,23 @@
       ethnicity:            c.editData.ethnicity,
       education_level:      c.editData.education_level,
       military_status:      c.editData.military_status,
-      // Address
       street:               c.editData.street,
       city:                 c.editData.city,
       country:              c.editData.country,
       zip:                  c.editData.zip,
-      // Identity
       applicant_type:       c.editData.applicant_type,
-      tribal_affiliation:   c.editData.tribal_affiliation,
       citizenship_status:   c.editData.citizenship_status,
       identity_type:        c.editData.identity_type,
+      tribal_affiliation:   c.editData.tribal_affiliation,
       disability_status:    c.editData.disability_status,
       ssn:                  c.editData.ssn,
       tin_ein:              c.editData.tin_ein,
       uei:                  c.editData.uei,
-      // Program
       organization:         c.editData.organization,
       start_date:           c.editData.start_date,
       end_date:             c.editData.end_date,
       submission_date:      c.editData.submission_date,
       requested_budget:     c.editData.requested_budget,
-      // Proposal
       short_description:    c.editData.short_description,
       proposal_description: c.editData.proposal_description,
       project_goals:        c.editData.project_goals,
@@ -163,7 +271,7 @@
       c.editSaving = false;
       if (r.data.success) {
         c.editSuccess = true;
-        // Update the row live in the table
+        // Update table row in memory without page reload
         for (var i = 0; i < c.data.applications.length; i++) {
           if (c.data.applications[i].sys_id === c.editData.sys_id) {
             angular.extend(c.data.applications[i], c.editData);
@@ -179,6 +287,136 @@
     });
   };
 
+  // ── Close Edit ──────────────────────────────────────────────────────────
+  c.closeEdit = function() {
+    c.editOpen       = false;
+    c.editData       = {};
+    c.editLoading    = false;
+    c.editSaving     = false;
+    c.uploadingFiles = [];
+    c.uploadError    = '';
+    c.isDragging     = false;
+    if (!c.modalOpen) c.selected = {};
+    document.body.style.overflow = '';
+  };
+
+  c.setEditTab = function(tab) { c.editTab = tab; };
+
+  // ── File Input Trigger ──────────────────────────────────────────────────
+  c.triggerFileInput = function() {
+    document.getElementById('ma-file-input').click();
+  };
+
+  // ── Drag & Drop ─────────────────────────────────────────────────────────
+  c.onDragOver = function($event) {
+    if ($event && $event.preventDefault) $event.preventDefault();
+    c.isDragging = true;
+  };
+
+  c.onDragLeave = function($event) {
+    c.isDragging = false;
+  };
+
+  c.onDrop = function($event) {
+    if ($event && $event.preventDefault) $event.preventDefault();
+    c.isDragging = false;
+    var files = $event && $event.dataTransfer ? $event.dataTransfer.files : null;
+    if (files && files.length > 0) {
+      c.uploadFiles(files);
+    }
+  };
+
+  // ── File Select (input[type=file]) ──────────────────────────────────────
+  c.onFileSelect = function(input) {
+    if (input.files && input.files.length > 0) {
+      c.uploadFiles(input.files);
+      input.value = ''; // reset so same file can be re-uploaded
+    }
+  };
+
+  // ── Upload Files ────────────────────────────────────────────────────────
+  c.uploadFiles = function(files) {
+    c.uploadError = '';
+    for (var i = 0; i < files.length; i++) {
+      c.uploadSingleFile(files[i]);
+    }
+  };
+
+  c.uploadSingleFile = function(file) {
+    var progressEntry = { name: file.name, progress: 0 };
+    c.uploadingFiles.push(progressEntry);
+
+    var reader    = new FileReader();
+    reader.onload = function(e) {
+      progressEntry.progress = 60;
+      $scope.$apply();
+
+      var base64 = e.target.result.split(',')[1];
+
+      $scope.server.get({
+        action:       'uploadAttachment',
+        sys_id:       c.editData.sys_id,
+        file_name:    file.name,
+        content_type: file.type || 'application/octet-stream',
+        file_data:    base64
+      }).then(function(r) {
+        // Remove from progress list
+        var idx = c.uploadingFiles.indexOf(progressEntry);
+        if (idx > -1) c.uploadingFiles.splice(idx, 1);
+
+        if (r.data.attachment) {
+          if (!c.selected.attachments) c.selected.attachments = [];
+          c.selected.attachments.push(r.data.attachment);
+          // Sync count badge on table row
+          for (var i = 0; i < c.data.applications.length; i++) {
+            if (c.data.applications[i].sys_id === c.editData.sys_id) {
+              c.data.applications[i].attachments = c.selected.attachments;
+              break;
+            }
+          }
+        } else {
+          c.uploadError = r.data.error || 'Upload failed for: ' + file.name;
+        }
+      });
+    };
+
+    reader.onerror = function() {
+      var idx = c.uploadingFiles.indexOf(progressEntry);
+      if (idx > -1) c.uploadingFiles.splice(idx, 1);
+      $scope.$apply(function() {
+        c.uploadError = 'Failed to read file: ' + file.name;
+      });
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  // ── Delete Attachment ───────────────────────────────────────────────────
+  c.deleteAttachment = function(att) {
+    if (!confirm('Delete "' + att.name + '"?')) return;
+    c.uploadError = '';
+
+    $scope.server.get({
+      action:     'deleteAttachment',
+      att_sys_id: att.sys_id
+    }).then(function(r) {
+      if (r.data.success) {
+        var idx = c.selected.attachments.indexOf(att);
+        if (idx > -1) c.selected.attachments.splice(idx, 1);
+        // Sync table row
+        for (var i = 0; i < c.data.applications.length; i++) {
+          if (c.data.applications[i].sys_id === c.editData.sys_id) {
+            c.data.applications[i].attachments = c.selected.attachments;
+            break;
+          }
+        }
+      } else {
+        c.uploadError = r.data.error || 'Failed to delete attachment.';
+      }
+    });
+  };
+
+  // ── Escape key closes modals ────────────────────────────────────────────
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       $scope.$apply(function() {
@@ -187,7 +425,8 @@
       });
     }
   });
-}
+
+};
 ]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════
@@ -211,6 +450,7 @@
   z-index: 10;
   margin-top:-2%;
 }
+
 /* ═══════════════════════════════════════
    MAIN WRAP
 ═══════════════════════════════════════ */
@@ -222,7 +462,7 @@
   padding: 32px 40px 56px;
   box-sizing: border-box;
   overflow-y: auto;
-  margin-top: 3%!important;
+  margin-top: 3% !important;
 }
 
 /* ═══════════════════════════════════════
@@ -266,15 +506,10 @@
   margin-top: -8px;
   font-size: 13px;
 }
-.breadcrumb-link {
-  color: #666;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-.breadcrumb-link:hover  { color: #2d4de0; }
-.breadcrumb-sep         { color: #bbb; font-size: 12px; line-height: 1; padding: 0 2px; }
-.breadcrumb-current     { color: #1a1a2e; font-weight: 600; }
+.breadcrumb-link         { color: #666; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+.breadcrumb-link:hover   { color: #2d4de0; }
+.breadcrumb-sep          { color: #bbb; font-size: 12px; line-height: 1; padding: 0 2px; }
+.breadcrumb-current      { color: #1a1a2e; font-weight: 600; }
 
 /* ═══════════════════════════════════════
    CARD
@@ -302,10 +537,10 @@
   text-align: left;
   text-transform: uppercase;
 }
-.ma-row               { border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
-.ma-row:last-child    { border-bottom: none; }
-.ma-row:hover         { background: #fafafa; }
-.ma-table td          { padding: 15px 20px; vertical-align: middle; }
+.ma-row            { border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
+.ma-row:last-child { border-bottom: none; }
+.ma-row:hover      { background: #fafafa; }
+.ma-table td       { padding: 15px 20px; vertical-align: middle; }
 
 .ma-app-cell   { display: flex; align-items: center; gap: 12px; }
 .ma-app-icon   { width: 36px; height: 36px; border-radius: 8px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
@@ -330,31 +565,90 @@
 /* ═══════════════════════════════════════
    ROW ACTIONS
 ═══════════════════════════════════════ */
-.ma-actions        { display: flex; align-items: center; gap: 10px; }
+.ma-actions { display: flex; align-items: center; gap: 10px; }
+
 .ma-btn-view,
-.ma-btn-edit       { background: none; border: none; cursor: pointer; font-size: 15px; padding: 0; display: inline-flex; align-items: center; transition: color 0.15s; }
+.ma-btn-edit { background: none; border: none; cursor: pointer; font-size: 15px; padding: 0; display: inline-flex; align-items: center; transition: color 0.15s; }
 .ma-btn-view       { color: #9ca3af; }
 .ma-btn-view:hover { color: #374151; }
 .ma-btn-edit       { color: #3b82f6; }
 .ma-btn-edit:hover { color: #1d4ed8; }
 
+.ma-btn-tl {
+  background: #f0eeff;
+  border: none;
+  color: #5443AD;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.ma-btn-tl:hover { background: #ddd9f7; color: #3D3180; }
+
+.ma-row-clickable       { cursor: pointer; }
+.ma-row-clickable:hover { background: #f7f6ff; }
+
 .ma-empty { text-align: center; padding: 36px 20px; font-size: 13px; color: #9ca3af; margin: 0; }
+
+/* ═══════════════════════════════════════
+   INLINE TIMELINE DROPDOWN
+═══════════════════════════════════════ */
+.ma-tl-expand-row td {
+  padding: 0 !important;
+  border-top: none !important;
+  border-bottom: 1px solid #ede9ff !important;
+}
+.ma-tl-expand-cell { background: #f9f8ff; }
+.ma-tl-expand-inner {
+  padding: 18px 28px 20px 32px;
+  border-left: 3px solid #5443AD;
+  margin: 8px 16px 10px 16px;
+  border-radius: 0 8px 8px 0;
+  animation: tl-slide-down 0.18s ease;
+}
+@keyframes tl-slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ma-tl-expand-heading {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5443AD;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ma-tl-expand-appnum {
+  background: #eeedfb;
+  color: #5443AD;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
 
 /* ═══════════════════════════════════════
    TIMELINE
 ═══════════════════════════════════════ */
-.ma-tl-card         { padding: 24px 28px; overflow: visible; }
-.ma-tl-heading      { font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 22px; }
-.ma-timeline        { display: flex; flex-direction: column; }
-.ma-tl-row          { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 22px; }
+.ma-timeline          { display: flex; flex-direction: column; }
+.ma-tl-row            { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 18px; }
 .ma-tl-row:last-child { padding-bottom: 0; }
-.ma-tl-left         { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 14px; }
-.ma-tl-dot          { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
-.ma-tl-line         { width: 2px; background: #e5e7eb; min-height: 24px; flex: 1; margin-top: 5px; }
-.ma-tl-body         { padding-top: 1px; flex: 1; }
-.ma-tl-label        { font-size: 14px; font-weight: 500; color: #111827; }
-.ma-tl-meta         { font-size: 12px; color: #9ca3af; margin-top: 3px; }
-.ma-tl-appnum       { color: #5443AD; font-weight: 600; }
+.ma-tl-left           { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 14px; }
+.ma-tl-dot            { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.ma-tl-line           { width: 2px; background: #e5e7eb; min-height: 24px; flex: 1; margin-top: 5px; }
+.ma-tl-body           { padding-top: 1px; flex: 1; }
+.ma-tl-label          { font-size: 14px; font-weight: 500; color: #111827; }
+.ma-tl-meta           { font-size: 12px; color: #9ca3af; margin-top: 3px; }
+.ma-tl-appnum         { color: #5443AD; font-weight: 600; }
 
 /* ═══════════════════════════════════════
    MODAL OVERLAY &amp; CONTAINER
@@ -389,12 +683,12 @@
 /* ═══════════════════════════════════════
    MODAL HEADER
 ═══════════════════════════════════════ */
-.ma-mhdr         { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid #f3f4f6; flex-shrink: 0; }
-.ma-mhdr-left    { display: flex; align-items: center; gap: 14px; }
-.ma-mhdr-icon    { width: 44px; height: 44px; border-radius: 10px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-.ma-mhdr-title   { font-size: 17px; font-weight: 700; color: #111827; }
-.ma-mhdr-sub     { font-size: 12px; color: #9ca3af; margin-top: 2px; }
-.ma-mhdr-close   { background: #f3f4f6; border: none; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; color: #6b7280; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; flex-shrink: 0; }
+.ma-mhdr       { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid #f3f4f6; flex-shrink: 0; }
+.ma-mhdr-left  { display: flex; align-items: center; gap: 14px; }
+.ma-mhdr-icon  { width: 44px; height: 44px; border-radius: 10px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.ma-mhdr-title { font-size: 17px; font-weight: 700; color: #111827; }
+.ma-mhdr-sub   { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+.ma-mhdr-close { background: #f3f4f6; border: none; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; color: #6b7280; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; flex-shrink: 0; }
 .ma-mhdr-close:hover { background: #e5e7eb; color: #111827; }
 
 /* ═══════════════════════════════════════
@@ -403,11 +697,11 @@
 .ma-mbanner      { display: flex; align-items: center; justify-content: space-between; padding: 10px 24px; background: #f9fafb; border-bottom: 1px solid #f3f4f6; flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
 .ma-mbanner-date { font-size: 12px; color: #9ca3af; display: inline-flex; align-items: center; gap: 5px; }
 
-.ma-mtabs  { display: flex; gap: 2px; padding: 10px 24px 0; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; flex-wrap: wrap; }
-.ma-mtab   { background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 500; color: #6b7280; padding: 8px 14px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; transition: color 0.15s; display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; }
-.ma-mtab:hover    { color: #111827; }
-.ma-mtab.active   { color: #5443AD; border-bottom-color: #5443AD; font-weight: 600; }
-.ma-mtab-count    { background: #5443AD; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; min-width: 18px; text-align: center; }
+.ma-mtabs { display: flex; gap: 2px; padding: 10px 24px 0; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; flex-wrap: wrap; }
+.ma-mtab  { background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 500; color: #6b7280; padding: 8px 14px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; transition: color 0.15s; display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; }
+.ma-mtab:hover  { color: #111827; }
+.ma-mtab.active { color: #5443AD; border-bottom-color: #5443AD; font-weight: 600; }
+.ma-mtab-count  { background: #5443AD; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; min-width: 18px; text-align: center; }
 
 /* ═══════════════════════════════════════
    MODAL BODY &amp; FIELDS
@@ -422,39 +716,143 @@
 .ma-prose-value   { font-size: 14px; color: #374151; line-height: 1.7; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; margin-top: 6px; white-space: pre-wrap; min-height: 48px; }
 
 /* ═══════════════════════════════════════
-   ATTACHMENTS
+   ATTACHMENTS — VIEW MODAL
 ═══════════════════════════════════════ */
-.ma-no-attach        { text-align: center; padding: 40px 20px; color: #9ca3af; font-size: 13px; }
-.ma-attach-list      { display: flex; flex-direction: column; gap: 10px; }
-.ma-attach-item      { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fafafa; transition: background 0.1s; }
+.ma-no-attach         { text-align: center; padding: 40px 20px; color: #9ca3af; font-size: 13px; }
+.ma-attach-list       { display: flex; flex-direction: column; gap: 10px; }
+.ma-attach-item       { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fafafa; transition: background 0.1s; }
 .ma-attach-item:hover { background: #f3f4f6; }
-.ma-attach-icon      { width: 38px; height: 38px; border-radius: 8px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-.ma-attach-info      { flex: 1; min-width: 0; }
-.ma-attach-name      { font-size: 13px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ma-attach-size      { font-size: 11px; color: #9ca3af; margin-top: 2px; }
-.ma-attach-dl        { color: #5443AD; font-size: 15px; text-decoration: none; flex-shrink: 0; padding: 6px; border-radius: 6px; transition: background 0.15s; }
-.ma-attach-dl:hover  { background: #EEEDFB; text-decoration: none; }
+.ma-attach-icon       { width: 38px; height: 38px; border-radius: 8px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.ma-attach-info       { flex: 1; min-width: 0; }
+.ma-attach-name       { font-size: 13px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ma-attach-size       { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+.ma-attach-dl         { color: #5443AD; font-size: 15px; text-decoration: none; flex-shrink: 0; padding: 6px; border-radius: 6px; transition: background 0.15s; }
+.ma-attach-dl:hover   { background: #EEEDFB; text-decoration: none; }
+
+/* Delete button */
+.ma-attach-del       { background: none; border: none; cursor: pointer; color: #ef4444; padding: 4px 6px; border-radius: 6px; font-size: 13px; transition: background 0.15s; flex-shrink: 0; }
+.ma-attach-del:hover { background: #fee2e2; }
+
+/* ═══════════════════════════════════════
+   UPLOAD AREA — EDIT MODAL
+═══════════════════════════════════════ */
+.ma-upload-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: #fafafa;
+  user-select: none;
+}
+.ma-upload-area:hover,
+.ma-upload-drag {
+  border-color: #5443AD;
+  background: #f5f3ff;
+}
+.ma-upload-icon {
+  font-size: 30px;
+  color: #9ca3af;
+  display: block;
+  margin-bottom: 8px;
+}
+.ma-upload-area:hover .ma-upload-icon {
+  color: #5443AD;
+}
+.ma-upload-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+.ma-upload-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 3px;
+}
+
+/* ═══════════════════════════════════════
+   UPLOAD PROGRESS
+═══════════════════════════════════════ */
+.ma-upload-progress-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ma-upload-progress-item {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.ma-upload-progress-name {
+  font-size: 12px;
+  color: #374151;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+}
+.ma-upload-progress-bar-wrap {
+  background: #e5e7eb;
+  border-radius: 99px;
+  height: 4px;
+  overflow: hidden;
+}
+.ma-upload-progress-bar {
+  background: #5443AD;
+  height: 4px;
+  border-radius: 99px;
+  transition: width 0.3s;
+}
 
 /* ═══════════════════════════════════════
    MODAL FOOTER
 ═══════════════════════════════════════ */
-.ma-mfooter          { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid #f3f4f6; background: #fafafa; flex-shrink: 0; }
-.ma-mfoot-close      { background: #f3f4f6; border: none; padding: 9px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; transition: background 0.15s; }
+.ma-mfooter       { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid #f3f4f6; background: #fafafa; flex-shrink: 0; }
+.ma-mfoot-close   { background: #f3f4f6; border: none; padding: 9px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; transition: background 0.15s; }
 .ma-mfoot-close:hover    { background: #e5e7eb; }
 .ma-mfoot-close:disabled { opacity: 0.5; cursor: not-allowed; }
-.ma-mfoot-save       { background: #5443AD; color: #fff; border: none; padding: 9px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s; }
+.ma-mfoot-save    { background: #5443AD; color: #fff; border: none; padding: 9px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s; }
 .ma-mfoot-save:hover    { background: #3D3180; }
 .ma-mfoot-save:disabled { background: #9ca3af; cursor: not-allowed; }
 
 /* ═══════════════════════════════════════
    EDIT FORM FIELDS
 ═══════════════════════════════════════ */
-.ma-efield     { display: flex; flex-direction: column; gap: 5px; margin-bottom: 4px; }
-.ma-elabel     { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
-.ma-einput     { padding: 9px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; background: #fff; outline: none; transition: border 0.15s; width: 100%; box-sizing: border-box; }
+.ma-efield    { display: flex; flex-direction: column; gap: 5px; margin-bottom: 4px; }
+.ma-elabel    { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+.ma-einput    { padding: 9px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; background: #fff; outline: none; transition: border 0.15s; width: 100%; box-sizing: border-box; }
 .ma-einput:focus    { border-color: #5443AD; box-shadow: 0 0 0 3px rgba(84,67,173,0.1); }
-.ma-etextarea  { padding: 9px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; background: #fff; outline: none; transition: border 0.15s; width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; line-height: 1.6; }
+.ma-etextarea { padding: 9px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; background: #fff; outline: none; transition: border 0.15s; width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; line-height: 1.6; }
 .ma-etextarea:focus { border-color: #5443AD; box-shadow: 0 0 0 3px rgba(84,67,173,0.1); }
+
+/* ═══════════════════════════════════════
+   CUSTOM SELECT DROPDOWN
+═══════════════════════════════════════ */
+.ma-select-wrap { position: relative; width: 100%; }
+.ma-eselect {
+  width: 100%;
+  padding: 9px 36px 9px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  transition: border 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+  height: 38px;
+  line-height: 1.4;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+.ma-eselect:focus { border-color: #5443AD; box-shadow: 0 0 0 3px rgba(84,67,173,0.1); }
+.ma-eselect option[value=""] { color: #9ca3af; }
+.ma-select-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #6b7280; pointer-events: none; }
 
 /* ═══════════════════════════════════════
    EDIT ALERTS
@@ -466,14 +864,14 @@
    RESPONSIVE
 ═══════════════════════════════════════ */
 @media (max-width: 768px) {
-  .sidebar  { display: none; }
-  .ma-wrap  { padding: 16px; }
+  .sidebar { display: none; }
+  .ma-wrap { padding: 16px; }
 }
 @media (max-width: 640px) {
-  .ma-grid          { grid-template-columns: 1fr; }
-  .ma-modal         { max-height: 95vh; }
-  .ma-table thead   { display: none; }
-  .ma-table td      { display: block; padding: 8px 16px; }
+  .ma-grid        { grid-template-columns: 1fr; }
+  .ma-modal       { max-height: 95vh; }
+  .ma-table thead { display: none; }
+  .ma-table td    { display: block; padding: 8px 16px; }
 }
 </css>
         <data_table>sp_instance</data_table>
@@ -493,78 +891,254 @@
         <roles>snc_external</roles>
         <script><![CDATA[(function() {
 
-	data.sideBar = $sp.getWidget('sidebar_dashboard');
+  data.sideBar      = $sp.getWidget('sidebar_dashboard');
   data.applications = [];
   data.timeline     = [];
 
   var currentUser = gs.getUserName();
   if (!currentUser) return;
 
-  // ── Handle Edit Save ──────────────────────────
-  if (input && input.action === 'updateApplication') {
-    data.success = false;
-    data.error   = '';
+  // ══════════════════════════════════════════════════════════════
+  // ACTION: GET SINGLE APPLICATION
+  // ══════════════════════════════════════════════════════════════
+  if (input && input.action === 'getApplication') {
+    data.application = null;
+    data.error       = '';
+
     try {
-      var upd = new GlideRecord('x_enno_gatenow_service_applicants');
-      if (upd.get(input.sys_id)) {
+      var gr = new GlideRecord('x_enno_gatenow_service_applicants');
 
-        if (upd.getValue('sys_created_by') !== currentUser) {
-          data.error = 'Unauthorized'; return;
-        }
-        var stateVal = upd.getDisplayValue('state');
-        if (stateVal !== 'New' && stateVal !== 'Ready for Review') {
-          data.error = 'Record is no longer editable.'; return;
-        }
-
-        // Personal
-        upd.setValue('first_name',                     input.first_name           || '');
-        upd.setValue('middle_name',                    input.middle_name          || '');
-        upd.setValue('last_name',                      input.last_name            || '');
-        upd.setValue('birthdate',                      input.birthdate            || '');
-        upd.setValue('phone_number',                   input.phone                || '');
-        upd.setValue('email',                          input.email                || '');
-        upd.setValue('gender',                         input.gender               || '');
-        upd.setValue('marital_status',                 input.marital_status       || '');
-        upd.setValue('race',                           input.race                 || '');
-        upd.setValue('ethnicity',                      input.ethnicity            || '');
-        upd.setValue('education_level',                input.education_level      || '');
-        upd.setValue('military_status',                input.military_status      || '');
-        // Address
-        upd.setValue('street',                         input.street               || '');
-        upd.setValue('city',                           input.city                 || '');
-        upd.setValue('country',                        input.country              || '');
-        upd.setValue('zip',                            input.zip                  || '');
-        // Identity
-        upd.setValue('applicant_type',                 input.applicant_type       || '');
-        upd.setValue('tribal_affiliation',             input.tribal_affiliation   || '');
-        upd.setValue('citizenship_status',             input.citizenship_status   || '');
-        upd.setValue('identity_type',                  input.identity_type        || '');
-        upd.setValue('disability_status',              input.disability_status    || '');
-        upd.setValue('ssn',                            input.ssn                  || '');
-        upd.setValue('tin_ein',                        input.tin_ein              || '');
-        upd.setValue('uei',                            input.uei                  || '');
-        // Program & Project
-        upd.setValue('organization',                   input.organization         || '');
-        upd.setValue('project_start_date',             input.start_date           || '');
-        upd.setValue('project_end_date',               input.end_date             || '');
-        upd.setValue('submission_date',                input.submission_date      || '');
-        upd.setValue('requested_budget',               input.requested_budget     || '');
-        // Proposal
-        upd.setValue('short_description',              input.short_description    || '');
-        upd.setValue('proposal_description',           input.proposal_description || '');
-        upd.setValue('project_goals_objectives',       input.project_goals        || '');
-        upd.setValue('project_activities_methodology', input.project_activities   || '');
-
-        upd.update();
-        data.success = true;
-      } else {
+      if (!gr.get(input.sys_id)) {
         data.error = 'Record not found.';
+        return;
       }
-    } catch(e) { data.error = e.message; }
+
+      if (gr.getValue('sys_created_by') !== currentUser) {
+        data.error = 'Unauthorized.';
+        return;
+      }
+
+      var attachments = [];
+      var attGR = new GlideRecord('sys_attachment');
+      attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
+      attGR.addQuery('table_sys_id', input.sys_id);
+      attGR.query();
+      while (attGR.next()) {
+        attachments.push({
+          sys_id:       attGR.getUniqueValue(),
+          name:         attGR.getValue('file_name')    || '',
+          size:         attGR.getValue('size_bytes')   || '0',
+          content_type: attGR.getValue('content_type') || ''
+        });
+      }
+
+      data.application = {
+        sys_id:               gr.getUniqueValue(),
+        number:               gr.getValue('number')                            || '',
+        first_name:           gr.getValue('first_name')                        || '',
+        middle_name:          gr.getValue('middle_name')                       || '',
+        last_name:            gr.getValue('last_name')                         || '',
+        birthdate:            gr.getValue('birthdate')                         || '',
+        phone:                gr.getValue('phone_number')                      || '',
+        email:                gr.getValue('email')                             || '',
+        gender:               gr.getValue('gender')                            || '',
+        marital_status:       gr.getValue('marital_status')                    || '',
+        race:                 gr.getValue('race')                              || '',
+        ethnicity:            gr.getValue('ethnicity')                         || '',
+        education_level:      gr.getValue('education_level')                   || '',
+        military_status:      gr.getValue('military_status')                   || '',
+        street:               gr.getValue('street')                            || '',
+        city:                 gr.getValue('city')                              || '',
+        country:              gr.getValue('country')                           || '',
+        zip:                  gr.getValue('zip_postal_code')                   || '',
+        applicant_type:       gr.getValue('applicant_type')                    || '',
+        citizenship_status:   gr.getValue('citizenship_status')                || '',
+        identity_type:        gr.getValue('identity_type')                     || '',
+        tribal_affiliation:   gr.getValue('tribal_affiliation')                || '',
+        disability_status:    gr.getValue('disability_status')                 || '',
+        ssn:                  gr.getValue('ssn')                               || '',
+        tin_ein:              gr.getValue('tin_ein')                           || '',
+        uei:                  gr.getValue('uei')                               || '',
+        organization:         gr.getValue('organization')                      || '',
+        start_date:           gr.getValue('project_start_date')                || '',
+        end_date:             gr.getValue('project_end_date')                  || '',
+        submission_date:      gr.getValue('submission_date')                   || '',
+        requested_budget:     gr.getValue('requested_budget')                  || '',
+        short_description:    gr.getValue('short_description')                 || '',
+        proposal_description: gr.getValue('proposal_description')              || '',
+        project_goals:        gr.getValue('project_goals_objectives')          || '',
+        project_activities:   gr.getValue('project_activities_methodology')    || '',
+        attachments:          attachments
+      };
+
+    } catch(e) {
+      data.error = e.message;
+    }
+
     return;
   }
 
-  // ── Normal page load ──────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // ACTION: UPDATE APPLICATION
+  // ══════════════════════════════════════════════════════════════
+  if (input && input.action === 'updateApplication') {
+    data.success = false;
+    data.error   = '';
+
+    try {
+      var upd = new GlideRecord('x_enno_gatenow_service_applicants');
+
+      if (!upd.get(input.sys_id)) {
+        data.error = 'Record not found.';
+        return;
+      }
+
+      if (upd.getValue('sys_created_by') !== currentUser) {
+        data.error = 'Unauthorized.';
+        return;
+      }
+
+      var stateVal = upd.getDisplayValue('state');
+      if (stateVal !== 'New' && stateVal !== 'Ready for Review') {
+        data.error = 'Record is no longer editable.';
+        return;
+      }
+
+      upd.setValue('first_name',                     input.first_name           || '');
+      upd.setValue('middle_name',                    input.middle_name          || '');
+      upd.setValue('last_name',                      input.last_name            || '');
+      upd.setValue('birthdate',                      input.birthdate            || '');
+      upd.setValue('phone_number',                   input.phone                || '');
+      upd.setValue('email',                          input.email                || '');
+      upd.setValue('gender',                         input.gender               || '');
+      upd.setValue('marital_status',                 input.marital_status       || '');
+      upd.setValue('race',                           input.race                 || '');
+      upd.setValue('ethnicity',                      input.ethnicity            || '');
+      upd.setValue('education_level',                input.education_level      || '');
+      upd.setValue('military_status',                input.military_status      || '');
+      upd.setValue('street',                         input.street               || '');
+      upd.setValue('city',                           input.city                 || '');
+      upd.setValue('country',                        input.country              || '');
+      upd.setValue('zip_postal_code',                input.zip                  || '');
+      upd.setValue('applicant_type',                 input.applicant_type       || '');
+      upd.setValue('citizenship_status',             input.citizenship_status   || '');
+      upd.setValue('identity_type',                  input.identity_type        || '');
+      upd.setValue('tribal_affiliation',             input.tribal_affiliation   || '');
+      upd.setValue('disability_status',              input.disability_status    || '');
+      upd.setValue('ssn',                            input.ssn                  || '');
+      upd.setValue('tin_ein',                        input.tin_ein              || '');
+      upd.setValue('uei',                            input.uei                  || '');
+      upd.setValue('organization',                   input.organization         || '');
+      upd.setValue('project_start_date',             input.start_date           || '');
+      upd.setValue('project_end_date',               input.end_date             || '');
+      upd.setValue('submission_date',                input.submission_date      || '');
+      upd.setValue('requested_budget',               input.requested_budget     || '');
+      upd.setValue('short_description',              input.short_description    || '');
+      upd.setValue('proposal_description',           input.proposal_description || '');
+      upd.setValue('project_goals_objectives',       input.project_goals        || '');
+      upd.setValue('project_activities_methodology', input.project_activities   || '');
+
+      upd.update();
+      data.success = true;
+
+    } catch(e) {
+      data.error = e.message;
+    }
+
+    return;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // ACTION: UPLOAD ATTACHMENT
+  // ══════════════════════════════════════════════════════════════
+ // ══════════════════════════════════════════════════════════════
+// ACTION: UPLOAD ATTACHMENT
+// ══════════════════════════════════════════════════════════════
+if (input && input.action === 'uploadAttachment') {
+  data.attachment = null;
+  data.error      = '';
+
+  try {
+    var gr = new GlideRecord('x_enno_gatenow_service_applicants');
+
+    if (!gr.get(input.sys_id)) {
+      data.error = 'Record not found.';
+      return;
+    }
+
+    if (gr.getValue('sys_created_by') !== currentUser) {
+      data.error = 'Unauthorized.';
+      return;
+    }
+
+    // Use GlideSysAttachment.write() with base64 string directly
+    var attachmentMgr = new GlideSysAttachment();
+    var attSysId      = attachmentMgr.write(
+      gr,                          // GlideRecord to attach to
+      input.file_name,             // file name
+      input.content_type,          // MIME type
+      input.file_data              // raw base64 string — write() accepts this directly
+    );
+
+    if (attSysId) {
+      var attGR = new GlideRecord('sys_attachment');
+      attGR.get(attSysId);
+      data.attachment = {
+        sys_id:       attSysId,
+        name:         attGR.getValue('file_name')    || input.file_name,
+        size:         attGR.getValue('size_bytes')   || '0',
+        content_type: attGR.getValue('content_type') || input.content_type
+      };
+    } else {
+      data.error = 'Failed to save attachment.';
+    }
+
+  } catch(e) {
+    data.error = e.message;
+  }
+
+  return;
+}
+
+
+  // ══════════════════════════════════════════════════════════════
+  // ACTION: DELETE ATTACHMENT
+  // ══════════════════════════════════════════════════════════════
+  if (input && input.action === 'deleteAttachment') {
+    data.success = false;
+    data.error   = '';
+
+    try {
+      var attGR = new GlideRecord('sys_attachment');
+
+      if (!attGR.get(input.att_sys_id)) {
+        data.error = 'Attachment not found.';
+        return;
+      }
+
+      // Verify the attachment belongs to a record owned by current user
+      var tableSysId = attGR.getValue('table_sys_id');
+      var appGR      = new GlideRecord('x_enno_gatenow_service_applicants');
+
+      if (!appGR.get(tableSysId) || appGR.getValue('sys_created_by') !== currentUser) {
+        data.error = 'Unauthorized.';
+        return;
+      }
+
+      var sysAtt = new GlideSysAttachment();
+      sysAtt.deleteAttachment(input.att_sys_id);
+      data.success = true;
+
+    } catch(e) {
+      data.error = e.message;
+    }
+
+    return;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // DEFAULT: PAGE LOAD
+  // ══════════════════════════════════════════════════════════════
   var labelMap = {
     'New':                   'Application created',
     'Ready for Review':      'Application submitted for review',
@@ -576,6 +1150,7 @@
     'Declined by Applicant': 'Declined by applicant',
     'Closed':                'Application closed'
   };
+
   var colorMap = {
     'New':                   '#9ca3af',
     'Ready for Review':      '#3b82f6',
@@ -587,6 +1162,7 @@
     'Declined by Applicant': '#ef4444',
     'Closed':                '#9ca3af'
   };
+
   var badgeMap = {
     'New':                   'badge-new',
     'Ready for Review':      'badge-submitted',
@@ -609,7 +1185,6 @@
     var appNum       = gr.getValue('number')        || '';
     var sysId        = gr.getUniqueValue();
 
-    // Attachments
     var attachments = [];
     var attGR = new GlideRecord('sys_attachment');
     attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
@@ -617,76 +1192,69 @@
     attGR.query();
     while (attGR.next()) {
       attachments.push({
+        sys_id:       attGR.getUniqueValue(),
         name:         attGR.getValue('file_name')    || '',
         size:         attGR.getValue('size_bytes')   || '0',
-        content_type: attGR.getValue('content_type') || '',
-        sys_id:       attGR.getUniqueValue()
+        content_type: attGR.getValue('content_type') || ''
       });
     }
 
     data.applications.push({
-      sys_id:               sysId,
-      number:               appNum,
-      // Personal
-      first_name:           gr.getValue('first_name')                      || '',
-      middle_name:          gr.getValue('middle_name')                     || '',
-      last_name:            gr.getValue('last_name')                       || '',
-      birthdate:            gr.getValue('birthdate')                       || '',
-      phone:                gr.getValue('phone_number')                    || '',
-      email:                gr.getValue('email')                           || '',
-      gender:               gr.getValue('gender')                          || '',
-      marital_status:       gr.getValue('marital_status')                  || '',
-      race:                 gr.getValue('race')                            || '',
-      ethnicity:            gr.getValue('ethnicity')                       || '',
-      education_level:      gr.getValue('education_level')                 || '',
-      military_status:      gr.getValue('military_status')                 || '',
-      // Display values for view modal
-      gender_display:       gr.getDisplayValue('gender')                   || '',
-      marital_display:      gr.getDisplayValue('marital_status')           || '',
-      race_display:         gr.getDisplayValue('race')                     || '',
-      ethnicity_display:    gr.getDisplayValue('ethnicity')                || '',
-      education_display:    gr.getDisplayValue('education_level')          || '',
-      military_display:     gr.getDisplayValue('military_status')          || '',
-      // Address
-      street:               gr.getValue('street')                          || '',
-      city:                 gr.getValue('city')                            || '',
-      country:              gr.getValue('country')                         || '',
-      zip:                  gr.getValue('zip_postal_code')                             || '',
-      // Identity
-      applicant_type:       gr.getValue('applicant_type')                  || '',
-      applicant_type_display: gr.getDisplayValue('applicant_type')         || '',
-      tribal_affiliation:   gr.getValue('tribal_affiliation')              || '',
-      tribal_display:       gr.getDisplayValue('tribal_affiliation')       || '',
-      citizenship_status:   gr.getValue('citizenship_status')              || '',
-      citizenship_display:  gr.getDisplayValue('citizenship_status')       || '',
-      identity_type:        gr.getValue('identity_type')                   || '',
-      identity_display:     gr.getDisplayValue('identity_type')            || '',
-      disability_status:    gr.getValue('disability_status')               || '',
-      disability_display:   gr.getDisplayValue('disability_status')        || '',
-      ssn:                  gr.getValue('ssn')                             || '',
-      tin_ein:              gr.getValue('tin_ein')                         || '',
-      uei:                  gr.getValue('uei')                             || '',
-      // Program
-      program_name:         gr.getDisplayValue('program')                  || 'N/A',
-      program_num:          gr.getDisplayValue('program.number')           || '',
-      program_category:     gr.getDisplayValue('program_category')         || '',
-      organization:         gr.getValue('organization')                    || '',
-      start_date:           gr.getValue('project_start_date')              || '',
-      end_date:             gr.getValue('project_end_date')                || '',
-      submission_date:      gr.getValue('submission_date')                 || '',
-      requested_budget:     gr.getValue('requested_budget')                || '',
-      // Proposal
-      short_description:    gr.getValue('short_description')               || '',
-      proposal_description: gr.getValue('proposal_description')            || '',
-      project_goals:        gr.getValue('project_goals_and_objectives')        || '',
-      project_activities:   gr.getValue('project_activities_methodology')  || '',
-      // Meta
-      state_display:        stateDisplay,
-      badge_class:          badgeMap[stateDisplay]                         || 'badge-new',
-      created_on:           gr.getDisplayValue('sys_created_on')           || '',
-      updated_on:           gr.getDisplayValue('sys_updated_on')           || '',
-      can_edit:             (stateDisplay === 'New' || stateDisplay === 'Ready for Review'),
-      attachments:          attachments
+      sys_id:                 sysId,
+      number:                 appNum,
+      first_name:             gr.getValue('first_name')                      || '',
+      middle_name:            gr.getValue('middle_name')                     || '',
+      last_name:              gr.getValue('last_name')                       || '',
+      birthdate:              gr.getValue('birthdate')                       || '',
+      phone:                  gr.getValue('phone_number')                    || '',
+      email:                  gr.getValue('email')                           || '',
+      gender:                 gr.getValue('gender')                          || '',
+      gender_display:         gr.getDisplayValue('gender')                   || '',
+      marital_status:         gr.getValue('marital_status')                  || '',
+      marital_display:        gr.getDisplayValue('marital_status')           || '',
+      race:                   gr.getValue('race')                            || '',
+      race_display:           gr.getDisplayValue('race')                     || '',
+      ethnicity:              gr.getValue('ethnicity')                       || '',
+      ethnicity_display:      gr.getDisplayValue('ethnicity')                || '',
+      education_level:        gr.getValue('education_level')                 || '',
+      education_display:      gr.getDisplayValue('education_level')          || '',
+      military_status:        gr.getValue('military_status')                 || '',
+      military_display:       gr.getDisplayValue('military_status')          || '',
+      street:                 gr.getValue('street')                          || '',
+      city:                   gr.getValue('city')                            || '',
+      country:                gr.getValue('country')                         || '',
+      zip:                    gr.getValue('zip_postal_code')                 || '',
+      applicant_type:         gr.getValue('applicant_type')                  || '',
+      applicant_type_display: gr.getDisplayValue('applicant_type')           || '',
+      citizenship_status:     gr.getValue('citizenship_status')              || '',
+      citizenship_display:    gr.getDisplayValue('citizenship_status')       || '',
+      identity_type:          gr.getValue('identity_type')                   || '',
+      identity_display:       gr.getDisplayValue('identity_type')            || '',
+      tribal_affiliation:     gr.getValue('tribal_affiliation')              || '',
+      tribal_display:         gr.getDisplayValue('tribal_affiliation')       || '',
+      disability_status:      gr.getValue('disability_status')               || '',
+      disability_display:     gr.getDisplayValue('disability_status')        || '',
+      ssn:                    gr.getValue('ssn')                             || '',
+      tin_ein:                gr.getValue('tin_ein')                         || '',
+      uei:                    gr.getValue('uei')                             || '',
+      program_name:           gr.getDisplayValue('program')                  || 'N/A',
+      program_num:            gr.getDisplayValue('program.number')           || '',
+      program_category:       gr.getDisplayValue('program_category')         || '',
+      organization:           gr.getValue('organization')                    || '',
+      start_date:             gr.getValue('project_start_date')              || '',
+      end_date:               gr.getValue('project_end_date')                || '',
+      submission_date:        gr.getValue('submission_date')                 || '',
+      requested_budget:       gr.getValue('requested_budget')                || '',
+      short_description:      gr.getValue('short_description')               || '',
+      proposal_description:   gr.getValue('proposal_description')            || '',
+      project_goals:          gr.getValue('project_goals_objectives')        || '',
+      project_activities:     gr.getValue('project_activities_methodology')  || '',
+      state_display:          stateDisplay,
+      badge_class:            badgeMap[stateDisplay]                         || 'badge-new',
+      created_on:             gr.getDisplayValue('sys_created_on')           || '',
+      updated_on:             gr.getDisplayValue('sys_updated_on')           || '',
+      can_edit:               (stateDisplay === 'New' || stateDisplay === 'Ready for Review'),
+      attachments:            attachments
     });
 
     data.timeline.push({
@@ -706,46 +1274,44 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>50</sys_mod_count>
+        <sys_mod_count>88</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
         <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-03-10 09:32:21</sys_updated_on>
+        <sys_updated_on>2026-03-24 11:41:18</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
 
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
- <div class="ma-wrap">
+  <div class="ma-wrap">
 
-  <!-- Header -->
-  <div class="ma-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-    <div>
-      <h1 class="ma-title">My Applications</h1>
-      <p class="ma-subtitle">Track and manage your grant applications</p>
+    <!-- ── Header ── -->
+    <div class="ma-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h1 class="ma-title">My Applications</h1>
+        <p class="ma-subtitle">Track and manage your grant applications</p>
+      </div>
+      <button class="ma-btn-back" ng-click="c.goBack()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+          <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+        </svg>
+        Back
+      </button>
     </div>
-    <button class="ma-btn-back" ng-click="c.goBack()">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
-      </svg>
-      Back
-    </button>
-  </div>
 
-
-
-    <!-- Breadcrumb -->
+    <!-- ── Breadcrumb ── -->
     <nav class="detail-breadcrumb">
       <i class="fa fa-angle-right breadcrumb-sep"></i>
       <a href="/applicant?id=applicant_dashboard" class="breadcrumb-link">Dashboard</a>
-      <span class="breadcrumb-current">{{data.program.title}}</span>
+      <span class="breadcrumb-current">My Applications</span>
     </nav>
 
-    <!-- Table Card -->
+    <!-- ── Table Card ── -->
     <div class="ma-card">
       <table class="ma-table">
         <thead>
@@ -758,7 +1324,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr ng-repeat="app in c.data.applications track by app.sys_id" class="ma-row">
+
+          <tr ng-repeat-start="app in c.data.applications track by app.sys_id"
+              class="ma-row ma-row-clickable"
+              ng-click="c.toggleTimeline(app)">
             <td>
               <div class="ma-app-cell">
                 <div class="ma-app-icon"><i class="fa fa-file-text"></i></div>
@@ -772,54 +1341,82 @@
               <div class="ma-prog-name">{{app.program_name}}</div>
               <div class="ma-prog-num">{{app.program_num}}</div>
             </td>
-            <td><span class="ma-badge {{app.badge_class}}">{{app.state_display}}</span></td>
-            <td><span class="ma-date"><i class="fa fa-clock-o"></i>&nbsp;{{app.updated_on}}</span></td>
+            <td>
+              <span class="ma-badge {{app.badge_class}}">{{app.state_display}}</span>
+            </td>
+            <td>
+              <span class="ma-date"><i class="fa fa-clock-o"></i>&nbsp;{{app.updated_on}}</span>
+            </td>
             <td>
               <div class="ma-actions">
-                <button class="ma-btn-view" ng-click="c.openModal(app)" title="View">
+                <button class="ma-btn-tl"
+                        ng-click="$event.stopPropagation(); c.toggleTimeline(app)"
+                        title="Review Timeline">
+                  <i class="fa" ng-class="c.expandedApp === app.sys_id ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                </button>
+                <button class="ma-btn-view"
+                        ng-click="$event.stopPropagation(); c.openModal(app)"
+                        title="View">
                   <i class="fa fa-eye"></i>
                 </button>
-                <button ng-if="app.state_display === 'New'" class="ma-btn-edit" ng-click="c.openEdit(app)" title="Edit">
+                <button ng-if="app.can_edit"
+                        class="ma-btn-edit"
+                        ng-click="$event.stopPropagation(); c.openEdit(app)"
+                        title="Edit">
                   <i class="fa fa-pencil"></i>
                 </button>
               </div>
             </td>
           </tr>
-          <tr ng-if="c.data.applications.length === 0">
-            <td colspan="5" class="ma-empty">
-              <i class="fa fa-folder-open-o" style="font-size:26px;display:block;margin-bottom:8px;"></i>
-              No applications found.
+
+          <!-- ── Inline Timeline Row ── -->
+          <tr ng-repeat-end class="ma-tl-expand-row" ng-if="c.expandedApp === app.sys_id">
+            <td colspan="5" class="ma-tl-expand-cell">
+              <div class="ma-tl-expand-inner">
+                <div class="ma-tl-expand-heading">
+                  <i class="fa fa-history"></i>&nbsp;Review Timeline
+                  <span class="ma-tl-expand-appnum">{{app.number}}</span>
+                </div>
+                <div class="ma-timeline" ng-if="c.appTimeline.length > 0">
+                  <div class="ma-tl-row" ng-repeat="item in c.appTimeline track by $index">
+                    <div class="ma-tl-left">
+                      <span class="ma-tl-dot" style="background-color:{{item.color}};"></span>
+                      <span class="ma-tl-line" ng-if="!$last"></span>
+                    </div>
+                    <div class="ma-tl-body">
+                      <div class="ma-tl-label">{{item.label}}</div>
+                      <div class="ma-tl-meta">{{item.date}}</div>
+                    </div>
+                  </div>
+                </div>
+                <div ng-if="c.appTimeline.length === 0" class="ma-empty" style="padding:16px 0 4px;">
+                  <i class="fa fa-clock-o" style="display:block;font-size:22px;margin-bottom:6px;"></i>
+                  No timeline activity yet.
+                </div>
+              </div>
             </td>
           </tr>
+
         </tbody>
+
+        <tr ng-if="c.data.applications.length === 0">
+          <td colspan="5" class="ma-empty">
+            <i class="fa fa-folder-open-o" style="font-size:26px;display:block;margin-bottom:8px;"></i>
+            No applications found.
+          </td>
+        </tr>
+
       </table>
     </div>
 
-    <!-- Timeline Card -->
-    <div class="ma-card ma-tl-card">
-      <h2 class="ma-tl-heading">Review Timeline</h2>
-      <div class="ma-timeline" ng-if="c.data.timeline.length > 0">
-        <div class="ma-tl-row" ng-repeat="item in c.data.timeline track by $index">
-          <div class="ma-tl-left">
-            <span class="ma-tl-dot" style="background-color: {{item.color}};"></span>
-            <span class="ma-tl-line" ng-if="!$last"></span>
-          </div>
-          <div class="ma-tl-body">
-            <div class="ma-tl-label">{{item.label}}</div>
-            <div class="ma-tl-meta">
-              {{item.date}}
-              <span ng-if="item.app_num" class="ma-tl-appnum">&nbsp;·&nbsp;{{item.app_num}}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div ng-if="c.data.timeline.length === 0" class="ma-empty">No activity yet.</div>
-    </div>
 
-    <!-- ════════════ VIEW MODAL ════════════ -->
+    <!-- ════════════════════════════════════════
+         VIEW MODAL
+    ════════════════════════════════════════ -->
     <div class="ma-overlay" ng-if="c.modalOpen" ng-click="c.closeModal()">
       <div class="ma-modal" ng-click="$event.stopPropagation()">
 
+        <!-- Header -->
         <div class="ma-mhdr">
           <div class="ma-mhdr-left">
             <div class="ma-mhdr-icon"><i class="fa fa-file-text"></i></div>
@@ -831,11 +1428,13 @@
           <button class="ma-mhdr-close" ng-click="c.closeModal()"><i class="fa fa-times"></i></button>
         </div>
 
+        <!-- Banner -->
         <div class="ma-mbanner">
           <span class="ma-badge {{c.selected.badge_class}}">{{c.selected.state_display}}</span>
           <span class="ma-mbanner-date"><i class="fa fa-clock-o"></i>&nbsp;{{c.selected.updated_on}}</span>
         </div>
 
+        <!-- Tabs -->
         <div class="ma-mtabs">
           <button class="ma-mtab" ng-class="{active: c.activeTab==='personal'}"    ng-click="c.setTab('personal')">Personal</button>
           <button class="ma-mtab" ng-class="{active: c.activeTab==='identity'}"    ng-click="c.setTab('identity')">Identity</button>
@@ -843,10 +1442,11 @@
           <button class="ma-mtab" ng-class="{active: c.activeTab==='proposal'}"    ng-click="c.setTab('proposal')">Proposal</button>
           <button class="ma-mtab" ng-class="{active: c.activeTab==='attachments'}" ng-click="c.setTab('attachments')">
             Attachments
-            <span class="ma-mtab-count" ng-if="c.selected.attachments.length > 0">{{c.selected.attachments.length}}</span>
+            <span class="ma-mtab-count" ng-if="c.selected.attachments && c.selected.attachments.length > 0">{{c.selected.attachments.length}}</span>
           </button>
         </div>
 
+        <!-- Body -->
         <div class="ma-mbody">
 
           <!-- Personal -->
@@ -918,140 +1518,6 @@
           <!-- Attachments -->
           <div ng-if="c.activeTab === 'attachments'">
             <div class="ma-section-title">Attachments</div>
-            <div ng-if="c.selected.attachments.length === 0" class="ma-no-attach">
-              <i class="fa fa-paperclip" style="font-size:28px;margin-bottom:10px;display:block;"></i>
-              No attachments found.
-            </div>
-            <div class="ma-attach-list" ng-if="c.selected.attachments.length > 0">
-              <div class="ma-attach-item" ng-repeat="att in c.selected.attachments track by att.sys_id">
-                <div class="ma-attach-icon"><i class="fa {{c.getFileIcon(att.content_type)}}"></i></div>
-                <div class="ma-attach-info">
-                  <div class="ma-attach-name">{{att.name}}</div>
-                  <div class="ma-attach-size">{{c.formatBytes(att.size)}}</div>
-                </div>
-                <a class="ma-attach-dl" ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" target="_blank">
-                  <i class="fa fa-download"></i>
-                </a>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <div class="ma-mfooter">
-          <button class="ma-mfoot-close" ng-click="c.closeModal()">Close</button>
-          <button ng-if="c.selected.state_display === 'New'" class="ma-mfoot-save"
-                  ng-click="c.closeModal(); c.openEdit(c.selected);">
-            <i class="fa fa-pencil"></i>&nbsp;Edit Application
-          </button>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ════════════ EDIT MODAL ════════════ -->
-    <div class="ma-overlay" ng-if="c.editOpen" ng-click="c.closeEdit()">
-      <div class="ma-modal" ng-click="$event.stopPropagation()">
-
-        <div class="ma-mhdr">
-          <div class="ma-mhdr-left">
-            <div class="ma-mhdr-icon" style="background:#fff7ed;color:#ea580c;">
-              <i class="fa fa-pencil"></i>
-            </div>
-            <div>
-              <div class="ma-mhdr-title">Edit Application</div>
-              <div class="ma-mhdr-sub">{{c.editData.number}}</div>
-            </div>
-          </div>
-          <button class="ma-mhdr-close" ng-click="c.closeEdit()"><i class="fa fa-times"></i></button>
-        </div>
-
-        <div class="ma-mtabs">
-          <button class="ma-mtab" ng-class="{active: c.editTab==='personal'}"    ng-click="c.setEditTab('personal')">Personal</button>
-          <button class="ma-mtab" ng-class="{active: c.editTab==='identity'}"    ng-click="c.setEditTab('identity')">Identity</button>
-          <button class="ma-mtab" ng-class="{active: c.editTab==='program'}"     ng-click="c.setEditTab('program')">Program</button>
-          <button class="ma-mtab" ng-class="{active: c.editTab==='proposal'}"    ng-click="c.setEditTab('proposal')">Proposal</button>
-          <button class="ma-mtab" ng-class="{active: c.editTab==='attachments'}" ng-click="c.setEditTab('attachments')">
-            Attachments
-            <span class="ma-mtab-count" ng-if="c.selected.attachments && c.selected.attachments.length > 0">{{c.selected.attachments.length}}</span>
-          </button>
-        </div>
-
-        <div class="ma-mbody">
-
-          <div class="ma-edit-success" ng-if="c.editSuccess">
-            <i class="fa fa-check-circle"></i>&nbsp;Saved successfully!
-          </div>
-          <div class="ma-edit-error" ng-if="c.editError">
-            <i class="fa fa-exclamation-circle"></i>&nbsp;{{c.editError}}
-          </div>
-
-          <!-- Personal Tab -->
-          <div ng-if="c.editTab === 'personal'">
-            <div class="ma-section-title">Personal Information</div>
-            <div class="ma-grid">
-              <div class="ma-efield"><label class="ma-elabel">First Name</label><input class="ma-einput" type="text" ng-model="c.editData.first_name" placeholder="First name" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Middle Name</label><input class="ma-einput" type="text" ng-model="c.editData.middle_name" placeholder="Middle name" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Last Name</label><input class="ma-einput" type="text" ng-model="c.editData.last_name" placeholder="Last name" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Birthdate</label><input class="ma-einput" type="date" ng-model="c.editData.birthdate" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Phone Number</label><input class="ma-einput" type="text" ng-model="c.editData.phone" placeholder="Phone" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Email</label><input class="ma-einput" type="email" ng-model="c.editData.email" placeholder="Email" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Gender</label><input class="ma-einput" type="text" ng-model="c.editData.gender" placeholder="Gender" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Marital Status</label><input class="ma-einput" type="text" ng-model="c.editData.marital_status" placeholder="Marital status" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Race</label><input class="ma-einput" type="text" ng-model="c.editData.race" placeholder="Race" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Ethnicity</label><input class="ma-einput" type="text" ng-model="c.editData.ethnicity" placeholder="Ethnicity" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Education Level</label><input class="ma-einput" type="text" ng-model="c.editData.education_level" placeholder="Education level" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Military Status</label><input class="ma-einput" type="text" ng-model="c.editData.military_status" placeholder="Military status" /></div>
-            </div>
-            <div class="ma-divider"></div>
-            <div class="ma-section-title">Address</div>
-            <div class="ma-grid">
-              <div class="ma-efield"><label class="ma-elabel">Street</label><input class="ma-einput" type="text" ng-model="c.editData.street" placeholder="Street" /></div>
-              <div class="ma-efield"><label class="ma-elabel">City</label><input class="ma-einput" type="text" ng-model="c.editData.city" placeholder="City" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Country</label><input class="ma-einput" type="text" ng-model="c.editData.country" placeholder="Country" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Zip / Postal Code</label><input class="ma-einput" type="text" ng-model="c.editData.zip" placeholder="Zip" /></div>
-            </div>
-          </div>
-
-          <!-- Identity Tab -->
-          <div ng-if="c.editTab === 'identity'">
-            <div class="ma-section-title">Identity & Classification</div>
-            <div class="ma-grid">
-              <div class="ma-efield"><label class="ma-elabel">Applicant Type</label><input class="ma-einput" type="text" ng-model="c.editData.applicant_type" placeholder="Applicant type" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Citizenship Status</label><input class="ma-einput" type="text" ng-model="c.editData.citizenship_status" placeholder="Citizenship status" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Identity Type</label><input class="ma-einput" type="text" ng-model="c.editData.identity_type" placeholder="Identity type" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Tribal Affiliation</label><input class="ma-einput" type="text" ng-model="c.editData.tribal_affiliation" placeholder="Tribal affiliation" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Disability Status</label><input class="ma-einput" type="text" ng-model="c.editData.disability_status" placeholder="Disability status" /></div>
-              <div class="ma-efield"><label class="ma-elabel">UEI</label><input class="ma-einput" type="text" ng-model="c.editData.uei" placeholder="UEI" /></div>
-              <div class="ma-efield"><label class="ma-elabel">SSN</label><input class="ma-einput" type="text" ng-model="c.editData.ssn" placeholder="SSN" /></div>
-              <div class="ma-efield"><label class="ma-elabel">TIN / EIN</label><input class="ma-einput" type="text" ng-model="c.editData.tin_ein" placeholder="TIN / EIN" /></div>
-            </div>
-          </div>
-
-          <!-- Program Tab -->
-          <div ng-if="c.editTab === 'program'">
-            <div class="ma-section-title">Program & Project</div>
-            <div class="ma-grid">
-              <div class="ma-efield"><label class="ma-elabel">Organization</label><input class="ma-einput" type="text" ng-model="c.editData.organization" placeholder="Organization" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Requested Budget</label><input class="ma-einput" type="text" ng-model="c.editData.requested_budget" placeholder="e.g. 50000" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Project Start Date</label><input class="ma-einput" type="date" ng-model="c.editData.start_date" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Project End Date</label><input class="ma-einput" type="date" ng-model="c.editData.end_date" /></div>
-              <div class="ma-efield"><label class="ma-elabel">Submission Date</label><input class="ma-einput" type="date" ng-model="c.editData.submission_date" /></div>
-            </div>
-          </div>
-
-          <!-- Proposal Tab -->
-          <div ng-if="c.editTab === 'proposal'">
-            <div class="ma-section-title">Proposal Details</div>
-            <div class="ma-efield"><label class="ma-elabel">Short Description</label><textarea class="ma-etextarea" ng-model="c.editData.short_description" rows="2" placeholder="Short description"></textarea></div>
-            <div class="ma-efield"><label class="ma-elabel">Proposal Description</label><textarea class="ma-etextarea" ng-model="c.editData.proposal_description" rows="3" placeholder="Proposal description"></textarea></div>
-            <div class="ma-efield"><label class="ma-elabel">Project Goals and Objectives</label><textarea class="ma-etextarea" ng-model="c.editData.project_goals" rows="3" placeholder="Goals and objectives"></textarea></div>
-            <div class="ma-efield"><label class="ma-elabel">Project Activities / Methodology</label><textarea class="ma-etextarea" ng-model="c.editData.project_activities" rows="3" placeholder="Activities and methodology"></textarea></div>
-          </div>
-
-          <!-- Attachments Tab -->
-          <div ng-if="c.editTab === 'attachments'">
-            <div class="ma-section-title">Attachments</div>
             <div ng-if="!c.selected.attachments || c.selected.attachments.length === 0" class="ma-no-attach">
               <i class="fa fa-paperclip" style="font-size:28px;margin-bottom:10px;display:block;"></i>
               No attachments found.
@@ -1072,19 +1538,398 @@
 
         </div>
 
+        <!-- Footer -->
         <div class="ma-mfooter">
-          <button class="ma-mfoot-close" ng-click="c.closeEdit()" ng-disabled="c.editSaving">Cancel</button>
-          <button class="ma-mfoot-save" ng-click="c.saveEdit()" ng-disabled="c.editSaving">
-            <i class="fa" ng-class="c.editSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-            &nbsp;{{c.editSaving ? 'Saving...' : 'Save Changes'}}
+          <button class="ma-mfoot-close" ng-click="c.closeModal()">Close</button>
+          <button ng-if="c.selected.can_edit"
+                  class="ma-mfoot-save"
+                  ng-click="c.openEditFromView(c.selected)">
+            <i class="fa fa-pencil"></i>&nbsp;Edit Application
           </button>
         </div>
 
       </div>
     </div>
 
-  </div><!-- end .ma-wrap -->
 
+    <!-- ════════════════════════════════════════
+         EDIT MODAL
+    ════════════════════════════════════════ -->
+    <div class="ma-overlay" ng-if="c.editOpen" ng-click="c.closeEdit()">
+      <div class="ma-modal" ng-click="$event.stopPropagation()">
+
+        <!-- Header -->
+        <div class="ma-mhdr">
+          <div class="ma-mhdr-left">
+            <div class="ma-mhdr-icon" style="background:#fff7ed;color:#ea580c;">
+              <i class="fa fa-pencil"></i>
+            </div>
+            <div>
+              <div class="ma-mhdr-title">Edit Application</div>
+              <div class="ma-mhdr-sub">{{c.editData.number}}</div>
+            </div>
+          </div>
+          <button class="ma-mhdr-close" ng-click="c.closeEdit()"><i class="fa fa-times"></i></button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="ma-mtabs">
+          <button class="ma-mtab" ng-class="{active: c.editTab==='personal'}"    ng-click="c.setEditTab('personal')">Personal</button>
+          <button class="ma-mtab" ng-class="{active: c.editTab==='identity'}"    ng-click="c.setEditTab('identity')">Identity</button>
+          <button class="ma-mtab" ng-class="{active: c.editTab==='program'}"     ng-click="c.setEditTab('program')">Program</button>
+          <button class="ma-mtab" ng-class="{active: c.editTab==='proposal'}"    ng-click="c.setEditTab('proposal')">Proposal</button>
+          <button class="ma-mtab" ng-class="{active: c.editTab==='attachments'}" ng-click="c.setEditTab('attachments')">
+            Attachments
+            <span class="ma-mtab-count" ng-if="c.selected.attachments && c.selected.attachments.length > 0">{{c.selected.attachments.length}}</span>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="ma-mbody">
+
+          <!-- Loading Spinner -->
+          <div ng-if="c.editLoading"
+               style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9ca3af;font-size:13px;gap:12px;">
+            <i class="fa fa-spinner fa-spin" style="font-size:28px;color:#5443AD;"></i>
+            Loading application data...
+          </div>
+
+          <!-- Tabs Content — shown after load -->
+          <div ng-if="!c.editLoading">
+
+            <div class="ma-edit-success" ng-if="c.editSuccess">
+              <i class="fa fa-check-circle"></i>&nbsp;Saved successfully!
+            </div>
+            <div class="ma-edit-error" ng-if="c.editError">
+              <i class="fa fa-exclamation-circle"></i>&nbsp;{{c.editError}}
+            </div>
+
+            <!-- ── Personal ── -->
+            <div ng-if="c.editTab === 'personal'">
+              <div class="ma-section-title">Personal Information</div>
+              <div class="ma-grid">
+                <div class="ma-efield">
+                  <label class="ma-elabel">First Name</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.first_name" placeholder="First name" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Middle Name</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.middle_name" placeholder="Middle name" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Last Name</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.last_name" placeholder="Last name" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Birthdate</label>
+                  <input class="ma-einput" type="date" ng-model="c.editData.birthdate" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Phone Number</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.phone" placeholder="Phone" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Email</label>
+                  <input class="ma-einput" type="email" ng-model="c.editData.email" placeholder="Email" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Gender</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.gender">
+                      <option value="">-- Select Gender --</option>
+                      <option ng-repeat="opt in c.choices.gender" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Marital Status</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.marital_status">
+                      <option value="">-- Select Marital Status --</option>
+                      <option ng-repeat="opt in c.choices.marital_status" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Race</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.race">
+                      <option value="">-- Select Race --</option>
+                      <option ng-repeat="opt in c.choices.race" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Ethnicity</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.ethnicity">
+                      <option value="">-- Select Ethnicity --</option>
+                      <option ng-repeat="opt in c.choices.ethnicity" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Education Level</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.education_level">
+                      <option value="">-- Select Education Level --</option>
+                      <option ng-repeat="opt in c.choices.education_level" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Military Status</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.military_status">
+                      <option value="">-- Select Military Status --</option>
+                      <option ng-repeat="opt in c.choices.military_status" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+              </div>
+              <div class="ma-divider"></div>
+              <div class="ma-section-title">Address</div>
+              <div class="ma-grid">
+                <div class="ma-efield">
+                  <label class="ma-elabel">Street</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.street" placeholder="Street" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">City</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.city" placeholder="City" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Country</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.country" placeholder="Country" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Zip / Postal Code</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.zip" placeholder="Zip" />
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Identity ── -->
+            <div ng-if="c.editTab === 'identity'">
+              <div class="ma-section-title">Identity & Classification</div>
+              <div class="ma-grid">
+                <div class="ma-efield">
+                  <label class="ma-elabel">Applicant Type</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.applicant_type">
+                      <option value="">-- Select Applicant Type --</option>
+                      <option ng-repeat="opt in c.choices.applicant_type" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Citizenship Status</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.citizenship_status">
+                      <option value="">-- Select Citizenship Status --</option>
+                      <option ng-repeat="opt in c.choices.citizenship_status" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Identity Type</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.identity_type">
+                      <option value="">-- Select Identity Type --</option>
+                      <option ng-repeat="opt in c.choices.identity_type" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Tribal Affiliation</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.tribal_affiliation">
+                      <option value="">-- Select Tribal Affiliation --</option>
+                      <option ng-repeat="opt in c.choices.tribal_affiliation" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Disability Status</label>
+                  <div class="ma-select-wrap">
+                    <select class="ma-eselect" ng-model="c.editData.disability_status">
+                      <option value="">-- Select Disability Status --</option>
+                      <option ng-repeat="opt in c.choices.disability_status" value="{{opt.value}}">{{opt.label}}</option>
+                    </select>
+                    <i class="fa fa-chevron-down ma-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">UEI</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.uei" placeholder="UEI" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">SSN</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.ssn" placeholder="SSN" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">TIN / EIN</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.tin_ein" placeholder="TIN / EIN" />
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Program ── -->
+            <div ng-if="c.editTab === 'program'">
+              <div class="ma-section-title">Program & Project</div>
+              <div class="ma-grid">
+                <div class="ma-efield">
+                  <label class="ma-elabel">Organization</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.organization" placeholder="Organization" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Requested Budget</label>
+                  <input class="ma-einput" type="text" ng-model="c.editData.requested_budget" placeholder="e.g. 50000" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Project Start Date</label>
+                  <input class="ma-einput" type="date" ng-model="c.editData.start_date" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Project End Date</label>
+                  <input class="ma-einput" type="date" ng-model="c.editData.end_date" />
+                </div>
+                <div class="ma-efield">
+                  <label class="ma-elabel">Submission Date</label>
+                  <input class="ma-einput" type="date" ng-model="c.editData.submission_date" />
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Proposal ── -->
+            <div ng-if="c.editTab === 'proposal'">
+              <div class="ma-section-title">Proposal Details</div>
+              <div class="ma-efield" style="margin-bottom:16px;">
+                <label class="ma-elabel">Short Description</label>
+                <textarea class="ma-etextarea" ng-model="c.editData.short_description" rows="2" placeholder="Short description"></textarea>
+              </div>
+              <div class="ma-efield" style="margin-bottom:16px;">
+                <label class="ma-elabel">Proposal Description</label>
+                <textarea class="ma-etextarea" ng-model="c.editData.proposal_description" rows="3" placeholder="Proposal description"></textarea>
+              </div>
+              <div class="ma-efield" style="margin-bottom:16px;">
+                <label class="ma-elabel">Project Goals and Objectives</label>
+                <textarea class="ma-etextarea" ng-model="c.editData.project_goals" rows="3" placeholder="Goals and objectives"></textarea>
+              </div>
+              <div class="ma-efield" style="margin-bottom:16px;">
+                <label class="ma-elabel">Project Activities / Methodology</label>
+                <textarea class="ma-etextarea" ng-model="c.editData.project_activities" rows="3" placeholder="Activities and methodology"></textarea>
+              </div>
+            </div>
+
+            <!-- ── Attachments ── -->
+            <div ng-if="c.editTab === 'attachments'">
+              <div class="ma-section-title">Attachments</div>
+
+              <!-- Upload Area -->
+              <div class="ma-upload-area"
+                   ng-class="{'ma-upload-drag': c.isDragging}"
+                   ng-dragover="c.onDragOver($event)"
+                   ng-dragleave="c.onDragLeave($event)"
+                   ng-drop="c.onDrop($event)"
+                   ng-click="c.triggerFileInput()">
+                <i class="fa fa-cloud-upload ma-upload-icon"></i>
+                <div class="ma-upload-text">Click to upload or drag &amp; drop files here</div>
+                <div class="ma-upload-sub">Any file type accepted</div>
+                <input id="ma-file-input"
+                       type="file"
+                       multiple
+                       style="display:none;"
+                       onchange="angular.element(this).scope().c.onFileSelect(this)" />
+              </div>
+
+              <!-- Upload Progress -->
+              <div ng-if="c.uploadingFiles && c.uploadingFiles.length > 0" class="ma-upload-progress-list">
+                <div class="ma-upload-progress-item" ng-repeat="uf in c.uploadingFiles track by $index">
+                  <div class="ma-upload-progress-name">
+                    <i class="fa fa-spinner fa-spin" style="color:#5443AD;margin-right:6px;"></i>
+                    {{uf.name}}
+                  </div>
+                  <div class="ma-upload-progress-bar-wrap">
+                    <div class="ma-upload-progress-bar" style="width:{{uf.progress}}%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Upload Error -->
+              <div class="ma-edit-error" ng-if="c.uploadError" style="margin-top:10px;">
+                <i class="fa fa-exclamation-circle"></i>&nbsp;{{c.uploadError}}
+              </div>
+
+              <!-- Attachments List -->
+              <div ng-if="!c.selected.attachments || c.selected.attachments.length === 0"
+                   class="ma-no-attach" style="margin-top:16px;">
+                <i class="fa fa-paperclip" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+                No attachments yet.
+              </div>
+
+              <div class="ma-attach-list" style="margin-top:12px;"
+                   ng-if="c.selected.attachments && c.selected.attachments.length > 0">
+                <div class="ma-attach-item"
+                     ng-repeat="att in c.selected.attachments track by att.sys_id">
+                  <div class="ma-attach-icon">
+                    <i class="fa {{c.getFileIcon(att.content_type)}}"></i>
+                  </div>
+                  <div class="ma-attach-info">
+                    <div class="ma-attach-name">{{att.name}}</div>
+                    <div class="ma-attach-size">{{c.formatBytes(att.size)}}</div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+                    <a class="ma-attach-dl"
+                       ng-href="/sys_attachment.do?sys_id={{att.sys_id}}"
+                       target="_blank"
+                       ng-click="$event.stopPropagation()">
+                      <i class="fa fa-download"></i>
+                    </a>
+                    <button class="ma-attach-del"
+                            ng-click="c.deleteAttachment(att)"
+                            title="Delete">
+                      <i class="fa fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- end attachments tab -->
+
+          </div><!-- end ng-if="!c.editLoading" -->
+
+        </div><!-- end .ma-mbody -->
+
+        <!-- Footer -->
+        <div class="ma-mfooter">
+          <button class="ma-mfoot-close"
+                  ng-click="c.closeEdit()"
+                  ng-disabled="c.editSaving">
+            Cancel
+          </button>
+          <button class="ma-mfoot-save"
+                  ng-click="c.saveEdit()"
+                  ng-disabled="c.editSaving || c.editLoading">
+            <i class="fa" ng-class="c.editSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+            &nbsp;{{c.editSaving ? 'Saving...' : 'Save Changes'}}
+          </button>
+        </div>
+
+      </div>
+    </div><!-- end edit modal overlay -->
+
+  </div><!-- end .ma-wrap -->
 </div><!-- end .gn-layout -->
 ]]></template>
     </sp_widget>

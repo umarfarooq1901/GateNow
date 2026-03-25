@@ -1,180 +1,95 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $timeout) {
-  var c = this;
+        <client_script><![CDATA[api.controller = function($scope, $location) {
+    var c = this;
 
-  c.submitting = false;
-  c.selectedProjectId = '';
-  c.currentProject = null; // Holds the active project for history display
+    // --- INITIAL STATE ---
+    c.loading = true;
+    c.projects = [];
+    c.q = '';
 
-  // --- INITIALIZE DATA OBJECTS ---
-  
-  c.baselineReport = {
-    status_date: '',
-    x_enno_gatenow_report_status: '',
-    percent_complete: 0,
-    executive_summary: '',
-    comments: ''
-  };
+    // --- INITIALIZE ---
+    c.init = function() {
+        c.loadData();
+    };
 
-  c.statusReport = {
-    as_on: new Date().toISOString().split('T')[0],
-    x_enno_gatenow_report_status: 'montly_report',
-    overall_health: '',
-    percent_complete: 0,
-    executive_summary: '',
-    achievements_last_week: '',
-    key_activities_next_week: '',
-    schedule: '',
-    schedule_comments: '',
-    cost: '',
-    cost_comments: '',
-    scope: '',
-    scope_comments: '',
-    comments: ''
-  };
+    // --- DATA LOADING ---
+    c.loadData = function() {
+        c.loading = true;
+        c.server.get({ q: c.q }).then(function(response) {
+            if (response && response.data) {
+                c.projects = response.data.projects || [];
+            }
+            c.loading = false;
+        });
+    };
 
-  c.changeReq = {
-    title: '',
-    category: '',
-    priority: '',
-    impact: '',
-    reason: '',
-    proposed_change: '',
-    description: ''
-  };
+    /** * NAVIGATE TO DETAILS
+     * Uses your URL logic: ?id=my_project_details&sys_id=...
+     */
+    c.selectProject = function(project) {
+        if (project && project.sys_id) {
+            $location.search({
+                id: 'my_project_details',
+                sys_id: project.sys_id
+            });
+        }
+    };
 
-  // --- OPEN MODAL LOGIC ---
+    // --- UTILITIES ---
+    c.clear = function() {
+        c.q = '';
+        c.loadData();
+    };
 
-  c.openReport = function(type, projectId) {
-    c.selectedProjectId = projectId;
-    
-    // THE FIX: Find the project object and assign it to c.currentProject
-    // This allows the Change Request History table to see the data
-    var project = c.data.projects.find(function(p) {
-      return p.sys_id === projectId;
-    });
-    c.currentProject = project;
-
-    if (type === 'baseline') {
-      c.baselineReport.x_enno_gatenow_report_status = 'baseline_report'; 
-      c.baselineReport.status_date = new Date().toISOString().split('T')[0];
-      $timeout(function() { $('#baselineModal').modal('show'); });
-    } else if (type === 'monthly') {
-      c.statusReport.x_enno_gatenow_report_status = 'montly_report';
-      c.statusReport.as_on = new Date().toISOString().split('T')[0];
-      
-      // Reset health fields for fresh selection
-      c.statusReport.overall_health = '';
-      c.statusReport.schedule = '';
-      c.statusReport.cost = '';
-      c.statusReport.scope = '';
-      
-      $timeout(function() { $('#monthlyModal').modal('show'); });
-    } else if (type === 'change') {
-      $timeout(function() { $('#changeModal').modal('show'); });
-    }
-  };
-
-  // --- SUBMISSION LOGIC ---
-
-  c.submitBaselineReport = function() {
-    if (c.submitting) return;
-    c.submitting = true;
-
-    c.server.get({
-      action: 'submit_baseline',
-      project_id: c.selectedProjectId,
-      report: c.baselineReport
-    }).then(function(response) {
-      if (response.data.success) {
-        c.baselineReport = {
-          status_date: '',
-          x_enno_gatenow_report_status: 'baseline_report',
-          percent_complete: 0,
-          executive_summary: '',
-          comments: ''
+    // Mapping her CSS class pattern to your states
+    c.getStatusClass = function(state) {
+        var stateMap = {
+            '-1': 'status-planning',
+            '0': 'status-pending',
+            '1': 'status-active',
+            '3': 'status-completed'
         };
-      }
-      handleResponse(response, '#baselineModal');
+        return stateMap[state] || 'status-pending';
+    };
+	
+	
+	c.goToBaseline = function(sysId) {
+    // Replace 'project_details' with the actual ID of your second page
+    $location.search({
+      id: 'my_project_details', 
+      sys_id: sysId,
+      tab: 'baseline' // This tells the next page what to do
     });
   };
-
-  c.submitMonthlyReport = function() {
-    if (c.submitting) return;
-    c.submitting = true;
-
-    c.server.get({
-      action: 'submit_monthly',
-      project_id: c.selectedProjectId,
-      report: c.statusReport
-    }).then(function(response) {
-      if (response.data.success) {
-        c.statusReport = {
-          as_on: new Date().toISOString().split('T')[0],
-          x_enno_gatenow_report_status: 'montly_report',
-          overall_health: '',
-          percent_complete: 0,
-          executive_summary: '',
-          achievements_last_week: '',
-          key_activities_next_week: '',
-          schedule: '',
-          schedule_comments: '',
-          cost: '',
-          cost_comments: '',
-          scope: '',
-          scope_comments: '',
-          comments: ''
-        };
-      }
-      handleResponse(response, '#monthlyModal');
+	c.goToMonthly = function(sysId) {
+    // Replace 'project_details' with the actual ID of your second page
+    $location.search({
+      id: 'my_project_details', 
+      sys_id: sysId,
+      tab: 'status' // This tells the next page what to do
     });
   };
-
-  c.submitChangeRequest = function() {
-    if (c.submitting) return;
-    c.submitting = true;
-
-    c.server.get({
-      action: 'submit_change',
-      project_id: c.selectedProjectId,
-      report: c.changeReq
-    }).then(function(response) {
-      if (response.data.success) {
-        c.changeReq = {
-          title: '',
-          category: '',
-          priority: '',
-          impact: '',
-          reason: '',
-          proposed_change: '',
-          description: ''
-        };
-      }
-      handleResponse(response, '#changeModal');
+	c.goTochange = function(sysId) {
+    // Replace 'project_details' with the actual ID of your second page
+    $location.search({
+      id: 'my_project_details', 
+      sys_id: sysId,
+      tab: 'changes' // This tells the next page what to do
     });
   };
+	
 
-  // --- HELPER FUNCTIONS ---
-
-  function handleResponse(response, modalId) {
-    c.submitting = false;
-    if (response.data.success) {
-      $(modalId).modal('hide');
-      alert('Submitted successfully!');
-      c.server.refresh();
-    } else {
-      alert('Error submitting. Check backend logs.');
-    }
-  }
+    // Run the initializer
+    c.init();
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════
    LAYOUT — Sidebar + Main Content
 ═══════════════════════════════════════ */
 .projects-container { 
-    margin-top: 35px; 
+    margin-top: -10px; 
     padding-top: 10px;
 }
 .gn-layout {
@@ -199,6 +114,7 @@
 ═══════════════════════════════════════ */
 .projects-container {
   flex-grow: 1;
+  margin-top: 60px; 
   padding: 30px 40px;
   font-family: 'SourceSansPro', Helvetica, Arial, sans-serif;
 
@@ -466,6 +382,111 @@
   font-size: 12px;
   font-weight: 600;
   display: inline-block;
+}
+
+
+
+
+
+
+
+
+/* This targets the ServiceNow column wrapper to remove forced padding */
+[widget-model="data.projects"] .vbox.region {
+    padding: 0 !important;
+}
+
+/* Forces the container row to take full width if inside a standard portal layout */
+.projects-wrapper {
+    width: calc(100% + 30px); /* Offsets the 15px padding on both sides */
+}
+
+/* If there's still a gap at the top, this helps align the sidebar to the ceiling */
+.sidebar {
+    height: 100%;
+    position: relative;
+    top: 0;
+}
+
+
+
+
+/* 1. Target the ServiceNow 'wrapper' that holds your widget */
+:host {
+    display: block;
+    margin: 0;
+    padding: 0;
+}
+
+/* 2. Kill the padding on the parent container */
+/* Note: 'vbox' and 'region' are standard ServiceNow classes */
+.vbox.region, .col-md-12 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* 3. Ensure the main container doesn't have a horizontal scroll */
+.full-page-reset {
+    width: calc(100% + 30px);
+    overflow-x: hidden;
+}
+
+
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.sidebar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+
+
+
+
+
+
+
+/* ═══════════════════════════════════════
+   SIDEBAR REFINEMENT
+═══════════════════════════════════════ */
+.sidebar {
+  width: 250px; /* Match the inline HTML width */
+  flex-shrink: 0;
+  background: #5a46be; /* Your GateNow Purple */
+  position: sticky;
+  top: 60px; /* Offset this by your Navbar height to prevent overlap */
+  height: calc(100vh - 60px); /* Fill remaining viewport height */
+  overflow-y: auto;
+  transition: all 0.3s ease;
+  z-index: 10;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Scrollbar styling - Hidden but functional */
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+.sidebar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ═══════════════════════════════════════
+   MAIN CONTENT ADAPTATION
+═══════════════════════════════════════ */
+.main-content-scroll {
+  flex-grow: 1;
+  background: #f8fafc;
+  min-height: 100vh;
+  /* This ensures content doesn't slide under the sidebar */
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -483,564 +504,238 @@
         <public>false</public>
         <roles>snc_external</roles>
         <script><![CDATA[(function() {
-    /* --- INITIALIZATION --- */
-    data.sideBar = $sp.getWidget('sidebar_dashboard');
-    var loggedInUser = gs.getUserID(); 
+	data.sideBar = $sp.getWidget('sidebar_dashboard');
+    var currentUser = gs.getUserID();
+    var q = (input && input.q) ? String(input.q) : "";
+
     data.projects = [];
 
-    /* --- 1. HANDLE MODAL SUBMISSIONS --- */
-    if (input) {
-        // Handle Baseline Report Submission
-        if (input.action === 'submit_baseline') {
-            var baseline = new GlideRecord('project_status');
-            baseline.initialize();
-            baseline.project = input.project_id;
-            baseline.x_enno_gatenow_report_status = input.report.x_enno_gatenow_report_status;
-            baseline.as_on = input.report.status_date; 
-            baseline.percent_complete = input.report.percent_complete;
-            baseline.executive_summary = input.report.executive_summary;
-            baseline.comments = input.report.comments; 
-            baseline.overall_health = 'green'; 
-            
-            if (baseline.insert()) {
-                data.success = true;
-                return;
-            }
-        }
+    var grProjects = new GlideRecord('pm_project');
+    
+    // Filter for current user
+    grProjects.addQuery('x_enno_gatenow_applicant.user', currentUser);
 
-        // Handle Monthly Status Report Submission
-        if (input.action === 'submit_monthly') {
-            var monthly = new GlideRecord('project_status');
-            monthly.initialize();
-            monthly.project = input.project_id;
-            monthly.x_enno_gatenow_report_status = input.report.x_enno_gatenow_report_status;
-            monthly.as_on = input.report.as_on;
-            monthly.overall_health = input.report.overall_health;
-            monthly.percent_complete = input.report.percent_complete;
-            monthly.executive_summary = input.report.executive_summary;
-            monthly.achievements_last_week = input.report.achievements_last_week;
-            monthly.key_activities_next_week = input.report.key_activities_next_week;
-            monthly.schedule = input.report.schedule;
-            monthly.schedule_comments = input.report.schedule_comments;
-            monthly.cost = input.report.cost;
-            monthly.cost_comments = input.report.cost_comments;
-            monthly.scope = input.report.scope;
-            monthly.scope_comments = input.report.scope_comments;
-            monthly.comments = input.report.comments;
-            
-            if (monthly.insert()) {
-                data.success = true;
-                return;
-            }
-        }
-
-        // Handle Change Request Submission
-        if (input.action === 'submit_change') {
-            var cr = new GlideRecord('project_change_request');
-            cr.initialize();
-            cr.parent = input.project_id; 
-            cr.short_description = input.report.title;
-            cr.category = input.report.category;
-            cr.priority = input.report.priority;
-            cr.impact = input.report.impact;
-            cr.reason = input.report.reason;
-            cr.description = input.report.description;
-            cr.work_notes = "Proposed Change: " + input.report.proposed_change;
-            
-            if (cr.insert()) {
-                data.success = true;
-                return;
-            }
-        }
+    if (q) {
+        var qc = grProjects.addQuery('number', 'CONTAINS', q);
+        qc.addOrCondition('short_description', 'CONTAINS', q);
     }
 
-    /* --- 2. DATA RETRIEVAL LOGIC --- */
-    var gr = new GlideRecord('pm_project');
-    //gr.addActiveQuery();                                       // record show up , even when the state is completed
-    // Filters projects based on the applicant associated with the logged-in user
-    gr.addQuery('x_enno_gatenow_applicant.user', loggedInUser); 
-    gr.orderByDesc('sys_created_on');
-    gr.query();
-    
-    while (gr.next()) {
-        var projectId = gr.getUniqueValue();
+    grProjects.orderByDesc('sys_created_on');
+
+    // --- LEAD'S LOGGING STYLE ---
+    gs.info('=== PROJECT SEARCH ===');
+    gs.info('User ID: ' + currentUser);
+    gs.info('Encoded Query: ' + grProjects.getEncodedQuery());
+
+    grProjects.query();
+
+    gs.info('Projects Found: ' + grProjects.getRowCount());
+
+    while (grProjects.next()) {
+        // Handle dates defensively like she does
+        var rawStart = grProjects.getValue('work_start');
+        var rawEnd = grProjects.getValue('work_end');
+        
         var projectObj = {
-            sys_id: projectId,
-            name: gr.getDisplayValue('short_description'),
-            number: gr.getValue('number'),
-            phase: gr.getValue('phase'), 
-            phase_display: gr.getDisplayValue('phase'),
-            //start_date: gr.getDisplayValue('work_start'),
-            //end_date: gr.getDisplayValue('work_end'),
-					  start_date: gr.getDisplayValue('work_start').split(' ')[0],
-            end_date: gr.getDisplayValue('work_end').split(' ')[0],
-            percent_complete: gr.getValue('percent_complete') || 0,
-            agreement_status: gr.getDisplayValue('state'),
-            activities: [],
-            change_requests: [] 
+            sys_id: grProjects.getUniqueValue(),
+            name: grProjects.getValue('short_description') || 'No Description',
+            number: grProjects.getValue('number') || '',
+            phase: grProjects.getValue('phase') || '',
+            agreement_status: grProjects.getDisplayValue('state') || '',
+            
+            // Following her date formatting pattern
+            start_date: rawStart ? rawStart.split(' ')[0] : '',
+            end_date: rawEnd ? rawEnd.split(' ')[0] : '',
+            
+            percent_complete: parseFloat(grProjects.getValue('percent_complete')) || 0,
+            activities: []
         };
 
-        // --- Fetch Change Request History for this project ---
-        var grCR = new GlideRecord('project_change_request');
-        grCR.addQuery('parent', projectId);
-        grCR.orderByDesc('sys_created_on');
-        grCR.query();
+        // --- ACTIVITY LOGIC ---
+        // Using her style of checking for values before pushing
+       // 1. Project Created (Your existing logic)
+var createdDate = grProjects.getValue('sys_created_on');
+if (createdDate) {
+    projectObj.activities.push({
+        label: "Project created",
+        date: grProjects.sys_created_on.getDisplayValue().split(' ')[0],
+        sortDate: grProjects.sys_created_on.getGlideObject().getNumericValue()
+    });
+}
 
-        while (grCR.next()) {
-            projectObj.change_requests.push({
-                short_description: grCR.getDisplayValue('short_description'),
-                category: grCR.getDisplayValue('category'),
-                priority: grCR.getDisplayValue('priority'),
-                priority_val: grCR.getValue('priority'), 
-                impact: grCR.getDisplayValue('impact'),
-                impact_val: grCR.getValue('impact'),     
-                status: grCR.getDisplayValue('state'),
-                date: grCR.getDisplayValue('sys_created_on')
-            });
-        }
+// 2. Change Request Submitted
+var grChange = new GlideRecord('project_change_request');
+grChange.addQuery('parent', grProjects.getUniqueValue()); // Adjust 'parent' to your actual reference field
+grChange.query();
+if (grChange.next()) {
+    projectObj.activities.push({
+        label: "Change request submitted",
+        date: grChange.sys_created_on.getDisplayValue().split(' ')[0],
+        sortDate: grChange.sys_created_on.getGlideObject().getNumericValue()
+    });
+}
 
-        // --- Activity Timeline ---
-        // 1. Initial Creation Activity
-       // --- Unified Activity Timeline ---
-        projectObj.activities = [];
+// 3. Status Report Created
+var grReport = new GlideRecord('project_status'); // Adjust table name if different
+grReport.addQuery('project', grProjects.getUniqueValue());
+grReport.orderByDesc('sys_created_on'); // Get the latest one
+grReport.query();
+if (grReport.next()) {
+    projectObj.activities.push({
+        label: "Report created",
+        date: grReport.sys_created_on.getDisplayValue().split(' ')[0],
+        sortDate: grReport.sys_created_on.getGlideObject().getNumericValue()
+    });
+}
 
-        // 1. PROJECT CREATED
-        projectObj.activities.push({
-            label: "Project created",
-            date: gr.getDisplayValue('sys_created_on').split(' ')[0],
-            sortDate: gr.sys_created_on.getGlideObject().getNumericValue(),
-            type: 'created'
-        });
+// 4. IMPORTANT: Re-sort the activities by date
+projectObj.activities.sort(function(a, b) {
+    return b.sortDate - a.sortDate; 
+});
 
-        // 2. REPORTS SUBMITTED
-        var grReportsAct = new GlideRecord('project_status');
-        grReportsAct.addQuery('project', projectId);
-        grReportsAct.orderByDesc('sys_created_on');
-        grReportsAct.query();
-        while (grReportsAct.next()) {
-            projectObj.activities.push({
-                label: "Report submitted", // Changed from "Report: Green" to "Report submitted"
-                date: grReportsAct.getDisplayValue('sys_created_on').split(' ')[0],
-                sortDate: grReportsAct.sys_created_on.getGlideObject().getNumericValue(),
-                type: 'report'
-            });
-        }
+        data.projects.push(projectObj);
+    }
 
-        // 3. CHANGE REQUESTS SUBMITTED
-        var grCRAct = new GlideRecord('project_change_request');
-        grCRAct.addQuery('parent', projectId);
-        grCRAct.orderByDesc('sys_created_on');
-        grCRAct.query();
-        while (grCRAct.next()) {
-            projectObj.activities.push({
-                label: "Change request submitted",
-                date: grCRAct.getDisplayValue('sys_created_on').split(' ')[0],
-                sortDate: grCRAct.sys_created_on.getGlideObject().getNumericValue(),
-                type: 'change'
-            });
-        }
+    // Adding the "Meta" and "Error" blocks she uses at the end
+    data.meta = { total: data.projects.length };
 
-        // --- SORT ALL BY DATE DESCENDING ---
-        projectObj.activities.sort(function(a, b) {
-            return b.sortDate - a.sortDate;
-        });
-
-        data.projects.push(projectObj);}
+    if (data.projects.length === 0 && !q) {
+        data.error = "No projects found for your account.";
+    }
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-04 09:10:31</sys_created_on>
         <sys_id>8b1f452feb53b690520dfbdffdc0cd1f</sys_id>
-        <sys_mod_count>77</sys_mod_count>
+        <sys_mod_count>129</sys_mod_count>
         <sys_name>My Project</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_8b1f452feb53b690520dfbdffdc0cd1f</sys_update_name>
         <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-03-11 09:17:44</sys_updated_on>
-        <template><![CDATA[<div class="projects-container">
-  
-  <div class="header-section">
-    <h2>My Projects</h2>
-    <p class="text-muted">Manage your active grant projects and submit reports</p>
-  </div>
-
-  <div ng-repeat="project in data.projects" class="project-card">
+        <sys_updated_on>2026-03-17 09:49:06</sys_updated_on>
+        <template><![CDATA[<div class="projects-wrapper" style="margin: -15px;">
+  <div class="main-flex-container" style="display: flex; align-items: flex-start;">
     
-    <div class="card-header-row">
-      <div class="title-group">
-        <div class="project-icon">
-          <i class="fa fa-folder-open"></i>
-        </div>
-        <div>
-          <h3 class="project-name">{{project.name}}</h3>
-          <span class="project-id text-muted">Project ID: {{project.number}}</span>
-        </div>
-      </div>
-      <span class="active-pill">Active</span>
+    <div class="sidebar" style="
+        width: 250px; 
+        flex-shrink: 0; 
+        background: #5a46be; 
+        position: sticky; 
+        top: 0; 
+        height: 100vh; 
+        overflow-y: auto;">
+      <sp-widget widget="data.sideBar"></sp-widget>
     </div>
-
-    <div class="metadata-row">
-     
-      <div class="meta-item">
-        <label>  Agreement Status</label>
-        <span class="status-pill-small">{{project.agreement_status}}</span>
-      </div>
-      <div class="meta-item">
-        <label>Start Date</label>
-        <div class="date-text">{{project.start_date}}</div>
-      </div>
-        <div class="meta-item">
-        <label>End Date</label>
-        <div class="date-text">{{project.end_date}}</div>
-      </div>
-    </div>
-
-    <div class="progress-section">
-      <div class="progress-labels">
-        <label>Project Progress</label>
-        <span class="progress-percent">{{project.percent_complete}}%</span>
-      </div>
-      <div class="progress">
-        <div class="progress-bar" role="progressbar" ng-style="{'width': project.percent_complete + '%'}"></div>
-      </div>
-    </div>
-
-    <div class="actions-row">
-      <button class="action-btn baseline" 
-              ng-if="project.phase == 'initiating'" 
-              ng-click="c.openReport('baseline', project.sys_id)">
-        <i class="fa fa-file-text-o fa-lg"></i>
-        <div>
-          <strong>Baseline Report</strong>
-          <span>Submit baseline data</span>
-        </div>
-      </button>
+    
+    <div class="main-content" style="
+        flex-grow: 1; 
+        padding: 30px; 
+        background: #f8fafc; 
+        margin-top: 60px;
+        min-height: calc(100vh - 60px);                            
+        min-height: 100vh;">
       
-      <button class="action-btn monthly" 
-              ng-if="project.phase != 'initiating'" 
-              ng-click="c.openReport('monthly', project.sys_id)">
-        <i class="fa fa-calendar-check-o fa-lg"></i>
-        <div>
-          <strong>Monthly Report</strong>
-          <span>Submit progress</span>
-        </div>
-      </button>
+      <div class="header-section" style="margin-bottom: 25px;">
+        <h2 style="margin-top: 0; font-weight: 600; color: #0f172a;">My Projects</h2>
+        <p style="color: #64748b;">Manage your active grant projects</p>
+      </div>
+
+      <div class="row" style="display: flex; flex-wrap: wrap;"> 
+        
+        <div ng-repeat="project in data.projects" class="col-md-6" style="margin-bottom: 20px; display: flex;">
       
-      <button class="action-btn change" 
-              ng-click="c.openReport('change', project.sys_id)">
-        <i class="fa fa-pencil-square-o fa-lg"></i>
-        <div>
-          <strong>Change Request</strong>
-          <span>Request changes</span>
-        </div>
-      </button>
-    </div>
+          <div class="project-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%; display: flex; flex-direction: column;">
+            
+            <div class="card-header-row" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+              <div class="title-group" style="display: flex; gap: 15px;">
+                <div class="project-icon" style="background: #7c3aed; color: white; width: 45px; height: 45px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                  <i class="fa fa-folder-open"></i>
+                </div>
+                <div>
+                  <h3 class="project-name" style="margin: 0; font-size: 18px; font-weight: 600; color: #0f172a;">{{project.name}}</h3>
+                  <span class="project-id" style="font-size: 13px; color: #64748b;">Project ID: {{project.number}}</span>
+                </div>
+              </div>
+              <span class="active-pill" style="background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">Active</span>
+            </div>
 
-    <div class="activity-section">
-  <label>Recent Activity</label>
-  <div class="timeline-container">
-    <div ng-repeat="activity in project.activities | limitTo: 3" class="timeline-item">
-      <div class="timeline-visual">
-        <div class="dot" ng-class="{
-          'created-dot': activity.type == 'created', 
-          'report-dot': activity.type == 'report',
-          'change-dot': activity.type == 'change'
-        }"></div>
-        <div class="ma-tl-line" ng-if="!$last"></div>
-      </div>
-      <div class="timeline-content">
-        <span class="activity-text">{{activity.label}}</span>
-        <span class="activity-date">{{activity.date}}</span>
-      </div>
-    </div>
-  </div>
-</div>
+            <div class="metadata-row" style="display: flex; justify-content: flex-start; width: 100%; margin-bottom: 25px;">
+              <div class="meta-item" style="flex: 1;">
+                <label style="display: block; color: #64748b; font-size: 13px; margin-bottom: 8px; font-weight: 500;">Agreement Status</label>
+                <span class="status-pill-small" style="background: #f0fdf4; color: #16a34a; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">{{project.agreement_status}}</span>
+              </div>
+              <div class="meta-item" style="flex: 1;">
+                <label style="display: block; color: #64748b; font-size: 13px; margin-bottom: 8px; font-weight: 500;">Start Date</label>
+                <div class="date-text" style="font-weight: 600; font-size: 14px; color: #1e293b;">{{project.start_date}}</div>
+              </div>
+              <div class="meta-item" style="flex: 1;">
+                <label style="display: block; color: #64748b; font-size: 13px; margin-bottom: 8px; font-weight: 500;">End Date</label>
+                <div class="date-text" style="font-weight: 600; font-size: 14px; color: #1e293b;">{{project.end_date}}</div>
+              </div>
+            </div>
 
-<div class="modal fade" id="baselineModal" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content" style="border-radius: 4px; border: none; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
-      <div class="modal-header" style="border-bottom: 1px solid #eee; padding: 20px;">
-        <button type="button" class="close" data-dismiss="modal">&times;</button>
-        <h4 class="modal-title" style="display: flex; align-items: center; gap: 10px; color: #1d2b3a; font-weight: 600;">
-          <i class="fa fa-flag" style="color: #3a5a78;"></i> Submit Baseline Report
-        </h4>
-        <small class="text-muted">Submit your initial baseline report to establish project metrics</small>
-      </div>
-      <div class="modal-body" style="padding: 25px;">
-        <form name="baselineForm" ng-submit="c.submitBaselineReport()">
-          <div class="row" style="margin-bottom: 20px;">
-            <div class="col-md-4">
-              <div class="form-group">
-                <label style="font-size: 13px; font-weight: 600;">Status Date <span class="text-danger">*</span></label>
-                <input type="date" class="form-control" ng-model="c.baselineReport.status_date" required>
+            <div class="progress-section" style="margin-bottom: 25px;">
+              <div class="progress-labels" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <label style="font-weight: 600; color: #1e293b; font-size: 13px;">Project Progress</label>
+                <span class="progress-percent" style="color: #2563eb; font-weight: 700; font-size: 13px;">{{project.percent_complete}}%</span>
+              </div>
+              <div class="progress" style="height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; margin-bottom: 0; box-shadow: none;">
+                <div class="progress-bar" role="progressbar" ng-style="{'width': project.percent_complete + '%'}" style="background-color: #3b82f6; height: 100%;"></div>
               </div>
             </div>
-            <div class="col-md-4">
-              <div class="form-group">
-                <label style="font-size: 13px; font-weight: 600;">Report Status</label>
-                <input type="text" class="form-control" ng-model="c.baselineReport.x_enno_gatenow_report_status" readonly style="background-color: #eee; color: #555; cursor: not-allowed;">
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="form-group">
-                <label style="font-size: 13px; font-weight: 600;">Percent Complete <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" ng-model="c.baselineReport.percent_complete" min="0" max="100" required placeholder="0">
-                <small class="text-muted" style="font-size: 11px;">Enter value between 0-100</small>
-              </div>
-            </div>
-          </div>
-          <div class="form-group" style="margin-bottom: 20px;">
-            <label style="font-size: 13px; font-weight: 600;">Executive Summary <span class="text-danger">*</span></label>
-            <textarea class="form-control" rows="4" ng-model="c.baselineReport.executive_summary" required placeholder="Provide baseline project description and objectives"></textarea>
-          </div>
-          <div class="form-group" style="margin-bottom: 25px;">
-            <label style="font-size: 13px; font-weight: 600;">Baseline Comments</label>
-            <textarea class="form-control" rows="3" ng-model="c.baselineReport.comments" placeholder="Additional baseline information"></textarea>
-          </div>
-          <div class="text-center" style="border-top: 1px solid #eee; padding-top: 20px;">
-            <button type="submit" class="btn btn-primary" style="padding: 10px 30px; background-color: #fff; color: #7e89ff; border: 1px solid #7e89ff; font-weight: 600;" ng-disabled="baselineForm.$invalid || c.submitting">
-              <i class="fa fa-check-circle-o"></i> Submit Baseline Report
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="modal fade" id="monthlyModal" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content" style="border-radius: 4px; border: none;">
-      <div class="modal-header" style="border-bottom: 1px solid #eee; padding: 20px;">
-        <button type="button" class="close" data-dismiss="modal">&times;</button>
-        <h4 class="modal-title" style="display: flex; align-items: center; gap: 10px; color: #1d2b3a; font-weight: 600;">
-          <i class="fa fa-file-text" style="color: #3a5a78;"></i> Submit Monthly Status Report
-        </h4>
-        <small class="text-muted">Provide updates on project progress, schedule, cost, and scope</small>
-      </div>
-      <div class="modal-body" style="padding: 25px; background-color: #fcfcfc;">
-        <form name="monthlyForm" ng-submit="c.submitMonthlyReport()">
-          <div class="row" style="margin-bottom: 20px;">
-            <div class="col-md-3">
-              <label style="font-size: 13px; font-weight: 600;">Status Date <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" ng-model="c.statusReport.as_on" required>
+            <div class="actions-row" style="display: flex; gap: 15px; margin-bottom: 20px;">
+              
+              <button ng-if="project.phase == 'planning'" class="action-btn-styled"   ng-click="c.goToBaseline(project.sys_id)"
+                      style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 15px; border: none; border-radius: 8px; background: #eff6ff; text-align: left;">
+                <i class="fa fa-file-text-o" style="color: #2563eb; font-size: 18px;"></i>
+                <div>
+                  <strong style="display: block; font-size: 14px; color: #1e293b;">Baseline Report</strong>
+                  <span style="font-size: 12px; color: #64748b;">Submit baseline data</span>
+                </div>
+              </button>
+              
+              <button ng-if="project.phase != 'initiating' && project.phase != 'planning'" class="action-btn-styled"ng-click="c.goToMonthly(project.sys_id)"
+                      style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 15px; border: none; border-radius: 8px; background: #f0fdf4; text-align: left;">
+                <i class="fa fa-calendar-check-o" style="color: #16a34a; font-size: 18px;"></i>
+                <div>
+                  <strong style="display: block; font-size: 14px; color: #1e293b;">Monthly Report</strong>
+                  <span style="font-size: 12px; color: #64748b;">Submit progress</span>
+                </div>
+              </button>
+              
+              <button class="action-btn-styled" ng-click="c.goTochange(project.sys_id)"
+                      style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 15px; border: none; border-radius: 8px; background: #fffbeb; text-align: left;">
+                <i class="fa fa-pencil-square-o" style="color: #d97706; font-size: 18px;"></i>
+                <div>
+                  <strong style="display: block; font-size: 14px; color: #1e293b;">Change Request</strong>
+                  <span style="font-size: 12px; color: #64748b;">Request changes</span>
+                </div>
+              </button>
             </div>
-            <div class="col-md-3">
-              <label style="font-size: 13px; font-weight: 600;">Report Status <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" ng-model="c.statusReport.x_enno_gatenow_report_status" readonly style="background-color: #eee;">
-            </div>
-            <div class="col-md-3">
-              <label style="font-size: 13px; font-weight: 600;">Overall Health <span class="text-danger">*</span></label>
-              <select class="form-control" ng-model="c.statusReport.overall_health" required>
-                <option value="">-- Select --</option>
-                <option value="green">Green</option>
-                <option value="yellow">Yellow</option>
-                <option value="red">Red</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label style="font-size: 13px; font-weight: 600;">Percent Complete (%) <span class="text-danger">*</span></label>
-              <input type="number" class="form-control" ng-model="c.statusReport.percent_complete" required min="0" max="100">
-            </div>
-          </div>
-          <div class="form-group" style="margin-bottom: 20px;">
-            <label style="font-size: 13px; font-weight: 600;">Executive Summary <span class="text-danger">*</span></label>
-            <textarea class="form-control" rows="3" ng-model="c.statusReport.executive_summary" required placeholder="Provide a high-level summary..."></textarea>
-          </div>
-          <div class="row" style="margin-bottom: 20px;">
-            <div class="col-md-6">
-              <label style="font-size: 13px; font-weight: 600;">Achievements Last Week</label>
-              <textarea class="form-control" rows="3" ng-model="c.statusReport.achievements_last_week" placeholder="List key milestones..."></textarea>
-            </div>
-            <div class="col-md-6">
-              <label style="font-size: 13px; font-weight: 600;">Key Activities Next Week</label>
-              <textarea class="form-control" rows="3" ng-model="c.statusReport.key_activities_next_week" placeholder="Describe planned activities..."></textarea>
-            </div>
-          </div>
-          <div style="background: #f8faff; border-left: 4px solid #3a5a78; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-            <h5 style="margin-top:0; font-weight: 600;"><i class="fa fa-calendar"></i> Schedule Status</h5>
-            <div class="row">
-              <div class="col-md-4">
-                <label style="font-size: 12px;">Schedule Health <span class="text-danger">*</span></label>
-                <select class="form-control" ng-model="c.statusReport.schedule" required>
-                  <option value="">-- Select --</option>
-                  <option value="green">Green</option>
-                  <option value="yellow">Yellow</option>
-                  <option value="red">Red</option>
-                </select>
-              </div>
-              <div class="col-md-8">
-                <label style="font-size: 12px;">Schedule Comments</label>
-                <textarea class="form-control" rows="2" ng-model="c.statusReport.schedule_comments" placeholder="Explain schedule status..."></textarea>
-              </div>
-            </div>
-          </div>
-          <div style="background: #f8faff; border-left: 4px solid #27ae60; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-            <h5 style="margin-top:0; font-weight: 600;"><i class="fa fa-dollar"></i> Cost Status</h5>
-            <div class="row">
-              <div class="col-md-4">
-                <label style="font-size: 12px;">Cost Health <span class="text-danger">*</span></label>
-                <select class="form-control" ng-model="c.statusReport.cost" required>
-                  <option value="">-- Select --</option>
-                  <option value="green">Green</option>
-                  <option value="yellow">Yellow</option>
-                  <option value="red">Red</option>
-                </select>
-              </div>
-              <div class="col-md-8">
-                <label style="font-size: 12px;">Cost Comments</label>
-                <textarea class="form-control" rows="2" ng-model="c.statusReport.cost_comments" placeholder="Explain budget status..."></textarea>
-              </div>
-            </div>
-          </div>
-          <div style="background: #f8faff; border-left: 4px solid #8e44ad; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-            <h5 style="margin-top:0; font-weight: 600;"><i class="fa fa-tasks"></i> Scope Status</h5>
-            <div class="row">
-              <div class="col-md-4">
-                <label style="font-size: 12px;">Scope Health <span class="text-danger">*</span></label>
-                <select class="form-control" ng-model="c.statusReport.scope" required>
-                  <option value="">-- Select --</option>
-                  <option value="green">Green</option>
-                  <option value="yellow">Yellow</option>
-                  <option value="red">Red</option>
-                </select>
-              </div>
-              <div class="col-md-8">
-                <label style="font-size: 12px;">Scope Comments</label>
-                <textarea class="form-control" rows="2" ng-model="c.statusReport.scope_comments" placeholder="Explain scope status..."></textarea>
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label style="font-size: 13px; font-weight: 600;">Additional Comments</label>
-            <textarea class="form-control" rows="2" ng-model="c.statusReport.comments" placeholder="Any other information..."></textarea>
-          </div>
-          <div class="text-center" style="margin-top: 20px;">
-            <button type="submit" class="btn btn-primary" style="padding: 10px 40px; border: 1px solid #7e89ff; background: #fff; color: #7e89ff; font-weight: 600;">
-              <i class="fa fa-check-circle-o"></i> Submit Status Report
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="modal fade" id="changeModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content" style="border-radius: 8px;">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal">&times;</button>
-        <h4 class="modal-title"><i class="fa fa-pencil-square-o"></i> Submit Change Request</h4>
-        <small class="text-muted">Request modifications to project scope, schedule, or budget</small>
-      </div>
-      <div class="modal-body" style="padding: 25px;">
-        <form name="changeForm" ng-submit="c.submitChangeRequest()">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Title <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" ng-model="c.changeReq.title" required placeholder="Brief title of the change">
-              </div>
+            <div style="border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 5px;">
+              <button class="btn btn-block" ng-click="c.selectProject(project)" 
+                      style="background: white; border: 1px solid #e2e8f0; color: #475569; font-weight: 600; border-radius: 8px; padding: 10px;">
+                <i class="fa fa-eye"></i> View Detail
+              </button>
             </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Category <span class="text-danger">*</span></label>
-                <select class="form-control" ng-model="c.changeReq.category" required>
-                  <option value="">-- Select Category --</option>
-                  <option value="scope">Scope</option>
-                  <option value="schedule">Schedule</option>
-                  <option value="budget">Budget</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Priority <span class="text-danger">*</span></label>
-                <select class="form-control" ng-model="c.changeReq.priority" required>
-                  <option value="">-- Select Priority --</option>
-                  <option value="1">1 - Critical</option>
-                  <option value="2">2 - High</option>
-                  <option value="3">3 - Moderate</option>
-                </select>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Impact <span class="text-danger">*</span></label>
-                <select class="form-control" ng-model="c.changeReq.impact" required>
-                  <option value="">-- Select Impact --</option>
-                  <option value="1">1 - High</option>
-                  <option value="2">2 - Medium</option>
-                  <option value="3">3 - Low</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Reason for Change <span class="text-danger">*</span></label>
-            <textarea class="form-control" rows="3" ng-model="c.changeReq.reason" required placeholder="Explain why this change is necessary"></textarea>
-          </div>
-          <div class="form-group">
-            <label>Proposed Change <span class="text-danger">*</span></label>
-            <textarea class="form-control" rows="3" ng-model="c.changeReq.proposed_change" required placeholder="Describe the proposed change in detail"></textarea>
-          </div>
-          <div class="text-center" style="margin: 20px 0;">
-            <button type="submit" class="btn btn-primary" ng-disabled="changeForm.$invalid || c.submitting" style="padding: 10px 40px;">
-              <i class="fa fa-paper-plane"></i> Submit Change Request
-            </button>
-          </div>
-        </form>
 
-        <div class="panel panel-default" style="margin-top:30px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-          <div class="panel-heading" style="background: #fff; border-bottom: 1px solid #eee; padding: 15px;">
-            <h5 style="margin:0; font-weight: 600; color: #1d2b3a;">
-              <i class="fa fa-list-ul"></i> Change Request History
-            </h5>
-          </div>
-          <div class="panel-body" style="padding: 0;">
-            <div class="table-responsive" ng-if="c.currentProject.change_requests.length > 0">
-              <table class="table" style="margin-bottom: 0; font-size: 13px;">
-                <thead>
-                  <tr style="background: #f8f9fa; border-bottom: 1px solid #eee;">
-                    <th style="padding: 12px; color: #718096; font-weight: 600; font-size: 11px;">TITLE</th>
-                    <th style="padding: 12px; color: #718096; font-weight: 600; font-size: 11px;">CATEGORY</th>
-                    <th style="padding: 12px; color: #718096; font-weight: 600; font-size: 11px;">PRIORITY</th>
-                    <th style="padding: 12px; color: #718096; font-weight: 600; font-size: 11px;">IMPACT</th>
-                    <th style="padding: 12px; color: #718096; font-weight: 600; font-size: 11px;">STATUS</th>
-                    <th style="padding: 12px; color: #718096; font-weight: 600; font-size: 11px;">SUBMITTED</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr ng-repeat="change in c.currentProject.change_requests | orderBy:'-date'" style="border-bottom: 1px solid #f0f0f0;">
-                    <td style="padding: 15px; vertical-align: middle; color: #4a5568;">{{change.short_description}}</td>
-                    <td style="padding: 15px; vertical-align: middle;">
-                      <span style="background: #cbd5e0; color: #2d3748; padding: 4px 10px; border-radius: 4px; font-size: 12px;">{{change.category}}</span>
-                    </td>
-                    <td style="padding: 15px; vertical-align: middle;">
-                      <span ng-style="{'background': change.priority_val == '1' ? '#e53e3e' : '#718096'}" style="color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;">{{change.priority}}</span>
-                    </td>
-                    <td style="padding: 15px; vertical-align: middle;">
-                      <span style="background: #00bcd4; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;">{{change.impact}}</span>
-                    </td>
-                    <td style="padding: 15px; vertical-align: middle;">
-                      <span style="background: #d1e9ff; color: #00529b; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">{{change.status}}</span>
-                    </td>
-                    <td style="padding: 15px; vertical-align: middle; color: #718096;">{{change.date}}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="activity-section" style="padding-top: 15px; margin-top: auto;">
+              <label style="font-weight: 600; color: #1e293b; display: block; margin-bottom: 12px; font-size: 13px;">Recent Activity</label>
+              <div class="timeline-container">
+                <div ng-repeat="activity in project.activities | limitTo: 2" style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px;">
+                  <span style="color: #334155; font-weight: 500;">
+                    <i class="fa fa-circle" style="font-size: 8px; margin-right: 10px; color: #7c3aed;"></i> {{activity.label}}
+                  </span>
+                  <span style="color: #94a3b8; font-size: 12px;">{{activity.date}}</span>
+                </div>
+              </div>
             </div>
-            <div class="text-center" style="padding: 40px;" ng-if="c.currentProject.change_requests.length == 0">
-              <i class="fa fa-file-o fa-4x text-muted" style="opacity: 0.2; margin-bottom:15px;"></i>
-              <h4 style="font-weight: 600; color: #444;">No Change Requests</h4>
-              <p class="text-muted">No change requests have been submitted for this project yet.</p>
-            </div>
+
           </div>
         </div>
       </div>

@@ -1,0 +1,1589 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update sys_domain="global" table="sys_hub_flow">
+    <sys_hub_flow action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <acls/>
+        <active>false</active>
+        <annotation/>
+        <attributes>browserActivatedIn=chrome,integrationActivatedIn=standalone,labelCacheCleanUpExecuted=true,timeFromCreateToActivate=10578000,viewActivatedIn=naturalLanguage</attributes>
+        <authored_on_release_version>28100</authored_on_release_version>
+        <callable_by_client_api>false</callable_by_client_api>
+        <category/>
+        <copied_from/>
+        <copied_from_name/>
+        <description>Implement reimbursement notification and approval workflow</description>
+        <display_name_after_preview/>
+        <flow_priority>MEDIUM</flow_priority>
+        <generation_source/>
+        <internal_name>implement_reimbursement_notification_and_approval_workflow</internal_name>
+        <label_cache>[{"name":"Created or Updated_1.current.opened_by.first_name","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Opened by➛First name","reference":"","reference_display":"First name","type":"string","base_type":"string","parent_table_name":"sys_user","column_name":"first_name","choices":[{"order":0.0}],"usedInstances":{"9bd01a99-f7cb-4bef-9721-fe12acd7f2ab":[null]}},{"name":"Created or Updated_1.current.status","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Status","reference":"","reference_display":"Status","type":"choice","base_type":"choice","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"status","choices":[{"label":"-- None --","used":false,"image":"","missing":false,"selected":false,"rawLabel":"-- None --","reference":false,"value":""},{"label":"Submitted","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Submitted","reference":false,"value":"Submitted","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}},{"label":"Approved","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Approved","reference":false,"value":"Approved","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}},{"label":"Rejected","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Rejected","reference":false,"value":"Rejected","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}},{"label":"Paid","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Paid","reference":false,"value":"Paid","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}}],"usedInstances":{}},{"name":"Created or Updated_1.current.opened_by","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Opened by","reference":"sys_user","reference_display":"User","type":"reference","base_type":"reference","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"opened_by","choices":[{"order":0.0}],"usedInstances":{}},{"name":"Created or Updated_1.current.parent.project_manager","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Parent➛Project manager","reference":"sys_user","reference_display":"User","type":"reference","base_type":"reference","parent_table_name":"pm_project","column_name":"project_manager","choices":[{"order":0.0}],"usedInstances":{"6f614b02-b8ee-4dac-bfe5-97082565033a":["approval_conditions"],"12acbb2d-aa18-46f0-9337-655fed357b97":["ah_to"]}},{"name":"Created or Updated_1.current.parent","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Parent","reference":"pm_project","reference_display":"Project","type":"reference","base_type":"reference","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"parent","usedInstances":{"9bd01a99-f7cb-4bef-9721-fe12acd7f2ab":["record"],"12acbb2d-aa18-46f0-9337-655fed357b97":["record"],"d8d90bb5-ebac-49d3-9396-19e012f3a4a5":["record"]}},{"name":"Created or Updated_1.current.number","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Number","reference":"","reference_display":"Number","type":"string","base_type":"string","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"number","choices":[{"order":0.0}],"usedInstances":{}},{"name":"6f614b02-b8ee-4dac-bfe5-97082565033a.approval_state","label":"1 - Ask For Approval➛Approval State","reference_display":"Approval State","type":"choice","base_type":"choice","choices":[{"label":"-- None --","value":"","order":0.0},{"label":"Not Yet Requested","value":"not requested","order":1.0},{"label":"Requested","value":"requested","order":2.0},{"label":"Approved","value":"approved","order":3.0},{"label":"Rejected","value":"rejected","order":4.0},{"label":"Cancelled","value":"cancelled","order":5.0},{"label":"No Longer Required","value":"not_required","order":6.0},{"label":"Skipped","value":"skipped","order":7.0}],"usedInstances":{},"attributes":{"element_mapping_provider":"com.glide.flow_design.action.data.FlowDesignVariableMapper"}},{"name":"6f614b02-b8ee-4dac-bfe5-97082565033a.__action_status__","label":"1 - Ask For Approval➛Action Status","reference_display":"Action Status","type":"object","base_type":"object","usedInstances":{},"attributes":{"uiType":"object","co_type_name":"FDACTIONSTATUS","action_error_output":"true","element_mapping_provider":"com.glide.flow_design.action.data.FlowDesignVariableMapper"}},{"name":"Created or Updated_1.current.assigned_to","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Assigned to","reference":"sys_user","reference_display":"User","type":"reference","base_type":"reference","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"assigned_to","choices":[{"order":0.0}],"usedInstances":{}},{"name":"Created or Updated_1.current","label":"Trigger - Record Created or Updated➛Reimbursement Record","reference":"x_enno_gatenow_reimbursement","reference_display":"Reimbursement","type":"reference","base_type":"reference","choices":[{"order":0.0}],"usedInstances":{"db7bb927-108b-4e2c-a6a0-68b1d8a6a4d8":["record"],"33502b97-23b1-4c5a-a3c2-1adb5cf09104":["record"],"6f614b02-b8ee-4dac-bfe5-97082565033a":["record"]},"attributes":{"":""}},{"name":"Created or Updated_1.current.parent.x_enno_gatenow_applicant.email","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Parent➛Applicant➛Email","reference":"","reference_display":"Email","type":"string","base_type":"string","parent_table_name":"x_enno_gatenow_service_applicants","column_name":"email","choices":[{"order":0.0}],"usedInstances":{"9bd01a99-f7cb-4bef-9721-fe12acd7f2ab":["ah_to"],"d8d90bb5-ebac-49d3-9396-19e012f3a4a5":["ah_to"]}},{"name":"Created or Updated_1.current.short_description","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Short description","reference":"","reference_display":"Short description","type":"string","base_type":"string","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"short_description","choices":[{"order":0.0}],"usedInstances":{}}]</label_cache>
+        <master_snapshot>49d139d62fbb7690d2a0d68fcea4e3d3</master_snapshot>
+        <master_snapshot_digest/>
+        <name>Implement reimbursement notification and approval workflow</name>
+        <natlang/>
+        <outputs/>
+        <pre_compiled>false</pre_compiled>
+        <remote_trigger_id>21d179d62fbb7690d2a0d68fcea4e35d</remote_trigger_id>
+        <run_as>user</run_as>
+        <run_with_roles/>
+        <sc_callable>false</sc_callable>
+        <show_draft_actions>false</show_draft_actions>
+        <show_triggered_flows>false</show_triggered_flows>
+        <status>published</status>
+        <substatus/>
+        <sys_class_name>sys_hub_flow</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:03:56</sys_created_on>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>5e79491a2f777690d2a0d68fcea4e3cc</sys_id>
+        <sys_mod_count>44</sys_mod_count>
+        <sys_name>Implement reimbursement notification and approval workflow</sys_name>
+        <sys_overrides/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_hub_flow_5e79491a2f777690d2a0d68fcea4e3cc</sys_update_name>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:17</sys_updated_on>
+        <type>flow</type>
+        <updation_source/>
+        <version>2</version>
+        <version_record display_value="Created 2026-03-25 04:29:44">459875d22ffb7690d2a0d68fcea4e3c4</version_record>
+    </sys_hub_flow>
+    <sys_translated_text action="delete_multiple" query="documentkey=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_variable_value action="delete_multiple" query="document_key=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_flow_record_trigger action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <condition table="x_enno_gatenow_reimbursement">status=Submitted<item display_value="Submitted" endquery="false" field="status" goto="false" newquery="false" operator="=" or="false" value="Submitted"/>
+        </condition>
+        <name/>
+        <on_delete>false</on_delete>
+        <on_insert>true</on_insert>
+        <on_update>true</on_update>
+        <published_version/>
+        <run_flow_in>background</run_flow_in>
+        <run_on_extended>false</run_on_extended>
+        <run_when_setting>both</run_when_setting>
+        <run_when_user_list/>
+        <run_when_user_setting>any</run_when_user_setting>
+        <sys_class_name>sys_flow_record_trigger</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:17</sys_created_on>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>21d179d62fbb7690d2a0d68fcea4e35d</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_overrides/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:17</sys_updated_on>
+        <table>x_enno_gatenow_reimbursement</table>
+        <trigger_definition/>
+    </sys_flow_record_trigger>
+    <sys_trigger_runner_mapping action="INSERT_OR_UPDATE">
+        <active>false</active>
+        <data>{"run_flow_in":"background","run_when_user_list":[],"run_when_setting":"both","run_when_user_setting":"any","run_on_extended":"false"}</data>
+        <identifier>5e79491a2f777690d2a0d68fcea4e3cc</identifier>
+        <runner>FDTriggerRunner</runner>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:17</sys_created_on>
+        <sys_id>e5d179d62fbb7690d2a0d68fcea4e35e</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:29:43</sys_updated_on>
+        <trigger display_value="">21d179d62fbb7690d2a0d68fcea4e35d</trigger>
+    </sys_trigger_runner_mapping>
+    <sys_trigger_runner_mapping action="delete_multiple" query="identifier=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT INe5d179d62fbb7690d2a0d68fcea4e35e"/>
+    <sys_hub_flow_stage action="delete_multiple" query="flow=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_flow_cat_variable_model action="delete_multiple" query="id=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT IN1279491a2f777690d2a0d68fcea4e3ce"/>
+    <sys_flow_cat_variable_model action="INSERT_OR_UPDATE">
+        <id>5e79491a2f777690d2a0d68fcea4e3cc</id>
+        <name>Implement reimbursement notification and approval workflow</name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:03:56</sys_created_on>
+        <sys_id>1279491a2f777690d2a0d68fcea4e3ce</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:03:56</sys_updated_on>
+    </sys_flow_cat_variable_model>
+    <sys_flow_cat_variable action="delete_multiple" query="flow_catalog_model=1279491a2f777690d2a0d68fcea4e3ce"/>
+    <sys_hub_flow_input action="delete_multiple" query="model=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT INb0890d1a2f777690d2a0d68fcea4e336,f0890d1a2f777690d2a0d68fcea4e318,f4890d1a2f777690d2a0d68fcea4e340"/>
+    <sys_hub_flow_input action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <array>false</array>
+        <array_denormalized>false</array_denormalized>
+        <attributes>element_mapping_provider=com.glide.flow_design.action.data.FlowDesignVariableMapper,uiType=document_id,uiTypeLabel=Document ID</attributes>
+        <audit>false</audit>
+        <calculation><![CDATA[(function calculatedFieldValue(current) {
+
+	// Add your code here
+	return '';  // return the calculated value
+
+})(current);]]></calculation>
+        <choice/>
+        <choice_field/>
+        <choice_table/>
+        <column_label/>
+        <comments/>
+        <create_roles/>
+        <default_value/>
+        <defaultsort/>
+        <delete_roles/>
+        <dependent>table_name</dependent>
+        <dependent_on_field>table_name</dependent_on_field>
+        <display>false</display>
+        <dynamic_creation>false</dynamic_creation>
+        <dynamic_creation_script/>
+        <dynamic_default_value/>
+        <dynamic_ref_qual/>
+        <element>current</element>
+        <element_reference>false</element_reference>
+        <foreign_database/>
+        <formula/>
+        <function_definition/>
+        <function_field>false</function_field>
+        <help/>
+        <hint/>
+        <internal_type display_value="">document_id</internal_type>
+        <label>Record</label>
+        <mandatory>true</mandatory>
+        <max_length>200</max_length>
+        <model display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</model>
+        <model_id>5e79491a2f777690d2a0d68fcea4e3cc</model_id>
+        <model_table>sys_hub_flow</model_table>
+        <name>var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc</name>
+        <next_element/>
+        <order>100</order>
+        <primary>false</primary>
+        <read_only>false</read_only>
+        <read_roles/>
+        <reference/>
+        <reference_cascade_rule/>
+        <reference_floats>false</reference_floats>
+        <reference_key/>
+        <reference_qual/>
+        <reference_qual_condition/>
+        <reference_type/>
+        <sizeclass/>
+        <spell_check>false</spell_check>
+        <staged>false</staged>
+        <sys_class_name>sys_hub_flow_input</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:06</sys_created_on>
+        <sys_id>b0890d1a2f777690d2a0d68fcea4e336</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:51:48</sys_updated_on>
+        <table_reference>false</table_reference>
+        <text_index>false</text_index>
+        <unique>false</unique>
+        <use_dependent_field>true</use_dependent_field>
+        <use_dynamic_default>false</use_dynamic_default>
+        <use_reference_qualifier>simple</use_reference_qualifier>
+        <virtual>false</virtual>
+        <virtual_type>script</virtual_type>
+        <widget/>
+        <write_roles/>
+        <xml_view>false</xml_view>
+    </sys_hub_flow_input>
+    <sys_hub_action_input_action_instance action="delete_multiple" query="action_input=b0890d1a2f777690d2a0d68fcea4e336"/>
+    <sys_hub_flow_input action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <array>false</array>
+        <array_denormalized>false</array_denormalized>
+        <attributes>element_mapping_provider=com.glide.flow_design.action.data.FlowDesignVariableMapper,test_input_hidden=true,uiType=table_name,uiTypeLabel=Table Name</attributes>
+        <audit>false</audit>
+        <calculation><![CDATA[(function calculatedFieldValue(current) {
+
+	// Add your code here
+	return '';  // return the calculated value
+
+})(current);]]></calculation>
+        <choice/>
+        <choice_field/>
+        <choice_table/>
+        <column_label/>
+        <comments/>
+        <create_roles/>
+        <default_value/>
+        <defaultsort/>
+        <delete_roles/>
+        <dependent/>
+        <dependent_on_field/>
+        <display>false</display>
+        <dynamic_creation>false</dynamic_creation>
+        <dynamic_creation_script/>
+        <dynamic_default_value/>
+        <dynamic_ref_qual/>
+        <element>table_name</element>
+        <element_reference>false</element_reference>
+        <foreign_database/>
+        <formula/>
+        <function_definition/>
+        <function_field>false</function_field>
+        <help/>
+        <hint/>
+        <internal_type display_value="">table_name</internal_type>
+        <label>Table Name</label>
+        <mandatory>false</mandatory>
+        <max_length>200</max_length>
+        <model display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</model>
+        <model_id>5e79491a2f777690d2a0d68fcea4e3cc</model_id>
+        <model_table>sys_hub_flow</model_table>
+        <name>var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc</name>
+        <next_element/>
+        <order>101</order>
+        <primary>false</primary>
+        <read_only>false</read_only>
+        <read_roles/>
+        <reference/>
+        <reference_cascade_rule/>
+        <reference_floats>false</reference_floats>
+        <reference_key/>
+        <reference_qual/>
+        <reference_qual_condition/>
+        <reference_type/>
+        <sizeclass/>
+        <spell_check>false</spell_check>
+        <staged>false</staged>
+        <sys_class_name>sys_hub_flow_input</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:06</sys_created_on>
+        <sys_id>f0890d1a2f777690d2a0d68fcea4e318</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:51:49</sys_updated_on>
+        <table_reference>false</table_reference>
+        <text_index>false</text_index>
+        <unique>false</unique>
+        <use_dependent_field>false</use_dependent_field>
+        <use_dynamic_default>false</use_dynamic_default>
+        <use_reference_qualifier>simple</use_reference_qualifier>
+        <virtual>false</virtual>
+        <virtual_type>script</virtual_type>
+        <widget/>
+        <write_roles/>
+        <xml_view>false</xml_view>
+    </sys_hub_flow_input>
+    <sys_hub_action_input_action_instance action="delete_multiple" query="action_input=f0890d1a2f777690d2a0d68fcea4e318"/>
+    <sys_hub_flow_input action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <array>false</array>
+        <array_denormalized>false</array_denormalized>
+        <attributes>child_label=FDChangeDetails,child_name=FDChangeDetails,child_type=object,child_type_label=Object,co_type_name=FDCollection,element_mapping_provider=com.glide.flow_design.action.data.FlowDesignVariableMapper,pwd2droppable=true,uiType=array.object,uiTypeLabel=Array.Object</attributes>
+        <audit>false</audit>
+        <calculation><![CDATA[(function calculatedFieldValue(current) {
+
+	// Add your code here
+	return '';  // return the calculated value
+
+})(current);]]></calculation>
+        <choice/>
+        <choice_field/>
+        <choice_table/>
+        <column_label/>
+        <comments/>
+        <create_roles/>
+        <default_value/>
+        <defaultsort/>
+        <delete_roles/>
+        <dependent/>
+        <dependent_on_field/>
+        <display>false</display>
+        <dynamic_creation>false</dynamic_creation>
+        <dynamic_creation_script/>
+        <dynamic_default_value/>
+        <dynamic_ref_qual/>
+        <element>changed_fields</element>
+        <element_reference>false</element_reference>
+        <foreign_database/>
+        <formula/>
+        <function_definition/>
+        <function_field>false</function_field>
+        <help/>
+        <hint/>
+        <internal_type display_value="String">string</internal_type>
+        <label>Changed Fields</label>
+        <mandatory>false</mandatory>
+        <max_length>4000</max_length>
+        <model display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</model>
+        <model_id>5e79491a2f777690d2a0d68fcea4e3cc</model_id>
+        <model_table>sys_hub_flow</model_table>
+        <name>var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc</name>
+        <next_element/>
+        <order>100</order>
+        <primary>false</primary>
+        <read_only>false</read_only>
+        <read_roles/>
+        <reference/>
+        <reference_cascade_rule/>
+        <reference_floats>false</reference_floats>
+        <reference_key/>
+        <reference_qual/>
+        <reference_qual_condition/>
+        <reference_type/>
+        <sizeclass/>
+        <spell_check>false</spell_check>
+        <staged>false</staged>
+        <sys_class_name>sys_hub_flow_input</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:06</sys_created_on>
+        <sys_id>f4890d1a2f777690d2a0d68fcea4e340</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:04:06</sys_updated_on>
+        <table_reference>false</table_reference>
+        <text_index>false</text_index>
+        <unique>false</unique>
+        <use_dependent_field>false</use_dependent_field>
+        <use_dynamic_default>false</use_dynamic_default>
+        <use_reference_qualifier>simple</use_reference_qualifier>
+        <virtual>false</virtual>
+        <virtual_type>script</virtual_type>
+        <widget/>
+        <write_roles/>
+        <xml_view>false</xml_view>
+    </sys_hub_flow_input>
+    <sys_hub_action_input_action_instance action="delete_multiple" query="action_input=f4890d1a2f777690d2a0d68fcea4e340"/>
+    <sys_hub_flow_output action="delete_multiple" query="model=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_hub_trigger_instance_v2 action="delete_multiple" query="flow=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT INe489c91a2f777690d2a0d68fcea4e39e"/>
+    <sys_hub_trigger_instance_v2 action="INSERT_OR_UPDATE">
+        <comment/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <generation_source/>
+        <name>Created or Updated</name>
+        <published_version/>
+        <remote_sys_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:05</sys_created_on>
+        <sys_id>e489c91a2f777690d2a0d68fcea4e39e</sys_id>
+        <sys_mod_count>3</sys_mod_count>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:54:12</sys_updated_on>
+        <trigger_definition display_value="Created or Updated">a45d9180c32222002841b63b12d3aea7</trigger_definition>
+        <trigger_inputs>H4sIAAAAAAAA/9VZ23LbNhD9FQ6f2hm1w4skWu6T60vjGSeekZT0IfVwQACUMKVAhQBpK5n8exe8SBQvsi50qvjFFgBhzy7Onl0Yn7/pAfJooF/qU+QFVO/pjEsacRRMV0sKw1INuxwt1NwCcYJkGK30SxnFtKf7UbiY0sUyQBIW+ygQMBhGhEb6pdnTExTEdLIS9wR2gu+n2+R76vk0fH5xKeehO4NNePjsRpQtvDgSdEG5hGWECTCw+pSvHlem8ZwFJKJcv/z81NOXKAIjUgH4VpliCgX2TWqOLgxsW/BjGNZF3/SGtmdaxEYUGbBhNSIV1LIhMBuX6Qs4QShZR6MWs4gi8siDVWnFi2BfYc8LQ836FBBjmkVs/dHNo5AN43nIMH1cShbybCRDl02GQbzgHzLUKn7UR3Egi/jBSCxgP7pUQCGEBQ5/Mg+fx4XBO8ZTn/LJIMQoWH9CUkbMiyUVKsw+CyDgbhYREcZRin58e/04vnH/vppev7sdu+PbyXR8fz29vdG/p365X2K1Y4Ywx+Jm7nxfH/odo4E6Nh4vPEDT0wWO2FJeYcmSgnHfexsWX4ecsDQqNSbjYkpsM7nwfheVDaOVzLhksSC0kEjG4p/YMGwyib0FkxIYUWPyweR1DIcQs4282CuRtxyIBqSyISZlZ3fROB9p53HfMP4nJueqdCyRC6/dcEkj5S2M6p+uHq7fXX3463byR/77bvz4vvh7+ggonhGXwpWhiwhxSzEFlQBAim4hocHNBieMs9kMcobxZSzFqxmRxaSeFq8nRBRz2MJdn2c9LdIDWJ/EAxOA7zMkdRHl3AX/Id9xHHMt5BqOIwiv1IAXWrG7luJUXPLvF2iWn5E/oQHFskQm/6Mof3rPhGB8VkK/Np6O1K0HqzKEQplPMfrUpSbUg55U/DlVCUzctwzbGxqO0gET/vRNwzEGyCe2YXgXJSWog2lFKSuU6FARDtMDkVIw2OPMq4HNIRvlHNiLsck23QvXFTFy2bnuBprZETRLQavIp32Qfq7JmA3fVPqsHa513EAgkiD4Bil83KdB2EP3/AC6SdbUCrymeX4Y0VkUxpxUtUftqTH4vbWiI7XzEP53t9nNCu2X/Nh+PTfl24S9IC7iqw40z7JN6gz7QwOkzlYqNxiNPIws33eGDjXNiuZtYDRiO2Ote+Wwkya2tOleI1+TJpofoHgnAKyp38EAT9e9nI6NqpfN/Rz69jyn3AWokRsoBavJ3CxghBZz3eZ4zXSyyepT8xx7IzIYOA524IYDee73qYfMvjVAI2doU7+S5zUou2DKhsi84b1HrERqvkUDPmZT53Wbf0uyCiqlKj2HV+R0PcoMlGqjOggtlZEw0lQ4tfvNQm1CodKl993OKnQo57XaDKb/hPEt06qT+xDy3xrgdHk/4tDA7xOaFijn1jpUSJJsR/1UYUGWhUam3SIszrBJWDZg2mGeaSuxJwGSVio19RT7JlzSmLetTcARKVQhR7k72NG+dBUUs/OgWG8XFPvklqnIwNab4jFgf6LClfYQx1evkFM39BvVmfla/s9AuPJ7K03OKQQzgK4YTGnKbpf1Imtva+ULhrW8T+muMqkwV92+CTWY0KIf4vjblKcKFbq941Ji4xFpK1F9p7X3ba9TlekzLVYHEyNp4tnOinXYvtU9G2tWKW+2ebBnNerU6+aSdJrXjUXpNa9PLze7bugNKM6/kCjQ0+wYjiofuNLa41PfO8pSTRMabZWFOwhvOqjFS6J0sjtbMWdfYuriOeKz7KVoyyjCcy1bomVLuqx9wTNaCb1ahCFBVA7m/+KGAchGnmnlDy0+1o7iUzwXChnBN2errYzFXTwoWd4I0m1gYNs07drT8qD8tLzN5XaELZXGOrbSzFn6dFoyn5NUsgVNdW399KotkMRzKnoakCp9xEhlj0VCpqt/1zu8ZWFaP46mQtRK8KQtN1qFfQdnkyrbm5S8IcGTihiUtXznfWqH+2Yn7ltduG8f537/5FJW5GdjLcuj13H9ykvSUTXr6T+9PT44EyYAAA==</trigger_inputs>
+        <trigger_outputs/>
+        <trigger_type>record_create_or_update</trigger_type>
+        <updation_source/>
+    </sys_hub_trigger_instance_v2>
+    <sys_hub_action_instance_v2 action="delete_multiple" query="flow=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT IN282fc1922fb77690d2a0d68fcea4e3b3,2bfecd522fb77690d2a0d68fcea4e338,35ae45522fb77690d2a0d68fcea4e30b,468e41522fb77690d2a0d68fcea4e300,5ccc419e2f777690d2a0d68fcea4e3ac"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Send Email">c1806bf4a70323008299b39f087901cb</action_type>
+        <action_type_parent/>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <generation_source/>
+        <order>7</order>
+        <parent_ui_id>9daa1188-9993-4071-94cd-73ffe32dd42d</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:28:40</sys_created_on>
+        <sys_id>282fc1922fb77690d2a0d68fcea4e3b3</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:59:03</sys_updated_on>
+        <ui_id>d8d90bb5-ebac-49d3-9396-19e012f3a4a5</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1c627ruBF+FcLF/ots+SZf8uvsCU73AD0XJOkpis1CoEjK5kYStRQVxw0C9H8foUCxz7KP0ifpkJJs+RJHcbxpvFEQwBYvwxnONzO0x5wf7xqcNsaN/mhoO57fwwO72+na9rAzGnndkW8PByO7TXHjpBHhkMFIPHWVgMcbHKT6+e7uvWRYMYqERH+NqX7rtpsklZJFqhlj83LrsigS7gR6IzFzcRwHnGDoYCHmwf09AoqUJ3GA598OTphMeUBhdGP8408nDZgIkigmG+O7tS41j5kbYI8FsP6FkjyawPSqG1RMvBSbu6Upw2NS0BSSaga6Jw12C5xTBmv4OEjYSSPEEcgq5LwxVjKFBtgF+iUK5qURtwn/B9Ab2rat+30GIhC9QKP06OYbmjWTqeCEfYkVF1HWorAX5HOICNIw+pzxrFXBfJwGqlAFtKQJ0GOxZjVSC078i6mYnRcLfuCRkSrvDATBweIJK5DdSxVL9L6zgIVAyA1BYbAjbizFDTeTgZewOQngoekHoFHKEj6JmphoxpuwM7j5AdrPTPM3LLmW4hOQgcma8YCH3Ci3oXevcW82xP0l1axkouVCuNk+wICESB6rd7DCDcv5vT/JDcN2HM9zvP6gu9T7iPh04PkOHpDuUtUzgKAMsbx2DfRKJtLeBLfhbV9kXsLk1gfNZoHOClwWkz9GJEgpQ38r2N0lQQ5bT4iA4WiJ285u3OYtG8Cdco2dRgZCpATS5jpHGC1W1o1qypBhAN5hhXiCEm3p6FIgnjNfmnGC5iJFYZooGKagR2E5gTeSEWC22SiZS+9FjCVXbd56tlXvR2FNzzWdNt3lMpmz4iU9QkoWs2kwB3LjFXgqJn7//v0WDh9w5P39DKL25C/nyfFO1fudVWULOi/h8Sq17S6JzQs7Y1iirCWJcYRIgJPEPNOrhhbLzc4mbsyD4KqBEjUP2KI/0+QYXFnAI3YK/UREgBw43XCjx2Kk4R66NUVLkzLMFL13dz51lcRR4gsZjofdjsP6Xc/Ctt+2ep32wPL6Hc8aOW1sM490Rn16f3+VCcJ2Mw9LIYQJYbFKlku4fhoZzSXAEzCqEXJbTLRfWIyMGiBQcVqQOoOmr0D/I60ipmHFynk2rxjUIR+bqmclVQYBc7dqwSjET8Vja8msOReaxksRrw/LuSrGXko+mTCJLHRuYhraPBcbOHaciTqFMTz0UpkYqyxmLLu/gM3AeG9eSYgEgqkqRlbgIyPW0tQqUMdSill1ZRnHbBGwLfXUSSsr/fc//36Az1JDs9l8ZRw9bW/BMxbUlyrfdw1w9goObEv4bnoF18cEU+ZWsWDtLMoMP0gNwSe7Zaf5bMf0bB0rsn0sSGgZ0WIoKuigmJNrgCw0ogrwBT1sMx9ormw2mVu3skBkcTDlLTO2R4RImHiQQ+Kf/6qsrkw9T1NpqeEkb8nD21W0Eu3+LlKZuY/IS+LTXAolRTTJBpwXBEttm6PWtvWXFHz3loloihPkMVCmZDeczcyem08EX6WYwIkPvaMhjzjM0Uer5k7WN7m4UFilyXjbwq8soHdGXaff7zPLc3qO1XP6PWvY7lKrM8LOAA9Z3xt0jyCgVxWjDuj7BvQM0nU0fyvRPNf3C4TyKrZ7hKG8msEcYRx/Yiw8Y+Ahg63BMIeKzJ4+p6HH5HjzEPBaYuWo0x+MmMOsYY/2rF4bDp64TTzLp4z4wy7xca9zBLGyqhh1rNw3VmZIrmPlW4mVub5fIFZWsd0jjJXVDOaPFisvpkIqdMYygWA/X3HsI4wOMO324WhmwyGN0IE18qhtkU5vyDodvzdy/COIfVXFqGPf3p8TDajpEtR1GHwrYXBT9S8QEatY9BFGxCeb0R8tOOZcl78AZj+zbJPPGU7g5fGPlNuedqy3Enp38oVXtzLGlPJoMkZtO75F7X58e4o8TK4nUqQRBX8bCDlGf7LN3ykqnn3zd4q0K7eoVj02x4BMI8gzSX9LYsrTZIw0VcDiVDK/WHeqVJyMWy0W6YgYiRmPCGWhaDcTJm84YRa0NYkIW/Damgl5DbtPWCuWQu9laypC1kpSr5X9iqW19is3WcZm6+5OZYhe/DYumScuzxKl2a9hCr5cL8DRNTTLpcVEQujkxiICom+czZD+2r/4nj7/bryFD6iuczbBkiYn25BQxs2fwZQV+oQjPMks8WKeKBY+iLBiuc1fkKwsf+Ac/uOuv8rpqmoA+d0PL/XB4G0cDOrMcJ0Zfl5m+Ldft5wHHnTObzQhXEeHOjocYXSoM411pnFnwwEzjaiVPee5xkVYqb1v7X3fpvetc1d17moP77uZu6p9ae1L37gvrRMgdQLktSRAipPu9ucH1ix8eJ37WMt9fDfw4H97/uO7gf5/Ug4EhDSXLqV564sgWLqo5+VFHtHgejpkFRUHSojsd4H2h8tPfymuz1a4Q7m4PpvdoNy4UplfoJ2qMFhenx088/qs0+93nfr+bPn+bDyjHSpFHOeyHeQObW+n/gldKjwz3qfWCbm/P+DN7zNBUmMhH88K/Fbgf1FkISsjcF7IsS5XjmOaLwL+Zgln+1nlEd4liSAc9icplUKYcTVFeFtVg25nFfjgbrmB5nYD+LjsPqwhZMVK9rYDEjAs3TU85uUS/j/1DcxmuEbvj1U62F0cpreET4nm0jTi0M2D3yb6vxq72L9UiF4Pfc7Wq8rryuQHeM/hv9KWo7/9LPRfAuRXSngglbNRKpZQu/qyq+eJm6Ezl80s/mxf399dKoOsBHc4r+X4LUCduXgEp+H8yLQl37cJ94qzDlLR6XH5FhMX0m2T+IGSIE5d2+k1VaOhO/0es1eU+zLFaCqwVExcq0WzqxRNry5F81pL0fz0P2UkC8NvTwAA</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=282fc1922fb77690d2a0d68fcea4e3b3"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Update Record">f9d01dd2c31332002841b63b12d3aea1</action_type>
+        <action_type_parent/>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <generation_source/>
+        <order>6</order>
+        <parent_ui_id>9daa1188-9993-4071-94cd-73ffe32dd42d</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:28:03</sys_created_on>
+        <sys_id>2bfecd522fb77690d2a0d68fcea4e338</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:51:49</sys_updated_on>
+        <ui_id>33502b97-23b1-4c5a-a3c2-1adb5cf09104</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1UUW/aMBD+K8jPUZQARS1vUxHSHtZKbOtL11mOfYAnx84cm8IQ/33nxAFG1wpVnaZJy1Pucnff9919yv2WSEHGJOuLLL/KR3yQDwb9LOtfDvNiNCjyvhgwACAJ0awErFwx5aHGuHnBRO2Y8/UXn2UDMYNvwB2Ir22IVULWlWKbu7OK+VIqYUGT8f1DQipmEdKBJePtySe3qYAqVoDCmZ+gRAgHvRYkOVtRN2AqQYn6NxIDDMYuAtBVBDBWBFZ5liUE1g60AIScM1VDQkqmBXPGbsjYWY8JC0zcarXZVyyldjiWhNp1LX8gRj7KmidUzwF1cmgr9iGNm2zTfGkkh9vKSaPbjGOFij3cKF/qm1ZMuAHMmVeuuwFmfI3zoArEA5WW5/zj0jzOOryp1I3IyFkZztQ+Ys5ZWXiHW8LbgIIS59CSVZXUC1pZs5JNM1Ip04XCIJ0r84iYtVzolPHAO8U1sXSK+UmTvmNWBhEfcAw27xrx9LsPuK2MSJg2mhvBtDkZltbcysq9w8EriDR3STT3EF60Qn64vAWOtz0y93Z7jedDk/aM7X2uRHilecq9xSW53e6pw19t44nhPqyx937SefgM4l33rGN+qiR6WMTpVIpjA7+Vf4f/nfsnnFtcvGQAfnW499HMg3vXFLQ2dIGu1ajBgiwLb+tG81Pnzk4+v/JvHIj0bloi54r4pfkZUd3P+DgXfXzxZj6+/Es+joz+MSM/Z9+Hn60vskJXCAAA</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=2bfecd522fb77690d2a0d68fcea4e338"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Send Email">c1806bf4a70323008299b39f087901cb</action_type>
+        <action_type_parent/>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <generation_source/>
+        <order>4</order>
+        <parent_ui_id>3099b395-7c53-432d-a3fc-cf077b7a9639</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:26:34</sys_created_on>
+        <sys_id>35ae45522fb77690d2a0d68fcea4e30b</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:13</sys_updated_on>
+        <ui_id>9bd01a99-f7cb-4bef-9721-fe12acd7f2ab</ui_id>
+        <updation_source/>
+        <values>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</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=35ae45522fb77690d2a0d68fcea4e30b"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Update Record">f9d01dd2c31332002841b63b12d3aea1</action_type>
+        <action_type_parent/>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <generation_source/>
+        <order>3</order>
+        <parent_ui_id>3099b395-7c53-432d-a3fc-cf077b7a9639</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:26:02</sys_created_on>
+        <sys_id>468e41522fb77690d2a0d68fcea4e300</sys_id>
+        <sys_mod_count>3</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:51:49</sys_updated_on>
+        <ui_id>db7bb927-108b-4e2c-a6a0-68b1d8a6a4d8</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+2SXWvbMBSG/0rwtTF2nIY2d2UhsIu1kG296YqRreNEIEuePtJkIf99R7KcZOlSQukYg/nKOjof73v0PG4jRqNJNAKaZjfZuMqzPB+m6fB6lJXjvMyGNCcAWRRHgjSAmQoqqSieV4RbF9huPyggBuhAqsHXlrrfIksqqxQIs9thKmW65WTzECowUi0Zp3gfTR6f4qglCpsbUNFke3JlNi0UnJTAsXAqK9tg08HHKfa4VHhfPe+VnzpxM/BMQ/eCuSBeOT1ZGkewNiAo4LiacA1x1BCBNqXaRBOjLAZwAfRe8M0+Y8mE6Zw2ZK3ZD+w/Sl1eDWitClvYH4uwoX45klVw3xomRRcxpOT95iS3jbjrLLjdQk0sN0e7tRr7QeskOxGdwvrzUj7P+3kzJry7oJbLivD9iRijWGkNaPccwMEvpSFty8SiaJVcMV+MUppkwfGQ1Fw+40zNFiIhldOd4IJIMsP41IcfiGLOxCdsg8U7b774bt3czkYQXHjP3nDhHwpTdaVYa26x8QqCzF0cyE2HrwIAh/f2wOojcrUhxupvNk1zets6Y0Bf0nom620Ef4EGexsYdN3jiz30DWYMONW/MRUgNmFAsQoD9hy/G8jZOPXff5z/AM7l1WsoVDeHlz/qeUB6XYAQslggAQI9KGBNaZX2nl+iPT+5fiPTTsjgrhNyqYlfis+Y6pE+jgWcr96N5uu/xHFQ9I+BfA7fp597TfAVSQgAAA==</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=468e41522fb77690d2a0d68fcea4e300"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Ask For Approval">f8f2e9920b10030085c083eb37673abd</action_type>
+        <action_type_parent/>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <generation_source/>
+        <order>1</order>
+        <parent_ui_id/>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:18:16</sys_created_on>
+        <sys_id>5ccc419e2f777690d2a0d68fcea4e3ac</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 10:51:49</sys_updated_on>
+        <ui_id>6f614b02-b8ee-4dac-bfe5-97082565033a</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1XwW7bOBD9FUNnx0tZliLnFjQI0EW7BdyklyAQKHJks6AplaLaZAP/+w4lylLtRjESB+0CudjmUMN58+YNNb558AT3zjyYRUGIH6dZQPypT2KI4pjNCWVxFIWzwBt7iq4Bn6RFofPvVCYaaJkr3MBFZXfwJxdlIen9l87CVkJyDco7u7kdewXVeIoB7Z097GyZ+wISSVOQ6PjZaKGW6H4ouNbx3KEbLVp0j8K2AXGjbEPlmltc07EHdwYUBwydUVnC2FtTxanJ9f3WgqfwT0p2hpVQpsl4Te9K8S8e7UfEPpgB5sgcHdtl4qhqWcoFg0+FEQitthiaypbCXFZr9U+ThyUZMlpJ0yO5KvE8KCxoi8JByj6v8h+LNuClUHV+blPmjMrtihpkIa0MlLYwlbja4aaxfNitDkhYY8RkjeyiJbEUizoKgl5PlhIXk0zmPxBdKZZqQpnNcIJk0skl2i9q8xeqhU33Ix6DzjbctRLfKnhvqx9N02hOYn7CM5KezOIgPKEMyAlEfgghj1joB96mpjb5VtmkGpIcHUnDKD5QMi0Kc44QvoPLfDN2+id+NoX5fEpSn5CAkDhkJA4gDU6j04Dy+BdCygRI3pN/u7HfBr2d57XDpQ01qhUwPhjvXktcOsCPJeIaol4mqgl29KaICflNXWF09ZKmeB2tP6XbJuEnxMsGxQC9y/trXmk1oN1kJcq6pI9quPfEsbR8APzW+e8G/66Ud9MaUHLwpuQ/WMmn8ZAUGOlKroFhRXsSfnh4h1UzwEe5Hl0X3P5M/AmrNPJjNpsjTicXOassg6P3F62GDwDeei9a5LuZONVyd3oieCdbMizbRhGHqDaYvmn2yLdvOFT6bN5VmldICerylWZmtgJeSRhdYIi/rkTvgn0a4VbaVeP/S9DtxOwC1ebEiP71Gh7tep39T4fn15uJk+0cicrEdnrx0Dsb1AX0RLB9+7NccWHxlj0RNxMmlAv4CsyU5+r++mb4Op6gqOsvnVsXJEvRJejN5na/IY58+vOaq/tficIv28Y6gMDtre/8Bgl1Ddb9V3VOrrlmx3oJ/L7R5c/srpc2UsoG3/6sq3vDXdc6dwkolSdLFLBC0BrEOq10WSe53wqLne3nafnKYvhpAj8A/0/O+/k45dbLnYnbP+LE/Sbal4v29j91Qkzs9BMAAA==</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=5ccc419e2f777690d2a0d68fcea4e3ac"/>
+    <sys_hub_sub_flow_instance_v2 action="delete_multiple" query="flow=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_hub_flow_logic_instance_v2 action="delete_multiple" query="flow=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT IN534e49122fb77690d2a0d68fcea4e3d4,ffbe09522fb77690d2a0d68fcea4e355"/>
+    <sys_hub_flow_logic_instance_v2 action="INSERT_OR_UPDATE">
+        <attributes/>
+        <block display_value="">134e49122fb77690d2a0d68fcea4e3d3</block>
+        <comment/>
+        <connected_to/>
+        <decision_table/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <flow_variables_assigned/>
+        <generation_source/>
+        <logic_definition display_value="If">af4e1945c3e232002841b63b12d3ae3e</logic_definition>
+        <order>2</order>
+        <outputs_assigned/>
+        <parent_ui_id/>
+        <sys_class_name>sys_hub_flow_logic_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:25:02</sys_created_on>
+        <sys_id>534e49122fb77690d2a0d68fcea4e3d4</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:13</sys_updated_on>
+        <ui_id>3099b395-7c53-432d-a3fc-cf077b7a9639</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1U247TMBD9lcrPbZRLE9q+VaCVkICV2NW+wCqa2JPWwrFD7Gy3VP13xrl0K1oEQvvIW3w8l3NmTnxgpnV16+y9WVsrN5qtvjxOmdQeo+8D01AhWzFutJBOGs2m7AlU67HDISuzaF6E8axYIM7mAvisKDGdLd+EizjN0jBJIIC6bgzl5NaBw+PxaxuGiehRFFRPSFsr2D+8clm+lUo0OEiqoSElDhu2Ovxy5fY15goKVNT9zjVSbyhdCjotIS3TKEx5EmdJHIbxYh4VWVJEsUgA5xnFjYlvzyZ0ZWi+CUF2LG8a4bnE4ZThs0MtiPOqBGVxyirQApxp9mzlmpaABkHcarU/RWyldlSN+dhnK3+grxSGPrJEEsaxvz0d82HIPcy3RnK8rTtuHeKgUEMON6qt9Kdegl8PltAqN66HkNZSPaw9aU9j4FTebc3u89jwRupO4HCpDAd1OoGjMRStQ+u3gQorKpRXtDwaTu43KLtk4lIFG0WHoFRmR029RwPgnnhAM4LghvB3HfwAjfQqPlIZSqYN2tzyRtajtq45O3ZTyb+3nk+vb1CS98OggD5tTW2ecCB9nF7+C3kHvPwQ68GSk/Xgwsmlu6/GvIZVyxDKaMmj61aF5JpVJx865NKwo7LfuDb6g2sH5K9sm6b/XXvuWk+zACt53r3CVM6/Af9s20dvz76F7T0kkEtLTO499n586f3FnrYu+Tm0M803r+EFO/4EFD5NwTMGAAA=</values>
+        <workflow_reference/>
+    </sys_hub_flow_logic_instance_v2>
+    <sys_hub_flow_logic_instance_v2 action="INSERT_OR_UPDATE">
+        <attributes/>
+        <block display_value="">f7be09522fb77690d2a0d68fcea4e355</block>
+        <comment/>
+        <connected_to>3099b395-7c53-432d-a3fc-cf077b7a9639</connected_to>
+        <decision_table/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</flow>
+        <flow_variables_assigned/>
+        <generation_source/>
+        <logic_definition display_value="Else If">666e5545c3e232002841b63b12d3ae99</logic_definition>
+        <order>5</order>
+        <outputs_assigned/>
+        <parent_ui_id/>
+        <sys_class_name>sys_hub_flow_logic_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:26:58</sys_created_on>
+        <sys_id>ffbe09522fb77690d2a0d68fcea4e355</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:13</sys_updated_on>
+        <ui_id>9daa1188-9993-4071-94cd-73ffe32dd42d</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1Uy27bMBD8FYNnW9DDdh3fjBYBCrQNkAS5tIGwIlc2W4pUSSqOa/jfu9TDMZIYLYqip97E4T5mdkfcM9P4uvHu1qyck2vNlp/vx0zqgNH3nmmokC0ZN1pIL41mY/YAqgnYfj8v58m0iNNJsUCcTAXwSVHibHLxJl6ks/kszjKIoK6toZzcefB4OHxp4jgTFr8i9yionpCuVrC7+8tl+UYqOveSarCkxKNly/2zK7+rMVdQoKLuN95KvaZ0KehUxlAmFzzhWTrP0jhOF9OkmGdFkooMEBKKGxLfnkzolaGFJgS5obyxInBJ4zHDR49aEOdlCcrhmFWgBXhjd2zpbUOARRBXWu2OERupPVVjIfbRyR8YKsVxiCyRhHHsbo/HvB9yB/ONkRyv6pZbi3goVJ/DjWoq/amTENaDJTTKD+shpHFUD+tAOtDoOZU3G7O9HhpeSt0K7C+V4aCOJ/A0hqLx6MI2UGFFhfKKVkrDycNeZZtMXKporegQlcpsqWnwaAQ8EI9oRhBdEv6uhe/AyqDiI5WhZNqgyx23sh60tc3ZoZ1K/r0JfDp9vZK8GwYFdGkravOAPenD+OW/kLfA0w+x6i05km50fdbfZ6L+gV3T1+w6+tAiL007qDvj3OQXzu2R37LubPbfuafODTQLcJLn7UtM5cI78MfWvQ8W7Vq4zkMCuXTE5DZg74fXPlzsaOuSn0JbY78FDU/Y4SepJ/coNwYAAA==</values>
+        <workflow_reference/>
+    </sys_hub_flow_logic_instance_v2>
+    <sys_hub_pill_compound action="delete_multiple" query="attached_to=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT IN31f29d1a2fb77690d2a0d68fcea4e3af,39c4d5da2fb77690d2a0d68fcea4e353,39c4d5da2fb77690d2a0d68fcea4e354,3df2991a2fb77690d2a0d68fcea4e3e3,5c7c0d5a2f777690d2a0d68fcea4e3d2,7dc4d5da2fb77690d2a0d68fcea4e353,7dc4d5da2fb77690d2a0d68fcea4e354,987c0d5a2f777690d2a0d68fcea4e3d3,f5f29d1a2fb77690d2a0d68fcea4e3af,f9f29d1a2fb77690d2a0d68fcea4e3ae"/>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.status}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:45:24</sys_created_on>
+        <sys_id>31f29d1a2fb77690d2a0d68fcea4e3af</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:45:24</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>020b0d8a-44a7-4e7f-9ac0-7b3ecdbf1d61</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.opened_by}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:53:19</sys_created_on>
+        <sys_id>39c4d5da2fb77690d2a0d68fcea4e353</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:53:19</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>8326e53b-a0f1-4217-b52b-961a0ebc295d</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.short_description}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:53:19</sys_created_on>
+        <sys_id>39c4d5da2fb77690d2a0d68fcea4e354</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:53:19</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>ced7ad35-8106-4cd7-9bd0-c248e22f496f</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.number}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:45:24</sys_created_on>
+        <sys_id>3df2991a2fb77690d2a0d68fcea4e3e3</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:45:24</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>8611cecb-6a17-4665-9654-a7da27306cdb</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.opened_by}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:16:54</sys_created_on>
+        <sys_id>5c7c0d5a2f777690d2a0d68fcea4e3d2</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:16:54</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>7d1bda0c-8f3d-488a-92e7-f0c8dcf9406d</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.number}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:53:19</sys_created_on>
+        <sys_id>7dc4d5da2fb77690d2a0d68fcea4e353</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:53:19</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>92579e6e-84d4-41f1-a1cb-fdecf83cfa42</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.status}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:53:19</sys_created_on>
+        <sys_id>7dc4d5da2fb77690d2a0d68fcea4e354</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:53:19</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>2936555e-b646-4654-813d-29a67a8e5b73</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.number}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:16:54</sys_created_on>
+        <sys_id>987c0d5a2f777690d2a0d68fcea4e3d3</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:16:54</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>81a4fe68-33c1-4eae-92ea-e215ac5124af</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.opened_by.first_name}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:45:24</sys_created_on>
+        <sys_id>f5f29d1a2fb77690d2a0d68fcea4e3af</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:45:24</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>fe0dd546-d438-419f-9efe-4627692f8ece</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>5e79491a2f777690d2a0d68fcea4e3cc</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.short_description}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:45:24</sys_created_on>
+        <sys_id>f9f29d1a2fb77690d2a0d68fcea4e3ae</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:45:24</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>fd56fa98-4081-4116-8361-cc4949e87db8</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_flow_variable action="delete_multiple" query="model=5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_documentation action="INSERT_OR_UPDATE">
+        <element>table_name</element>
+        <help/>
+        <hint/>
+        <label>Table Name</label>
+        <language>en</language>
+        <name>var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc</name>
+        <plural/>
+        <sys_class_name>sys_documentation</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:06</sys_created_on>
+        <sys_id>b4890d1a2f777690d2a0d68fcea4e332</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:04:06</sys_updated_on>
+        <url/>
+        <url_target/>
+    </sys_documentation>
+    <sys_documentation action="INSERT_OR_UPDATE">
+        <element>changed_fields</element>
+        <help/>
+        <hint/>
+        <label>Changed Fields</label>
+        <language>en</language>
+        <name>var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc</name>
+        <plural/>
+        <sys_class_name>sys_documentation</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:07</sys_created_on>
+        <sys_id>cd890d1a2f777690d2a0d68fcea4e347</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:04:07</sys_updated_on>
+        <url/>
+        <url_target/>
+    </sys_documentation>
+    <sys_documentation action="INSERT_OR_UPDATE">
+        <element>current</element>
+        <help/>
+        <hint/>
+        <label>Record</label>
+        <language>en</language>
+        <name>var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc</name>
+        <plural/>
+        <sys_class_name>sys_documentation</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 08:04:06</sys_created_on>
+        <sys_id>f8890d1a2f777690d2a0d68fcea4e33c</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 08:04:06</sys_updated_on>
+        <url/>
+        <url_target/>
+    </sys_documentation>
+    <sys_choice action="delete_multiple" query="name=var__m_sys_hub_flow_input_5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_choice action="delete_multiple" query="name=var__m_sys_hub_flow_output_5e79491a2f777690d2a0d68fcea4e3cc"/>
+    <sys_hub_flow_snapshot action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <acls/>
+        <active>true</active>
+        <annotation/>
+        <attributes>browserActivatedIn=chrome,integrationActivatedIn=standalone,labelCacheCleanUpExecuted=true,viewActivatedIn=naturalLanguage</attributes>
+        <authored_on_release_version>28100</authored_on_release_version>
+        <callable_by_client_api>false</callable_by_client_api>
+        <category/>
+        <copied_from/>
+        <copied_from_name/>
+        <description>Implement reimbursement notification and approval workflow</description>
+        <flow_priority>MEDIUM</flow_priority>
+        <internal_name>implement_reimbursement_notification_and_approval_workflow</internal_name>
+        <label_cache>[{"name":"Created or Updated_1.current.opened_by.first_name","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Opened by➛First name","reference":"","reference_display":"First name","type":"string","base_type":"string","parent_table_name":"sys_user","column_name":"first_name","choices":[{"order":0.0}],"usedInstances":{"9bd01a99-f7cb-4bef-9721-fe12acd7f2ab":[null]}},{"name":"Created or Updated_1.current.status","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Status","reference":"","reference_display":"Status","type":"choice","base_type":"choice","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"status","choices":[{"label":"-- None --","used":false,"image":"","missing":false,"selected":false,"rawLabel":"-- None --","reference":false,"value":""},{"label":"Submitted","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Submitted","reference":false,"value":"Submitted","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}},{"label":"Approved","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Approved","reference":false,"value":"Approved","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}},{"label":"Rejected","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Rejected","reference":false,"value":"Rejected","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}},{"label":"Paid","used":false,"image":"","missing":false,"selected":false,"rawLabel":"Paid","reference":false,"value":"Paid","parameters":{"name":"x_enno_gatenow_reimbursement","dependent_values":[""]}}],"usedInstances":{}},{"name":"Created or Updated_1.current.opened_by","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Opened by","reference":"sys_user","reference_display":"User","type":"reference","base_type":"reference","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"opened_by","choices":[{"order":0.0}],"usedInstances":{}},{"name":"Created or Updated_1.current.parent.project_manager","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Parent➛Project manager","reference":"sys_user","reference_display":"User","type":"reference","base_type":"reference","parent_table_name":"pm_project","column_name":"project_manager","choices":[{"order":0.0}],"usedInstances":{"6f614b02-b8ee-4dac-bfe5-97082565033a":["approval_conditions"],"12acbb2d-aa18-46f0-9337-655fed357b97":["ah_to"]}},{"name":"Created or Updated_1.current.parent","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Parent","reference":"pm_project","reference_display":"Project","type":"reference","base_type":"reference","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"parent","usedInstances":{"9bd01a99-f7cb-4bef-9721-fe12acd7f2ab":["record"],"12acbb2d-aa18-46f0-9337-655fed357b97":["record"],"d8d90bb5-ebac-49d3-9396-19e012f3a4a5":["record"]}},{"name":"Created or Updated_1.current.number","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Number","reference":"","reference_display":"Number","type":"string","base_type":"string","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"number","choices":[{"order":0.0}],"usedInstances":{}},{"name":"6f614b02-b8ee-4dac-bfe5-97082565033a.approval_state","label":"1 - Ask For Approval➛Approval State","reference_display":"Approval State","type":"choice","base_type":"choice","choices":[{"label":"-- None --","value":"","order":0.0},{"label":"Not Yet Requested","value":"not requested","order":1.0},{"label":"Requested","value":"requested","order":2.0},{"label":"Approved","value":"approved","order":3.0},{"label":"Rejected","value":"rejected","order":4.0},{"label":"Cancelled","value":"cancelled","order":5.0},{"label":"No Longer Required","value":"not_required","order":6.0},{"label":"Skipped","value":"skipped","order":7.0}],"usedInstances":{},"attributes":{"element_mapping_provider":"com.glide.flow_design.action.data.FlowDesignVariableMapper"}},{"name":"6f614b02-b8ee-4dac-bfe5-97082565033a.__action_status__","label":"1 - Ask For Approval➛Action Status","reference_display":"Action Status","type":"object","base_type":"object","usedInstances":{},"attributes":{"uiType":"object","co_type_name":"FDACTIONSTATUS","action_error_output":"true","element_mapping_provider":"com.glide.flow_design.action.data.FlowDesignVariableMapper"}},{"name":"Created or Updated_1.current.assigned_to","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Assigned to","reference":"sys_user","reference_display":"User","type":"reference","base_type":"reference","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"assigned_to","choices":[{"order":0.0}],"usedInstances":{}},{"name":"Created or Updated_1.current","label":"Trigger - Record Created or Updated➛Reimbursement Record","reference":"x_enno_gatenow_reimbursement","reference_display":"Reimbursement","type":"reference","base_type":"reference","choices":[{"order":0.0}],"usedInstances":{"db7bb927-108b-4e2c-a6a0-68b1d8a6a4d8":["record"],"33502b97-23b1-4c5a-a3c2-1adb5cf09104":["record"],"6f614b02-b8ee-4dac-bfe5-97082565033a":["record"]},"attributes":{"":""}},{"name":"Created or Updated_1.current.parent.x_enno_gatenow_applicant.email","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Parent➛Applicant➛Email","reference":"","reference_display":"Email","type":"string","base_type":"string","parent_table_name":"x_enno_gatenow_service_applicants","column_name":"email","choices":[{"order":0.0}],"usedInstances":{"9bd01a99-f7cb-4bef-9721-fe12acd7f2ab":["ah_to"],"d8d90bb5-ebac-49d3-9396-19e012f3a4a5":["ah_to"]}},{"name":"Created or Updated_1.current.short_description","label":"Trigger - Record Created or Updated➛Reimbursement Record➛Short description","reference":"","reference_display":"Short description","type":"string","base_type":"string","parent_table_name":"x_enno_gatenow_reimbursement","column_name":"short_description","choices":[{"order":0.0}],"usedInstances":{}}]</label_cache>
+        <master>true</master>
+        <name>Implement reimbursement notification and approval workflow</name>
+        <natlang/>
+        <outputs/>
+        <parent_flow display_value="Implement reimbursement notification and approval workflow">5e79491a2f777690d2a0d68fcea4e3cc</parent_flow>
+        <remote_trigger_id/>
+        <run_as>user</run_as>
+        <run_with_roles/>
+        <sc_callable>false</sc_callable>
+        <status>published</status>
+        <sys_class_name>sys_hub_flow_snapshot</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:15</sys_created_on>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>49d139d62fbb7690d2a0d68fcea4e3d3</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_overrides/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:15</sys_updated_on>
+        <type>flow</type>
+        <version>2</version>
+    </sys_hub_flow_snapshot>
+    <sys_translated_text action="delete_multiple" query="documentkey=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_variable_value action="delete_multiple" query="document_key=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_hub_flow_stage action="delete_multiple" query="flow=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_flow_cat_variable_model action="delete_multiple" query="id=49d139d62fbb7690d2a0d68fcea4e3d3^sys_idNOT IN09d139d62fbb7690d2a0d68fcea4e3d4"/>
+    <sys_flow_cat_variable_model action="INSERT_OR_UPDATE">
+        <id>49d139d62fbb7690d2a0d68fcea4e3d3</id>
+        <name>Implement reimbursement notification and approval workflow</name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:15</sys_created_on>
+        <sys_id>09d139d62fbb7690d2a0d68fcea4e3d4</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:15</sys_updated_on>
+    </sys_flow_cat_variable_model>
+    <sys_flow_cat_variable action="delete_multiple" query="flow_catalog_model=09d139d62fbb7690d2a0d68fcea4e3d4"/>
+    <sys_hub_flow_input action="delete_multiple" query="model=49d139d62fbb7690d2a0d68fcea4e3d3^sys_idNOT IN1dd139d62fbb7690d2a0d68fcea4e3d6,55d179d62fbb7690d2a0d68fcea4e302,5dd139d62fbb7690d2a0d68fcea4e3ea"/>
+    <sys_hub_flow_input action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <array>false</array>
+        <array_denormalized>false</array_denormalized>
+        <attributes>element_mapping_provider=com.glide.flow_design.action.data.FlowDesignVariableMapper,uiType=document_id,uiTypeLabel=Document ID</attributes>
+        <audit>false</audit>
+        <calculation><![CDATA[(function calculatedFieldValue(current) {
+
+	// Add your code here
+	return '';  // return the calculated value
+
+})(current);]]></calculation>
+        <choice/>
+        <choice_field/>
+        <choice_table/>
+        <column_label/>
+        <comments/>
+        <create_roles/>
+        <default_value/>
+        <defaultsort/>
+        <delete_roles/>
+        <dependent>table_name</dependent>
+        <dependent_on_field>table_name</dependent_on_field>
+        <display>false</display>
+        <dynamic_creation>false</dynamic_creation>
+        <dynamic_creation_script/>
+        <dynamic_default_value/>
+        <dynamic_ref_qual/>
+        <element>current</element>
+        <element_reference>false</element_reference>
+        <foreign_database/>
+        <formula/>
+        <function_definition/>
+        <function_field>false</function_field>
+        <help/>
+        <hint/>
+        <internal_type display_value="">document_id</internal_type>
+        <label>Record</label>
+        <mandatory>true</mandatory>
+        <max_length>200</max_length>
+        <model display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</model>
+        <model_id>49d139d62fbb7690d2a0d68fcea4e3d3</model_id>
+        <model_table>sys_hub_flow_snapshot</model_table>
+        <name>var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3</name>
+        <next_element/>
+        <order>100</order>
+        <primary>false</primary>
+        <read_only>false</read_only>
+        <read_roles/>
+        <reference/>
+        <reference_cascade_rule/>
+        <reference_floats>false</reference_floats>
+        <reference_key/>
+        <reference_qual/>
+        <reference_qual_condition/>
+        <reference_type/>
+        <sizeclass/>
+        <spell_check>false</spell_check>
+        <staged>false</staged>
+        <sys_class_name>sys_hub_flow_input</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:15</sys_created_on>
+        <sys_id>1dd139d62fbb7690d2a0d68fcea4e3d6</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:15</sys_updated_on>
+        <table_reference>false</table_reference>
+        <text_index>false</text_index>
+        <unique>false</unique>
+        <use_dependent_field>true</use_dependent_field>
+        <use_dynamic_default>false</use_dynamic_default>
+        <use_reference_qualifier>simple</use_reference_qualifier>
+        <virtual>false</virtual>
+        <virtual_type>script</virtual_type>
+        <widget/>
+        <write_roles/>
+        <xml_view>false</xml_view>
+    </sys_hub_flow_input>
+    <sys_hub_action_input_action_instance action="delete_multiple" query="action_input=1dd139d62fbb7690d2a0d68fcea4e3d6"/>
+    <sys_hub_flow_input action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <array>false</array>
+        <array_denormalized>false</array_denormalized>
+        <attributes>element_mapping_provider=com.glide.flow_design.action.data.FlowDesignVariableMapper,test_input_hidden=true,uiType=table_name,uiTypeLabel=Table Name</attributes>
+        <audit>false</audit>
+        <calculation><![CDATA[(function calculatedFieldValue(current) {
+
+	// Add your code here
+	return '';  // return the calculated value
+
+})(current);]]></calculation>
+        <choice/>
+        <choice_field/>
+        <choice_table/>
+        <column_label/>
+        <comments/>
+        <create_roles/>
+        <default_value/>
+        <defaultsort/>
+        <delete_roles/>
+        <dependent/>
+        <dependent_on_field/>
+        <display>false</display>
+        <dynamic_creation>false</dynamic_creation>
+        <dynamic_creation_script/>
+        <dynamic_default_value/>
+        <dynamic_ref_qual/>
+        <element>table_name</element>
+        <element_reference>false</element_reference>
+        <foreign_database/>
+        <formula/>
+        <function_definition/>
+        <function_field>false</function_field>
+        <help/>
+        <hint/>
+        <internal_type display_value="">table_name</internal_type>
+        <label>Table Name</label>
+        <mandatory>false</mandatory>
+        <max_length>200</max_length>
+        <model display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</model>
+        <model_id>49d139d62fbb7690d2a0d68fcea4e3d3</model_id>
+        <model_table>sys_hub_flow_snapshot</model_table>
+        <name>var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3</name>
+        <next_element/>
+        <order>101</order>
+        <primary>false</primary>
+        <read_only>false</read_only>
+        <read_roles/>
+        <reference/>
+        <reference_cascade_rule/>
+        <reference_floats>false</reference_floats>
+        <reference_key/>
+        <reference_qual/>
+        <reference_qual_condition/>
+        <reference_type/>
+        <sizeclass/>
+        <spell_check>false</spell_check>
+        <staged>false</staged>
+        <sys_class_name>sys_hub_flow_input</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>55d179d62fbb7690d2a0d68fcea4e302</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <table_reference>false</table_reference>
+        <text_index>false</text_index>
+        <unique>false</unique>
+        <use_dependent_field>false</use_dependent_field>
+        <use_dynamic_default>false</use_dynamic_default>
+        <use_reference_qualifier>simple</use_reference_qualifier>
+        <virtual>false</virtual>
+        <virtual_type>script</virtual_type>
+        <widget/>
+        <write_roles/>
+        <xml_view>false</xml_view>
+    </sys_hub_flow_input>
+    <sys_hub_action_input_action_instance action="delete_multiple" query="action_input=55d179d62fbb7690d2a0d68fcea4e302"/>
+    <sys_hub_flow_input action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <array>false</array>
+        <array_denormalized>false</array_denormalized>
+        <attributes>child_label=FDChangeDetails,child_name=FDChangeDetails,child_type=object,child_type_label=Object,element_mapping_provider=com.glide.flow_design.action.data.FlowDesignVariableMapper,pwd2droppable=true,uiType=array.object,uiTypeLabel=Array.Object</attributes>
+        <audit>false</audit>
+        <calculation><![CDATA[(function calculatedFieldValue(current) {
+
+	// Add your code here
+	return '';  // return the calculated value
+
+})(current);]]></calculation>
+        <choice/>
+        <choice_field/>
+        <choice_table/>
+        <column_label/>
+        <comments/>
+        <create_roles/>
+        <default_value/>
+        <defaultsort/>
+        <delete_roles/>
+        <dependent/>
+        <dependent_on_field/>
+        <display>false</display>
+        <dynamic_creation>false</dynamic_creation>
+        <dynamic_creation_script/>
+        <dynamic_default_value/>
+        <dynamic_ref_qual/>
+        <element>changed_fields</element>
+        <element_reference>false</element_reference>
+        <foreign_database/>
+        <formula/>
+        <function_definition/>
+        <function_field>false</function_field>
+        <help/>
+        <hint/>
+        <internal_type display_value="String">string</internal_type>
+        <label>Changed Fields</label>
+        <mandatory>false</mandatory>
+        <max_length>4000</max_length>
+        <model display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</model>
+        <model_id>49d139d62fbb7690d2a0d68fcea4e3d3</model_id>
+        <model_table>sys_hub_flow_snapshot</model_table>
+        <name>var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3</name>
+        <next_element/>
+        <order>100</order>
+        <primary>false</primary>
+        <read_only>false</read_only>
+        <read_roles/>
+        <reference/>
+        <reference_cascade_rule/>
+        <reference_floats>false</reference_floats>
+        <reference_key/>
+        <reference_qual/>
+        <reference_qual_condition/>
+        <reference_type/>
+        <sizeclass/>
+        <spell_check>false</spell_check>
+        <staged>false</staged>
+        <sys_class_name>sys_hub_flow_input</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>5dd139d62fbb7690d2a0d68fcea4e3ea</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <table_reference>false</table_reference>
+        <text_index>false</text_index>
+        <unique>false</unique>
+        <use_dependent_field>false</use_dependent_field>
+        <use_dynamic_default>false</use_dynamic_default>
+        <use_reference_qualifier>simple</use_reference_qualifier>
+        <virtual>false</virtual>
+        <virtual_type>script</virtual_type>
+        <widget/>
+        <write_roles/>
+        <xml_view>false</xml_view>
+    </sys_hub_flow_input>
+    <sys_hub_action_input_action_instance action="delete_multiple" query="action_input=5dd139d62fbb7690d2a0d68fcea4e3ea"/>
+    <sys_hub_flow_output action="delete_multiple" query="model=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_hub_trigger_instance_v2 action="delete_multiple" query="flow=49d139d62fbb7690d2a0d68fcea4e3d3^sys_idNOT INedd179d62fbb7690d2a0d68fcea4e324"/>
+    <sys_hub_trigger_instance_v2 action="INSERT_OR_UPDATE">
+        <comment/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <generation_source/>
+        <name>Created or Updated</name>
+        <published_version/>
+        <remote_sys_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>edd179d62fbb7690d2a0d68fcea4e324</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <trigger_definition display_value="Created or Updated">a45d9180c32222002841b63b12d3aea7</trigger_definition>
+        <trigger_inputs>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</trigger_inputs>
+        <trigger_outputs/>
+        <trigger_type>record_create_or_update</trigger_type>
+        <updation_source/>
+    </sys_hub_trigger_instance_v2>
+    <sys_hub_action_instance_v2 action="delete_multiple" query="flow=49d139d62fbb7690d2a0d68fcea4e3d3^sys_idNOT IN15d179d62fbb7690d2a0d68fcea4e319,25d179d62fbb7690d2a0d68fcea4e322,51d179d62fbb7690d2a0d68fcea4e31b,99d179d62fbb7690d2a0d68fcea4e31e,e9d179d62fbb7690d2a0d68fcea4e31f"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Ask For Approval">f8f2e9920b10030085c083eb37673abd</action_type>
+        <action_type_parent display_value="Ask For Approval">bae0a1120b10030085c083eb37673a92</action_type_parent>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot>f8f2e9920b10030085c083eb37673abd</compiled_snapshot>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <generation_source/>
+        <order>1</order>
+        <parent_ui_id/>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>15d179d62fbb7690d2a0d68fcea4e319</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>6f614b02-b8ee-4dac-bfe5-97082565033a</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1YXW/iOBT9KyjPlHUIpKFvVVGlGc3OSLSdl6qKHPsGPDJOxnFmyiL++94kDsmEloEdKrWrvgC+1x/nHp+T2NyvHcGdCwdGvjfGj/PYI+7QJQH4QcAmhLLA98cjz+k7ii4Be9I01ckPKkMNNEsUJrCRFxn8yUWWSrr62kTYQkiuQTkX9w99J6UaZzGgnYt1J3UoDEkjkNj10uLozWoczwI0q7RIZEYLNbftT3aamzqYaF7AGvYdeDSgOCCemMoM+s6SKk5NolfbCE7NvyjZBBZCmargJX3MxD+4nuuTomMMWCKzbGyboWWqCsdTaigiyZnJ9Za4RDDIKnI4xDSX5qodqzp8SY3AIsshhkayHp3IfKk+V4w42wlaG5NnCALSotICuq0jvlkkP2c1ymuhSlJsUiaMym2LGqQuyk2BZ+3k4rbDchXZ4RkkLHHFcIn7hJGw2CxRroKgl4O5xMYglslPRJeJuRpQVlQ4wB2gg2uMT8vwV6pFUe7fOA0OLpa7U+J7Dh8KHfnDyJ+QgJ/xmERno8Abn1EG5Ax8dwxj7rOx6zmbvpOtsitJs6whCnco/J4XZVa0WYLCiuNiCNMiNZcI6gdYLjZ96yLixkOYTIYkcgnxCAnGjAQeRN65f+5RHjwh0liA5C0T1YldM7Uyx5nqAFQ7prq2sJ6Day1VNsOy06+2Ksf3PleJk1srIOQteQsX/xNrvYxjjld/RcFvLMD2ig1aL5JvSa7VHgeEC5GVynjWCa0exzniAJC1Iz5WKLuG6IL/L37w3v3w//fDebBPaow0ktLAUBgtI6zXV7j5Bngv0b27lBc/Q3fAco2Mmc3mBOetA9DVRpjV8LpwrfR5wvJyWwTvaH9qM70P00b8ZL/4K4kcon1v+K78V6l8Nt6nrXjSSInnSBKq+7R3iQPWr7U9zaE3rQDsQqpvD2wBPJdVODRi5xF/YzuUM/11K9qP+vHJHvWjt/Sg/9NLxcvdFcLtaRrVjKZ8gcvAaK/+oCW27XmGJYqLooKsZYXqTA7ZDL4BM9mlWt3d7381DNAa5ZdOiiFIn6Jz0JvNw66tTjz7cRY9gKLt6wedlf2OMmvV5h8AO6ht0+Z/A5u0Fh2d6oX0xg5jr9Ojp7djxPYedVijrYrNxoCPISiVhHO0gcIyNIhllOusLHvXULNO+jhHHICydsSthdlBbT1QNp+6iZTDOjcR98jXU2WGJ7X/rvxXo/yHfwGXLqAE3RUAAA==</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=15d179d62fbb7690d2a0d68fcea4e319"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Send Email">c1806bf4a70323008299b39f087901cb</action_type>
+        <action_type_parent display_value="Send Email">98c181d20b100300d97d8bf637673ab5</action_type_parent>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot>c1806bf4a70323008299b39f087901cb</compiled_snapshot>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <generation_source/>
+        <order>7</order>
+        <parent_ui_id>9daa1188-9993-4071-94cd-73ffe32dd42d</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>25d179d62fbb7690d2a0d68fcea4e322</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>d8d90bb5-ebac-49d3-9396-19e012f3a4a5</ui_id>
+        <updation_source/>
+        <values>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</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=25d179d62fbb7690d2a0d68fcea4e322"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Update Record">f9d01dd2c31332002841b63b12d3aea1</action_type>
+        <action_type_parent display_value="Update Record">baf174c8c3c232002841b63b12d3aee4</action_type_parent>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot>f9d01dd2c31332002841b63b12d3aea1</compiled_snapshot>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <generation_source/>
+        <order>3</order>
+        <parent_ui_id>3099b395-7c53-432d-a3fc-cf077b7a9639</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>51d179d62fbb7690d2a0d68fcea4e31b</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>db7bb927-108b-4e2c-a6a0-68b1d8a6a4d8</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1Ty27iMBT9FeR1hBJCUcuuAiGN1Gkl2mHTqSInvgFLjpPxg8Ig/n2uEycw9CEqdTGVhlV8H/Y5h3Med4QzMiZDYGF0FY2yOIrjQRgOLodROorTaMBiChCRgEhaAE4qyErF8LymwrrCbjdRQA2wXql6PyrmPpOon1mlQJr9HkcZ15Wg24XfwEq24oJhn4wfnwJSUYWXG1BkvDtpnYtO0BQEjs5beKdwzbZyZ1ZmtkBcCW+LN35z6ju9b1Ps4JKDE4UBgY0ByQCB5FRoCEhBJbIs1ZaMjbJYQP7sToptN7Hi0jREC7rR/De+PAzdXA7ILPMidMfEC9SU8yk19B5vzoxVnV4lz0A3mjDIqRVmclxrBu4qw0vZrBiaina7FLaQt40ipLvg6P+wGkFA5Xg65A2t/H5VPs9bkDMua0k8RVFmVHQnaoziqTUOzo6AgFrjglYVl8ukUuWa18sIpegvBR76uSif8U3Nl7JPM4e7j6rS/gzr07q8oIo7Et/xGlzeB0Rv9URQrQ9UUMPkl3VIGmKeQlKrUEuQ1E5wy5nilbnGp9bgge8D7/9w8K7D4GCo2vb6yP/aUGP1TxuGMbuuHFVgLz3/xtTHcnAGyjYHMw6C6Vdg+xwYKBCegaSh8XcUHnyzt/DNLg2fFodoFNa//6H4d0ORXrxnt+zq4K6jOw/B2CQgZZks0UgSWSngRWqVrlV4GZD5SftjyTgDapuMh9oCr0Nvw3Fauzne7d02DR+Ki0/LxOVXSoOn8eXj8FYInv4A2uLfQhsJAAA=</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=51d179d62fbb7690d2a0d68fcea4e31b"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Send Email">c1806bf4a70323008299b39f087901cb</action_type>
+        <action_type_parent display_value="Send Email">98c181d20b100300d97d8bf637673ab5</action_type_parent>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot>c1806bf4a70323008299b39f087901cb</compiled_snapshot>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <generation_source/>
+        <order>4</order>
+        <parent_ui_id>3099b395-7c53-432d-a3fc-cf077b7a9639</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>99d179d62fbb7690d2a0d68fcea4e31e</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>9bd01a99-f7cb-4bef-9721-fe12acd7f2ab</ui_id>
+        <updation_source/>
+        <values>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</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=99d179d62fbb7690d2a0d68fcea4e31e"/>
+    <sys_hub_action_instance_v2 action="INSERT_OR_UPDATE">
+        <action_type display_value="Update Record">f9d01dd2c31332002841b63b12d3aea1</action_type>
+        <action_type_parent display_value="Update Record">baf174c8c3c232002841b63b12d3aee4</action_type_parent>
+        <attributes/>
+        <comment/>
+        <compiled_snapshot>f9d01dd2c31332002841b63b12d3aea1</compiled_snapshot>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <generation_source/>
+        <order>6</order>
+        <parent_ui_id>9daa1188-9993-4071-94cd-73ffe32dd42d</parent_ui_id>
+        <sys_class_name>sys_hub_action_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>e9d179d62fbb7690d2a0d68fcea4e31f</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>33502b97-23b1-4c5a-a3c2-1adb5cf09104</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1VXWviQBT9KzLPISTGSuvboggL3RZs15duGyYzNzrLZJKdD6sr/ve9SSYqtlss9GEL61PuZ865OQcftkRwMiJRn0fxVTxkSZwk/SjqXw7ibJhkcZ8nFABIQBQtADtXVDowGDcPmDCWWmd+uChK+Ax+ArPAn9oQu7gwlaSb+VnNbCkk16DI6OExIBXV+EoLmoy2J6VzMUuagcTWqQDJzSsk7KaqYwsForSQtqTa/LUfvvfF3twXS81rUHEUBQTWFhQHxJNTaSAgBVWc2lJvyMhqhwkNlN8qudl3LIWyuJbUvWsjfiOAeBg1v7o7B6TJoO3Yh6k/ZJvOJ9TSO9zPrNO+lS1LwZBUcyAOOXXSjo9zbcNtZUWp2hFLM9lNl9IV6qY9D9kv6L4bZpxBEFDVbGv8Lbn8blk+zzqQU6Gay3iismRU7iNqrRaZszWcLQEJBe5JC1pVQi3SSpcr0QwjlCJcSAzCXJbP+E4jFiqkrMYd4m1pOMX8pEnPqRY1iW+4Bod3ATEbM5bUmAMVvGH6y9VIWmKeQtpcoTlB2siiHmZaVPYLvmoFHvgu8BYZwJtyiw/q0sBQIkcW2W7HqAKUeq/Uve8Vrx/TOGRO49nsbvfSJ+82wxnoOjPMOnincL0ZeMlc820EP3HCxFd6XyfHNvgoFwz+6/8f1n928ZbC2NVBUEc7Dx5Yp6BUmS5Q+wpZaRBF5rRprvBS/7OT8vvMcAbUzgz3jQReh979OZzmro9nezdtwbvh4sPccPmZ3OBpfHo7/M0Ej38ASLlb6CkJAAA=</values>
+    </sys_hub_action_instance_v2>
+    <sys_hub_alias_mapping action="delete_multiple" query="source_id=e9d179d62fbb7690d2a0d68fcea4e31f"/>
+    <sys_hub_sub_flow_instance_v2 action="delete_multiple" query="flow=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_hub_flow_logic_instance_v2 action="delete_multiple" query="flow=49d139d62fbb7690d2a0d68fcea4e3d3^sys_idNOT IN19d179d62fbb7690d2a0d68fcea4e314,1dd179d62fbb7690d2a0d68fcea4e316"/>
+    <sys_hub_flow_logic_instance_v2 action="INSERT_OR_UPDATE">
+        <attributes/>
+        <block display_value="">134e49122fb77690d2a0d68fcea4e3d3</block>
+        <comment/>
+        <connected_to/>
+        <decision_table/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <flow_variables_assigned/>
+        <generation_source/>
+        <logic_definition display_value="If">af4e1945c3e232002841b63b12d3ae3e</logic_definition>
+        <order>2</order>
+        <outputs_assigned/>
+        <parent_ui_id/>
+        <sys_class_name>sys_hub_flow_logic_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>19d179d62fbb7690d2a0d68fcea4e314</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>3099b395-7c53-432d-a3fc-cf077b7a9639</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1VXW/aMBT9K8jPEOWDZMAboqo0aVulterLVkU3tgPWnDizndIs4r/vOh+ACtJWrY97w8f3Xp9zfBxaompb1dY8qLUxYluS1benKRGlw/B3S0ooOFkRqkomrFAlmZJnkLXD2jbJk2Ce+eEsW3A+mzOgsyzn8Wz5wV+EcRL7UQQeVJVW2JMaC5YfDt9r349Yj3KG85gwlYTm8Z3H0p2QTPNBUgUalViuyap9tSUYnrqEOI8DP6ZRmESh74eLeZAlURaELAI+T3CghIxLLN2ceXHFHttUDjJWi3I7rD8NrfcjqDRzVEJ/SviL5SVDyqscpOFTUkDJwCrdkJXVNQKaA7srZXOs2InS4jTial+M+MXdJN93lTlHXZT3u8dlOnjcw/kNWEAqNbW1HkrpTgnKTe8I4znU0m7Osb7grupUdi0WMjl2K1kX5ZfeDHIcMF4pIrVBErxySh33QUh+v1P7ryPLW1F2rgybUlGQxxVY9C6rrePTEi55gYPSAi8cHU3drYuuGbkU3lbiwsul2uOhLtceUEfcQ2PBu0X8poMfQQun4jOOwWbMgkkN1aIatXWHk8OUmMZsJBhz0ojmpj9rx7BXPGhLe3tcSzdojQc/80HGYXr5otIOOD2r9RDsyXrI8uTyjVyteVvgcx/yYEmD64GH6FrgJ32OL2M/anhL9oM/ZH9A/ir8cfw/+/+cfUczAyNo2n3/cZz7/Lxj+J9cyPtDj2ZTYZDbg8M+jv86bqPBRAl6Du2V/uFUnbDDbwpilm+/BgAA</values>
+        <workflow_reference/>
+    </sys_hub_flow_logic_instance_v2>
+    <sys_hub_flow_logic_instance_v2 action="INSERT_OR_UPDATE">
+        <attributes/>
+        <block display_value="">f7be09522fb77690d2a0d68fcea4e355</block>
+        <comment/>
+        <connected_to>3099b395-7c53-432d-a3fc-cf077b7a9639</connected_to>
+        <decision_table/>
+        <display_text/>
+        <flow display_value="Implement reimbursement notification and approval workflow">49d139d62fbb7690d2a0d68fcea4e3d3</flow>
+        <flow_variables_assigned/>
+        <generation_source/>
+        <logic_definition display_value="Else If">666e5545c3e232002841b63b12d3ae99</logic_definition>
+        <order>5</order>
+        <outputs_assigned/>
+        <parent_ui_id/>
+        <sys_class_name>sys_hub_flow_logic_instance_v2</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>1dd179d62fbb7690d2a0d68fcea4e316</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <ui_id>9daa1188-9993-4071-94cd-73ffe32dd42d</ui_id>
+        <updation_source/>
+        <values>H4sIAAAAAAAA/+1Vy27bMBD8lYBnWdDDdh3fDAcBCrQNkAS5tIGwIimbLSWqfMRRBf97l3rYRpOgLepjb+JwdzkzGkotUc7Wzpp7tTJGbCqy/PwYEFF5DJ9bUkHJyZJQVTFhhapIQJ5AOo+17byYx9M8Sib5gvPJlAGd5AWfTS7fRYtkNp9FaQoh1LVW2JMZC5bv919cFKVM86+cWs5wHhOmltA8nHks3QqJ60FSDRqVWK7Jsv1lSzA8tYigiC9pTNNkniZRlCymcT5P8zhhKXCIcaCEnEssXZ948Yo9tqk9ZKwW1WZYfxha70ZQaeapJFFA+LPlFUPKywKk4QEpoWJglW7I0mqHgObAbirZHCq2orI4jfjaZyN+cD8pinxlwVEX5f3uYZkNHvdwcQUWkIqj1umhlG6VoNz0jjBegJN2fYr1BTd1p7JrsZDLsVtJV1afejPIYcD4ShFxBknw2iv13Achxd1W7W5Hltei6lwZNqWiIA8rsOhd7qzn0xIueYmDshJjgI5mPguia0YuZbiRuAgLqXZ4qM91CNQTD9FYCK8Rv+rgB9DCq/iIY7AZs2AyQ7WoR23d4WQfENOYtQRjjhrR3Oy78wx7xYO2rLfHt3SDVnjwEx9k7IOXNyrrgOO1Wg3BvhDm4vbNW/JG1VlDn7wW+os+yy+jP+r4m/zHv8n/gPzRBZjN/uf/n/PvaeZgBM26fwCO85+gM16ARx/0/tCD2VQY5Hbvsffjn8dvNJgoQU+hndLfvKojtv8JAPEiD8MGAAA=</values>
+        <workflow_reference/>
+    </sys_hub_flow_logic_instance_v2>
+    <sys_hub_pill_compound action="delete_multiple" query="attached_to=49d139d62fbb7690d2a0d68fcea4e3d3^sys_idNOT IN25d179d62fbb7690d2a0d68fcea4e326,29d179d62fbb7690d2a0d68fcea4e325,61d179d62fbb7690d2a0d68fcea4e326,65d179d62fbb7690d2a0d68fcea4e325,6dd179d62fbb7690d2a0d68fcea4e326,a1d179d62fbb7690d2a0d68fcea4e325,a9d179d62fbb7690d2a0d68fcea4e326,add179d62fbb7690d2a0d68fcea4e325,e5d179d62fbb7690d2a0d68fcea4e326,e9d179d62fbb7690d2a0d68fcea4e325"/>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.short_description}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>25d179d62fbb7690d2a0d68fcea4e326</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>ced7ad35-8106-4cd7-9bd0-c248e22f496f</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.number}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>29d179d62fbb7690d2a0d68fcea4e325</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>92579e6e-84d4-41f1-a1cb-fdecf83cfa42</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.opened_by}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>61d179d62fbb7690d2a0d68fcea4e326</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>7d1bda0c-8f3d-488a-92e7-f0c8dcf9406d</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.opened_by}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>65d179d62fbb7690d2a0d68fcea4e325</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>8326e53b-a0f1-4217-b52b-961a0ebc295d</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.number}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>6dd179d62fbb7690d2a0d68fcea4e326</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>81a4fe68-33c1-4eae-92ea-e215ac5124af</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.number}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>a1d179d62fbb7690d2a0d68fcea4e325</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>8611cecb-6a17-4665-9654-a7da27306cdb</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.opened_by.first_name}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>a9d179d62fbb7690d2a0d68fcea4e326</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>fe0dd546-d438-419f-9efe-4627692f8ece</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.status}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>add179d62fbb7690d2a0d68fcea4e325</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>020b0d8a-44a7-4e7f-9ac0-7b3ecdbf1d61</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.status}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>e5d179d62fbb7690d2a0d68fcea4e326</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>2936555e-b646-4654-813d-29a67a8e5b73</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_pill_compound action="INSERT_OR_UPDATE">
+        <attached_to>49d139d62fbb7690d2a0d68fcea4e3d3</attached_to>
+        <extra_info/>
+        <order>0</order>
+        <prescription>{{Created or Updated_1.current.short_description}}</prescription>
+        <source_ui_id/>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>e9d179d62fbb7690d2a0d68fcea4e325</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <transform_compositions>[]</transform_compositions>
+        <transform_definition_id/>
+        <ui_id>fd56fa98-4081-4116-8361-cc4949e87db8</ui_id>
+    </sys_hub_pill_compound>
+    <sys_hub_flow_variable action="delete_multiple" query="model=49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_documentation action="INSERT_OR_UPDATE">
+        <element>current</element>
+        <help/>
+        <hint/>
+        <label>Record</label>
+        <language>en</language>
+        <name>var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3</name>
+        <plural/>
+        <sys_class_name>sys_documentation</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>51d139d62fbb7690d2a0d68fcea4e3e7</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <url/>
+        <url_target/>
+    </sys_documentation>
+    <sys_documentation action="INSERT_OR_UPDATE">
+        <element>changed_fields</element>
+        <help/>
+        <hint/>
+        <label>Changed Fields</label>
+        <language>en</language>
+        <name>var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3</name>
+        <plural/>
+        <sys_class_name>sys_documentation</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>59d139d62fbb7690d2a0d68fcea4e3fe</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <url/>
+        <url_target/>
+    </sys_documentation>
+    <sys_documentation action="INSERT_OR_UPDATE">
+        <element>table_name</element>
+        <help/>
+        <hint/>
+        <label>Table Name</label>
+        <language>en</language>
+        <name>var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3</name>
+        <plural/>
+        <sys_class_name>sys_documentation</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:16</sys_created_on>
+        <sys_id>d1d179d62fbb7690d2a0d68fcea4e309</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:16</sys_updated_on>
+        <url/>
+        <url_target/>
+    </sys_documentation>
+    <sys_choice action="delete_multiple" query="name=var__m_sys_hub_flow_input_49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_choice action="delete_multiple" query="name=var__m_sys_hub_flow_output_49d139d62fbb7690d2a0d68fcea4e3d3"/>
+    <sys_hub_flow action="UPDATE">
+        <sys_id>5e79491a2f777690d2a0d68fcea4e3cc</sys_id>
+        <latest_snapshot>49d139d62fbb7690d2a0d68fcea4e3d3</latest_snapshot>
+        <compiler_build/>
+        <version_record/>
+    </sys_hub_flow>
+    <sys_flow_trigger_plan action="delete_multiple" query="plan_id=5e79491a2f777690d2a0d68fcea4e3cc^sys_idNOT IN2dd179d62fbb7690d2a0d68fcea4e360"/>
+    <sys_flow_trigger_plan action="INSERT_OR_UPDATE">
+        <binding_strategy>com.snc.process_flow.engine.binding.OncePerRecord</binding_strategy>
+        <plan/>
+        <plan_id>5e79491a2f777690d2a0d68fcea4e3cc</plan_id>
+        <snapshot>49d139d62fbb7690d2a0d68fcea4e3d3</snapshot>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-25 11:00:17</sys_created_on>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>2dd179d62fbb7690d2a0d68fcea4e360</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_overrides/>
+        <sys_scope/>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-25 11:00:17</sys_updated_on>
+        <trigger display_value="">21d179d62fbb7690d2a0d68fcea4e35d</trigger>
+    </sys_flow_trigger_plan>
+    <sys_flow_subflow_plan action="delete_multiple" query="plan_id=5e79491a2f777690d2a0d68fcea4e3cc"/>
+</record_update>
