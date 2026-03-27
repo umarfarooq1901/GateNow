@@ -6,159 +6,179 @@
   var c = this;
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>.dm-sidebar {
-width: 100%;
-height: calc(100vh - 64px);
-/* ✅ Fixed missing semicolons and removed margin-top that was breaking the layout */
-background:linear-gradient(135deg, #3D3180, #5443AD, #6B5FBF);
-border-right: 1px solid #e5e7eb;
-padding: 24px 16px;
-display: flex;
-flex-direction: column;
-font-family: "Inter", sans-serif;
-position: sticky;
-top: 64px;
-box-sizing: border-box;
-margin-top:13%
+        <css>/* ════════════════════════════════════════
+   SIDEBAR — FIXED &amp; REFINED
+════════════════════════════════════════ */
+.dm-sidebar {
+  width: 100%;
+  height: 100vh;
+  background: linear-gradient(160deg, #2d2669 0%, #4a3fa0 50%, #6b5fd4 100%);
+  border-right: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  /* ✅ removed margin-top: 13% — was the main spacing bug */
 }
 
+/* subtle inner shadow on right edge */
+.dm-sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 1px; height: 100%;
+  background: rgba(255,255,255,0.08);
+  pointer-events: none;
+}
 
-
-/* ===============================
-   LOGO SECTION
-=============================== */
-
+/* ════════════════════════════════════════
+   LOGO / BRAND SECTION
+════════════════════════════════════════ */
 .dm-logo {
-    display: flex;
-    align-items: center;
-    margin-bottom: 30px;
-    cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  text-decoration: none;
+  flex-shrink: 0;
 }
 
 .dm-logo-icon {
-    width: 38px;
-    height: 38px;
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 10px;
-    font-size: 16px;
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
 }
 
+.dm-logo-text { min-width: 0; }
+
 .dm-title {
-    font-weight: 600;
-    font-size: 14px;
-    color: #ffffff;
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  color: #ffffff;
+  letter-spacing: -.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dm-sub {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+  display: block;
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 1px;
+  letter-spacing: .2px;
 }
 
+/* ════════════════════════════════════════
+   NAV SECTION LABEL
+════════════════════════════════════════ */
+.dm-nav-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  padding: 18px 20px 8px;
+}
 
-/* ===============================
-   MENU
-=============================== */
-
+/* ════════════════════════════════════════
+   MENU LIST
+════════════════════════════════════════ */
 .dm-menu {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    flex: 1;
+  list-style: none;
+  padding: 8px 12px;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
+
+/* hide scrollbar but keep scroll */
+.dm-menu::-webkit-scrollbar { width: 0; }
 
 .dm-menu li {
-    margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
-/* ✅ White text on dark gradient bg */
+/* ── Base link ── */
 .dm-menu a {
-    display: flex;
-    align-items: center;
-    padding: 10px 14px;
-    border-radius: 8px;
-    text-decoration: none;
-    font-size: 14px;
-    color: #ffffff;
-    transition: background 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.75);
+  position: relative;
+  transition:
+    background .18s ease,
+    color .18s ease,
+    padding-left .18s ease;
 }
 
-.dm-menu a span {
-    font-weight: 500;
-}
-
-/* ✅ White icons — gradient clip removed since sidebar bg is dark */
+/* ── Icon ── */
 .dm-menu a i {
-    width: 24px;
-    text-align: center;
-    margin-right: 12px;
-    font-size: 15px;
-    transition: all 0.2s ease;
-    background: none;
-    -webkit-background-clip: unset;
-    -webkit-text-fill-color: #ffffff;
-    background-clip: unset;
-    color: #ffffff;
+  width: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  flex-shrink: 0;
+  transition: color .18s ease, transform .18s ease;
 }
 
-
-/* ===============================
-   HOVER
-=============================== */
-
-/* ✅ Soft white overlay on hover instead of gray */
+/* ── Hover ── */
 .dm-menu li:not(.active) a:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
+  background: rgba(255,255,255,0.1);
+  color: #ffffff;
+  padding-left: 15px;
 }
-
 .dm-menu li:not(.active) a:hover i {
-    background: none;
-    -webkit-background-clip: unset;
-    -webkit-text-fill-color: #ffffff;
-    background-clip: unset;
-    color: #ffffff;
+  color: #ffffff;
+  transform: scale(1.1);
 }
 
-
-/* ===============================
-   ACTIVE LINK
-=============================== */
-
-/* ✅ Semi-transparent white pill for active item */
+/* ── Active state — white pill + left accent bar ── */
 .dm-menu li.active a {
-    background: rgba(255, 255, 255, 0.25);
-    color: #ffffff;
+  background: rgba(255,255,255,0.18);
+  color: #ffffff;
+  font-weight: 700;
+  padding-left: 15px;
+  box-shadow: inset 3px 0 0 #ffffff;  /* ← left accent bar */
 }
-
 .dm-menu li.active a i {
-    background: none;
-    -webkit-background-clip: unset;
-    -webkit-text-fill-color: #ffffff;
-    background-clip: unset;
-    color: #ffffff;
+  color: #ffffff;
 }
 
-
-/* ===============================
+/* ════════════════════════════════════════
    FOOTER
-=============================== */
-
+════════════════════════════════════════ */
 .dm-footer {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
-    padding-top: 15px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+  padding: 14px 20px 18px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: .1px;
 }
-
 .dm-version {
-    margin-top: 3px;
-}
-</css>
+  margin-top: 2px;
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -184,49 +204,68 @@ margin-top:13%
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-10 07:31:36</sys_created_on>
         <sys_id>3af1b39deb67b610520dfbdffdc0cde4</sys_id>
-        <sys_mod_count>35</sys_mod_count>
+        <sys_mod_count>37</sys_mod_count>
         <sys_name>Sidebar Dashboard</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_3af1b39deb67b610520dfbdffdc0cde4</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-03-24 11:24:24</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-03-26 19:05:25</sys_updated_on>
         <template><![CDATA[<div class="dm-sidebar">
 
+  <!-- Brand -->
+  <a class="dm-logo" href="/applicant?id=applicant_dashboard">
+    <div class="dm-logo-icon">
+      <i class="fa fa-bolt"></i>
+    </div>
+    <div class="dm-logo-text">
+      <span class="dm-title">GateNow</span>
+      <span class="dm-sub">Applicant Portal</span>
+    </div>
+  </a>
 
-<!-- Navigation -->
-<ul class="dm-menu">
+  <!-- Nav label -->
+  <div class="dm-nav-label">Navigation</div>
 
-<li ng-class="{active: c.isActive('dmm_dashboard')}">
-<a href="/applicant?id=applicant_dashboard">
- <i class="fa fa-th-large"></i> 
-<span>Dashboard</span>
-</a>
-</li>
+  <!-- Menu -->
+  <ul class="dm-menu">
 
-<li ng-class="{active: c.isActive('dmm_browse')}">
-<a href="/applicant?id=my_application_page">
- <i class="fa fa-file-text-o"></i>
-<span>Applications</span>
-</a>
-</li>
+    <li ng-class="{active: c.isActive('dmm_dashboard')}">
+      <a href="/applicant?id=applicant_dashboard">
+        <i class="fa fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+    </li>
 
-<li ng-class="{active: c.isActive('dmm_cart')}">
-<a href="/applicant?id=my_awards_page">
- <i class="fa fa-trophy"></i>
-<span>Awards</span>
-</a>
-</li>
-<li ng-class="{active: c.isActive('dmm_report')}">
-<a href="/applicant?id=my_project_page">
-<i class="fa fa-briefcase"></i>
-<span>Projects</span>
-</a>
-</li>
+    <li ng-class="{active: c.isActive('dmm_browse')}">
+      <a href="/applicant?id=my_application_page">
+        <i class="fa fa-file-text-o"></i>
+        <span>Applications</span>
+      </a>
+    </li>
 
-</ul>
+    <li ng-class="{active: c.isActive('dmm_cart')}">
+      <a href="/applicant?id=my_awards_page">
+        <i class="fa fa-trophy"></i>
+        <span>Awards</span>
+      </a>
+    </li>
 
+    <li ng-class="{active: c.isActive('dmm_report')}">
+      <a href="/applicant?id=my_project_page">
+        <i class="fa fa-briefcase"></i>
+        <span>Projects</span>
+      </a>
+    </li>
+
+  </ul>
+
+  <!-- Footer -->
+  <div class="dm-footer">
+    GateNow &copy; 2026
+    <div class="dm-version">v2.0.0</div>
+  </div>
 
 </div>]]></template>
     </sp_widget>

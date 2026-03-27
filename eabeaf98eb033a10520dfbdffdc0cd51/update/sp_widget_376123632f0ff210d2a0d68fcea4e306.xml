@@ -4,80 +4,76 @@
         <client_script><![CDATA[function(spUtil, $window, $timeout, $scope) {
   var c = this;
 
+  // ── User session ──────────────────────────────────────────
   c.sessionUser = {
     name:     ($scope.user && $scope.user.name)   || c.data.currentUser.name   || 'Reviewer',
     email:    c.data.currentUser.email            || '',
     sys_id:   ($scope.user && $scope.user.sys_id) || c.data.currentUser.sys_id || '',
-    initials: ($window.NOW && $window.NOW.user_initials) ? $window.NOW.user_initials : c.data.currentUser.initials || 'R',
+    initials: ($window.NOW && $window.NOW.user_initials) || c.data.currentUser.initials || 'R',
     loggedIn: $scope.user && $scope.user.logged_in
   };
 
+  // ── Navigation ────────────────────────────────────────────
   c.activeSection = 'home';
   c.sidebarOpen   = true;
 
   c.navTo = function(section) {
     c.activeSection = section;
-    // reset proposal page when switching to proposals
     if (section === 'proposals') c.proposalPage = 1;
   };
   c.toggleSidebar = function() { c.sidebarOpen = !c.sidebarOpen; };
 
   c.profileOpen = false;
-  c.toggleProfile = function($event) {
-    $event.stopPropagation();
-    c.profileOpen = !c.profileOpen;
-  };
-  c.logout = function() {
-    $window.location.href = c.data.logoutUrl || '/login.do?logout=true';
-  };
-  c.goToProfile = function() {
-    c.profileOpen = false;
-    $window.location.href = c.data.profilePage || '?id=user_profile';
-  };
+  c.toggleProfile = function($event) { $event.stopPropagation(); c.profileOpen = !c.profileOpen; };
+  c.logout    = function() { $window.location.href = c.data.logoutUrl || '/login.do?logout=true'; };
+  c.goToProfile = function() { c.profileOpen = false; $window.location.href = c.data.profilePage || '?id=user_profile'; };
 
   // ── Filters ───────────────────────────────────────────────
-  c.searchText      = '';
-  c.statusFilter    = '';
-  c.categoryFilter  = '';
-  c.programFilter   = '';
+  c.searchText     = '';
+  c.statusFilter   = '';
+  c.categoryFilter = '';
+  c.programFilter  = '';
 
   // ── Pagination ────────────────────────────────────────────
-  c.proposalPage    = 1;
-  c.pageSize        = 12;  // 12 cards per page (4x3 grid)
+  c.proposalPage = 1;
+  c.pageSize     = 12;
 
-  // Reset to page 1 whenever any filter changes
   $scope.$watchGroup(
-    ['c.searchText', 'c.statusFilter', 'c.categoryFilter', 'c.programFilter'],
+    ['c.searchText','c.statusFilter','c.categoryFilter','c.programFilter'],
     function() { c.proposalPage = 1; }
   );
 
-  // ── Unique category list for dropdown ─────────────────────
+  // ── Dropdown options ──────────────────────────────────────
   c.categoryOptions = function() {
-    var seen = {};
-    var opts = [];
+    var seen = {}, opts = [];
     (c.data.reviews || []).forEach(function(r) {
       if (r.status !== 'Review completed' && r.program_category && !seen[r.program_category]) {
-        seen[r.program_category] = true;
-        opts.push(r.program_category);
+        seen[r.program_category] = true; opts.push(r.program_category);
       }
     });
     return opts.sort();
   };
 
-  // ── Unique program name list for dropdown ──────────────────
   c.programOptions = function() {
-    var seen = {};
-    var opts = [];
+    var seen = {}, opts = [];
     (c.data.reviews || []).forEach(function(r) {
       if (r.status !== 'Review completed' && r.program && !seen[r.program]) {
-        seen[r.program] = true;
-        opts.push(r.program);
+        seen[r.program] = true; opts.push(r.program);
       }
     });
     return opts.sort();
   };
 
-  // ── Full filtered list (no pagination) ────────────────────
+  // ── Status options (all 5 real values) ────────────────────
+  c.allStatuses = [
+    'Review pending',
+    'Review in progress',
+    'Review completed',
+    'Escalated',
+    'Declined by Reviewer'
+  ];
+
+  // ── Filter logic ──────────────────────────────────────────
   c.filteredProposals = function() {
     return (c.data.reviews || []).filter(function(r) {
       if (r.status === 'Review completed') return false;
@@ -86,63 +82,53 @@
       if (c.programFilter  && r.program          !== c.programFilter)  return false;
       if (c.searchText) {
         var txt = c.searchText.toLowerCase();
-        var num = (r.number           || '').toLowerCase();
-        var prg = (r.program          || '').toLowerCase();
-        var app = (r.applicant        || '').toLowerCase();
-        var cat = (r.program_category || '').toLowerCase();
-        if (num.indexOf(txt) === -1 &&
-            prg.indexOf(txt) === -1 &&
-            app.indexOf(txt) === -1 &&
-            cat.indexOf(txt) === -1) return false;
+        if ((r.number           || '').toLowerCase().indexOf(txt) === -1 &&
+            (r.program          || '').toLowerCase().indexOf(txt) === -1 &&
+            (r.applicant        || '').toLowerCase().indexOf(txt) === -1 &&
+            (r.program_category || '').toLowerCase().indexOf(txt) === -1) return false;
       }
       return true;
     });
   };
 
-  // ── Paginated slice shown on current page ─────────────────
   c.pagedProposals = function() {
-    var all   = c.filteredProposals();
+    var all = c.filteredProposals();
     var start = (c.proposalPage - 1) * c.pageSize;
     return all.slice(start, start + c.pageSize);
   };
 
-  // ── Total pages ───────────────────────────────────────────
-  c.totalPages = function() {
-    return Math.ceil(c.filteredProposals().length / c.pageSize) || 1;
-  };
+  c.totalPages = function() { return Math.ceil(c.filteredProposals().length / c.pageSize) || 1; };
 
-  // ── Page numbers array for rendering buttons ──────────────
   c.pageNumbers = function() {
-    var total  = c.totalPages();
-    var current = c.proposalPage;
-    var pages  = [];
-    var start  = Math.max(1, current - 2);
-    var end    = Math.min(total, current + 2);
-    if (start > 1)     pages.push(1);
-    if (start > 2)     pages.push('...');
+    var total = c.totalPages(), current = c.proposalPage, pages = [];
+    var start = Math.max(1, current - 2), end = Math.min(total, current + 2);
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push('...');
     for (var i = start; i <= end; i++) pages.push(i);
     if (end < total - 1) pages.push('...');
-    if (end < total)   pages.push(total);
+    if (end < total) pages.push(total);
     return pages;
   };
 
-  c.goToPage = function(p) {
-    if (p === '...' || p < 1 || p > c.totalPages()) return;
-    c.proposalPage = p;
-  };
-
+  c.goToPage = function(p) { if (p !== '...' && p >= 1 && p <= c.totalPages()) c.proposalPage = p; };
   c.prevPage = function() { if (c.proposalPage > 1) c.proposalPage--; };
   c.nextPage = function() { if (c.proposalPage < c.totalPages()) c.proposalPage++; };
 
-  // ── Completed reviews ─────────────────────────────────────
+  // ── Completed / Recent ────────────────────────────────────
   c.completedReviews = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      return r.status === 'Review completed';
-    });
+    return (c.data.reviews || []).filter(function(r) { return r.status === 'Review completed'; });
   };
 
   c.recentActivity = function() {
-    return (c.data.reviews || []).slice(0, 5);
+    return (c.data.reviews || []).filter(function(r) { return r.status !== 'Review completed'; }).slice(0, 8);
+  };
+
+  c.overdueReviews = function() {
+    return (c.data.reviews || []).filter(function(r) { return r.is_overdue; });
+  };
+
+  c.dueSoonReviews = function() {
+    return (c.data.reviews || []).filter(function(r) { return r.is_due_soon; });
   };
 
   c.openRecord = function(rev) {
@@ -155,13 +141,28 @@
     return Math.min(Math.round((parseInt(score) / 10) * 100), 100) + '%';
   };
 
-  // ── Animated stats ────────────────────────────────────────
-  c.animatedStats = { total: 0, inProgress: 0, completed: 0, onHold: 0 };
+  // deadline CSS helper
+  c.deadlineClass = function(rev) {
+    if (rev.is_overdue)  return 'rvd-deadline--overdue';
+    if (rev.is_due_soon) return 'rvd-deadline--soon';
+    return 'rvd-deadline--ok';
+  };
+
+  // status color helper
+  c.statusChipClass = function(status) {
+    if (status === 'Review completed')      return 'rvd-chip--green';
+    if (status === 'Escalated')             return 'rvd-chip--red';
+    if (status === 'Declined by Reviewer')  return 'rvd-chip--rose';
+    if (status === 'Review pending')        return 'rvd-chip--slate';
+    return 'rvd-chip--amber'; // in progress
+  };
+
+  // ── Animated KPI counters ─────────────────────────────────
+  c.animatedStats = { total:0, inProgress:0, completed:0, escalated:0, declined:0, pending:0 };
 
   function animateCount(key, target) {
-    if (!target || target === 0) return;
-    var step = Math.ceil(target / 30);
-    var current = 0;
+    if (!target) return;
+    var step = Math.ceil(target / 30), current = 0;
     var interval = setInterval(function() {
       current += step;
       if (current >= target) { current = target; clearInterval(interval); }
@@ -175,10 +176,265 @@
     animateCount('total',      s.total      || 0);
     animateCount('inProgress', s.inProgress || 0);
     animateCount('completed',  s.completed  || 0);
-    animateCount('onHold',     s.onHold     || 0);
+    animateCount('escalated',  s.escalated  || 0);
+    animateCount('declined',   s.declined   || 0);
+    animateCount('pending',    s.pending    || 0);
   }, 300);
-}
-]]></client_script>
+
+  // ════════════════════════════════════════════════════════
+  // CHART.JS CHARTS
+  // ════════════════════════════════════════════════════════
+  c.drawCharts = function() {
+    var s       = c.data.stats  || {};
+    var reviews = c.data.reviews || [];
+    var total   = s.total      || 0;
+    var prog    = s.inProgress || 0;
+    var done    = s.completed  || 0;
+    var esc     = s.escalated  || 0;
+    var dec     = s.declined   || 0;
+    var pend    = s.pending    || 0;
+
+    if (typeof Chart === 'undefined') return;
+    Chart.defaults.font.family = "'Inter','Segoe UI',sans-serif";
+    Chart.defaults.color       = '#64748b';
+
+    // helper: destroy & recreate
+    function makeChart(id, config) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el._ci) { try { el._ci.destroy(); } catch(e){} }
+      el._ci = new Chart(el, config);
+    }
+
+    /* ── 1. Full-status Donut ── */
+    makeChart('rvdDonutChart', {
+      type: 'doughnut',
+      data: {
+        labels: ['In Progress','Completed','Escalated','Declined','Pending'],
+        datasets: [{
+          data: [prog, done, esc, dec, pend],
+          backgroundColor: ['#6366f1','#10b981','#ef4444','#f97316','#94a3b8'],
+          borderWidth: 5, borderColor: '#fff', hoverOffset: 10
+        }]
+      },
+      options: {
+        cutout: '74%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(ctx) {
+            var pct = total ? Math.round(ctx.parsed / total * 100) : 0;
+            return ' ' + ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
+          }}}
+        },
+        animation: { animateRotate: true, duration: 1400, easing: 'easeOutQuart' }
+      }
+    });
+
+    /* ── 2. Horizontal Status Bar ── */
+    makeChart('rvdProgressBar', {
+      type: 'bar',
+      data: {
+        labels: ['Pending','In Progress','Escalated','Declined','Completed'],
+        datasets: [{
+          label: 'Proposals',
+          data: [pend, prog, esc, dec, done],
+          backgroundColor: ['#94a3b8','#6366f1','#ef4444','#f97316','#10b981'],
+          borderRadius: 10, borderSkipped: false
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { max: total || 10, grid: { color: '#f1f5f9' },
+               ticks: { color: '#94a3b8', font: { size: 11 } } },
+          y: { grid: { display: false },
+               ticks: { color: '#374151', font: { size: 12, weight: '700' } } }
+        },
+        animation: { duration: 1200, easing: 'easeOutCubic' }
+      }
+    });
+
+    /* ── 3. Deadline Timeline Bar — overdue / due soon / on track ── */
+    var overdue  = s.overdue  || 0;
+    var dueSoon  = s.dueSoon  || 0;
+    var onTrack  = Math.max(0, total - done - dec - overdue - dueSoon);
+    makeChart('rvdDeadlineChart', {
+      type: 'bar',
+      data: {
+        labels: ['Overdue','Due in ≤3 Days','On Track'],
+        datasets: [{
+          label: 'Reviews',
+          data: [overdue, dueSoon, onTrack],
+          backgroundColor: ['#ef4444','#f59e0b','#10b981'],
+          borderRadius: 12, borderSkipped: false, barThickness: 40
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#374151', font: { size: 12, weight: '700' } } },
+          y: { beginAtZero: true, grid: { color: '#f1f5f9' },
+               ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 } }
+        },
+        animation: { duration: 1200, easing: 'easeOutCubic' }
+      }
+    });
+
+    /* ── 4. Review Activity Line (simulated from review data) ── */
+    var days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    var dist = [0,0,0,0,0,0,0];
+    reviews.forEach(function(r, i) { dist[i % 7]++; });
+    makeChart('rvdActivityLine', {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [{
+          label: 'Reviews Actioned',
+          data: dist,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.08)',
+          borderWidth: 3,
+          pointBackgroundColor: '#6366f1',
+          pointBorderColor: '#fff', pointBorderWidth: 2,
+          pointRadius: 6, pointHoverRadius: 9,
+          tension: 0.45, fill: true
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11, weight: '600' } } },
+          y: { beginAtZero: true, grid: { color: '#f1f5f9' },
+               ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 } }
+        },
+        animation: { duration: 1600, easing: 'easeOutQuart' }
+      }
+    });
+
+    /* ── 5. Half-Donut Gauge — Escalation Rate ── */
+    var escRate = total ? Math.round(esc / total * 100) : 0;
+    makeChart('rvdGauge', {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [escRate, 100 - escRate],
+          backgroundColor: [escRate > 10 ? '#ef4444' : '#10b981', '#f1f5f9'],
+          borderWidth: 0, circumference: 180, rotation: 270
+        }]
+      },
+      options: {
+        cutout: '75%',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        animation: { animateRotate: true, duration: 1400 }
+      }
+    });
+
+    /* ── 6. Category Grouped Bar ── */
+    var catMap = {};
+    reviews.forEach(function(r) {
+      var cat = r.program_category || 'Uncategorized';
+      if (!catMap[cat]) catMap[cat] = { prog:0, done:0, esc:0, dec:0, pend:0 };
+      if (r.status === 'Review in progress')   catMap[cat].prog++;
+      else if (r.status === 'Review completed') catMap[cat].done++;
+      else if (r.status === 'Escalated')        catMap[cat].esc++;
+      else if (r.status === 'Declined by Reviewer') catMap[cat].dec++;
+      else if (r.status === 'Review pending')   catMap[cat].pend++;
+    });
+    var catLabels = Object.keys(catMap);
+    if (catLabels.length) {
+      makeChart('rvdCategoryChart', {
+        type: 'bar',
+        data: {
+          labels: catLabels,
+          datasets: [
+            { label: 'In Progress', data: catLabels.map(function(k){ return catMap[k].prog; }),
+              backgroundColor: '#6366f1', borderRadius: 6, borderSkipped: false },
+            { label: 'Completed',   data: catLabels.map(function(k){ return catMap[k].done; }),
+              backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
+            { label: 'Escalated',   data: catLabels.map(function(k){ return catMap[k].esc;  }),
+              backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false },
+            { label: 'Declined',    data: catLabels.map(function(k){ return catMap[k].dec;  }),
+              backgroundColor: '#f97316', borderRadius: 6, borderSkipped: false },
+            { label: 'Pending',     data: catLabels.map(function(k){ return catMap[k].pend; }),
+              backgroundColor: '#94a3b8', borderRadius: 6, borderSkipped: false }
+          ]
+        },
+        options: {
+          plugins: {
+            legend: { position: 'bottom', labels: {
+              usePointStyle: true, pointStyle: 'circle',
+              font: { size: 11, weight: '600' }, color: '#374151', padding: 16
+            }}
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' },
+                 ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 } }
+          },
+          animation: { duration: 1200, easing: 'easeOutCubic' }
+        }
+      });
+    }
+
+    /* ── 7. Reviewer Group Load Bar (who has how many) ── */
+    var grpMap = {};
+    reviews.forEach(function(r) {
+      var grp = r.assignment_group || 'Unassigned';
+      grpMap[grp] = (grpMap[grp] || 0) + 1;
+    });
+    var grpLabels = Object.keys(grpMap);
+    if (grpLabels.length) {
+      makeChart('rvdGroupChart', {
+        type: 'bar',
+        data: {
+          labels: grpLabels,
+          datasets: [{
+            label: 'Proposals Assigned',
+            data: grpLabels.map(function(k){ return grpMap[k]; }),
+            backgroundColor: grpLabels.map(function(_, i) {
+              var palette = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#f97316'];
+              return palette[i % palette.length];
+            }),
+            borderRadius: 10, borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { beginAtZero: true, grid: { color: '#f1f5f9' },
+                 ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 } },
+            y: { grid: { display: false },
+                 ticks: { color: '#374151', font: { size: 12, weight: '700' } } }
+          },
+          animation: { duration: 1200, easing: 'easeOutCubic' }
+        }
+      });
+    }
+  };
+
+  // ── Load Chart.js then draw ───────────────────────────────
+  function loadChartJS(cb) {
+    if (typeof Chart !== 'undefined') { cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  $timeout(function() {
+    loadChartJS(function() {
+      $timeout(function() { c.drawCharts(); }, 100);
+    });
+  }, 500);
+
+  $scope.$watch('c.activeSection', function(newVal) {
+    if (newVal === 'home') {
+      $timeout(function() { c.drawCharts(); }, 150);
+    }
+  });
+}]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════════════════
    SHELL &amp; LAYOUT
@@ -189,242 +445,7 @@
   background: #f0f2f8;
   font-family: 'Inter', 'Segoe UI', sans-serif;
   overflow: hidden;
-  margin-top:4.5%;
-}
-/* ═══════════════════════════════════════════════════
-   SIDEBAR PROFILE &amp; DROPDOWN
-═══════════════════════════════════════════════════ */
-.rvd-sidebar__footer {
-  padding: 12px 10px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  position: relative;
-}
-
-.rvd-profile-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.18s;
-  user-select: none;
-  position: relative;
-}
-/* Results meta bar */
-.rvd-results-meta {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  color: #6b7280;
-  margin-bottom: 16px;
-}
-.rvd-results-meta a {
-  color: #6366f1;
-  text-decoration: none;
-  cursor: pointer;
-}
-.rvd-results-meta a:hover { text-decoration: underline; }
-
-/* Pagination */
-.rvd-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 32px;
-  padding-bottom: 24px;
-}
-.rvd-page-btn {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.rvd-page-btn:hover:not([disabled]):not(.rvd-page-btn--ellipsis) {
-  background: #f3f4f6;
-  border-color: #6366f1;
-  color: #6366f1;
-}
-.rvd-page-btn--active {
-  background: #6366f1 !important;
-  border-color: #6366f1 !important;
-  color: #fff !important;
-}
-.rvd-page-btn--ellipsis {
-  border: none;
-  background: transparent;
-  cursor: default;
-  color: #9ca3af;
-}
-.rvd-page-btn--nav { font-size: 12px; }
-.rvd-page-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
-
-.rvd-profile-card:hover,
-.rvd-profile-card--open {
-  background: rgba(255,255,255,0.10);
-}
-
-.rvd-profile-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #818cf8, #6366f1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
-  letter-spacing: 0.5px;
-  border: 2px solid rgba(255,255,255,0.2);
-}
-
-.rvd-profile-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow: hidden;
-  transition: opacity 0.2s, width 0.3s;
-}
-
-.rvd-sidebar--collapsed .rvd-profile-details,
-.rvd-sidebar--collapsed .rvd-profile-caret {
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
-}
-
-.rvd-profile-name {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.rvd-profile-role {
-  font-size: 11px;
-  color: rgba(255,255,255,0.45);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.rvd-profile-caret {
-  font-size: 10px;
-  color: rgba(255,255,255,0.4);
-  flex-shrink: 0;
-  transition: transform 0.2s;
-}
-
-/* Dropdown */
-.rvd-profile-dropdown {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 10px;
-  right: 10px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.12);
-  overflow: hidden;
-  z-index: 200;
-  animation: rvdDropUp 0.18s cubic-bezier(.4,0,.2,1);
-}
-
-@keyframes rvdDropUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0);   }
-}
-
-.rvd-dropdown-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 14px 12px;
-  background: #fafafa;
-}
-
-.rvd-dropdown-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #818cf8, #6366f1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.rvd-dropdown-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.rvd-dropdown-email {
-  font-size: 11.5px;
-  color: #9ca3af;
-  margin-top: 1px;
-}
-
-.rvd-dropdown-divider {
-  height: 1px;
-  background: #f3f4f6;
-}
-
-.rvd-dropdown-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
-  background: none;
-  border: none;
-  font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s, color 0.12s;
-  font-weight: 500;
-}
-
-.rvd-dropdown-item i {
-  font-size: 14px;
-  color: #9ca3af;
-  width: 18px;
-  text-align: center;
-}
-
-.rvd-dropdown-item:hover {
-  background: #f9fafb;
-  color: #111827;
-}
-
-.rvd-dropdown-item--danger {
-  color: #ef4444;
-}
-
-.rvd-dropdown-item--danger i {
-  color: #ef4444;
-}
-
-.rvd-dropdown-item--danger:hover {
-  background: #fef2f2;
-  color: #dc2626;
+  margin-top: 4.5%;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -452,13 +473,16 @@
 .rvd-sidebar--collapsed .rvd-brand-text,
 .rvd-sidebar--collapsed .rvd-nav__label,
 .rvd-sidebar--collapsed .rvd-nav__badge,
-.rvd-sidebar--collapsed .rvd-reviewer-info {
+.rvd-sidebar--collapsed .rvd-reviewer-info,
+.rvd-sidebar--collapsed .rvd-profile-details,
+.rvd-sidebar--collapsed .rvd-profile-caret {
   opacity: 0;
   pointer-events: none;
   width: 0;
   overflow: hidden;
 }
 
+/* Brand */
 .rvd-sidebar__brand {
   display: flex;
   align-items: center;
@@ -558,16 +582,170 @@
   transition: opacity 0.2s;
 }
 
-.rvd-nav__badge--green {
-  background: #10b981;
-}
+.rvd-nav__badge--green { background: #10b981; }
 
-/* Sidebar footer */
+/* ═══════════════════════════════════════════════════
+   SIDEBAR PROFILE &amp; DROPDOWN
+═══════════════════════════════════════════════════ */
 .rvd-sidebar__footer {
-  padding: 16px 12px;
+  padding: 12px 10px;
   border-top: 1px solid rgba(255,255,255,0.08);
+  position: relative;
 }
 
+.rvd-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s;
+  user-select: none;
+  position: relative;
+}
+
+.rvd-profile-card:hover,
+.rvd-profile-card--open {
+  background: rgba(255,255,255,0.10);
+}
+
+.rvd-profile-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.rvd-profile-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  transition: opacity 0.2s, width 0.3s;
+}
+
+.rvd-profile-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rvd-profile-role {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rvd-profile-caret {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+/* Dropdown */
+.rvd-profile-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  right: 10px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.12);
+  overflow: hidden;
+  z-index: 200;
+  animation: rvdDropUp 0.18s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes rvdDropUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.rvd-dropdown-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  background: #fafafa;
+}
+
+.rvd-dropdown-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.rvd-dropdown-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.rvd-dropdown-email {
+  font-size: 11.5px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+.rvd-dropdown-divider { height: 1px; background: #f3f4f6; }
+
+.rvd-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  font-weight: 500;
+}
+
+.rvd-dropdown-item i {
+  font-size: 14px;
+  color: #9ca3af;
+  width: 18px;
+  text-align: center;
+}
+
+.rvd-dropdown-item:hover { background: #f9fafb; color: #111827; }
+
+.rvd-dropdown-item--danger { color: #ef4444; }
+.rvd-dropdown-item--danger i { color: #ef4444; }
+.rvd-dropdown-item--danger:hover { background: #fef2f2; color: #dc2626; }
+
+/* ═══════════════════════════════════════════════════
+   REVIEWER PILL (collapsed footer)
+═══════════════════════════════════════════════════ */
 .rvd-reviewer-pill {
   display: flex;
   align-items: center;
@@ -642,10 +820,7 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.rvd-topbar__toggle:hover {
-  background: #f3f4f6;
-  color: #111827;
-}
+.rvd-topbar__toggle:hover { background: #f3f4f6; color: #111827; }
 
 .rvd-topbar__breadcrumb {
   font-size: 15px;
@@ -676,7 +851,385 @@
 }
 
 /* ═══════════════════════════════════════════════════
-   WELCOME BANNER
+   HOME — REDESIGNED HERO BANNER
+═══════════════════════════════════════════════════ */
+.rvd-hero {
+  background: linear-gradient(135deg, #1e1756 0%, #3d3180 45%, #6b5fd4 100%);
+  border-radius: 22px;
+  padding: 38px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin-bottom: 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(61,49,128,0.35);
+}
+
+.rvd-hero::before {
+  content: '';
+  position: absolute;
+  top: -80px; right: -60px;
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  pointer-events: none;
+}
+
+.rvd-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -100px; right: 240px;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.03);
+  pointer-events: none;
+}
+
+.rvd-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.65);
+  text-transform: uppercase;
+  letter-spacing: .9px;
+  margin-bottom: 10px;
+}
+
+.rvd-hero__pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52,211,153,0.3);
+  animation: rvdPulse 2s ease-in-out infinite;
+}
+
+@keyframes rvdPulse {
+  0%,100% { box-shadow: 0 0 0 3px rgba(52,211,153,0.25); }
+  50%     { box-shadow: 0 0 0 7px rgba(52,211,153,0.08); }
+}
+
+.rvd-hero__title {
+  font-size: 30px;
+  font-weight: 900;
+  color: #fff;
+  margin: 0 0 10px;
+  letter-spacing: -.5px;
+  line-height: 1.2;
+}
+
+.rvd-hero__name            { color: #c4b5fd; }
+.rvd-hero__sub             { font-size: 14px; color: rgba(255,255,255,0.72); margin: 0 0 20px; line-height: 1.6; }
+.rvd-hero__highlight       { color: #fff; font-weight: 800; }
+.rvd-hero__highlight--green{ color: #34d399; }
+
+.rvd-hero__cta-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.rvd-hero__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s, gap 0.18s;
+  backdrop-filter: blur(6px);
+}
+
+.rvd-hero__cta:hover { background: rgba(255,255,255,0.28); gap: 12px; }
+
+.rvd-hero__meta {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rvd-hero__right {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.rvd-hero__stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  padding: 16px 28px;
+  gap: 5px;
+  backdrop-filter: blur(8px);
+  min-width: 90px;
+  transition: background 0.18s;
+}
+
+.rvd-hero__stat-pill:hover  { background: rgba(255,255,255,0.2); }
+.rvd-hsp--green { border-color: rgba(52,211,153,0.3); }
+.rvd-hsp--red   { border-color: rgba(252,165,165,0.3); }
+
+.rvd-hsp-val { font-size: 30px; font-weight: 900; color: #fff; line-height: 1; }
+.rvd-hsp--green .rvd-hsp-val { color: #34d399; }
+.rvd-hsp--red   .rvd-hsp-val { color: #fca5a5; }
+
+.rvd-hsp-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* ═══════════════════════════════════════════════════
+   KPI ROW (replaces old stat cards on home)
+═══════════════════════════════════════════════════ */
+.rvd-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.rvd-kpi {
+  border-radius: 16px;
+  padding: 18px 18px 0;
+  border: 1px solid transparent;
+  overflow: hidden;
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.18s, box-shadow 0.18s;
+  cursor: default;
+}
+
+.rvd-kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+
+.rvd-kpi--purple { background: linear-gradient(135deg,#f5f3ff,#ede9fe); border-color: #ddd6fe; }
+.rvd-kpi--amber  { background: linear-gradient(135deg,#fffbeb,#fef3c7); border-color: #fde68a; }
+.rvd-kpi--green  { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #bbf7d0; }
+.rvd-kpi--red    { background: linear-gradient(135deg,#fff5f5,#fee2e2); border-color: #fecaca; }
+.rvd-kpi--blue   { background: linear-gradient(135deg,#f0f9ff,#e0f2fe); border-color: #bae6fd; }
+
+.rvd-kpi__icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+
+.rvd-kpi--purple .rvd-kpi__icon { background: rgba(124,58,237,.12); color: #7c3aed; }
+.rvd-kpi--amber  .rvd-kpi__icon { background: rgba(217,119,6,.12);  color: #d97706; }
+.rvd-kpi--green  .rvd-kpi__icon { background: rgba(5,150,105,.12);  color: #059669; }
+.rvd-kpi--red    .rvd-kpi__icon { background: rgba(220,38,38,.12);  color: #dc2626; }
+.rvd-kpi--blue   .rvd-kpi__icon { background: rgba(2,132,199,.12);  color: #0284c7; }
+
+.rvd-kpi__body { flex: 1; }
+.rvd-kpi__val  { display: block; font-size: 30px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+.rvd-kpi--purple .rvd-kpi__val { color: #7c3aed; }
+.rvd-kpi--amber  .rvd-kpi__val { color: #d97706; }
+.rvd-kpi--green  .rvd-kpi__val { color: #059669; }
+.rvd-kpi--red    .rvd-kpi__val { color: #dc2626; }
+.rvd-kpi--blue   .rvd-kpi__val { color: #0284c7; }
+
+.rvd-kpi__lbl  { display: block; font-size: 11px; font-weight: 600; color: #6b7280; margin-top: 3px; }
+
+.rvd-kpi__bar  { height: 5px; background: rgba(0,0,0,.07); margin: 0 -18px; }
+.rvd-kpi__fill { height: 100%; border-radius: 0 3px 3px 0; transition: width 1.4s cubic-bezier(.4,0,.2,1); }
+
+/* ═══════════════════════════════════════════════════
+   CHART CARD SHELL
+═══════════════════════════════════════════════════ */
+.rvd-chart-card {
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid #e8edf5;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+}
+
+.rvd-chart-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.rvd-chart-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.rvd-chart-card--span2 { grid-column: span 2; }
+
+/* Chart card header */
+.rvd-chart-card__hdr {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #fff;
+}
+
+.rvd-cc-hdr--purple { background: linear-gradient(135deg,#3d3180,#7c3aed); }
+.rvd-cc-hdr--teal   { background: linear-gradient(135deg,#0d7a6e,#10b981); }
+.rvd-cc-hdr--indigo { background: linear-gradient(135deg,#2e2e8e,#6366f1); }
+.rvd-cc-hdr--rose   { background: linear-gradient(135deg,#881337,#f43f5e); }
+.rvd-cc-hdr--amber  { background: linear-gradient(135deg,#92400e,#f59e0b); }
+.rvd-cc-hdr--slate  { background: linear-gradient(135deg,#1e293b,#475569); }
+
+.rvd-cc-hdr-left { display: flex; align-items: center; gap: 12px; }
+.rvd-cc-hdr-left &gt; i { font-size: 17px; opacity: .9; }
+.rvd-cc-title { font-size: 14px; font-weight: 800; color: #fff; }
+.rvd-cc-sub   { font-size: 11px; color: rgba(255,255,255,.68); margin-top: 2px; }
+
+.rvd-cc-badge {
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.22);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.rvd-cc-badge--warn {
+  background: rgba(239,68,68,.35);
+  border-color: rgba(239,68,68,.4);
+}
+
+.rvd-chart-card__body  { padding: 20px; }
+.rvd-cc-body--flush    { padding: 0; }
+.rvd-cc-body--center   { display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 10px; }
+
+/* ── Donut layout ── */
+.rvd-donut-layout { display: flex; align-items: center; gap: 24px; }
+
+.rvd-donut-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 200px; height: 200px;
+}
+
+.rvd-donut-wrap canvas {
+  display: block !important;
+  width: 200px !important;
+  height: 200px !important;
+}
+
+.rvd-donut-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none;
+}
+
+.rvd-dc-num { font-size: 32px; font-weight: 900; color: #0f172a; line-height: 1; }
+.rvd-dc-lbl { font-size: 11px; font-weight: 600; color: #94a3b8; margin-top: 2px; }
+
+.rvd-donut-legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+
+.rvd-dl-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+  transition: background 0.14s;
+}
+
+.rvd-dl-row:hover { background: #f1f5f9; }
+.rvd-dl-dot  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.rvd-dl-lbl  { flex: 1; font-size: 12px; font-weight: 600; color: #374151; }
+.rvd-dl-val  { font-size: 14px; font-weight: 900; }
+
+/* ── Gauge ── */
+.rvd-gauge-info   { text-align: center; }
+.rvd-gauge-val    { display: block; font-size: 30px; font-weight: 900; color: #dc2626; }
+.rvd-gauge-lbl    { display: block; font-size: 11px; font-weight: 600; color: #94a3b8; margin-top: 3px; }
+
+.rvd-gauge-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700;
+  padding: 4px 12px; border-radius: 99px;
+}
+
+.rvd-gauge-chip--green { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+
+/* ── Priority Queue ── */
+.rvd-queue-item {
+  display: flex;
+  align-items: center;
+  padding: 13px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.14s;
+}
+
+.rvd-queue-item:last-child { border-bottom: none; }
+.rvd-queue-item:hover { background: #f8fafc; }
+
+.rvd-qi-bar {
+  width: 4px; height: 40px;
+  border-radius: 99px;
+  flex-shrink: 0;
+  margin-right: 14px;
+}
+
+.rvd-qi-bar--amber { background: #d97706; }
+.rvd-qi-bar--green { background: #059669; }
+.rvd-qi-bar--red   { background: #dc2626; }
+
+.rvd-qi-body { flex: 1; min-width: 0; }
+.rvd-qi-top  { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.rvd-qi-num  { font-size: 12px; font-weight: 800; color: #1e293b; }
+
+.rvd-chip--sm { font-size: 9px !important; padding: 2px 8px !important; }
+
+.rvd-qi-prog {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rvd-qi-arrow { color: #cbd5e1; font-size: 11px; margin-left: 10px; }
+.rvd-queue-item:hover .rvd-qi-arrow { color: #5443AD; }
+
+.rvd-queue-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 36px 20px; color: #94a3b8; gap: 8px;
+}
+
+.rvd-queue-empty i { font-size: 26px; }
+.rvd-queue-empty p { font-size: 13px; font-weight: 600; margin: 0; }
+
+/* ═══════════════════════════════════════════════════
+   OLD WELCOME BANNER (kept for fallback)
 ═══════════════════════════════════════════════════ */
 .rvd-welcome-banner {
   background: linear-gradient(135deg, #3730a3 0%, #6d28d9 100%);
@@ -693,10 +1246,8 @@
 .rvd-welcome-banner::before {
   content: '';
   position: absolute;
-  top: -40px;
-  right: 80px;
-  width: 160px;
-  height: 160px;
+  top: -40px; right: 80px;
+  width: 160px; height: 160px;
   background: rgba(255,255,255,0.05);
   border-radius: 50%;
 }
@@ -704,10 +1255,8 @@
 .rvd-welcome-banner::after {
   content: '';
   position: absolute;
-  bottom: -30px;
-  right: 40px;
-  width: 100px;
-  height: 100px;
+  bottom: -30px; right: 40px;
+  width: 100px; height: 100px;
   background: rgba(255,255,255,0.04);
   border-radius: 50%;
 }
@@ -735,7 +1284,7 @@
 }
 
 /* ═══════════════════════════════════════════════════
-   STAT CARDS
+   OLD STAT CARDS (proposals / completed sections)
 ═══════════════════════════════════════════════════ */
 .rvd-stats-row {
   display: grid;
@@ -756,10 +1305,7 @@
   cursor: default;
 }
 
-.rvd-stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.12);
-}
+.rvd-stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.12); }
 
 .rvd-stat-card--blue  { background: linear-gradient(135deg,#eff6ff,#dbeafe); }
 .rvd-stat-card--amber { background: linear-gradient(135deg,#fffbeb,#fef3c7); }
@@ -768,12 +1314,9 @@
 
 .rvd-stat-card__icon {
   font-size: 22px;
-  width: 48px;
-  height: 48px;
+  width: 48px; height: 48px;
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 
@@ -782,10 +1325,7 @@
 .rvd-stat-card--green .rvd-stat-card__icon { background: #a7f3d0; color: #047857; }
 .rvd-stat-card--red   .rvd-stat-card__icon { background: #fecaca; color: #b91c1c; }
 
-.rvd-stat-card__body {
-  display: flex;
-  flex-direction: column;
-}
+.rvd-stat-card__body { display: flex; flex-direction: column; }
 
 .rvd-stat-card__num {
   font-size: 30px;
@@ -809,10 +1349,8 @@
 
 .rvd-stat-card__glow {
   position: absolute;
-  right: -10px;
-  top: -10px;
-  width: 60px;
-  height: 60px;
+  right: -10px; top: -10px;
+  width: 60px; height: 60px;
   border-radius: 50%;
   opacity: 0.15;
 }
@@ -823,7 +1361,7 @@
 .rvd-stat-card--red   .rvd-stat-card__glow { background: #ef4444; }
 
 /* ═══════════════════════════════════════════════════
-   HOME PANELS
+   OLD HOME PANELS (kept for non-home sections)
 ═══════════════════════════════════════════════════ */
 .rvd-home-grid {
   display: grid;
@@ -856,9 +1394,7 @@
   gap: 8px;
 }
 
-.rvd-panel__title i {
-  color: #6366f1;
-}
+.rvd-panel__title i { color: #6366f1; }
 
 .rvd-panel__link {
   background: none;
@@ -871,10 +1407,7 @@
 }
 
 .rvd-panel__link:hover { color: #4f46e5; }
-
-.rvd-panel__body {
-  padding: 12px 20px 20px;
-}
+.rvd-panel__body { padding: 12px 20px 20px; }
 
 /* Activity list */
 .rvd-activity-item {
@@ -892,8 +1425,7 @@
 .rvd-activity-item:last-child { border-bottom: none; }
 
 .rvd-activity-dot {
-  width: 10px;
-  height: 10px;
+  width: 10px; height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -902,23 +1434,9 @@
 .rvd-dot--green { background: #10b981; }
 .rvd-dot--red   { background: #ef4444; }
 
-.rvd-activity-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.rvd-activity-num {
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.rvd-activity-prog {
-  font-size: 11.5px;
-  color: #9ca3af;
-}
+.rvd-activity-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.rvd-activity-num  { font-size: 13px; font-weight: 700; color: #111827; }
+.rvd-activity-prog { font-size: 11.5px; color: #9ca3af; }
 
 .rvd-activity-status {
   font-size: 10.5px;
@@ -929,9 +1447,7 @@
 }
 
 /* Progress bars */
-.rvd-progress-item {
-  margin-bottom: 16px;
-}
+.rvd-progress-item { margin-bottom: 16px; }
 
 .rvd-progress-meta {
   display: flex;
@@ -975,11 +1491,7 @@
   transition: flex 0.8s cubic-bezier(.4,0,.2,1);
 }
 
-.rvd-legend-row {
-  display: flex;
-  gap: 16px;
-  margin-top: 10px;
-}
+.rvd-legend-row { display: flex; gap: 16px; margin-top: 10px; }
 
 .rvd-legend-item {
   display: flex;
@@ -990,8 +1502,7 @@
 }
 
 .rvd-legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 8px; height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
@@ -1044,16 +1555,11 @@
   flex-wrap: wrap;
 }
 
-.rvd-filter-search {
-  flex: 1;
-  min-width: 220px;
-  position: relative;
-}
+.rvd-filter-search { flex: 1; min-width: 220px; position: relative; }
 
 .rvd-filter-search__icon {
   position: absolute;
-  left: 12px;
-  top: 50%;
+  left: 12px; top: 50%;
   transform: translateY(-50%);
   color: #9ca3af;
   font-size: 13px;
@@ -1091,9 +1597,19 @@
   transition: border-color 0.18s;
 }
 
-.rvd-filter-select:focus {
-  border-color: #6366f1;
+.rvd-filter-select:focus { border-color: #6366f1; }
+
+/* Results meta */
+.rvd-results-meta {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 16px;
 }
+
+.rvd-results-meta a { color: #6366f1; text-decoration: none; cursor: pointer; }
+.rvd-results-meta a:hover { text-decoration: underline; }
 
 /* ═══════════════════════════════════════════════════
    PROPOSAL CARDS
@@ -1113,9 +1629,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  transition: transform 0.2s cubic-bezier(.4,0,.2,1),
-              box-shadow 0.2s,
-              border-color 0.2s;
+  transition: transform 0.2s cubic-bezier(.4,0,.2,1), box-shadow 0.2s, border-color 0.2s;
   position: relative;
   overflow: hidden;
 }
@@ -1123,9 +1637,7 @@
 .rvd-proposal-card::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 3px;
   background: linear-gradient(90deg, #6366f1, #8b5cf6);
   opacity: 0;
@@ -1138,9 +1650,7 @@
   border-color: #e0e7ff;
 }
 
-.rvd-proposal-card:hover::before {
-  opacity: 1;
-}
+.rvd-proposal-card:hover::before { opacity: 1; }
 
 .rvd-proposal-card__num-row {
   display: flex;
@@ -1185,25 +1695,19 @@
   padding: 12px;
 }
 
-.rvd-info-pair {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12.5px;
-}
+.rvd-info-pair { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.rvd-info-pair__label { color: #9ca3af; font-weight: 500; }
+.rvd-info-pair__val   { color: #374151; font-weight: 600; }
+.rvd-score-val        { color: #6366f1 !important; }
 
-.rvd-info-pair__label {
-  color: #9ca3af;
-  font-weight: 500;
-}
-
-.rvd-info-pair__val {
+.rvd-mono-chip {
+  background: #f3f4f6;
   color: #374151;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
   font-weight: 600;
-}
-
-.rvd-score-val {
-  color: #6366f1 !important;
 }
 
 /* Score bar */
@@ -1228,14 +1732,8 @@
   transition: width 0.6s cubic-bezier(.4,0,.2,1);
 }
 
-.rvd-score-pct {
-  font-size: 11px;
-  color: #6b7280;
-  font-weight: 600;
-  white-space: nowrap;
-}
+.rvd-score-pct { font-size: 11px; color: #6b7280; font-weight: 600; white-space: nowrap; }
 
-/* Card footer */
 .rvd-proposal-card__footer {
   display: flex;
   align-items: center;
@@ -1262,9 +1760,7 @@
   transition: gap 0.15s;
 }
 
-.rvd-proposal-card:hover .rvd-open-link {
-  gap: 8px;
-}
+.rvd-proposal-card:hover .rvd-open-link { gap: 8px; }
 
 /* ═══════════════════════════════════════════════════
    CHIPS
@@ -1283,6 +1779,44 @@
 .rvd-chip--green { background: #d1fae5; color: #065f46; }
 .rvd-chip--red   { background: #fee2e2; color: #991b1b; }
 .rvd-chip--blue  { background: #dbeafe; color: #1d4ed8; }
+.rvd-chip--sm    { font-size: 9px !important; padding: 2px 8px !important; }
+
+/* ═══════════════════════════════════════════════════
+   PAGINATION
+═══════════════════════════════════════════════════ */
+.rvd-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 32px;
+  padding-bottom: 24px;
+}
+
+.rvd-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rvd-page-btn:hover:not([disabled]):not(.rvd-page-btn--ellipsis) {
+  background: #f3f4f6;
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.rvd-page-btn--active   { background: #6366f1 !important; border-color: #6366f1 !important; color: #fff !important; }
+.rvd-page-btn--ellipsis { border: none; background: transparent; cursor: default; color: #9ca3af; }
+.rvd-page-btn--nav      { font-size: 12px; }
+.rvd-page-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 
 /* ═══════════════════════════════════════════════════
    COMPLETED TABLE
@@ -1319,17 +1853,9 @@
   vertical-align: middle;
 }
 
-.rvd-table-row:last-child td {
-  border-bottom: none;
-}
-
-.rvd-table-row {
-  transition: background 0.12s;
-}
-
-.rvd-table-row:hover {
-  background: #fafafa;
-}
+.rvd-table-row:last-child td { border-bottom: none; }
+.rvd-table-row { transition: background 0.12s; }
+.rvd-table-row:hover { background: #fafafa; }
 
 .rvd-score-pill {
   background: #eef2ff;
@@ -1340,9 +1866,7 @@
   font-size: 12.5px;
 }
 
-.rvd-muted {
-  color: #d1d5db;
-}
+.rvd-muted { color: #d1d5db; }
 
 .rvd-tbl-btn {
   background: none;
@@ -1359,10 +1883,7 @@
   transition: background 0.15s, border-color 0.15s;
 }
 
-.rvd-tbl-btn:hover {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
+.rvd-tbl-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
 
 /* ═══════════════════════════════════════════════════
    EMPTY STATE
@@ -1380,28 +1901,10 @@
   color: #d1d5db;
 }
 
-.rvd-empty-state h3 {
-  font-size: 16px;
-  font-weight: 700;
-  color: #374151;
-  margin: 0 0 8px;
-}
-
-.rvd-empty-state p {
-  font-size: 13.5px;
-  max-width: 360px;
-  margin: 0 auto;
-  line-height: 1.6;
-}
-
-.rvd-empty-state--sm {
-  padding: 24px 16px;
-}
-
-.rvd-empty-state--sm i {
-  font-size: 28px;
-  margin-bottom: 8px;
-}
+.rvd-empty-state h3 { font-size: 16px; font-weight: 700; color: #374151; margin: 0 0 8px; }
+.rvd-empty-state p  { font-size: 13.5px; max-width: 360px; margin: 0 auto; line-height: 1.6; }
+.rvd-empty-state--sm { padding: 24px 16px; }
+.rvd-empty-state--sm i { font-size: 28px; margin-bottom: 8px; }
 
 /* ═══════════════════════════════════════════════════
    NO ACCESS
@@ -1417,65 +1920,49 @@
   padding: 40px;
 }
 
-.rvd-no-access i {
-  font-size: 52px;
-  color: #ef4444;
-  margin-bottom: 20px;
-}
-
-.rvd-no-access h3 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #374151;
-  margin: 0 0 8px;
-}
-
-.rvd-no-access p {
-  font-size: 13.5px;
-  max-width: 360px;
-  line-height: 1.6;
-}
+.rvd-no-access i { font-size: 52px; color: #ef4444; margin-bottom: 20px; }
+.rvd-no-access h3 { font-size: 18px; font-weight: 700; color: #374151; margin: 0 0 8px; }
+.rvd-no-access p { font-size: 13.5px; max-width: 360px; line-height: 1.6; }
 
 /* ═══════════════════════════════════════════════════
    RESPONSIVE
 ═══════════════════════════════════════════════════ */
+@media (max-width: 1200px) {
+  .rvd-kpi-row { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 1060px) {
+  .rvd-chart-grid-3 { grid-template-columns: 1fr 1fr; }
+  .rvd-chart-card--span2 { grid-column: span 2; }
+}
+
 @media (max-width: 900px) {
-  .rvd-stats-row {
-    grid-template-columns: 1fr 1fr;
-  }
-  .rvd-home-grid {
-    grid-template-columns: 1fr;
-  }
-  .rvd-sidebar {
-    width: 64px;
-    min-width: 64px;
-  }
+  .rvd-stats-row { grid-template-columns: 1fr 1fr; }
+  .rvd-home-grid { grid-template-columns: 1fr; }
+  .rvd-sidebar   { width: 64px; min-width: 64px; }
   .rvd-brand-text,
   .rvd-nav__label,
   .rvd-nav__badge,
-  .rvd-reviewer-info {
-    display: none;
-  }
+  .rvd-reviewer-info { display: none; }
+  .rvd-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .rvd-chart-grid-2,
+  .rvd-chart-grid-3 { grid-template-columns: 1fr; }
+  .rvd-chart-card--span2 { grid-column: span 1; }
+  .rvd-hero { flex-direction: column; align-items: flex-start; }
+  .rvd-hero__right { width: 100%; }
+  .rvd-donut-layout { flex-direction: column; align-items: center; }
 }
 
 @media (max-width: 600px) {
-  .rvd-stats-row {
-    grid-template-columns: 1fr;
-  }
-  .rvd-content {
-    padding: 16px;
-  }
-  .rvd-welcome-banner {
-    padding: 20px;
-  }
-  .rvd-welcome-illustration {
-    display: none;
-  }
-  .rvd-proposal-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</css>
+  .rvd-stats-row    { grid-template-columns: 1fr; }
+  .rvd-kpi-row      { grid-template-columns: 1fr 1fr; }
+  .rvd-content      { padding: 16px; }
+  .rvd-welcome-banner { padding: 20px; }
+  .rvd-welcome-illustration { display: none; }
+  .rvd-proposal-grid { grid-template-columns: 1fr; }
+  .rvd-hero__title  { font-size: 22px; }
+  .rvd-hero         { padding: 24px 20px; }
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -1493,7 +1980,7 @@
         <roles/>
         <script><![CDATA[(function() {
 
-  // ── Logged-in user info for sidebar profile ──────────────
+  // ── Current user ──────────────────────────────────────────
   var userGr = new GlideRecord('sys_user');
   if (userGr.get(gs.getUserID())) {
     data.currentUser = {
@@ -1507,60 +1994,74 @@
                   (userGr.getValue('last_name')  || '').charAt(0).toUpperCase()
     };
   } else {
-    data.currentUser = {
-      name: 'Guest', first_name: '', last_name: '',
-      email: '', title: '', initials: 'G', sys_id: ''
-    };
+    data.currentUser = { name:'Guest', first_name:'', last_name:'', email:'', title:'', initials:'G', sys_id:'' };
   }
 
-  // ── Portal logout URL ─────────────────────────────────────
-  var portalRecord = $sp.getPortalRecord();
   data.logoutUrl   = '/login.do?logout=true';
   data.profilePage = '?id=user_profile';
+  data.canRead     = true;
+  data.reviews     = [];
 
-  // ── Access control ────────────────────────────────────────
-  data.canRead = true;
-  data.reviews = [];
-  data.stats   = { total: 0, inProgress: 0, completed: 0, onHold: 0 };
+  // ── Full stats object (all 5 statuses) ───────────────────
+  data.stats = {
+    total:             0,
+    inProgress:        0,
+    completed:         0,
+    escalated:         0,
+    declined:          0,
+    pending:           0,
+    overdue:           0,
+    dueSoon:           0   // deadline within 3 days
+  };
 
   var userId = gs.getUserID();
+  var today  = new GlideDateTime();
 
-  // ── Get groups for current user ───────────────────────────
+  // ── Groups ───────────────────────────────────────────────
   var groups = [];
   var grMem  = new GlideRecord('sys_user_grmember');
   grMem.addQuery('user', userId);
   grMem.query();
-  while (grMem.next()) {
-    groups.push(grMem.getValue('group'));
-  }
+  while (grMem.next()) { groups.push(grMem.getValue('group')); }
 
   if (groups.length === 0) return;
 
-  // ── Load reviews: active (assigned to group) OR completed (group was a reviewer) ──
+  // ── Query reviews ────────────────────────────────────────
   var gr = new GlideRecord('x_enno_gatenow_grant_review');
-
   var qc = gr.addQuery('assignment_group', 'IN', groups.join(','));
-
   for (var i = 0; i < groups.length; i++) {
     var orCond = qc.addOrCondition('status', 'Review completed');
     orCond.addCondition('reviewer', 'CONTAINS', groups[i]);
   }
-
   gr.orderBy('number');
   gr.query();
 
   while (gr.next()) {
     var status = gr.getDisplayValue('status');
-    data.stats.total++;
-    if (status === 'Review in progress')    data.stats.inProgress++;
-    else if (status === 'Review completed') data.stats.completed++;
-    else if (status === 'Escalated')        data.stats.onHold++;
 
-    // ── Look up program_name + number from the program reference field ──
-    var programName     = '';
-    var programCategory = '';
-    var programNumber   = '';
-    var programSysId    = gr.getValue('program');
+    // deadline handling
+    var deadlineVal  = gr.getValue('review_deadline') || '';
+    var deadlineDisp = deadlineVal ? gr.getDisplayValue('review_deadline') : '';
+    var isOverdue    = false;
+    var isDueSoon    = false;
+
+    if (deadlineVal) {
+      var dl = new GlideDateTime(deadlineVal);
+      var diffMs = dl.getNumericValue() - today.getNumericValue();
+      var diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (diffDays < 0 && status !== 'Review completed' && status !== 'Declined by Reviewer') {
+        isOverdue = true;
+      } else if (diffDays >= 0 && diffDays <= 3 && status !== 'Review completed' && status !== 'Declined by Reviewer') {
+        isDueSoon = true;
+      }
+    }
+
+    // reviewer groups (list field — comma separated sys_ids)
+    var reviewerDisplay = gr.getDisplayValue('reviewer') || '';
+
+    // program lookup
+    var programName = '', programCategory = '', programNumber = '';
+    var programSysId = gr.getValue('program');
     if (programSysId) {
       var progGr = new GlideRecord('x_enno_gatenow_grant_program');
       if (progGr.get(programSysId)) {
@@ -1570,113 +2071,116 @@
       }
     }
 
-    // ── Look up applicant name + number from the applicant reference field ──
-    var applicantName   = '';
-    var applicantNumber = '';
-    var applicantSysId  = gr.getValue('applicant');
+    // applicant lookup
+    var applicantName = '', applicantNumber = '';
+    var applicantSysId = gr.getValue('applicant');
     if (applicantSysId) {
       var appGr = new GlideRecord('x_enno_gatenow_service_applicants');
       if (appGr.get(applicantSysId)) {
-        applicantName   = ((appGr.getValue('first_name') || '') + ' ' +
-                           (appGr.getValue('last_name')  || '')).trim();
+        applicantName   = ((appGr.getValue('first_name') || '') + ' ' + (appGr.getValue('last_name') || '')).trim();
         applicantNumber = appGr.getValue('number') || '';
       }
     }
 
-    data.reviews.push({
-      sys_id:            gr.getUniqueValue(),
-      number:            gr.getValue('number')                  || '',
-      status:            status,
-      assignment_group:  gr.getDisplayValue('assignment_group') || '',
-      score:             gr.getValue('score')                   || '',
-      applicant:         applicantName,
-      applicant_number:  applicantNumber,        
-      program:           programName,
-      program_number:    programNumber,          
-      program_category:  programCategory,
-      reviewer:          gr.getDisplayValue('reviewer')         || '',
-      decision_type:     gr.getDisplayValue('decision_type')    || ''
-    });
+    // stats counters
+    data.stats.total++;
+    if (status === 'Review in progress')    data.stats.inProgress++;
+    else if (status === 'Review completed') data.stats.completed++;
+    else if (status === 'Escalated')        data.stats.escalated++;
+    else if (status === 'Declined by Reviewer') data.stats.declined++;
+    else if (status === 'Review pending')   data.stats.pending++;
 
+    if (isOverdue) data.stats.overdue++;
+    if (isDueSoon) data.stats.dueSoon++;
+
+    data.reviews.push({
+      sys_id:           gr.getUniqueValue(),
+      number:           gr.getValue('number')                  || '',
+      status:           status,
+      assignment_group: gr.getDisplayValue('assignment_group') || '',
+      reviewer:         reviewerDisplay,
+      score:            gr.getValue('score')                   || '',
+      applicant:        applicantName,
+      applicant_number: applicantNumber,
+      program:          programName,
+      program_number:   programNumber,
+      program_category: programCategory,
+      decision_type:    gr.getDisplayValue('decision_type')    || '',
+      review_deadline:  deadlineDisp,
+      deadline_raw:     deadlineVal,
+      is_overdue:       isOverdue,
+      is_due_soon:      isDueSoon
+    });
   }
 
   // ── Save review ───────────────────────────────────────────
-  if (input && input.action == 'save_review' && input.review_sys_id) {
+  if (input && input.action === 'save_review' && input.review_sys_id) {
     var reviewId = String(input.review_sys_id);
     var form     = input.form || {};
-
     var grUpdate = new GlideRecord('x_enno_gatenow_grant_review');
     if (grUpdate.get(reviewId)) {
-
-      if (groups.indexOf(grUpdate.getValue('assignment_group')) == -1) {
-        data.success = false;
-        data.error   = 'You are not allowed to update this review.';
-        return;
+      if (groups.indexOf(grUpdate.getValue('assignment_group')) === -1) {
+        data.success = false; data.error = 'Not allowed.'; return;
       }
-
       if (form.decision_type)         grUpdate.setValue('decision_type',  form.decision_type);
       if (form.status)                grUpdate.setValue('status',         form.status);
       if (!gs.nil(form.score))        grUpdate.setValue('score',          form.score);
       if (!gs.nil(form.review_notes)) grUpdate.setValue('work_notes',     form.review_notes);
-
       grUpdate.update();
       data.success = true;
-
     } else {
-      data.success = false;
-      data.error   = 'Review record not found.';
+      data.success = false; data.error = 'Not found.';
     }
   }
 
-})();
-]]></script>
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>29</sys_mod_count>
+        <sys_mod_count>33</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-10 08:58:00</sys_updated_on>
+        <sys_updated_on>2026-03-27 09:47:59</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
-  <!-- SIDEBAR — unchanged -->
+  <!-- ══════════ SIDEBAR ══════════ -->
   <aside class="rvd-sidebar" ng-class="{'rvd-sidebar--collapsed': !c.sidebarOpen}">
     <div class="rvd-sidebar__brand">
       <div class="rvd-brand-icon"><i class="fa fa-balance-scale"></i></div>
       <span class="rvd-brand-text">ReviewBoard</span>
     </div>
     <nav class="rvd-nav">
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'home'}" ng-click="c.navTo('home')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='home'}" ng-click="c.navTo('home')">
         <i class="fa fa-home rvd-nav__icon"></i><span class="rvd-nav__label">Dashboard</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'proposals'}" ng-click="c.navTo('proposals')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='proposals'}" ng-click="c.navTo('proposals')">
         <i class="fa fa-file-text-o rvd-nav__icon"></i>
         <span class="rvd-nav__label">Proposals</span>
-        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length > 0">{{c.filteredProposals().length}}</span>
+        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length>0">{{c.filteredProposals().length}}</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'agreements'}" ng-click="c.navTo('agreements')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='agreements'}" ng-click="c.navTo('agreements')">
         <i class="fa fa-handshake-o rvd-nav__icon"></i><span class="rvd-nav__label">Agreements</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'completed'}" ng-click="c.navTo('completed')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='completed'}" ng-click="c.navTo('completed')">
         <i class="fa fa-check-circle-o rvd-nav__icon"></i>
         <span class="rvd-nav__label">Completed Reviews</span>
-        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length > 0">{{c.completedReviews().length}}</span>
+        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length>0">{{c.completedReviews().length}}</span>
       </a>
     </nav>
     <div class="rvd-sidebar__footer">
-      <div class="rvd-profile-card" ng-click="c.toggleProfile($event)" ng-class="{'rvd-profile-card--open': c.profileOpen}">
+      <div class="rvd-profile-card" ng-click="c.toggleProfile($event)" ng-class="{'rvd-profile-card--open':c.profileOpen}">
         <div class="rvd-profile-avatar">{{c.data.currentUser.initials}}</div>
         <div class="rvd-profile-details">
           <span class="rvd-profile-name">{{c.data.currentUser.first_name}} {{c.data.currentUser.last_name}}</span>
           <span class="rvd-profile-role">{{c.data.currentUser.title || 'Grant Reviewer'}}</span>
         </div>
-        <i class="fa rvd-profile-caret" ng-class="c.profileOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <i class="fa rvd-profile-caret" ng-class="c.profileOpen?'fa-chevron-up':'fa-chevron-down'"></i>
       </div>
       <div class="rvd-profile-dropdown" ng-show="c.profileOpen">
         <div class="rvd-dropdown-head">
@@ -1694,126 +2198,299 @@
     </div>
   </aside>
 
-  <!-- MAIN CONTENT -->
-  <div class="rvd-main" ng-class="{'rvd-main--expanded': !c.sidebarOpen}">
+  <!-- ══════════ MAIN ══════════ -->
+  <div class="rvd-main" ng-class="{'rvd-main--expanded':!c.sidebarOpen}">
 
     <header class="rvd-topbar">
       <button class="rvd-topbar__toggle" ng-click="c.toggleSidebar()"><i class="fa fa-bars"></i></button>
       <div class="rvd-topbar__breadcrumb">
-        <span ng-if="c.activeSection === 'home'">Dashboard Overview</span>
-        <span ng-if="c.activeSection === 'proposals'">Active Proposals</span>
-        <span ng-if="c.activeSection === 'agreements'">Agreements</span>
-        <span ng-if="c.activeSection === 'completed'">Completed Reviews</span>
+        <span ng-if="c.activeSection==='home'">Dashboard Overview</span>
+        <span ng-if="c.activeSection==='proposals'">Active Proposals</span>
+        <span ng-if="c.activeSection==='agreements'">Agreements</span>
+        <span ng-if="c.activeSection==='completed'">Completed Reviews</span>
       </div>
       <div class="rvd-topbar__right">
+        <!-- Overdue alert badge -->
+        <div class="rvd-topbar__alert" ng-if="c.data.stats.overdue > 0" ng-click="c.navTo('proposals')">
+          <i class="fa fa-exclamation-circle"></i>
+          {{c.data.stats.overdue}} Overdue
+        </div>
         <div class="rvd-topbar__date">
           <i class="fa fa-calendar-o"></i><span>Grant Review Portal</span>
         </div>
       </div>
     </header>
 
-    <!-- HOME — unchanged -->
-    <div class="rvd-content" ng-show="c.activeSection === 'home'">
-      <div class="rvd-welcome-banner">
-        <div class="rvd-welcome-text">
-          <h1 class="rvd-welcome-title">Welcome back to your review workspace</h1>
-          <p class="rvd-welcome-sub">Here's a snapshot of everything happening across your assigned proposals.</p>
-        </div>
-        <div class="rvd-welcome-illustration"><i class="fa fa-clipboard"></i></div>
-      </div>
-      <div class="rvd-stats-row">
-        <div class="rvd-stat-card rvd-stat-card--blue">
-          <div class="rvd-stat-card__icon"><i class="fa fa-inbox"></i></div>
-          <div class="rvd-stat-card__body">
-            <span class="rvd-stat-card__num">{{c.animatedStats.total}}</span>
-            <span class="rvd-stat-card__label">Total Assigned</span>
-          </div>
-          <div class="rvd-stat-card__glow"></div>
-        </div>
-        <div class="rvd-stat-card rvd-stat-card--amber">
-          <div class="rvd-stat-card__icon"><i class="fa fa-spinner"></i></div>
-          <div class="rvd-stat-card__body">
-            <span class="rvd-stat-card__num">{{c.animatedStats.inProgress}}</span>
-            <span class="rvd-stat-card__label">In Progress</span>
-          </div>
-          <div class="rvd-stat-card__glow"></div>
-        </div>
-        <div class="rvd-stat-card rvd-stat-card--green">
-          <div class="rvd-stat-card__icon"><i class="fa fa-check-circle"></i></div>
-          <div class="rvd-stat-card__body">
-            <span class="rvd-stat-card__num">{{c.animatedStats.completed}}</span>
-            <span class="rvd-stat-card__label">Completed</span>
-          </div>
-          <div class="rvd-stat-card__glow"></div>
-        </div>
-        <div class="rvd-stat-card rvd-stat-card--red">
-          <div class="rvd-stat-card__icon"><i class="fa fa-pause-circle"></i></div>
-          <div class="rvd-stat-card__body">
-            <span class="rvd-stat-card__num">{{c.animatedStats.onHold}}</span>
-            <span class="rvd-stat-card__label">Escalated</span>
-          </div>
-          <div class="rvd-stat-card__glow"></div>
-        </div>
-      </div>
-      <div class="rvd-home-grid">
-        <div class="rvd-panel">
-          <div class="rvd-panel__head">
-            <h3 class="rvd-panel__title"><i class="fa fa-clock-o"></i> Recent Activity</h3>
-            <button class="rvd-panel__link" ng-click="c.navTo('proposals')">See all →</button>
-          </div>
-          <div class="rvd-panel__body">
-            <div ng-if="!c.recentActivity().length" class="rvd-empty-state rvd-empty-state--sm">
-              <i class="fa fa-inbox"></i><p>Nothing assigned yet.</p>
-            </div>
-            <div class="rvd-activity-item" ng-repeat="rev in c.recentActivity()" ng-click="c.openRecord(rev)">
-              <div class="rvd-activity-dot" ng-class="{'rvd-dot--amber': rev.status === 'Review in progress','rvd-dot--green': rev.status === 'Review completed','rvd-dot--red': rev.status === 'On hold'}"></div>
-              <div class="rvd-activity-body">
-                <span class="rvd-activity-num">{{rev.number}}</span>
-                <span class="rvd-activity-prog">{{rev.program || '—'}}</span>
-              </div>
-              <span class="rvd-activity-status {{rev.status === 'Review completed' ? 'rvd-chip--green' : rev.status === 'On hold' ? 'rvd-chip--red' : 'rvd-chip--amber'}}">{{rev.status}}</span>
-            </div>
+    <!-- ════════════════════════════════════════
+         HOME
+    ════════════════════════════════════════ -->
+    <div class="rvd-content rvd-home" ng-show="c.activeSection==='home'">
+
+      <!-- HERO -->
+      <div class="rvd-hero">
+        <div class="rvd-hero__left">
+          <div class="rvd-hero__eyebrow"><span class="rvd-hero__pulse"></span> Reviewer Workspace</div>
+          <h1 class="rvd-hero__title">Welcome back, <span class="rvd-hero__name">{{c.data.currentUser.first_name || 'Reviewer'}}</span> ]]>👋<![CDATA[</h1>
+          <p class="rvd-hero__sub">
+            You have <strong class="rvd-hero__highlight">{{c.data.stats.inProgress||0}} in progress</strong>,
+            <strong class="rvd-hero__highlight rvd-hero__highlight--green">{{c.data.stats.completed||0}} completed</strong>
+            and <strong class="rvd-hero__highlight rvd-hero__highlight--red">{{c.data.stats.overdue||0}} overdue</strong> this cycle.
+          </p>
+          <div class="rvd-hero__cta-row">
+            <button class="rvd-hero__cta" ng-click="c.navTo('proposals')">
+              <i class="fa fa-arrow-right"></i> View All Proposals
+            </button>
+            <span class="rvd-hero__meta" ng-if="c.data.stats.dueSoon>0">
+              <i class="fa fa-clock-o"></i> {{c.data.stats.dueSoon}} due within 3 days
+            </span>
           </div>
         </div>
-        <div class="rvd-panel">
-          <div class="rvd-panel__head">
-            <h3 class="rvd-panel__title"><i class="fa fa-bar-chart"></i> Progress Overview</h3>
+        <div class="rvd-hero__right">
+          <div class="rvd-hero__stat-pill">
+            <span class="rvd-hsp-val">{{c.animatedStats.total}}</span>
+            <span class="rvd-hsp-lbl">Total</span>
           </div>
-          <div class="rvd-panel__body">
-            <div ng-if="data.stats.total === 0" class="rvd-empty-state rvd-empty-state--sm">
-              <i class="fa fa-bar-chart"></i><p>No data yet.</p>
-            </div>
-            <div ng-if="data.stats.total > 0">
-              <div class="rvd-progress-item">
-                <div class="rvd-progress-meta"><span>In Progress</span><span>{{data.stats.inProgress}} / {{data.stats.total}}</span></div>
-                <div class="rvd-progress-track"><div class="rvd-progress-fill rvd-progress-fill--amber" ng-style="{'width': (data.stats.inProgress / data.stats.total * 100) + '%'}"></div></div>
-              </div>
-              <div class="rvd-progress-item">
-                <div class="rvd-progress-meta"><span>Completed</span><span>{{data.stats.completed}} / {{data.stats.total}}</span></div>
-                <div class="rvd-progress-track"><div class="rvd-progress-fill rvd-progress-fill--green" ng-style="{'width': (data.stats.completed / data.stats.total * 100) + '%'}"></div></div>
-              </div>
-              <div class="rvd-progress-item">
-                <div class="rvd-progress-meta"><span>On Hold</span><span>{{data.stats.onHold}} / {{data.stats.total}}</span></div>
-                <div class="rvd-progress-track"><div class="rvd-progress-fill rvd-progress-fill--red" ng-style="{'width': (data.stats.onHold / data.stats.total * 100) + '%'}"></div></div>
-              </div>
-              <div class="rvd-donut-row">
-                <div class="rvd-donut-segment" ng-style="{'flex': data.stats.inProgress, 'background': '#f59e0b'}" ng-if="data.stats.inProgress > 0"></div>
-                <div class="rvd-donut-segment" ng-style="{'flex': data.stats.completed, 'background': '#10b981'}" ng-if="data.stats.completed > 0"></div>
-                <div class="rvd-donut-segment" ng-style="{'flex': data.stats.onHold, 'background': '#ef4444'}" ng-if="data.stats.onHold > 0"></div>
-              </div>
-              <div class="rvd-legend-row">
-                <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#f59e0b"></span>In Progress</span>
-                <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#10b981"></span>Completed</span>
-                <span class="rvd-legend-item"><span class="rvd-legend-dot" style="background:#ef4444"></span>On Hold</span>
-              </div>
-            </div>
+          <div class="rvd-hero__stat-pill rvd-hsp--green">
+            <span class="rvd-hsp-val">{{c.animatedStats.completed}}</span>
+            <span class="rvd-hsp-lbl">Done</span>
+          </div>
+          <div class="rvd-hero__stat-pill rvd-hsp--red">
+            <span class="rvd-hsp-val">{{c.data.stats.overdue||0}}</span>
+            <span class="rvd-hsp-lbl">Overdue</span>
           </div>
         </div>
       </div>
+
+      <!-- KPI ROW — 6 tiles for all statuses -->
+      <div class="rvd-kpi-row">
+        <div class="rvd-kpi rvd-kpi--purple">
+          <div class="rvd-kpi__icon"><i class="fa fa-inbox"></i></div>
+          <div class="rvd-kpi__body">
+            <span class="rvd-kpi__val">{{c.animatedStats.total}}</span>
+            <span class="rvd-kpi__lbl">Total Assigned</span>
+          </div>
+          <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" style="width:100%;background:#7c3aed"></div></div>
+        </div>
+        <div class="rvd-kpi rvd-kpi--slate">
+          <div class="rvd-kpi__icon"><i class="fa fa-hourglass-start"></i></div>
+          <div class="rvd-kpi__body">
+            <span class="rvd-kpi__val">{{c.animatedStats.pending}}</span>
+            <span class="rvd-kpi__lbl">Review Pending</span>
+          </div>
+          <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.pending/c.data.stats.total*100):0)+'%','background':'#64748b'}"></div></div>
+        </div>
+        <div class="rvd-kpi rvd-kpi--amber">
+          <div class="rvd-kpi__icon"><i class="fa fa-spinner"></i></div>
+          <div class="rvd-kpi__body">
+            <span class="rvd-kpi__val">{{c.animatedStats.inProgress}}</span>
+            <span class="rvd-kpi__lbl">In Progress</span>
+          </div>
+          <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.inProgress/c.data.stats.total*100):0)+'%','background':'#d97706'}"></div></div>
+        </div>
+        <div class="rvd-kpi rvd-kpi--green">
+          <div class="rvd-kpi__icon"><i class="fa fa-check-circle"></i></div>
+          <div class="rvd-kpi__body">
+            <span class="rvd-kpi__val">{{c.animatedStats.completed}}</span>
+            <span class="rvd-kpi__lbl">Completed</span>
+          </div>
+          <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.completed/c.data.stats.total*100):0)+'%','background':'#059669'}"></div></div>
+        </div>
+        <div class="rvd-kpi rvd-kpi--red">
+          <div class="rvd-kpi__icon"><i class="fa fa-exclamation-triangle"></i></div>
+          <div class="rvd-kpi__body">
+            <span class="rvd-kpi__val">{{c.animatedStats.escalated}}</span>
+            <span class="rvd-kpi__lbl">Escalated</span>
+          </div>
+          <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.escalated/c.data.stats.total*100):0)+'%','background':'#dc2626'}"></div></div>
+        </div>
+        <div class="rvd-kpi rvd-kpi--orange">
+          <div class="rvd-kpi__icon"><i class="fa fa-times-circle"></i></div>
+          <div class="rvd-kpi__body">
+            <span class="rvd-kpi__val">{{c.animatedStats.declined}}</span>
+            <span class="rvd-kpi__lbl">Declined</span>
+          </div>
+          <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.declined/c.data.stats.total*100):0)+'%','background':'#ea580c'}"></div></div>
+        </div>
+      </div>
+
+      <!-- ROW 1: Donut + Status Bar -->
+      <div class="rvd-chart-grid-2">
+
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--purple">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-pie-chart"></i>
+              <div><div class="rvd-cc-title">Status Breakdown</div><div class="rvd-cc-sub">All 5 review statuses</div></div>
+            </div>
+            <span class="rvd-cc-badge">{{c.data.stats.total||0}} Total</span>
+          </div>
+          <div class="rvd-chart-card__body">
+            <div class="rvd-donut-layout">
+              <div class="rvd-donut-wrap">
+                <canvas id="rvdDonutChart" width="200" height="200"></canvas>
+                <div class="rvd-donut-center">
+                  <span class="rvd-dc-num">{{c.data.stats.total||0}}</span>
+                  <span class="rvd-dc-lbl">Reviews</span>
+                </div>
+              </div>
+              <div class="rvd-donut-legend">
+                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#6366f1"></span><span class="rvd-dl-lbl">In Progress</span><span class="rvd-dl-val" style="color:#6366f1">{{c.data.stats.inProgress||0}}</span></div>
+                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#10b981"></span><span class="rvd-dl-lbl">Completed</span><span class="rvd-dl-val" style="color:#10b981">{{c.data.stats.completed||0}}</span></div>
+                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#ef4444"></span><span class="rvd-dl-lbl">Escalated</span><span class="rvd-dl-val" style="color:#ef4444">{{c.data.stats.escalated||0}}</span></div>
+                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#f97316"></span><span class="rvd-dl-lbl">Declined</span><span class="rvd-dl-val" style="color:#f97316">{{c.data.stats.declined||0}}</span></div>
+                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#94a3b8"></span><span class="rvd-dl-lbl">Pending</span><span class="rvd-dl-val" style="color:#94a3b8">{{c.data.stats.pending||0}}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--teal">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-bar-chart"></i>
+              <div><div class="rvd-cc-title">Status Distribution</div><div class="rvd-cc-sub">Count per review status</div></div>
+            </div>
+            <span class="rvd-cc-badge">{{c.data.stats.total ? Math.round(c.data.stats.completed/c.data.stats.total*100) : 0}}% Done</span>
+          </div>
+          <div class="rvd-chart-card__body">
+            <canvas id="rvdProgressBar" height="200"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ROW 2: Deadline Timeline + Activity Line + Gauge -->
+      <div class="rvd-chart-grid-3">
+
+        <div class="rvd-chart-card rvd-chart-card--span2">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--indigo">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-line-chart"></i>
+              <div><div class="rvd-cc-title">Review Activity</div><div class="rvd-cc-sub">Proposals actioned across review cycle</div></div>
+            </div>
+            <span class="rvd-cc-badge">This Cycle</span>
+          </div>
+          <div class="rvd-chart-card__body">
+            <canvas id="rvdActivityLine" height="130"></canvas>
+          </div>
+        </div>
+
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--rose">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-tachometer"></i>
+              <div><div class="rvd-cc-title">Escalation Rate</div><div class="rvd-cc-sub">% of proposals escalated</div></div>
+            </div>
+          </div>
+          <div class="rvd-chart-card__body rvd-cc-body--center">
+            <canvas id="rvdGauge" width="180" height="110"></canvas>
+            <div class="rvd-gauge-info">
+              <span class="rvd-gauge-val">{{c.data.stats.total ? Math.round(c.data.stats.escalated/c.data.stats.total*100) : 0}}%</span>
+              <span class="rvd-gauge-lbl">Escalation Rate</span>
+            </div>
+            <div class="rvd-gauge-chip" ng-class="(c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10) ? 'rvd-gauge-chip--red' : 'rvd-gauge-chip--green'">
+              <i class="fa fa-flag"></i> Target &lt; 10%
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ROW 3: Deadline Status + Reviewer Group Load -->
+      <div class="rvd-chart-grid-2">
+
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--rose">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-calendar-times-o"></i>
+              <div><div class="rvd-cc-title">Deadline Overview</div><div class="rvd-cc-sub">Overdue / Due Soon / On Track</div></div>
+            </div>
+            <span class="rvd-cc-badge rvd-cc-badge--warn" ng-if="c.data.stats.overdue>0">
+              {{c.data.stats.overdue}} Overdue!
+            </span>
+            <span class="rvd-cc-badge" ng-if="!c.data.stats.overdue">All on track</span>
+          </div>
+          <div class="rvd-chart-card__body">
+            <canvas id="rvdDeadlineChart" height="180"></canvas>
+          </div>
+        </div>
+
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--slate">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-users"></i>
+              <div><div class="rvd-cc-title">Group Workload</div><div class="rvd-cc-sub">Proposals per reviewer group</div></div>
+            </div>
+          </div>
+          <div class="rvd-chart-card__body">
+            <canvas id="rvdGroupChart" height="180"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ROW 4: Pending Queue + Category Chart -->
+      <div class="rvd-chart-grid-2">
+
+        <!-- Priority Queue with deadline badges -->
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--amber">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-list-ol"></i>
+              <div><div class="rvd-cc-title">Action Queue</div><div class="rvd-cc-sub">Proposals needing immediate attention</div></div>
+            </div>
+            <span class="rvd-cc-badge rvd-cc-badge--warn">{{c.data.stats.inProgress||0}} Active</span>
+          </div>
+          <div class="rvd-chart-card__body rvd-cc-body--flush">
+            <div class="rvd-queue-empty" ng-if="!c.recentActivity().length">
+              <i class="fa fa-check-circle"></i><p>All clear — no pending proposals</p>
+            </div>
+            <div class="rvd-queue-item" ng-repeat="rev in c.recentActivity() | limitTo:7" ng-click="c.openRecord(rev)">
+              <div class="rvd-qi-bar" ng-class="{
+                'rvd-qi-bar--amber': rev.status==='Review in progress',
+                'rvd-qi-bar--green': rev.status==='Review completed',
+                'rvd-qi-bar--red':   rev.status==='Escalated',
+                'rvd-qi-bar--orange':rev.status==='Declined by Reviewer',
+                'rvd-qi-bar--slate': rev.status==='Review pending'
+              }"></div>
+              <div class="rvd-qi-body">
+                <div class="rvd-qi-top">
+                  <span class="rvd-qi-num">{{rev.number}}</span>
+                  <span class="rvd-chip rvd-chip--sm {{c.statusChipClass(rev.status)}}">{{rev.status||'Pending'}}</span>
+                  <span class="rvd-deadline-badge {{c.deadlineClass(rev)}}" ng-if="rev.review_deadline">
+                    <i class="fa fa-clock-o"></i> {{rev.review_deadline}}
+                  </span>
+                </div>
+                <div class="rvd-qi-prog">{{rev.program||'No program'}} · <span class="rvd-qi-group">{{rev.assignment_group}}</span></div>
+              </div>
+              <span class="rvd-qi-arrow"><i class="fa fa-chevron-right"></i></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rvd-chart-card">
+          <div class="rvd-chart-card__hdr rvd-cc-hdr--slate">
+            <div class="rvd-cc-hdr-left">
+              <i class="fa fa-th-large"></i>
+              <div><div class="rvd-cc-title">Category Breakdown</div><div class="rvd-cc-sub">All statuses per program category</div></div>
+            </div>
+          </div>
+          <div class="rvd-chart-card__body">
+            <canvas id="rvdCategoryChart" height="230"></canvas>
+            <div class="rvd-queue-empty" ng-if="!c.data.stats.total">
+              <i class="fa fa-th-large"></i><p>No category data yet</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div>
 
-    <!-- ════════════ PROPOSALS — UPDATED ════════════ -->
-    <div class="rvd-content" ng-show="c.activeSection === 'proposals'">
+    <!-- ════════════════════════════════════════
+         PROPOSALS
+    ════════════════════════════════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection==='proposals'">
 
       <div class="rvd-section-header">
         <div>
@@ -1822,7 +2499,6 @@
         </div>
       </div>
 
-      <!-- ── FILTER BAR: search + status + category + program ── -->
       <div class="rvd-filter-bar">
         <div class="rvd-filter-search">
           <i class="fa fa-search rvd-filter-search__icon"></i>
@@ -1832,8 +2508,10 @@
         </div>
         <select class="rvd-filter-select" ng-model="c.statusFilter">
           <option value="">All Statuses</option>
+          <option value="Review pending">Review Pending</option>
           <option value="Review in progress">In Progress</option>
-          <option value="On hold">On Hold</option>
+          <option value="Escalated">Escalated</option>
+          <option value="Declined by Reviewer">Declined by Reviewer</option>
         </select>
         <select class="rvd-filter-select" ng-model="c.categoryFilter">
           <option value="">All Categories</option>
@@ -1845,18 +2523,10 @@
         </select>
       </div>
 
-      <!-- ── RESULTS META: showing x of y ── -->
       <div class="rvd-results-meta" ng-if="c.filteredProposals().length">
-        <span>
-          Showing
-          <strong>{{(c.proposalPage - 1) * c.pageSize + 1}}–{{Math.min(c.proposalPage * c.pageSize, c.filteredProposals().length)}}</strong>
-          of <strong>{{c.filteredProposals().length}}</strong> proposals
-        </span>
-        <span ng-if="c.categoryFilter || c.programFilter || c.statusFilter || c.searchText">
-          &nbsp;·&nbsp;
-          <a href="" ng-click="c.searchText=''; c.statusFilter=''; c.categoryFilter=''; c.programFilter=''">
-            <i class="fa fa-times-circle"></i> Clear all filters
-          </a>
+        <span>Showing <strong>{{(c.proposalPage-1)*c.pageSize+1}}–{{Math.min(c.proposalPage*c.pageSize,c.filteredProposals().length)}}</strong> of <strong>{{c.filteredProposals().length}}</strong> proposals</span>
+        <span ng-if="c.categoryFilter||c.programFilter||c.statusFilter||c.searchText">
+          &nbsp;·&nbsp;<a href="" ng-click="c.searchText='';c.statusFilter='';c.categoryFilter='';c.programFilter=''"><i class="fa fa-times-circle"></i> Clear filters</a>
         </span>
       </div>
 
@@ -1866,60 +2536,58 @@
         <p>Try adjusting or clearing the filters above.</p>
       </div>
 
-      <!-- ── PROPOSAL CARDS — paginated ── -->
       <div class="rvd-proposal-grid" ng-if="c.filteredProposals().length">
-        <div class="rvd-proposal-card"
-             ng-repeat="rev in c.pagedProposals()"
-             ng-click="c.openRecord(rev)">
+        <div class="rvd-proposal-card" ng-repeat="rev in c.pagedProposals()" ng-click="c.openRecord(rev)"
+             ng-class="{'rvd-proposal-card--overdue': rev.is_overdue, 'rvd-proposal-card--due-soon': rev.is_due_soon}">
 
           <div class="rvd-proposal-card__top">
             <div class="rvd-proposal-card__num-row">
               <span class="rvd-proposal-num">{{rev.number}}</span>
-              <span class="rvd-chip
-                    {{rev.status === 'Review completed' ? 'rvd-chip--green' :
-                      rev.status === 'On hold'          ? 'rvd-chip--red'   :
-                                                          'rvd-chip--amber'}}">
-                {{rev.status || 'Pending'}}
-              </span>
+              <span class="rvd-chip {{c.statusChipClass(rev.status)}}">{{rev.status||'Pending'}}</span>
             </div>
-            <h4 class="rvd-proposal-program">{{rev.program || 'No Program'}}</h4>
-            <p class="rvd-proposal-applicant">
-              <i class="fa fa-user-o"></i> {{rev.applicant || '—'}}
-            </p>
+            <h4 class="rvd-proposal-program">{{rev.program||'No Program'}}</h4>
+            <p class="rvd-proposal-applicant"><i class="fa fa-user-o"></i> {{rev.applicant||'—'}}</p>
           </div>
 
           <div class="rvd-proposal-card__mid">
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Program No.</span>
-              <span class="rvd-info-pair__val">
-                <span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span>
-                <span ng-if="!rev.program_number">—</span>
-              </span>
+              <span class="rvd-info-pair__val"><span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span><span ng-if="!rev.program_number">—</span></span>
             </div>
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Applicant No.</span>
-              <span class="rvd-info-pair__val">
-                <span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span>
-                <span ng-if="!rev.applicant_number">—</span>
-              </span>
+              <span class="rvd-info-pair__val"><span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span><span ng-if="!rev.applicant_number">—</span></span>
             </div>
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Category</span>
-              <span class="rvd-info-pair__val">{{rev.program_category || '—'}}</span>
+              <span class="rvd-info-pair__val">{{rev.program_category||'—'}}</span>
+            </div>
+            <div class="rvd-info-pair">
+              <span class="rvd-info-pair__label">Reviewer Group</span>
+              <span class="rvd-info-pair__val">{{rev.reviewer||'—'}}</span>
             </div>
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Decision</span>
-              <span class="rvd-info-pair__val">{{rev.decision_type || 'Pending'}}</span>
+              <span class="rvd-info-pair__val">{{rev.decision_type||'Pending'}}</span>
             </div>
             <div class="rvd-info-pair" ng-if="rev.score">
               <span class="rvd-info-pair__label">Score</span>
               <span class="rvd-info-pair__val rvd-score-val">{{rev.score}}/10</span>
             </div>
+            <!-- Deadline row -->
+            <div class="rvd-info-pair" ng-if="rev.review_deadline">
+              <span class="rvd-info-pair__label"><i class="fa fa-calendar"></i> Deadline</span>
+              <span class="rvd-deadline-badge {{c.deadlineClass(rev)}}" style="font-size:11px">
+                <i class="fa fa-clock-o"></i> {{rev.review_deadline}}
+                <span ng-if="rev.is_overdue"> · OVERDUE</span>
+                <span ng-if="rev.is_due_soon && !rev.is_overdue"> · Due Soon</span>
+              </span>
+            </div>
           </div>
 
           <div class="rvd-proposal-card__score-bar" ng-if="rev.score">
             <div class="rvd-score-track">
-              <div class="rvd-score-fill" ng-style="{'width': c.scoreWidth(rev.score)}"></div>
+              <div class="rvd-score-fill" ng-style="{'width':c.scoreWidth(rev.score)}"></div>
             </div>
             <span class="rvd-score-pct">{{rev.score}}/10</span>
           </div>
@@ -1932,41 +2600,23 @@
         </div>
       </div>
 
-      <!-- ── PAGINATION ── -->
-      <div class="rvd-pagination" ng-if="c.totalPages() > 1">
-        <button class="rvd-page-btn rvd-page-btn--nav"
-                ng-click="c.prevPage()"
-                ng-disabled="c.proposalPage === 1">
-          <i class="fa fa-chevron-left"></i>
-        </button>
-
-        <button class="rvd-page-btn"
-                ng-repeat="p in c.pageNumbers() track by $index"
+      <div class="rvd-pagination" ng-if="c.totalPages()>1">
+        <button class="rvd-page-btn rvd-page-btn--nav" ng-click="c.prevPage()" ng-disabled="c.proposalPage===1"><i class="fa fa-chevron-left"></i></button>
+        <button class="rvd-page-btn" ng-repeat="p in c.pageNumbers() track by $index"
                 ng-click="c.goToPage(p)"
-                ng-class="{
-                  'rvd-page-btn--active': p === c.proposalPage,
-                  'rvd-page-btn--ellipsis': p === '...'
-                }"
-                ng-disabled="p === '...'">
-          {{p}}
-        </button>
-
-        <button class="rvd-page-btn rvd-page-btn--nav"
-                ng-click="c.nextPage()"
-                ng-disabled="c.proposalPage === c.totalPages()">
-          <i class="fa fa-chevron-right"></i>
-        </button>
+                ng-class="{'rvd-page-btn--active':p===c.proposalPage,'rvd-page-btn--ellipsis':p==='...'}"
+                ng-disabled="p==='...'">{{p}}</button>
+        <button class="rvd-page-btn rvd-page-btn--nav" ng-click="c.nextPage()" ng-disabled="c.proposalPage===c.totalPages()"><i class="fa fa-chevron-right"></i></button>
       </div>
 
     </div>
 
-    <!-- AGREEMENTS — unchanged -->
-    <div class="rvd-content" ng-show="c.activeSection === 'agreements'">
+    <!-- ════════════════════════════════════════
+         AGREEMENTS
+    ════════════════════════════════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection==='agreements'">
       <div class="rvd-section-header">
-        <div>
-          <h2 class="rvd-section-title">Agreements</h2>
-          <p class="rvd-section-sub">Grant agreements linked to proposals your team has reviewed.</p>
-        </div>
+        <div><h2 class="rvd-section-title">Agreements</h2><p class="rvd-section-sub">Grant agreements linked to proposals your team has reviewed.</p></div>
       </div>
       <div class="rvd-empty-state">
         <i class="fa fa-handshake-o"></i>
@@ -1975,64 +2625,40 @@
       </div>
     </div>
 
-    <!-- COMPLETED REVIEWS — unchanged -->
-    <div class="rvd-content" ng-show="c.activeSection === 'completed'">
+    <!-- ════════════════════════════════════════
+         COMPLETED
+    ════════════════════════════════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection==='completed'">
       <div class="rvd-section-header">
-        <div>
-          <h2 class="rvd-section-title">Completed Reviews</h2>
-          <p class="rvd-section-sub">All proposals your team has fully reviewed. These are read-only records.</p>
-        </div>
-        <div class="rvd-completed-badge">
-          <i class="fa fa-check-circle"></i> {{c.completedReviews().length}} Completed
-        </div>
+        <div><h2 class="rvd-section-title">Completed Reviews</h2><p class="rvd-section-sub">All proposals your team has fully reviewed.</p></div>
+        <div class="rvd-completed-badge"><i class="fa fa-check-circle"></i> {{c.completedReviews().length}} Completed</div>
       </div>
       <div class="rvd-empty-state" ng-if="!c.completedReviews().length">
-        <i class="fa fa-check-circle-o"></i>
-        <h3>No completed reviews yet</h3>
+        <i class="fa fa-check-circle-o"></i><h3>No completed reviews yet</h3>
         <p>Proposals you finish reviewing will be archived here automatically.</p>
       </div>
       <div class="rvd-completed-table-wrap" ng-if="c.completedReviews().length">
         <table class="rvd-table">
           <thead>
             <tr>
-              <th>Review No.</th>
-              <th>Program</th>
-              <th>Program No.</th>
-              <th>Applicant</th>
-              <th>Applicant No.</th>
-              <th>Category</th>
-              <th>Score</th>
-              <th>Decision</th>
-              <th></th>
+              <th>Review No.</th><th>Program</th><th>Program No.</th>
+              <th>Applicant</th><th>Applicant No.</th><th>Category</th>
+              <th>Reviewer Group</th><th>Deadline</th><th>Score</th><th>Decision</th><th></th>
             </tr>
           </thead>
           <tbody>
             <tr ng-repeat="rev in c.completedReviews()" class="rvd-table-row">
               <td><span class="rvd-proposal-num">{{rev.number}}</span></td>
-              <td>{{rev.program || '—'}}</td>
-              <td>
-                <span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span>
-                <span ng-if="!rev.program_number">—</span>
-              </td>
-              <td>{{rev.applicant || '—'}}</td>
-              <td>
-                <span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span>
-                <span ng-if="!rev.applicant_number">—</span>
-              </td>
-              <td>{{rev.program_category || '—'}}</td>
-              <td>
-                <span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}/10</span>
-                <span class="rvd-muted" ng-if="!rev.score">—</span>
-              </td>
-              <td>
-                <span class="rvd-chip rvd-chip--green" ng-if="rev.decision_type">{{rev.decision_type}}</span>
-                <span class="rvd-muted" ng-if="!rev.decision_type">Pending</span>
-              </td>
-              <td>
-                <button class="rvd-tbl-btn" ng-click="c.openRecord(rev)">
-                  View <i class="fa fa-external-link"></i>
-                </button>
-              </td>
+              <td>{{rev.program||'—'}}</td>
+              <td><span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span><span ng-if="!rev.program_number">—</span></td>
+              <td>{{rev.applicant||'—'}}</td>
+              <td><span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span><span ng-if="!rev.applicant_number">—</span></td>
+              <td>{{rev.program_category||'—'}}</td>
+              <td><span class="rvd-group-tag"><i class="fa fa-users"></i> {{rev.reviewer||'—'}}</span></td>
+              <td><span class="rvd-deadline-badge rvd-deadline--ok" ng-if="rev.review_deadline"><i class="fa fa-calendar-check-o"></i> {{rev.review_deadline}}</span><span class="rvd-muted" ng-if="!rev.review_deadline">—</span></td>
+              <td><span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}/10</span><span class="rvd-muted" ng-if="!rev.score">—</span></td>
+              <td><span class="rvd-chip rvd-chip--green" ng-if="rev.decision_type">{{rev.decision_type}}</span><span class="rvd-muted" ng-if="!rev.decision_type">—</span></td>
+              <td><button class="rvd-tbl-btn" ng-click="c.openRecord(rev)">View <i class="fa fa-external-link"></i></button></td>
             </tr>
           </tbody>
         </table>
@@ -2043,10 +2669,8 @@
 </div>
 
 <div class="rvd-no-access" ng-if="!data.canRead">
-  <i class="fa fa-lock"></i>
-  <h3>Access Restricted</h3>
+  <i class="fa fa-lock"></i><h3>Access Restricted</h3>
   <p>You don't have the required permissions to access the review dashboard.</p>
-</div>
-]]></template>
+</div>]]></template>
     </sp_widget>
 </record_update>

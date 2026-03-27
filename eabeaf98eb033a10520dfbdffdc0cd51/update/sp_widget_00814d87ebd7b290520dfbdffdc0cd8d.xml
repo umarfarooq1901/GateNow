@@ -4,7 +4,7 @@
         <client_script><![CDATA[api.controller = function($scope, $window, $timeout) {
   var c = this;
 
-  // ── Colour palette exposed to HTML for ng-style bindings ──
+  // ── Colour palette ──────────────────────────────────
   c.statusColors = ['#5443AD','#10b981','#f59e0b','#ef4444','#06b6d4','#8b5cf6','#f43f5e'];
 
   // ══════════════════════════════════════════════════════
@@ -23,14 +23,12 @@
     return Math.round((val / total) * 100);
   };
 
-  // Project status dimension percentage (stacked bar width)
   c.getDimPct = function(val, dim) {
     var total = (dim.green || 0) + (dim.yellow || 0) + (dim.red || 0);
     if (!total) return 0;
     return Math.max(4, Math.round((val / total) * 100));
   };
 
-  // Project progress health counters
   c.countProjects = function(type) {
     if (!c.data.projectProgress) return 0;
     return c.data.projectProgress.filter(function(p) {
@@ -41,7 +39,48 @@
     }).length;
   };
 
-  // ── NEW: Count apps by state key (used by Pipeline redesign) ──
+  // ── Average completion % ──────────────────────────────
+  c.avgCompletion = function() {
+    if (!c.data.projectProgress || !c.data.projectProgress.length) return 0;
+    var sum = c.data.projectProgress.reduce(function(a, p) {
+      return a + (p.percent || 0);
+    }, 0);
+    return Math.round(sum / c.data.projectProgress.length);
+  };
+
+  // ── Worst (most red) dimension label ─────────────────  ← ADD HERE
+  c.psWorstDimension = function() {
+    if (!c.data.projectStatusData || !c.data.projectStatusData.dimensions.length)
+      return '—';
+    var worst = c.data.projectStatusData.dimensions.reduce(function(a, b) {
+      return (b.red || 0) > (a.red || 0) ? b : a;
+    });
+    return (worst.red || 0) > 0 ? worst.label : '—';
+  };
+
+  // ── Best (most green) dimension label ─────────────────
+  c.psBestDimension = function() {
+    if (!c.data.projectStatusData || !c.data.projectStatusData.dimensions.length)
+      return '—';
+    var best = c.data.projectStatusData.dimensions.reduce(function(a, b) {
+      return (b.green || 0) > (a.green || 0) ? b : a;
+    });
+    return (best.green || 0) > 0 ? best.label : '—';
+  };
+
+  // ── SVG arc stroke-dasharray for header ring ─────────
+  c.avgDashArray = function() {
+    var avg = c.avgCompletion();
+    return avg + ' ' + (100 - avg);
+  };
+
+  // ── SVG arc for individual project cards ─────────────
+  c.projDashArray = function(pct) {
+    var p = Math.max(0, Math.min(100, pct || 0));
+    return (p / 100 * 188.5) + ' ' + (188.5 - p / 100 * 188.5);
+  };
+
+  // ── Count apps by state key ───────────────────────────
   c.countAppStatus = function(stateKey) {
     if (!c.data.appStatusChart || !c.data.appStatusChart.labels) return 0;
     var total = 0;
@@ -55,7 +94,7 @@
     return total;
   };
 
-  // Status report inline stats
+  // ── Status report helpers ─────────────────────────────
   c.srTotal = function() {
     if (!c.data.statusReports) return 0;
     return c.data.statusReports.reduce(function(a, r) { return a + r.count; }, 0);
@@ -83,7 +122,7 @@
     return map[state.toLowerCase()] || 'badge-draft';
   };
 
-  // Capitalize filter — safe against duplicate registration
+  // ── Capitalize filter ─────────────────────────────────
   try {
     angular.module('sn.cs.widget').filter('capitalize', function() {
       return function(input) {
@@ -105,7 +144,6 @@
       return;
     }
 
-    // ── Colour system ──────────────────────────────────
     var COLORS = ['#5443AD','#10b981','#f59e0b','#ef4444','#06b6d4','#8b5cf6','#f43f5e'];
     var PURPLE = '#5443AD';
     var GREEN  = '#10b981';
@@ -118,7 +156,6 @@
     var DARK   = '#1e1e2e';
     var font   = { family: "'Inter','Segoe UI',sans-serif", size: 12, weight: '500' };
 
-    // ── Shared tooltip defaults ────────────────────────
     var tooltipDefaults = {
       backgroundColor: DARK,
       titleColor:      '#fff',
@@ -135,7 +172,6 @@
 
     // ══════════════════════════════════════════════════
     // CHART 1 — APPLICATION PIPELINE
-    // Premium doughnut · animated · center total label
     // ══════════════════════════════════════════════════
     var appCtx = document.getElementById('appStatusChart');
     if (appCtx && c.data.appStatusChart && c.data.appStatusChart.labels.length) {
@@ -157,15 +193,9 @@
           }]
         },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          cutout:              '70%',
-          rotation:            -90,
-          animation: {
-            animateRotate: true,
-            duration:      1200,
-            easing:        'easeOutQuart'
-          },
+          responsive: true, maintainAspectRatio: false,
+          cutout: '70%', rotation: -90,
+          animation: { animateRotate: true, duration: 1200, easing: 'easeOutQuart' },
           plugins: {
             legend:  { display: false },
             tooltip: Object.assign({}, tooltipDefaults, {
@@ -180,21 +210,14 @@
         },
         plugins: [{
           beforeDraw: function(chart) {
-            var w     = chart.width;
-            var h     = chart.height;
-            var ctx3d = chart.ctx;
-            ctx3d.restore();
-            // Large total number
-            ctx3d.font         = 'bold 28px Inter,sans-serif';
-            ctx3d.fillStyle    = DARK;
-            ctx3d.textAlign    = 'center';
-            ctx3d.textBaseline = 'middle';
-            ctx3d.fillText(total_ap, w / 2, h / 2 - 10);
-            // Sub-label
-            ctx3d.font      = '600 10px Inter,sans-serif';
-            ctx3d.fillStyle = TEXT;
-            ctx3d.fillText('APPLICATIONS', w / 2, h / 2 + 12);
-            ctx3d.save();
+            var w = chart.width, h = chart.height, cx = chart.ctx;
+            cx.restore();
+            cx.font = 'bold 28px Inter,sans-serif'; cx.fillStyle = DARK;
+            cx.textAlign = 'center'; cx.textBaseline = 'middle';
+            cx.fillText(total_ap, w / 2, h / 2 - 10);
+            cx.font = '600 10px Inter,sans-serif'; cx.fillStyle = TEXT;
+            cx.fillText('APPLICATIONS', w / 2, h / 2 + 12);
+            cx.save();
           }
         }]
       });
@@ -202,7 +225,6 @@
 
     // ══════════════════════════════════════════════════
     // CHART 2 — REIMBURSEMENTS
-    // Doughnut, center shows total + "FILED"
     // ══════════════════════════════════════════════════
     var rCtx = document.getElementById('reimbursementChart');
     if (rCtx && c.data.reimbursementStats && c.data.reimbursementStats.total) {
@@ -216,17 +238,14 @@
           datasets: [{
             data:             ri.items.map(function(i) { return i.count; }),
             backgroundColor:  ri.items.map(function(i) { return i.color; }),
-            borderColor:      '#fff',
-            borderWidth:      3,
-            hoverOffset:      14,
-            hoverBorderWidth: 0
+            borderColor:      '#fff', borderWidth: 3,
+            hoverOffset: 14, hoverBorderWidth: 0
           }]
         },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          cutout:              '72%',
-          animation:           { animateRotate: true, duration: 1000, easing: 'easeOutQuart' },
+          responsive: true, maintainAspectRatio: false,
+          cutout: '72%',
+          animation: { animateRotate: true, duration: 1000, easing: 'easeOutQuart' },
           plugins: {
             legend:  { display: false },
             tooltip: Object.assign({}, tooltipDefaults, {
@@ -241,18 +260,14 @@
         },
         plugins: [{
           beforeDraw: function(chart) {
-            var w = chart.width, h = chart.height;
-            var ctx3d = chart.ctx;
-            ctx3d.restore();
-            ctx3d.font         = 'bold 26px Inter,sans-serif';
-            ctx3d.fillStyle    = DARK;
-            ctx3d.textAlign    = 'center';
-            ctx3d.textBaseline = 'middle';
-            ctx3d.fillText(total_r, w / 2, h / 2 - 10);
-            ctx3d.font      = '600 11px Inter,sans-serif';
-            ctx3d.fillStyle = TEXT;
-            ctx3d.fillText('FILED', w / 2, h / 2 + 12);
-            ctx3d.save();
+            var w = chart.width, h = chart.height, cx = chart.ctx;
+            cx.restore();
+            cx.font = 'bold 26px Inter,sans-serif'; cx.fillStyle = DARK;
+            cx.textAlign = 'center'; cx.textBaseline = 'middle';
+            cx.fillText(total_r, w / 2, h / 2 - 10);
+            cx.font = '600 11px Inter,sans-serif'; cx.fillStyle = TEXT;
+            cx.fillText('FILED', w / 2, h / 2 + 12);
+            cx.save();
           }
         }]
       });
@@ -260,7 +275,6 @@
 
     // ══════════════════════════════════════════════════
     // CHART 3 — STATUS REPORT TIMELINE
-    // Gradient area line, crosshair hover, dot markers
     // ══════════════════════════════════════════════════
     var srCtx = document.getElementById('statusReportChart');
     if (srCtx && c.data.statusReports && c.data.statusReports.length) {
@@ -276,28 +290,19 @@
         data: {
           labels: sr.map(function(r) { return r.month; }),
           datasets: [{
-            label:                'Reports',
-            data:                 sr.map(function(r) { return r.count; }),
-            borderColor:          ROSE,
-            backgroundColor:      srGrad,
-            borderWidth:          3,
-            fill:                 true,
-            tension:              0.45,
-            pointBackgroundColor: ROSE,
-            pointBorderColor:     '#fff',
-            pointBorderWidth:     3,
-            pointRadius:          6,
-            pointHoverRadius:     10,
+            label: 'Reports', data: sr.map(function(r) { return r.count; }),
+            borderColor: ROSE, backgroundColor: srGrad,
+            borderWidth: 3, fill: true, tension: 0.45,
+            pointBackgroundColor: ROSE, pointBorderColor: '#fff',
+            pointBorderWidth: 3, pointRadius: 6, pointHoverRadius: 10,
             pointHoverBackgroundColor: '#fff',
-            pointHoverBorderColor:     ROSE,
-            pointHoverBorderWidth:     3
+            pointHoverBorderColor: ROSE, pointHoverBorderWidth: 3
           }]
         },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          animation:           { duration: 1000, easing: 'easeOutQuart' },
-          interaction:         { mode: 'index', intersect: false },
+          responsive: true, maintainAspectRatio: false,
+          animation:   { duration: 1000, easing: 'easeOutQuart' },
+          interaction: { mode: 'index', intersect: false },
           plugins: {
             legend:  { display: false },
             tooltip: Object.assign({}, tooltipDefaults, {
@@ -310,31 +315,22 @@
             })
           },
           scales: {
-            x: {
-              grid:  { display: false },
-              ticks: { color: TEXT, font: font }
-            },
-            y: {
-              grid:        { color: GRID, drawBorder: false },
-              ticks:       { color: TEXT, font: font, stepSize: 1, padding: 8 },
-              beginAtZero: true
-            }
+            x: { grid: { display: false }, ticks: { color: TEXT, font: font } },
+            y: { grid: { color: GRID, drawBorder: false }, ticks: { color: TEXT, font: font, stepSize: 1, padding: 8 }, beginAtZero: true }
           }
         },
         plugins: [{
           afterDraw: function(chart) {
             if (chart.tooltip._active && chart.tooltip._active.length) {
-              var ctx3d = chart.ctx;
-              var x     = chart.tooltip._active[0].element.x;
-              ctx3d.save();
-              ctx3d.beginPath();
-              ctx3d.moveTo(x, chart.chartArea.top);
-              ctx3d.lineTo(x, chart.chartArea.bottom);
-              ctx3d.lineWidth   = 1.5;
-              ctx3d.strokeStyle = 'rgba(244,63,94,0.3)';
-              ctx3d.setLineDash([4, 4]);
-              ctx3d.stroke();
-              ctx3d.restore();
+              var cx = chart.ctx;
+              var x  = chart.tooltip._active[0].element.x;
+              cx.save();
+              cx.beginPath();
+              cx.moveTo(x, chart.chartArea.top);
+              cx.lineTo(x, chart.chartArea.bottom);
+              cx.lineWidth = 1.5; cx.strokeStyle = 'rgba(244,63,94,0.3)';
+              cx.setLineDash([4, 4]); cx.stroke();
+              cx.restore();
             }
           }
         }]
@@ -343,7 +339,6 @@
 
     // ══════════════════════════════════════════════════
     // CHART 4 — PROJECT STATUS RADAR
-    // Spider chart — Green / Yellow / Red × 5 dimensions
     // ══════════════════════════════════════════════════
     var radarCtx = document.getElementById('projectStatusRadar');
     if (radarCtx && c.data.projectStatusData && c.data.projectStatusData.dimensions.length) {
@@ -356,47 +351,28 @@
           labels: rLabels,
           datasets: [
             {
-              label:                'Green',
-              data:                 dims.map(function(d) { return d.green  || 0; }),
-              borderColor:          '#10b981',
-              backgroundColor:      'rgba(16,185,129,0.15)',
-              borderWidth:          2.5,
-              pointBackgroundColor: '#10b981',
-              pointBorderColor:     '#fff',
-              pointBorderWidth:     2,
-              pointRadius:          5,
-              pointHoverRadius:     8
+              label: 'Green', data: dims.map(function(d) { return d.green  || 0; }),
+              borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)',
+              borderWidth: 2.5, pointBackgroundColor: '#10b981',
+              pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8
             },
             {
-              label:                'Yellow',
-              data:                 dims.map(function(d) { return d.yellow || 0; }),
-              borderColor:          '#f59e0b',
-              backgroundColor:      'rgba(245,158,11,0.12)',
-              borderWidth:          2.5,
-              pointBackgroundColor: '#f59e0b',
-              pointBorderColor:     '#fff',
-              pointBorderWidth:     2,
-              pointRadius:          5,
-              pointHoverRadius:     8
+              label: 'Yellow', data: dims.map(function(d) { return d.yellow || 0; }),
+              borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)',
+              borderWidth: 2.5, pointBackgroundColor: '#f59e0b',
+              pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8
             },
             {
-              label:                'Red',
-              data:                 dims.map(function(d) { return d.red    || 0; }),
-              borderColor:          '#ef4444',
-              backgroundColor:      'rgba(239,68,68,0.1)',
-              borderWidth:          2.5,
-              pointBackgroundColor: '#ef4444',
-              pointBorderColor:     '#fff',
-              pointBorderWidth:     2,
-              pointRadius:          5,
-              pointHoverRadius:     8
+              label: 'Red', data: dims.map(function(d) { return d.red    || 0; }),
+              borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)',
+              borderWidth: 2.5, pointBackgroundColor: '#ef4444',
+              pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8
             }
           ]
         },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          animation:           { duration: 900, easing: 'easeOutQuart' },
+          responsive: true, maintainAspectRatio: false,
+          animation:  { duration: 900, easing: 'easeOutQuart' },
           scales: {
             r: {
               beginAtZero: true,
@@ -408,15 +384,12 @@
           },
           plugins: {
             legend: {
-              display:  true,
-              position: 'bottom',
-              labels:   { color: TEXT, font: font, boxWidth: 12, padding: 16, usePointStyle: true }
+              display: true, position: 'bottom',
+              labels: { color: TEXT, font: font, boxWidth: 12, padding: 16, usePointStyle: true }
             },
             tooltip: Object.assign({}, tooltipDefaults, {
               callbacks: {
-                label: function(ctx) {
-                  return '  ' + ctx.dataset.label + ': ' + ctx.parsed.r;
-                }
+                label: function(ctx) { return '  ' + ctx.dataset.label + ': ' + ctx.parsed.r; }
               }
             })
           }
@@ -426,7 +399,6 @@
 
     // ══════════════════════════════════════════════════
     // CHART 5 — PROJECT STATUS GROUPED BAR
-    // 5 dimensions × Green / Yellow / Red datasets
     // ══════════════════════════════════════════════════
     var gbCtx = document.getElementById('projectStatusGroupedBar');
     if (gbCtx && c.data.projectStatusData && c.data.projectStatusData.dimensions.length) {
@@ -438,59 +410,39 @@
           labels: gbDims.map(function(d) { return d.label; }),
           datasets: [
             {
-              label:           'Green',
-              data:            gbDims.map(function(d) { return d.green  || 0; }),
-              backgroundColor: 'rgba(16,185,129,0.85)',
-              borderWidth:     0,
-              borderRadius:    { topLeft: 6, topRight: 6 },
-              borderSkipped:   false
+              label: 'Green', data: gbDims.map(function(d) { return d.green  || 0; }),
+              backgroundColor: 'rgba(16,185,129,0.85)', borderWidth: 0,
+              borderRadius: { topLeft: 6, topRight: 6 }, borderSkipped: false
             },
             {
-              label:           'Yellow',
-              data:            gbDims.map(function(d) { return d.yellow || 0; }),
-              backgroundColor: 'rgba(245,158,11,0.85)',
-              borderWidth:     0,
-              borderRadius:    { topLeft: 6, topRight: 6 },
-              borderSkipped:   false
+              label: 'Yellow', data: gbDims.map(function(d) { return d.yellow || 0; }),
+              backgroundColor: 'rgba(245,158,11,0.85)', borderWidth: 0,
+              borderRadius: { topLeft: 6, topRight: 6 }, borderSkipped: false
             },
             {
-              label:           'Red',
-              data:            gbDims.map(function(d) { return d.red    || 0; }),
-              backgroundColor: 'rgba(239,68,68,0.85)',
-              borderWidth:     0,
-              borderRadius:    { topLeft: 6, topRight: 6 },
-              borderSkipped:   false
+              label: 'Red', data: gbDims.map(function(d) { return d.red    || 0; }),
+              backgroundColor: 'rgba(239,68,68,0.85)', borderWidth: 0,
+              borderRadius: { topLeft: 6, topRight: 6 }, borderSkipped: false
             }
           ]
         },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false,
           animation: {
-            duration: 900,
-            easing:   'easeOutQuart',
-            delay:    function(ctx) { return ctx.dataIndex * 80; }
+            duration: 900, easing: 'easeOutQuart',
+            delay: function(ctx) { return ctx.dataIndex * 80; }
           },
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: {
-              display:  true,
-              position: 'top',
-              align:    'end',
-              labels:   { color: TEXT, font: font, boxWidth: 12, padding: 16, usePointStyle: true }
+              display: true, position: 'top', align: 'end',
+              labels: { color: TEXT, font: font, boxWidth: 12, padding: 16, usePointStyle: true }
             },
             tooltip: Object.assign({}, tooltipDefaults)
           },
           scales: {
-            x: {
-              grid:  { display: false },
-              ticks: { color: DARK, font: { family: font.family, size: 12, weight: '600' } }
-            },
-            y: {
-              grid:        { color: GRID, drawBorder: false },
-              ticks:       { color: TEXT, font: font, stepSize: 1, padding: 6 },
-              beginAtZero: true
-            }
+            x: { grid: { display: false }, ticks: { color: DARK, font: { family: font.family, size: 12, weight: '600' } } },
+            y: { grid: { color: GRID, drawBorder: false }, ticks: { color: TEXT, font: font, stepSize: 1, padding: 6 }, beginAtZero: true }
           }
         }
       });
@@ -498,7 +450,6 @@
 
     // ══════════════════════════════════════════════════
     // CHART 6a — CHANGE REQUESTS: Priority Doughnut
-    // Center label: total count + "TOTAL"
     // ══════════════════════════════════════════════════
     var crCtx = document.getElementById('changeRequestChart');
     if (crCtx && c.data.changeRequestStats && c.data.changeRequestStats.total) {
@@ -511,19 +462,16 @@
         data: {
           labels: pri.map(function(i) { return i.label; }),
           datasets: [{
-            data:             pri.map(function(i) { return i.count; }),
-            backgroundColor:  pri.map(function(i) { return i.color; }),
-            borderColor:      '#fff',
-            borderWidth:      3,
-            hoverOffset:      12,
-            hoverBorderWidth: 0
+            data:            pri.map(function(i) { return i.count; }),
+            backgroundColor: pri.map(function(i) { return i.color; }),
+            borderColor: '#fff', borderWidth: 3,
+            hoverOffset: 12, hoverBorderWidth: 0
           }]
         },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          cutout:              '70%',
-          animation:           { animateRotate: true, duration: 1000 },
+          responsive: true, maintainAspectRatio: false,
+          cutout: '70%',
+          animation: { animateRotate: true, duration: 1000 },
           plugins: {
             legend:  { display: false },
             tooltip: Object.assign({}, tooltipDefaults, {
@@ -538,18 +486,14 @@
         },
         plugins: [{
           beforeDraw: function(chart) {
-            var w = chart.width, h = chart.height;
-            var ctx3d = chart.ctx;
-            ctx3d.restore();
-            ctx3d.font         = 'bold 22px Inter,sans-serif';
-            ctx3d.fillStyle    = DARK;
-            ctx3d.textAlign    = 'center';
-            ctx3d.textBaseline = 'middle';
-            ctx3d.fillText(total_cr, w / 2, h / 2 - 9);
-            ctx3d.font      = '600 11px Inter,sans-serif';
-            ctx3d.fillStyle = TEXT;
-            ctx3d.fillText('TOTAL', w / 2, h / 2 + 11);
-            ctx3d.save();
+            var w = chart.width, h = chart.height, cx = chart.ctx;
+            cx.restore();
+            cx.font = 'bold 22px Inter,sans-serif'; cx.fillStyle = DARK;
+            cx.textAlign = 'center'; cx.textBaseline = 'middle';
+            cx.fillText(total_cr, w / 2, h / 2 - 9);
+            cx.font = '600 11px Inter,sans-serif'; cx.fillStyle = TEXT;
+            cx.fillText('TOTAL', w / 2, h / 2 + 11);
+            cx.save();
           }
         }]
       });
@@ -557,10 +501,11 @@
 
     // ══════════════════════════════════════════════════
     // CHART 6b — CHANGE REQUESTS: Category Horizontal Bar
-    // Gradient fills, inline value labels
     // ══════════════════════════════════════════════════
     var crCatCtx = document.getElementById('changeRequestCategoryChart');
-    if (crCatCtx && c.data.changeRequestStats && c.data.changeRequestStats.byCategory && c.data.changeRequestStats.byCategory.length) {
+    if (crCatCtx && c.data.changeRequestStats &&
+        c.data.changeRequestStats.byCategory &&
+        c.data.changeRequestStats.byCategory.length) {
       var cats = c.data.changeRequestStats.byCategory;
 
       new Chart(crCatCtx, {
@@ -571,22 +516,19 @@
             label: 'Count',
             data:  cats.map(function(item) { return item.count; }),
             backgroundColor: cats.map(function(item) {
-              var g = crCatCtx.getContext('2d').createLinearGradient(0, 0, crCatCtx.offsetWidth || 300, 0);
+              var g = crCatCtx.getContext('2d')
+                        .createLinearGradient(0, 0, crCatCtx.offsetWidth || 300, 0);
               g.addColorStop(0, item.color);
               g.addColorStop(1, item.color + '88');
               return g;
             }),
-            borderColor:   'transparent',
-            borderRadius:  8,
-            borderSkipped: false,
-            barThickness:  18
+            borderColor: 'transparent', borderRadius: 8,
+            borderSkipped: false, barThickness: 18
           }]
         },
         options: {
-          indexAxis:           'y',
-          responsive:          true,
-          maintainAspectRatio: false,
-          animation:           { duration: 800, easing: 'easeOutQuart' },
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          animation: { duration: 800, easing: 'easeOutQuart' },
           plugins: {
             legend:  { display: false },
             tooltip: Object.assign({}, tooltipDefaults, {
@@ -598,106 +540,99 @@
             })
           },
           scales: {
-            x: {
-              grid:        { color: GRID, drawBorder: false },
-              ticks:       { color: TEXT, font: font, stepSize: 1 },
-              beginAtZero: true
-            },
-            y: {
-              grid:  { display: false },
-              ticks: { color: DARK, font: { family: font.family, size: 11, weight: '600' } }
-            }
+            x: { grid: { color: GRID, drawBorder: false }, ticks: { color: TEXT, font: font, stepSize: 1 }, beginAtZero: true },
+            y: { grid: { display: false }, ticks: { color: DARK, font: { family: font.family, size: 11, weight: '600' } } }
           }
         },
         plugins: [{
           afterDatasetsDraw: function(chart) {
-            var ctx3d = chart.ctx;
+            var cx = chart.ctx;
             chart.data.datasets[0].data.forEach(function(val, i) {
               var meta = chart.getDatasetMeta(0);
               var bar  = meta.data[i];
-              ctx3d.save();
-              ctx3d.fillStyle    = cats[i] ? cats[i].color : DARK;
-              ctx3d.font         = 'bold 11px Inter,sans-serif';
-              ctx3d.textAlign    = 'left';
-              ctx3d.textBaseline = 'middle';
-              ctx3d.fillText(val, bar.x + 6, bar.y);
-              ctx3d.restore();
+              cx.save();
+              cx.fillStyle    = cats[i] ? cats[i].color : DARK;
+              cx.font         = 'bold 11px Inter,sans-serif';
+              cx.textAlign    = 'left'; cx.textBaseline = 'middle';
+              cx.fillText(val, bar.x + 6, bar.y);
+              cx.restore();
             });
           }
         }]
       });
     }
- // PROJECT COMPLETION — Gantt Edition
-// Doughnut only (pc8MainChart). No stacked bar needed.
+// ══ PROJECT COMPLETION v19 ══
+(function () {
+  if (!c.data.projectProgress || !c.data.projectProgress.length) return;
 
-var pc8El = document.getElementById('pc8MainChart');
-if (pc8El && c.data.projectProgress) {
-  var onT  = c.countProjects('on_track');
-  var inp  = c.countProjects('in_progress');
-  var risk = c.countProjects('needs_attention');
-  var tot  = c.data.projectProgress.length;
-  var avg  = c.avgCompletion ? c.avgCompletion() : 0;
+  var projects = c.data.projectProgress;
 
-  // If all zero, show placeholder segment
-  var chartData = (onT + inp + risk === 0)
-    ? [1, 0, 0]
-    : [onT, inp, risk];
+  var PALETTE = [
+    '#6366f1','#10b981','#f59e0b','#ef4444',
+    '#8b5cf6','#06b6d4','#f43f5e','#84cc16'
+  ];
 
-  new Chart(pc8El.getContext('2d'), {
-    type: 'doughnut',
+  c.pcdColor = function (idx) {
+    return PALETTE[idx % PALETTE.length];
+  };
+
+  var el = document.getElementById('pcdPie');
+  if (!el) return;
+
+  var labels  = projects.map(function (p) { return p.name; });
+  var vals    = projects.map(function (p) { return Math.max(p.percent || 0, 3); });
+  var bgAlpha = projects.map(function (_, i) { return PALETTE[i % PALETTE.length] + 'cc'; });
+  var bgFull  = projects.map(function (_, i) { return PALETTE[i % PALETTE.length]; });
+
+  new Chart(el.getContext('2d'), {
+    type: 'pie',
     data: {
-      labels: ['On Track', 'In Progress', 'At Risk'],
+      labels: labels,
       datasets: [{
-        data:            chartData,
-        backgroundColor: ['#10b981','#f59e0b','#ef4444'],
-        borderColor:     '#fff',
-        borderWidth:     3,
-        hoverOffset:     10,
-        borderRadius:    4
+        data:                 vals,
+        backgroundColor:      bgAlpha,
+        hoverBackgroundColor: bgFull,
+        borderColor:          '#f8fafc',
+        borderWidth:          5,
+        hoverOffset:          18,
+        borderRadius:         6
       }]
     },
     options: {
-      responsive:          true,
+      responsive:          false,
       maintainAspectRatio: false,
-      cutout:              '74%',
-      rotation:            -90,
       animation: {
         animateRotate: true,
-        duration:      1300,
-        easing:        'easeOutQuart'
+        animateScale:  true,
+        duration:      1600,
+        easing:        'easeOutBack'
       },
       plugins: {
         legend: { display: false },
-        tooltip: Object.assign({}, tooltipDefaults, {
+        tooltip: {
+          backgroundColor:'rgba(15,23,42,0.93)',
+          titleFont:{ size:12, weight:'800', family:'Inter,sans-serif' },
+          bodyFont: { size:11, family:'Inter,sans-serif' },
+          padding:12, cornerRadius:10,
+          displayColors:true, boxWidth:9, boxHeight:9, boxPadding:4,
           callbacks: {
-            label: function(ctx) {
-              var pct = tot ? Math.round(ctx.parsed / tot * 100) : 0;
-              return '  ' + ctx.label + ':  ' + ctx.parsed + ' project' + (ctx.parsed !== 1 ? 's' : '') + '  (' + pct + '%)';
+            title: function (items) { return projects[items[0].dataIndex].name; },
+            label: function (ctx) {
+              var p = projects[ctx.dataIndex];
+              var s = p.percent>=75?'✅ On Track':p.percent>=40?'⏳ In Progress':p.percent>0?']]>🔴<![CDATA[ At Risk':'⬜ Not Started';
+              return [
+                '  Completion : '+(p.percent||0)+'%',
+                '  Phase      : '+(p.phase||'—'),
+                '  Status     : '+s
+              ];
             }
           }
-        })
+        }
       }
     },
-    plugins: [{
-      beforeDraw: function(chart) {
-        var w = chart.width, h = chart.height, cx = chart.ctx;
-        cx.restore();
-        cx.font         = '900 26px Inter,sans-serif';
-        cx.fillStyle    = '#111827';
-        cx.textAlign    = 'center';
-        cx.textBaseline = 'middle';
-        cx.fillText(avg + '%', w / 2, h / 2 - 9);
-        cx.font         = '600 9px Inter,sans-serif';
-        cx.fillStyle    = '#9ca3af';
-        cx.fillText('AVG DONE', w / 2, h / 2 + 10);
-        cx.save();
-      }
-    }]
+    plugins: [] // ← centre text plugin removed
   });
-}
-
-
-
+})();
   } // end drawCharts()
 
   $timeout(drawCharts, 500);
@@ -712,33 +647,41 @@ if (pc8El && c.data.projectProgress) {
   margin-right: -15px;
   margin-top: 35px;
   display: flex;
-  min-height: 100vh;
+  align-items: stretch;          /* ← was flex-start */
   font-family: 'Inter', 'Segoe UI', sans-serif;
   background: #f0f2f8;
   width: calc(100% + 30px);
   position: relative;
-  align-items: flex-start;
+  min-height: 100vh;
 }
-.gn-layout *, .gn-layout *:before, .gn-layout *:after { box-sizing: border-box; }
-
+.gn-layout *, .gn-layout *:before, .gn-layout *:after {
+  box-sizing: border-box;
+}
 .sidebar {
   width: 220px;
   flex-shrink: 0;
   background: #fff;
   border-right: 1px solid #e5e7eb;
+
+  /* Stick to viewport top, full height, no inner scroll */
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow-y: auto;
+  overflow-y: auto;          /* only scrolls if content overflows */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   z-index: 10;
+
+  /* Remove any gap below */
+  align-self: flex-start;
 }
 .gn-main {
   font-family: 'Inter', 'Segoe UI', sans-serif;
   background: #f0f2f8;
   padding: 24px 28px 48px;
   flex: 1;
+  min-width: 0;              /* ← prevents flex overflow */
   min-height: 100vh;
-  overflow-y: auto;
 }
 
 /* ════════════════════════════════════════
@@ -839,7 +782,7 @@ if (pc8El && c.data.projectProgress) {
 .gn-analytics-hdr {
   padding: 18px 24px; display: flex;
   justify-content: space-between; align-items: center; color: #fff;
-  flex-wrap: wrap; gap: 10px;                /* ← FIX: wrap on small screens */
+  flex-wrap: wrap; gap: 10px;
 }
 .gn-analytics-hdr--purple { background: linear-gradient(135deg,#4a3fa0,#6b5fd4); }
 .gn-analytics-hdr--teal   { background: linear-gradient(135deg,#0d7a6e,#10b981); }
@@ -862,13 +805,8 @@ if (pc8El && c.data.projectProgress) {
 /* ════════════════════════════════════════
    CHART WRAPPERS
 ════════════════════════════════════════ */
-.gn-chart-wrap {
-  position: relative; display: block;
-  /* FIX: don't force width:100% on fixed-size chart wraps */
-}
-.gn-chart-wrap canvas {
-  display: block !important;
-}
+.gn-chart-wrap { position: relative; display: block; }
+.gn-chart-wrap canvas { display: block !important; }
 
 /* ════════════════════════════════════════
    GRID + COLOR UTILITIES
@@ -962,7 +900,7 @@ if (pc8El && c.data.projectProgress) {
   text-shadow: 0 1px 3px rgba(0,0,0,0.25);
 }
 .gn-ap-funnel-count { width: 28px; text-align: right; flex-shrink: 0; font-size: 15px; font-weight: 800; }
-.gn-ap-conv-strip   {
+.gn-ap-conv-strip {
   display: flex; align-items: center;
   background: #fff; border-radius: 12px; padding: 12px 16px; border: 1px solid #ebebf5;
 }
@@ -987,266 +925,205 @@ if (pc8El && c.data.projectProgress) {
 .gn-ap-leg-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .gn-ap-leg-pct   { font-size: 12px; font-weight: 800; }
 .gn-ap-leg-count { font-size: 12px; font-weight: 700; color: #9ca3af; min-width: 16px; text-align: right; }
-/* ════════════════════════════════════════
-   PROJECT COMPLETION  ·  Gantt Edition
-════════════════════════════════════════ */
 
-.pc-card {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  overflow: hidden;
-  background: #fff;
-  border-radius: 18px;
-  border: 1px solid #ebebf5;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-}
-
-/* ── Header ─────────────────────────── */
-.pc-header {
-  background: linear-gradient(135deg,#0d7a6e 0%,#059669 55%,#10b981 100%);
-  padding: 18px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.pc-header-left {
-  display: flex; align-items: center; gap: 12px;
-}
-.pc-header-icon {
-  width: 38px; height: 38px; border-radius: 10px;
-  background: rgba(255,255,255,0.16);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 16px; flex-shrink: 0;
-}
-.pc-title   { font-size: 15px; font-weight: 800; color: #fff; line-height: 1; }
-.pc-subtitle{ font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 3px; }
-
-.pc-header-right {
-  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
-}
-.pc-hbadge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 700; padding: 4px 12px;
-  border-radius: 20px; white-space: nowrap;
-  border: 1px solid rgba(255,255,255,0.2);
-  i { font-size: 7px; }
-  &amp;--green { background: rgba(255,255,255,0.15); color: #fff; }
-  &amp;--amber { background: rgba(245,158,11,0.28);  color: #fff; }
-  &amp;--red   { background: rgba(239,68,68,0.28);   color: #fff; }
+/* ══════════════════════════════════════════════
+   PROJECT COMPLETION  v19
+   Single-column · Pie centre · Mixed-metric legend
+══════════════════════════════════════════════ */
+.pcd-card {
+  font-family:'Inter','Segoe UI',system-ui,sans-serif;
+  background:#fff;
+  border-radius:20px;
+  border:1px solid #e2e8f0;
+  box-shadow:0 4px 28px rgba(0,0,0,0.07);
+  overflow:hidden;
 }
 
-/* ── KPI Strip ──────────────────────── */
-.pc-kpi-strip {
-  display: flex;
-  align-items: center;
-  background: #fafbff;
-  border-bottom: 1px solid #f1f5f9;
-  padding: 0 28px;
+/* ── Header ── */
+.pcd-header {
+  display:flex; align-items:center;
+  justify-content:space-between; flex-wrap:wrap; gap:10px;
+  padding:15px 20px;
+  background:linear-gradient(135deg,#064e3b 0%,#059669 52%,#10b981 100%);
+  position:relative; overflow:hidden;
 }
-.pc-kpi {
-  flex: 1; padding: 16px 0; text-align: center; cursor: default;
+.pcd-header::before {
+  content:''; position:absolute; top:-40px; right:-20px;
+  width:130px; height:130px; border-radius:50%;
+  background:rgba(255,255,255,0.07); pointer-events:none;
 }
-.pc-kpi-val {
-  font-size: 24px; font-weight: 900; color: #111827; line-height: 1;
+.pcd-hd-left  { display:flex; align-items:center; gap:10px; position:relative; z-index:1; }
+.pcd-hd-icon  {
+  width:38px; height:38px; border-radius:10px;
+  background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2);
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:15px; flex-shrink:0;
 }
-.pc-kpi-lbl {
-  font-size: 10px; font-weight: 600; color: #9ca3af;
-  text-transform: uppercase; letter-spacing: 0.4px; margin-top: 3px;
+.pcd-hd-title { font-size:15px; font-weight:800; color:#fff; }
+.pcd-hd-sub   { font-size:10px; color:rgba(255,255,255,0.65); margin-top:2px; }
+.pcd-hd-pills { display:flex; gap:6px; flex-wrap:wrap; position:relative; z-index:1; }
+.pcd-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:10px; font-weight:700; padding:5px 12px;
+  border-radius:99px; color:#fff; white-space:nowrap;
+  border:1px solid rgba(255,255,255,0.2);
 }
-.pc-kpi-div {
-  width: 1px; height: 30px; background: #eef0f6; flex-shrink: 0;
+.pcd-pill i  { font-size:8px; }
+.pcd-pill--g { background:rgba(16,185,129,0.35); }
+.pcd-pill--y { background:rgba(245,158,11,0.40); }
+.pcd-pill--r { background:rgba(239,68,68,0.40); }
+
+/* ── Body ── */
+.pcd-body {
+  padding:14px 16px 18px;
+  display:flex; flex-direction:column; gap:14px;
 }
 
-/* ── Gantt Wrapper ──────────────────── */
-.pc-gantt-wrap {
-  padding: 20px 24px 24px;
-  position: relative;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+/* ── KPI strip — icon left, number right, no truncation ── */
+.pcd-kpi-strip {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.pcd-kpi {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:13px;
+  min-width:0; overflow:hidden;
+  transition:transform .15s,box-shadow .15s;
+}
+.pcd-kpi:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,0.08); }
+.pcd-kpi--purple { background:linear-gradient(135deg,#f5f3ff,#ede9fe); border:1px solid #ddd6fe; }
+.pcd-kpi--teal   { background:linear-gradient(135deg,#ecfdf5,#d1fae5); border:1px solid #a7f3d0; }
+.pcd-kpi--amber  { background:linear-gradient(135deg,#fffbeb,#fef3c7); border:1px solid #fde68a; }
+.pcd-kpi--red    { background:linear-gradient(135deg,#fff5f5,#fee2e2); border:1px solid #fecaca; }
+.pcd-kpi-ic {
+  width:30px; height:30px; border-radius:8px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:12px;
+}
+.pcd-kpi--purple .pcd-kpi-ic { background:rgba(124,58,237,0.12); color:#7c3aed; }
+.pcd-kpi--teal   .pcd-kpi-ic { background:rgba(5,150,105,0.12);  color:#059669; }
+.pcd-kpi--amber  .pcd-kpi-ic { background:rgba(217,119,6,0.12);  color:#d97706; }
+.pcd-kpi--red    .pcd-kpi-ic { background:rgba(220,38,38,0.12);  color:#dc2626; }
+.pcd-kpi-val  { font-size:20px; font-weight:900; line-height:1; letter-spacing:-0.5px; white-space:nowrap; }
+.pcd-kpi-u    { font-size:11px; font-weight:700; opacity:.7; }
+.pcd-kpi--purple .pcd-kpi-val { color:#7c3aed; }
+.pcd-kpi--teal   .pcd-kpi-val { color:#059669; }
+.pcd-kpi--amber  .pcd-kpi-val { color:#d97706; }
+.pcd-kpi--red    .pcd-kpi-val { color:#dc2626; }
+.pcd-kpi-lbl  { font-size:9px; font-weight:600; color:#6b7280; margin-top:1px; white-space:nowrap; }
+
+/* ── Pie chart area — centered, full width ── */
+.pcd-chart-area {
+  display:flex; justify-content:center; align-items:center;
+  background:#f8fafc; border:1px solid #f1f5f9;
+  border-radius:16px; padding:18px;
+}
+.pcd-chart-area canvas {
+  display:block !important;
+  width:220px !important; height:220px !important;
 }
 
-/* Column layout proportions */
-$pc-info-w:   200px;
-$pc-status-w: 112px;
-
-/* ── Gantt Header (ruler) ───────────── */
-.pc-gantt-head {
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f1f5f9;
-  min-width: 580px;
-}
-.pc-gantt-head-label {
-  width: $pc-info-w; flex-shrink: 0;
-  font-size: 10px; font-weight: 700; color: #9ca3af;
-  text-transform: uppercase; letter-spacing: 0.5px;
-}
-.pc-gantt-ruler {
-  flex: 1;
-  display: flex; justify-content: space-between;
-  font-size: 10px; font-weight: 600; color: #cbd5e1;
-  padding: 0 2px;
-}
-.pc-gantt-head-status {
-  width: $pc-status-w; flex-shrink: 0; text-align: center;
-  font-size: 10px; font-weight: 700; color: #9ca3af;
-  text-transform: uppercase; letter-spacing: 0.5px;
+/* ── Mixed-metric legend rows ── */
+.pcd-legend {
+  display:flex; flex-direction:column; gap:8px;
 }
 
-/* ── Grid lines ─────────────────────── */
-.pc-gantt-grid {
-  position: absolute;
-  top: 0; bottom: 0;
-  /* align to bar column only */
-  left: calc(24px + #{$pc-info-w});
-  right: calc(24px + #{$pc-status-w});
-  pointer-events: none;
-  z-index: 0;
+.pcd-leg-row {
+  display:grid;
+  grid-template-columns: 32px 1fr 120px 56px;
+  align-items:center;
+  gap:10px;
+  padding:9px 12px;
+  background:#f8fafc;
+  border:1px solid #f1f5f9;
+  border-radius:12px;
+  transition:box-shadow .15s,transform .15s;
 }
-.pc-gantt-gridline {
-  position: absolute; top: 0; bottom: 0;
-  width: 1px; background: #f1f5f9;
-}
-
-/* ── Rows ───────────────────────────── */
-.pc-gantt-rows {
-  display: flex; flex-direction: column; gap: 6px;
-  position: relative; z-index: 1;
-  min-width: 580px;
+.pcd-leg-row:hover {
+  box-shadow:0 3px 12px rgba(0,0,0,0.07);
+  transform:translateX(2px);
 }
 
-.pc-gantt-row {
-  display: flex; align-items: center;
-  padding: 10px 0;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  transition: background 0.15s, box-shadow 0.15s;
-  cursor: default;
-
-  &amp;:hover {
-    background: #f8fafc;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-  }
-
-  /* left accent stripe */
-  border-left: 3px solid transparent;
-  padding-left: 10px;
-
-  &amp;--green { border-left-color: #10b981; }
-  &amp;--amber { border-left-color: #f59e0b; }
-  &amp;--red   { border-left-color: #ef4444; }
+/* Avatar */
+.pcd-leg-av {
+  width:32px; height:32px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:900; color:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,0.16); flex-shrink:0;
 }
 
-/* Info cell */
-.pc-gantt-info {
-  width: $pc-info-w; flex-shrink: 0;
-  display: flex; align-items: center; gap: 10px;
-  padding-right: 14px;
+/* Name + phase */
+.pcd-leg-meta  { min-width:0; }
+.pcd-leg-name  {
+  font-size:12px; font-weight:700; color:#1e293b;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  line-height:1.3;
 }
-.pc-gantt-av {
-  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 900;
+.pcd-phase {
+  display:inline-flex; align-items:center; gap:2px;
+  font-size:9px; font-weight:700;
+  padding:2px 6px; border-radius:4px;
+  margin-top:2px; white-space:nowrap;
 }
-.pc-gantt-meta { flex: 1; min-width: 0; }
-.pc-gantt-name {
-  font-size: 12px; font-weight: 700; color: #111827;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.pcd-phase--planning   { background:#ede9fe; color:#7c3aed; }
+.pcd-phase--initiating { background:#dbeafe; color:#1d4ed8; }
+.pcd-phase--executing  { background:#d1fae5; color:#059669; }
+.pcd-phase--closing    { background:#fef3c7; color:#d97706; }
+.pcd-phase--none       { background:#f1f5f9; color:#64748b; }
+
+/* Inline bar */
+.pcd-leg-bar-wrap { min-width:0; }
+.pcd-leg-bar-track {
+  height:8px; background:#f1f5f9;
+  border-radius:99px; overflow:hidden;
 }
-.pc-gantt-tags { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
-.pc-tag-num {
-  font-size: 9px; font-weight: 700; color: #5443AD;
-  background: #EEEDFB; padding: 1px 5px; border-radius: 4px;
+.pcd-leg-bar-fill {
+  height:100%; border-radius:99px;
+  position:relative; overflow:hidden;
+  transition:width 1.5s cubic-bezier(.34,1.56,.64,1);
 }
-.pc-tag-phase {
-  font-size: 9px; font-weight: 600; color: #6b7280;
-  background: #f1f5f9; padding: 1px 5px; border-radius: 4px;
-  max-width: 80px; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
+.pcd-bar-shine {
+  position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+  animation:pcdShine 2.8s ease-in-out infinite;
+}
+@keyframes pcdShine {
+  0%   { transform:translateX(-100%); }
+  100% { transform:translateX(300%); }
 }
 
-/* Bar cell */
-.pc-gantt-bar-cell {
-  flex: 1; padding-right: 12px;
+/* Percent + dot */
+.pcd-leg-right {
+  display:flex; align-items:center; justify-content:flex-end; gap:6px;
+  flex-shrink:0;
 }
-.pc-gantt-track {
-  height: 22px; background: #f1f5f9;
-  border-radius: 6px; overflow: hidden;
-  position: relative; display: flex; align-items: center;
+.pcd-leg-pct {
+  font-size:14px; font-weight:900; white-space:nowrap;
 }
-.pc-gantt-fill {
-  height: 100%; border-radius: 6px;
-  display: flex; align-items: center;
-  position: relative; overflow: hidden;
-  min-width: 4px;
-  transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
-}
-.pc-gantt-shim {
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255,255,255,0.4) 50%,
-    transparent 100%);
-  animation: pcGanttShim 2.2s ease-in-out infinite;
-}
-@keyframes pcGanttShim {
-  from { transform: translateX(-100%); }
-  to   { transform: translateX(350%); }
+.pcd-status-dot {
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+  box-shadow:0 0 0 2px rgba(255,255,255,0.9);
 }
 
-/* % label inside bar */
-.pc-gantt-bar-pct {
-  position: absolute; right: 8px;
-  font-size: 10px; font-weight: 800; color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  white-space: nowrap; z-index: 2;
+/* ── Empty ── */
+.pcd-empty     { padding:40px 20px; text-align:center; }
+.pcd-empty-ico {
+  width:48px; height:48px; border-radius:14px; background:#f1f5f9;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; color:#94a3b8; margin:0 auto 12px;
 }
+.pcd-empty p    { font-size:13px; font-weight:700; color:#475569; margin:0 0 4px; }
+.pcd-empty span { font-size:11px; color:#94a3b8; }
 
-/* % label outside bar (narrow) */
-.pc-gantt-out-pct {
-  position: absolute;
-  left: calc(var(--pct, 0%) + 6px);
-  font-size: 10px; font-weight: 800;
-  white-space: nowrap;
+/* ── Responsive ── */
+@media (max-width:480px) {
+  .pcd-kpi-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .pcd-leg-row   { grid-template-columns:32px 1fr 80px 44px; gap:7px; }
+  .pcd-hd-pills  { display:none; }
 }
-
-/* Status cell */
-.pc-gantt-status-cell {
-  width: $pc-status-w; flex-shrink: 0;
-  display: flex; justify-content: center; align-items: center;
-}
-.pc-st {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; font-weight: 700; padding: 3px 9px;
-  border-radius: 20px; white-space: nowrap;
-  &amp;--green { background: #dcfce7; color: #16a34a; }
-  &amp;--amber { background: #fef3c7; color: #b45309; }
-  &amp;--red   { background: #fee2e2; color: #dc2626; }
-}
-
-/* ── Responsive ─────────────────────── */
-@media (max-width: 700px) {
-  .pc-kpi-strip { padding: 0 16px; }
-  .pc-kpi-val   { font-size: 20px; }
-  .pc-gantt-wrap { padding: 14px 16px 18px; }
-}
-
-@media (max-width: 560px) {
-  .pc-hbadge       { display: none; }
-  .pc-st-txt       { display: none; }
-  .pc-st           { padding: 4px 6px; border-radius: 50%; }
-  .pc-kpi-strip    { padding: 0 12px; }
-  .pc-kpi-lbl      { display: none; }
-  .pc-kpi-val      { font-size: 18px; }
-  .pc-kpi-div      { height: 22px; }
-}
-
-@media (max-width: 420px) {
-  .pc-header { padding: 14px 16px; }
-  .pc-kpi:nth-child(n+8) { display: none; } /* hide last 2 KPIs */
+@media (max-width:360px) {
+  .pcd-leg-row { grid-template-columns:32px 1fr 44px; }
+  .pcd-leg-bar-wrap { display:none; }
 }
 
 
@@ -1261,135 +1138,404 @@ $pc-status-w: 112px;
 }
 .gn-rb-kpi:last-child { border-right: none; }
 .gn-rb-kpi:hover { background: #f8fafc; }
-.gn-rb-kpi-icon {
-  width: 36px; height: 36px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; flex-shrink: 0;
-}
-.gn-rb-kpi--indigo .gn-rb-kpi-icon { background: rgba(99,102,241,0.1); color: #6366f1; }
+.gn-rb-kpi-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.gn-rb-kpi--indigo .gn-rb-kpi-icon { background: rgba(99,102,241,0.1);  color: #6366f1; }
 .gn-rb-kpi--green  .gn-rb-kpi-icon { background: rgba(16,185,129,0.1); color: #10b981; }
-.gn-rb-kpi--amber  .gn-rb-kpi-icon { background: rgba(245,158,11,0.1); color: #d97706; }
+.gn-rb-kpi--amber  .gn-rb-kpi-icon { background: rgba(245,158,11,0.1);  color: #d97706; }
 .gn-rb-kpi-info strong { display: block; font-size: 22px; font-weight: 800; line-height: 1; color: #1e1e2e; }
 .gn-rb-kpi--indigo .gn-rb-kpi-info strong { color: #6366f1; }
 .gn-rb-kpi-info span { font-size: 10px; font-weight: 600; color: #9ca3af; margin-top: 2px; display: block; }
-.gn-rb-center {
-  display: flex; gap: 20px; padding: 18px 20px 20px; align-items: flex-start;
-}
-.gn-rb-donut-col {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 10px; flex-shrink: 0;
-  background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #ebebf5;
-}
-.gn-rb-section-lbl {
-  font-size: 10px; font-weight: 700; color: #9ca3af;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  align-self: flex-start; display: flex; align-items: center; gap: 5px;
-}
-.gn-rb-stat-grid {
-  flex: 1; display: grid; grid-template-columns: repeat(2,1fr);
-  gap: 10px; align-content: start;
-}
-.gn-rb-stat-card {
-  background: #f8fafc; border-radius: 14px;
-  border: 1px solid #ebebf5; border-top: 3px solid transparent;
-  padding: 12px 14px; display: flex; align-items: center; gap: 12px;
-  transition: box-shadow 0.15s, transform 0.15s; cursor: default;
-}
+.gn-rb-center { display: flex; gap: 20px; padding: 18px 20px 20px; align-items: flex-start; }
+.gn-rb-donut-col { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #ebebf5; }
+.gn-rb-section-lbl { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.6px; align-self: flex-start; display: flex; align-items: center; gap: 5px; }
+.gn-rb-stat-grid { flex: 1; display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; align-content: start; }
+.gn-rb-stat-card { background: #f8fafc; border-radius: 14px; border: 1px solid #ebebf5; border-top: 3px solid transparent; padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: box-shadow 0.15s, transform 0.15s; cursor: default; }
 .gn-rb-stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-2px); }
 .gn-rb-ring-svg  { width: 44px; height: 44px; flex-shrink: 0; }
 .gn-rb-ring-fill { transition: stroke-dashoffset 1.4s cubic-bezier(0.4,0,0.2,1); }
 .gn-rb-sc-info   { display: flex; flex-direction: column; gap: 2px; }
 .gn-rb-sc-count  { font-size: 24px; font-weight: 900; line-height: 1; }
 .gn-rb-sc-name   { font-size: 11px; font-weight: 600; color: #6b7280; }
-.gn-rb-total-card {
-  background: linear-gradient(135deg,#EEEDFB,#dddaf7);
-  border-radius: 12px; padding: 12px 16px;
-  display: flex; justify-content: space-between; align-items: center;
-  border: 1px solid #c4bff5;
-}
-.gn-rb-total-lbl { font-size: 12px; font-weight: 600; color: #5443AD; display: flex; align-items: center; gap: 6px; }
-.gn-rb-total-val { font-size: 28px; font-weight: 900; color: #5443AD; line-height: 1; }
-
+.gn-rb-total-card { background: linear-gradient(135deg,#EEEDFB,#dddaf7); border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #c4bff5; }
+.gn-rb-total-lbl  { font-size: 12px; font-weight: 600; color: #5443AD; display: flex; align-items: center; gap: 6px; }
+.gn-rb-total-val  { font-size: 28px; font-weight: 900; color: #5443AD; line-height: 1; }
 /* ════════════════════════════════════════
-   PROJECT STATUS HEALTH
+   PROJECT STATUS HEALTH  ·  v4  (flat CSS)
 ════════════════════════════════════════ */
-.gn-psh-top { display: flex; gap: 28px; align-items: flex-start; margin-bottom: 24px; }
-.gn-psh-left  { flex: 1; min-width: 0; }
-.gn-psh-right { width: 300px; flex-shrink: 0; }
-.gn-psh-bar-section {
-  background: #f8fafc; border-radius: 14px;
-  padding: 16px 18px; margin-bottom: 24px; border: 1px solid #f1f5f9;
+
+/* ── Shared card title ─────────────────── */
+.psh-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
 }
-.gn-ps-kpi-strip { display: flex; gap: 10px; margin-bottom: 20px; }
-.gn-ps-kpi {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 14px 8px; border-radius: 14px; font-size: 11px; font-weight: 600;
-  text-align: center; border: 1.5px solid transparent;
-  transition: transform 0.15s, box-shadow 0.15s; cursor: default;
+.psh-card-title i { color: #9ca3af; }
+.psh-card-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: #9ca3af;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 6px;
 }
-.gn-ps-kpi:hover  { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.1); }
-.gn-ps-kpi i      { font-size: 20px; margin-bottom: 2px; }
-.gn-ps-kpi strong { font-size: 28px; font-weight: 800; line-height: 1; }
-.gn-ps-kpi span   { opacity: 0.85; font-size: 11px; }
-.gn-ps-kpi--green  { background: linear-gradient(135deg,#f0fdf4,#dcfce7); color: #16a34a; border-color: #bbf7d0; }
-.gn-ps-kpi--yellow { background: linear-gradient(135deg,#fffbeb,#fef3c7); color: #b45309; border-color: #fde68a; }
-.gn-ps-kpi--red    { background: linear-gradient(135deg,#fef2f2,#fee2e2); color: #dc2626; border-color: #fca5a5; }
-.gn-ps-chart-title { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
-.gn-ps-dim-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
-.gn-ps-dim-row  { display: flex; align-items: center; gap: 10px; }
-.gn-ps-dim-label {
-  width: 90px; flex-shrink: 0; font-size: 12px; font-weight: 600;
-  color: #374151; display: flex; align-items: center; gap: 5px;
+
+/* ── Shared dot ────────────────────────── */
+.psh-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  margin-right: 3px;
+  vertical-align: middle;
+  font-style: normal;
 }
-.gn-ps-dim-label i { color: #9ca3af; font-size: 11px; }
-.gn-ps-dim-bar-wrap {
-  flex: 1; height: 30px; display: flex; border-radius: 8px;
-  overflow: hidden; background: #f1f5f9; gap: 1px;
+.psh-dot--g { background: #10b981; }
+.psh-dot--y { background: #f59e0b; }
+.psh-dot--r { background: #ef4444; }
+
+/* ══ ROW 1: top row ═══════════════════════ */
+.psh-top-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 18px;
 }
-.gn-ps-seg {
-  height: 100%; display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff;
-  transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
-  overflow: hidden; position: relative; min-width: 0;
+
+/* 3 pill KPIs */
+.psh-pill-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.gn-ps-seg span   { padding: 0 5px; white-space: nowrap; }
-.gn-ps-seg--green  { background: linear-gradient(90deg,#059669,#10b981); }
-.gn-ps-seg--yellow { background: linear-gradient(90deg,#d97706,#f59e0b); }
-.gn-ps-seg--red    { background: linear-gradient(90deg,#dc2626,#ef4444); }
-.gn-ps-seg--empty  { background: #f1f5f9; color: #9ca3af; font-size: 11px; font-weight: 500; }
-.gn-ps-dim-total { width: 22px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #6b7280; text-align: right; }
-.gn-ps-table-wrap  { border-top: 1px solid #f1f5f9; padding-top: 16px; }
-.gn-ps-table-title { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
-.gn-ps-scroll-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; border: 1px solid #f1f5f9; }
-.gn-ps-table { width: 100%; min-width: 580px; border-collapse: collapse; font-size: 12px; }
-.gn-ps-table thead tr { background: #f8fafc; }
-.gn-ps-table th {
-  text-align: left; padding: 10px 12px; font-size: 10px; font-weight: 700; color: #9ca3af;
-  text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;
+.psh-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  min-width: 160px;
+  cursor: default;
+  transition: transform 0.15s, box-shadow 0.15s;
 }
-.gn-ps-table th i { margin-right: 4px; }
-.gn-ps-table td   { padding: 10px 12px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
-.gn-ps-table tbody tr:last-child td { border-bottom: none; }
-.gn-ps-table tbody tr:hover td      { background: #f8fafc; cursor: default; }
-.gn-ps-proj-name {
-  font-weight: 600; color: #1e1e2e; font-size: 12px;
-  max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  display: flex; align-items: center; gap: 6px;
+.psh-pill:hover {
+  transform: translateX(3px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.09);
 }
-.gn-ps-num {
-  font-size: 10px; font-weight: 700; color: #5443AD;
-  background: #EEEDFB; padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
+.psh-pill--g {
+  background: linear-gradient(135deg,#f0fdf4,#dcfce7);
+  border-color: #bbf7d0;
 }
-.gn-ps-date { font-size: 11px; color: #9ca3af; white-space: nowrap; }
-.gn-hs {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; font-weight: 700; padding: 3px 9px;
-  border-radius: 20px; white-space: nowrap; text-transform: capitalize;
+.psh-pill--y {
+  background: linear-gradient(135deg,#fffbeb,#fef3c7);
+  border-color: #fde68a;
 }
-.gn-hs--green  { background: #dcfce7; color: #16a34a; }
-.gn-hs--yellow { background: #fef3c7; color: #b45309; }
-.gn-hs--red    { background: #fee2e2; color: #dc2626; }
-.gn-hs--none   { background: #f1f5f9; color: #9ca3af; }
+.psh-pill--r {
+  background: linear-gradient(135deg,#fef2f2,#fee2e2);
+  border-color: #fca5a5;
+}
+.psh-pill--g &gt; i { font-size: 20px; color: #16a34a; }
+.psh-pill--y &gt; i { font-size: 20px; color: #d97706; }
+.psh-pill--r &gt; i { font-size: 20px; color: #dc2626; }
+
+.psh-pill-body { flex: 1; }
+.psh-pill-body strong { display: block; font-size: 24px; font-weight: 900; line-height: 1; }
+.psh-pill--g .psh-pill-body strong { color: #16a34a; }
+.psh-pill--y .psh-pill-body strong { color: #d97706; }
+.psh-pill--r .psh-pill-body strong { color: #dc2626; }
+.psh-pill-body span { font-size: 10px; font-weight: 600; color: #6b7280; }
+
+.psh-pill-pct { font-size: 12px; font-weight: 800; }
+.psh-pill--g .psh-pill-pct { color: #16a34a; }
+.psh-pill--y .psh-pill-pct { color: #d97706; }
+.psh-pill--r .psh-pill-pct { color: #dc2626; }
+
+/* Score bar card */
+.psh-score-card {
+  background: #fafbff;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+.psh-score-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+}
+.psh-score-label strong {
+  font-size: 28px;
+  font-weight: 900;
+  color: #10b981;
+  line-height: 1;
+}
+.psh-score-track {
+  height: 18px;
+  background: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+  display: flex;
+  gap: 2px;
+}
+.psh-score-seg {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 1.4s cubic-bezier(0.4,0,0.2,1);
+}
+.psh-score-seg--r { background: linear-gradient(90deg,#dc2626,#ef4444); }
+.psh-score-seg--y { background: linear-gradient(90deg,#d97706,#f59e0b); }
+.psh-score-seg--g { background: linear-gradient(90deg,#059669,#10b981); }
+.psh-score-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* ══ ROW 2: mid row ═══════════════════════ */
+.psh-mid-row {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.psh-dims-card,
+.psh-radar-card {
+  background: #fafbff;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+/* Dimension bar list */
+.psh-dim-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.psh-dim-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.psh-dim-ico-wrap {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: #EEEDFB;
+  color: #5443AD;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.psh-dim-name {
+  width: 70px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+}
+.psh-dim-bar-wrap { flex: 1; min-width: 0; }
+.psh-dim-bar-bg {
+  height: 28px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  gap: 2px;
+}
+.psh-db-seg {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  transition: width 1.3s cubic-bezier(0.4,0,0.2,1);
+  overflow: hidden;
+  min-width: 0;
+}
+.psh-db-seg span { padding: 0 4px; white-space: nowrap; }
+.psh-db-g { background: linear-gradient(90deg,#059669,#10b981); }
+.psh-db-y { background: linear-gradient(90deg,#d97706,#f59e0b); }
+.psh-db-r { background: linear-gradient(90deg,#dc2626,#ef4444); }
+.psh-db-empty {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* mini badges */
+.psh-dim-badges { display: flex; gap: 4px; flex-shrink: 0; }
+.psh-mb {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  min-width: 22px;
+  text-align: center;
+}
+.psh-mb--g { background: #dcfce7; color: #16a34a; }
+.psh-mb--y { background: #fef3c7; color: #d97706; }
+.psh-mb--r { background: #fee2e2; color: #dc2626; }
+
+/* bar legend */
+.psh-bar-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+.psh-bl-item {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.psh-agg-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ══ ROW 3: heat matrix ═══════════════════ */
+.psh-grid-section { border-top: 1px solid #f1f5f9; padding-top: 16px; }
+
+.psh-matrix-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+}
+.psh-matrix {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.psh-matrix thead tr {
+  background: #f8fafc;
+}
+.psh-mth {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+.psh-mth i { margin-right: 4px; }
+.psh-mth--project { width: 200px; }
+.psh-mth--reports { width: 90px; text-align: center; }
+
+.psh-mtd {
+  padding: 9px 12px;
+  border-bottom: 1px solid #f9fafb;
+  vertical-align: middle;
+}
+
+.psh-mrow { transition: background 0.14s; cursor: default; }
+.psh-mrow:hover td { background: #f8fafc !important; }
+.psh-mrow:last-child td { border-bottom: none; }
+
+/* row left accent via box-shadow on first td trick */
+.psh-mrow--g { border-left: 3px solid #10b981; }
+.psh-mrow--y { border-left: 3px solid #f59e0b; }
+.psh-mrow--r { border-left: 3px solid #ef4444; }
+
+/* project cell */
+.psh-mtd--project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.psh-mav {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900;
+  flex-shrink: 0;
+}
+.psh-mname-wrap { min-width: 0; }
+.psh-mname {
+  font-size: 11px; font-weight: 700; color: #111827;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 150px;
+}
+.psh-mnum {
+  font-size: 9px; font-weight: 700; color: #5443AD;
+  background: #EEEDFB; padding: 1px 5px; border-radius: 4px;
+  display: inline-block; margin-top: 2px;
+}
+
+/* health cells */
+.psh-mtd--health { text-align: center; }
+
+.psh-hcell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.psh-hcell i { font-size: 8px; }
+.psh-hcell--green  { background: #dcfce7; color: #16a34a; }
+.psh-hcell--yellow { background: #fef3c7; color: #b45309; }
+.psh-hcell--red    { background: #fee2e2; color: #dc2626; }
+.psh-hcell--none   { background: #f1f5f9; color: #9ca3af; }
+
+/* reports cell */
+.psh-mtd--reports { text-align: center; }
+.psh-rcount {
+  display: block;
+  font-size: 11px; font-weight: 800; color: #5443AD;
+}
+.psh-rcount i { margin-right: 2px; }
+.psh-rdate {
+  display: block;
+  font-size: 9px; color: #9ca3af; margin-top: 2px;
+}
+
+/* ── Responsive ─────────────────────────── */
+@media (max-width: 900px) {
+  .psh-mid-row { grid-template-columns: 1fr; }
+  .psh-radar-card { display: none; }
+}
+@media (max-width: 640px) {
+  .psh-top-row { grid-template-columns: 1fr; }
+  .psh-pill-group { flex-direction: row; flex-wrap: wrap; }
+  .psh-pill { min-width: 0; flex: 1; }
+}
 
 /* ════════════════════════════════════════
    PROGRESS LEGEND
@@ -1405,11 +1551,7 @@ $pc-status-w: 112px;
 ════════════════════════════════════════ */
 .gn-donut-layout { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .gn-rich-legend  { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 140px; }
-.gn-rich-legend-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 12px; background: #f8fafc; border-radius: 10px;
-  border: 1px solid #f1f5f9; transition: background 0.15s;
-}
+.gn-rich-legend-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; transition: background 0.15s; }
 .gn-rich-legend-item:hover { background: #f0f2f8; }
 .gn-rich-legend-left { display: flex; align-items: center; gap: 8px; }
 .gn-rich-dot   { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
@@ -1421,8 +1563,8 @@ $pc-status-w: 112px;
 /* ════════════════════════════════════════
    STATUS REPORTS
 ════════════════════════════════════════ */
-.gn-sr-toprow { display: flex; gap: 12px; margin-bottom: 16px; }
-.gn-sr-stat   { flex: 1; background: #f8fafc; border-radius: 10px; padding: 10px 12px; border: 1px solid #f1f5f9; text-align: center; }
+.gn-sr-toprow   { display: flex; gap: 12px; margin-bottom: 16px; }
+.gn-sr-stat     { flex: 1; background: #f8fafc; border-radius: 10px; padding: 10px 12px; border: 1px solid #f1f5f9; text-align: center; }
 .gn-sr-stat-val { font-size: 22px; font-weight: 800; color: #f43f5e; line-height: 1; }
 .gn-sr-stat-lbl { font-size: 11px; color: #9ca3af; font-weight: 500; margin-top: 3px; }
 
@@ -1443,11 +1585,8 @@ $pc-status-w: 112px;
 .gn-cr-table-title { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
 .gn-cr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .gn-cr-table thead tr { background: #f8fafc; }
-.gn-cr-table th {
-  text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700;
-  color: #9ca3af; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #f1f5f9;
-}
-.gn-cr-table td   { padding: 9px 10px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
+.gn-cr-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #f1f5f9; }
+.gn-cr-table td  { padding: 9px 10px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
 .gn-cr-table tbody tr:last-child td { border-bottom: none; }
 .gn-cr-table tbody tr:hover td      { background: #f8fafc; }
 .gn-cr-num   { font-size: 11px; font-weight: 700; color: #5443AD; background: #EEEDFB; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
@@ -1464,10 +1603,7 @@ $pc-status-w: 112px;
 /* ════════════════════════════════════════
    EMPTY STATE
 ════════════════════════════════════════ */
-.gn-empty-fancy {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 48px 20px; color: #d1d5db; gap: 12px;
-}
+.gn-empty-fancy { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 20px; color: #d1d5db; gap: 12px; }
 .gn-empty-fancy i { font-size: 40px; }
 .gn-empty-fancy p { font-size: 13px; color: #9ca3af; margin: 0; }
 
@@ -1664,93 +1800,139 @@ $pc-status-w: 112px;
   // Fields : overall_health | schedule | cost | resources | scope
   // Values : Green(1) | Yellow(2) | Red(3) | None → green
   // ══════════════════════════════════════════════════════
-  data.projectStatusData = {
-    projects:   [],   // one entry per status report row
-    summary:    { green: 0, yellow: 0, red: 0 },
-    dimensions: []    // aggregated counts per dimension
-  };
+// ══════════════════════════════════════════════════════
+// PROJECT STATUS HEALTH  (5 dimensions per report)
+// ══════════════════════════════════════════════════════
+data.projectStatusData = {
+  projects:     [],
+  summary:      { green: 0, yellow: 0, red: 0 },
+  dimensions:   [],
+  totalReports: 0
+};
 
-  try {
-    if (projectIds.length > 0) {
+try {
+  if (projectIds.length > 0) {
 
-      var dimCounts = {
-        overall_health: { green: 0, yellow: 0, red: 0 },
-        schedule:       { green: 0, yellow: 0, red: 0 },
-        cost:           { green: 0, yellow: 0, red: 0 },
-        resources:      { green: 0, yellow: 0, red: 0 },
-        scope:          { green: 0, yellow: 0, red: 0 }
-      };
+    var dimCounts = {
+      overall_health: { green: 0, yellow: 0, red: 0 },
+      schedule:       { green: 0, yellow: 0, red: 0 },
+      cost:           { green: 0, yellow: 0, red: 0 },
+      resources:      { green: 0, yellow: 0, red: 0 },
+      scope:          { green: 0, yellow: 0, red: 0 }
+    };
 
-      function normaliseHealth(raw) {
-        if (!raw) return 'green';
-        var v = (raw + '').toLowerCase().trim();
-        if (v === 'red'    || v === '3') return 'red';
-        if (v === 'yellow' || v === '2') return 'yellow';
+    function normaliseHealth(raw) {
+      if (!raw) return 'green';
+      var v = (raw + '').toLowerCase().trim();
+      if (v === 'red'    || v === '3') return 'red';
+      if (v === 'yellow' || v === '2') return 'yellow';
+      return 'green';
+    }
+
+    // Map: projectSysId → { name, number, counts per dimension }
+    var projectMap = {};
+
+    var psGR = new GlideRecord('project_status');
+    psGR.addQuery('project', 'IN', projectIds.join(','));
+    psGR.orderByDesc('sys_created_on');
+    psGR.query();
+
+    while (psGR.next()) {
+      data.projectStatusData.totalReports++;
+
+      var projId  = psGR.getValue('project');
+      var projName = (psGR.getDisplayValue('project') || 'Unnamed').substring(0, 34);
+      var projNum  = psGR.getValue('number') || '';
+
+      var oh  = normaliseHealth(psGR.getDisplayValue('overall_health'));
+      var sch = normaliseHealth(psGR.getDisplayValue('schedule'));
+      var cst = normaliseHealth(psGR.getDisplayValue('cost'));
+      var res = normaliseHealth(psGR.getDisplayValue('resources'));
+      var scp = normaliseHealth(psGR.getDisplayValue('scope'));
+
+      // Init project entry if first time seeing this project
+      if (!projectMap[projId]) {
+        projectMap[projId] = {
+          name:   projName,
+          number: projNum,
+          reportCount: 0,
+          overall_health: { green: 0, yellow: 0, red: 0 },
+          schedule:       { green: 0, yellow: 0, red: 0 },
+          cost:           { green: 0, yellow: 0, red: 0 },
+          resources:      { green: 0, yellow: 0, red: 0 },
+          scope:          { green: 0, yellow: 0, red: 0 }
+        };
+      }
+
+      // Aggregate counts per project per dimension
+      projectMap[projId].reportCount++;
+      projectMap[projId].overall_health[oh]++;
+      projectMap[projId].schedule[sch]++;
+      projectMap[projId].cost[cst]++;
+      projectMap[projId].resources[res]++;
+      projectMap[projId].scope[scp]++;
+
+      // Global dimension tallies (for stacked bars)
+      dimCounts.overall_health[oh]++;
+      dimCounts.schedule[sch]++;
+      dimCounts.cost[cst]++;
+      dimCounts.resources[res]++;
+      dimCounts.scope[scp]++;
+
+      // Global summary — based on overall_health across all reports
+      data.projectStatusData.summary[oh]++;
+    }
+
+    // Convert projectMap to array
+    for (var pid in projectMap) {
+      var p = projectMap[pid];
+
+      // Dominant color = whichever has the most reports per dimension
+      function dominant(dim) {
+        if (dim.red >= dim.yellow && dim.red >= dim.green)    return 'red';
+        if (dim.yellow >= dim.green)                           return 'yellow';
         return 'green';
       }
 
-      var psGR = new GlideRecord('project_status');
-      psGR.addQuery('project', 'IN', projectIds.join(','));
-      psGR.orderByDesc('sys_created_on');
-      psGR.query();
-
-      while (psGR.next()) {
-        var oh  = normaliseHealth(psGR.getDisplayValue('overall_health'));
-        var sch = normaliseHealth(psGR.getDisplayValue('schedule'));
-        var cst = normaliseHealth(psGR.getDisplayValue('cost'));
-        var res = normaliseHealth(psGR.getDisplayValue('resources'));
-        var scp = normaliseHealth(psGR.getDisplayValue('scope'));
-
-        // Formatted date  MM/DD/YYYY → readable
-        var createdRaw = psGR.getValue('sys_created_on') || '';
-        var createdDT  = new GlideDateTime(createdRaw);
-        var createdLbl = (createdDT.getMonthLocalTime()) + '/'
-                       + (createdDT.getDayOfMonthLocalTime()) + '/'
-                       + (createdDT.getYearLocalTime());
-
-        data.projectStatusData.projects.push({
-          name:           (psGR.getDisplayValue('project') || 'Unnamed').substring(0, 34),
-          number:         psGR.getValue('number') || '',
-          date:           createdLbl,
-          overall_health: oh,
-          schedule:       sch,
-          cost:           cst,
-          resources:      res,
-          scope:          scp
-        });
-
-        // Overall summary strip uses overall_health
-        data.projectStatusData.summary[oh]++;
-
-        // Per-dimension tallies
-        dimCounts.overall_health[oh]++;
-        dimCounts.schedule[sch]++;
-        dimCounts.cost[cst]++;
-        dimCounts.resources[res]++;
-        dimCounts.scope[scp]++;
-      }
-
-      // Build ordered dimension array (for stacked bars + radar)
-      var dimMeta = [
-        { key: 'overall_health', label: 'Overall',   icon: 'fa-heartbeat'  },
-        { key: 'schedule',       label: 'Schedule',  icon: 'fa-calendar'   },
-        { key: 'cost',           label: 'Cost',      icon: 'fa-usd'        },
-        { key: 'resources',      label: 'Resources', icon: 'fa-users'      },
-        { key: 'scope',          label: 'Scope',     icon: 'fa-crosshairs' }
-      ];
-      for (var di = 0; di < dimMeta.length; di++) {
-        var dKey = dimMeta[di].key;
-        data.projectStatusData.dimensions.push({
-          key:    dKey,
-          label:  dimMeta[di].label,
-          icon:   dimMeta[di].icon,
-          green:  dimCounts[dKey].green,
-          yellow: dimCounts[dKey].yellow,
-          red:    dimCounts[dKey].red
-        });
-      }
+      data.projectStatusData.projects.push({
+        name:        p.name,
+        number:      p.number,
+        reportCount: p.reportCount,
+        // Dominant health per dimension (for row accent color)
+        overall_health: dominant(p.overall_health),
+        schedule:       dominant(p.schedule),
+        cost:           dominant(p.cost),
+        resources:      dominant(p.resources),
+        scope:          dominant(p.scope),
+        // Raw counts per dimension for mini-badges in cells
+        overall_counts:  p.overall_health,
+        schedule_counts: p.schedule,
+        cost_counts:     p.cost,
+        resources_counts:p.resources,
+        scope_counts:    p.scope
+      });
     }
-  } catch(e) { gs.debug('Dashboard-projectStatus: ' + e.message); }
+
+    // Build dimension array for bars + radar
+    var dimMeta = [
+      { key: 'overall_health', label: 'Overall'  },
+      { key: 'schedule',       label: 'Schedule' },
+      { key: 'cost',           label: 'Cost'     },
+      { key: 'resources',      label: 'Resources'},
+      { key: 'scope',          label: 'Scope'    }
+    ];
+    for (var di = 0; di < dimMeta.length; di++) {
+      var dKey = dimMeta[di].key;
+      data.projectStatusData.dimensions.push({
+        key:    dKey,
+        label:  dimMeta[di].label,
+        green:  dimCounts[dKey].green,
+        yellow: dimCounts[dKey].yellow,
+        red:    dimCounts[dKey].red
+      });
+    }
+  }
+} catch(e) { gs.debug('Dashboard-projectStatus: ' + e.message); }
 
   // ══════════════════════════════════════════════════════
   // PROJECT PROGRESS  (percent_complete horizontal bars)
@@ -1899,14 +2081,14 @@ try {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-02 18:54:14</sys_created_on>
         <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
-        <sys_mod_count>181</sys_mod_count>
+        <sys_mod_count>248</sys_mod_count>
         <sys_name>Applicant Dashboard Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-25 11:34:19</sys_updated_on>
+        <sys_updated_on>2026-03-26 19:01:42</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -2124,170 +2306,127 @@ try {
 
 <!-- ══ ROW 2: Project Completion + Reimbursements ══ -->
 <div class="gn-grid" style="margin-bottom:20px;">
-<div class="gn-analytics-card pc-card">
 
-  <!-- Header -->
-  <div class="pc-header">
-    <div class="pc-header-left">
-      <div class="pc-header-icon"><i class="fa fa-tasks"></i></div>
+<!-- ══ PROJECT COMPLETION v19 ══ -->
+<div class="gn-analytics-card pcd-card">
+
+  <!-- HEADER -->
+  <div class="pcd-header">
+    <div class="pcd-hd-left">
+      <div class="pcd-hd-icon"><i class="fa fa-tasks"></i></div>
       <div>
-        <div class="pc-title">Project Completion</div>
-        <div class="pc-subtitle">Progress · Health · Phase</div>
+        <div class="pcd-hd-title">Project Completion</div>
+        <div class="pcd-hd-sub">Progress · Phase · Health</div>
       </div>
     </div>
-    <div class="pc-header-right">
-      <span class="pc-hbadge pc-hbadge--green">
-        <i class="fa fa-circle"></i> {{c.countProjects('on_track')}} On Track
+    <div class="pcd-hd-pills">
+      <span class="pcd-pill pcd-pill--g">
+        <i class="fa fa-check-circle"></i> {{c.countProjects('on_track')}} On Track
       </span>
-      <span class="pc-hbadge pc-hbadge--amber">
-        <i class="fa fa-circle"></i> {{c.countProjects('in_progress')}} In Progress
+      <span class="pcd-pill pcd-pill--y">
+        <i class="fa fa-clock-o"></i> {{c.countProjects('in_progress')}} In Progress
       </span>
-      <span class="pc-hbadge pc-hbadge--red"
-            ng-if="c.countProjects('needs_attention') > 0">
-        <i class="fa fa-circle"></i> {{c.countProjects('needs_attention')}} At Risk
+      <span class="pcd-pill pcd-pill--r">
+        <i class="fa fa-exclamation-triangle"></i> {{c.countProjects('needs_attention')}} At Risk
       </span>
     </div>
   </div>
 
-  <!-- Empty -->
-  <div ng-if="!c.data.projectProgress || !c.data.projectProgress.length"
-       class="gn-empty-fancy">
-    <i class="fa fa-tasks"></i><p>No active projects yet</p>
+  <!-- EMPTY -->
+  <div ng-if="!c.data.projectProgress || !c.data.projectProgress.length" class="pcd-empty">
+    <div class="pcd-empty-ico"><i class="fa fa-folder-open"></i></div>
+    <p>No active projects yet</p>
+    <span>Projects will appear here once created</span>
   </div>
 
-  <div ng-if="c.data.projectProgress && c.data.projectProgress.length">
+  <!-- BODY -->
+  <div ng-if="c.data.projectProgress && c.data.projectProgress.length" class="pcd-body">
 
-    <!-- KPI Strip -->
-    <div class="pc-kpi-strip">
-      <div class="pc-kpi">
-        <div class="pc-kpi-val">{{c.data.projectProgress.length}}</div>
-        <div class="pc-kpi-lbl">Projects</div>
-      </div>
-      <div class="pc-kpi-div"></div>
-      <div class="pc-kpi">
-        <div class="pc-kpi-val" style="color:#16a34a;">{{c.countProjects('on_track')}}</div>
-        <div class="pc-kpi-lbl">On Track</div>
-      </div>
-      <div class="pc-kpi-div"></div>
-      <div class="pc-kpi">
-        <div class="pc-kpi-val" style="color:#d97706;">{{c.countProjects('in_progress')}}</div>
-        <div class="pc-kpi-lbl">In Progress</div>
-      </div>
-      <div class="pc-kpi-div"></div>
-      <div class="pc-kpi">
-        <div class="pc-kpi-val" style="color:#dc2626;">{{c.countProjects('needs_attention')}}</div>
-        <div class="pc-kpi-lbl">At Risk</div>
-      </div>
-      <div class="pc-kpi-div"></div>
-      <div class="pc-kpi">
-        <div class="pc-kpi-val" style="color:#0d9488;">{{c.avgCompletion()}}%</div>
-        <div class="pc-kpi-lbl">Avg Done</div>
-      </div>
-    </div>
-
-    <!-- Gantt Body -->
-    <div class="pc-gantt-wrap">
-
-      <!-- Column header ruler -->
-      <div class="pc-gantt-head">
-        <div class="pc-gantt-head-label">Project</div>
-        <div class="pc-gantt-ruler">
-          <span>0%</span>
-          <span>25%</span>
-          <span>50%</span>
-          <span>75%</span>
-          <span>100%</span>
+    <!-- ── KPI strip ── -->
+    <div class="pcd-kpi-strip">
+      <div class="pcd-kpi pcd-kpi--purple">
+        <div class="pcd-kpi-ic"><i class="fa fa-folder-open"></i></div>
+        <div>
+          <div class="pcd-kpi-val">{{c.data.projectProgress.length}}</div>
+          <div class="pcd-kpi-lbl">Projects</div>
         </div>
-        <div class="pc-gantt-head-status">Status</div>
       </div>
-
-      <!-- Grid lines overlay (decorative) -->
-      <div class="pc-gantt-grid">
-        <div class="pc-gantt-gridline" style="left:25%"></div>
-        <div class="pc-gantt-gridline" style="left:50%"></div>
-        <div class="pc-gantt-gridline" style="left:75%"></div>
+      <div class="pcd-kpi pcd-kpi--teal">
+        <div class="pcd-kpi-ic"><i class="fa fa-trophy"></i></div>
+        <div>
+          <div class="pcd-kpi-val">{{c.avgCompletion()}}<span class="pcd-kpi-u">%</span></div>
+          <div class="pcd-kpi-lbl">Avg Done</div>
+        </div>
       </div>
+      <div class="pcd-kpi pcd-kpi--amber">
+        <div class="pcd-kpi-ic"><i class="fa fa-clock-o"></i></div>
+        <div>
+          <div class="pcd-kpi-val">{{c.countProjects('in_progress')}}</div>
+          <div class="pcd-kpi-lbl">In Progress</div>
+        </div>
+      </div>
+      <div class="pcd-kpi pcd-kpi--red">
+        <div class="pcd-kpi-ic"><i class="fa fa-exclamation-triangle"></i></div>
+        <div>
+          <div class="pcd-kpi-val">{{c.countProjects('needs_attention')}}</div>
+          <div class="pcd-kpi-lbl">At Risk</div>
+        </div>
+      </div>
+    </div>
 
-      <!-- Rows -->
-      <div class="pc-gantt-rows">
-        <div class="pc-gantt-row"
-             ng-repeat="p in c.data.projectProgress"
-             ng-class="p.percent >= 75 ? 'pc-gantt-row--green'
-                      : p.percent >= 40 ? 'pc-gantt-row--amber'
-                                        : 'pc-gantt-row--red'">
+    <!-- ── Pie chart — full width, centered ── -->
+    <div class="pcd-chart-area">
+      <canvas id="pcdPie" width="220" height="220"></canvas>
+    </div>
 
-          <!-- Project info cell -->
-          <div class="pc-gantt-info">
-            <div class="pc-gantt-av"
+    <!-- ── Mixed-metric legend rows (no list, each row = one project with all data) ── -->
+    <div class="pcd-legend">
+      <div class="pcd-leg-row" ng-repeat="p in c.data.projectProgress">
+
+        <!-- Color swatch + Avatar -->
+        <div class="pcd-leg-av" ng-style="{background: c.pcdColor($index)}">
+          {{(p.name||'P').charAt(0).toUpperCase()}}
+        </div>
+
+        <!-- Name + phase tag -->
+        <div class="pcd-leg-meta">
+          <div class="pcd-leg-name" title="{{p.name}}">{{p.name}}</div>
+          <span class="pcd-phase pcd-phase--{{(p.phase||'none')|lowercase}}">
+            {{p.phase || 'No Phase'}}
+          </span>
+        </div>
+
+        <!-- Inline progress bar -->
+        <div class="pcd-leg-bar-wrap">
+          <div class="pcd-leg-bar-track">
+            <div class="pcd-leg-bar-fill"
                  ng-style="{
-                   'background': p.percent >= 75 ? '#dcfce7'
-                               : p.percent >= 40 ? '#fef3c7' : '#fee2e2',
-                   'color': p.percent >= 75 ? '#16a34a'
-                           : p.percent >= 40 ? '#d97706' : '#dc2626'
+                   width: (p.percent||0)+'%',
+                   background: 'linear-gradient(90deg,'+c.pcdColor($index)+'99,'+c.pcdColor($index)+')'
                  }">
-              {{p.name.charAt(0).toUpperCase()}}
-            </div>
-            <div class="pc-gantt-meta">
-              <div class="pc-gantt-name" title="{{p.name}}">{{p.name}}</div>
-              <div class="pc-gantt-tags">
-                <span class="pc-tag-num"  ng-if="p.number">#{{p.number}}</span>
-                <span class="pc-tag-phase" ng-if="p.phase">{{p.phase}}</span>
-              </div>
+              <span class="pcd-bar-shine"></span>
             </div>
           </div>
+        </div>
 
-          <!-- Bar cell -->
-          <div class="pc-gantt-bar-cell">
-            <div class="pc-gantt-track">
-              <div class="pc-gantt-fill"
-                   ng-style="{
-                     'width': p.percent + '%',
-                     'background': p.percent >= 75
-                       ? 'linear-gradient(90deg,#059669,#34d399)'
-                       : p.percent >= 40
-                         ? 'linear-gradient(90deg,#d97706,#fbbf24)'
-                         : 'linear-gradient(90deg,#dc2626,#f87171)'
-                   }">
-                <div class="pc-gantt-shim"></div>
-                <!-- Inline % label inside bar when wide enough -->
-                <span class="pc-gantt-bar-pct"
-                      ng-if="p.percent >= 20">{{p.percent}}%</span>
-              </div>
-              <!-- % label outside bar when too narrow -->
-              <span class="pc-gantt-out-pct"
-                    ng-if="p.percent < 20"
-                    ng-style="{
-                      'color': p.percent >= 75 ? '#16a34a'
-                              : p.percent >= 40 ? '#d97706' : '#dc2626'
-                    }">{{p.percent}}%</span>
-            </div>
-          </div>
+        <!-- Percent + status dot -->
+        <div class="pcd-leg-right">
+          <span class="pcd-leg-pct" ng-style="{color: c.pcdColor($index)}">
+            {{p.percent||0}}%
+          </span>
+          <span class="pcd-status-dot"
+                ng-style="{
+                  background: p.percent>=75?'#10b981':p.percent>=40?'#f59e0b':p.percent>0?'#ef4444':'#cbd5e1'
+                }"
+                title="{{p.percent>=75?'On Track':p.percent>=40?'In Progress':p.percent>0?'At Risk':'Not Started'}}">
+          </span>
+        </div>
 
-          <!-- Status cell -->
-          <div class="pc-gantt-status-cell">
-            <span class="pc-st"
-                  ng-class="p.percent >= 75 ? 'pc-st--green'
-                           : p.percent >= 40 ? 'pc-st--amber'
-                                             : 'pc-st--red'">
-              <i class="fa"
-                 ng-class="p.percent >= 75 ? 'fa-check-circle'
-                          : p.percent >= 40 ? 'fa-clock-o'
-                                            : 'fa-exclamation-circle'"></i>
-              <span class="pc-st-txt">
-                {{p.percent >= 75 ? 'On Track'
-                : p.percent >= 40 ? 'In Progress' : 'At Risk'}}
-              </span>
-            </span>
-          </div>
-
-        </div><!-- /row -->
-      </div><!-- /rows -->
-
-    </div><!-- /gantt-wrap -->
+      </div>
+    </div>
 
   </div>
 </div>
-
   <!-- ══════════════════════════════════
        REIMBURSEMENTS — v3 Premium
   ═══════════════════════════════════ -->
@@ -2389,214 +2528,377 @@ try {
   </div><!-- /Reimbursements -->
 
 </div><!-- /row 2 -->
+<!-- ══ PROJECT STATUS HEALTH ══ -->
+<div class="gn-analytics-card gn-analytics-card--full" style="margin-bottom:20px;">
 
-
-    <!-- ══ ROW 3: Project Status Health (full-width) ══ -->
-    <div class="gn-analytics-card gn-analytics-card--full" style="margin-bottom:20px;">
-      <div class="gn-analytics-hdr gn-analytics-hdr--teal">
-        <div>
-          <div class="gn-analytics-title"><i class="fa fa-heartbeat"></i> Project Status Health</div>
-          <div class="gn-analytics-sub">
-            Aggregated health across Overall · Schedule · Cost · Resources · Scope
-          </div>
-        </div>
-        <div class="gn-analytics-badge"
-             ng-if="c.data.projectStatusData && c.data.projectStatusData.projects.length">
-          {{c.data.projectStatusData.projects.length}} Reports
-        </div>
+  <div class="gn-analytics-hdr gn-analytics-hdr--teal">
+    <div>
+      <div class="gn-analytics-title">
+        <i class="fa fa-heartbeat"></i> Project Status Health
       </div>
+      <div class="gn-analytics-sub">
+        Aggregated health across all reports · Overall · Schedule · Cost · Resources · Scope
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <div class="gn-analytics-badge"
+           ng-if="c.data.projectStatusData && c.data.projectStatusData.projects.length">
+        <i class="fa fa-folder"></i>
+        {{c.data.projectStatusData.projects.length}} Projects
+      </div>
+      <div class="gn-analytics-badge" style="background:rgba(255,255,255,0.15);"
+           ng-if="c.data.projectStatusData && c.data.projectStatusData.totalReports">
+        <i class="fa fa-file-text-o"></i>
+        {{c.data.projectStatusData.totalReports}} Reports
+      </div>
+    </div>
+  </div>
 
-      <div class="gn-analytics-body">
+  <div class="gn-analytics-body">
 
-        <!-- Empty -->
-        <div ng-if="!c.data.projectStatusData || !c.data.projectStatusData.projects.length"
-             class="gn-empty-fancy">
-          <i class="fa fa-heartbeat"></i>
-          <p>No project status reports yet</p>
+    <!-- Empty -->
+    <div ng-if="!c.data.projectStatusData || !c.data.projectStatusData.projects.length"
+         class="gn-empty-fancy">
+      <i class="fa fa-heartbeat"></i>
+      <p>No project status reports yet</p>
+    </div>
+
+    <div ng-if="c.data.projectStatusData && c.data.projectStatusData.projects.length">
+
+      <!-- ══ ROW 1: 3 KPI pills + Overall score bar ══ -->
+      <div class="psh-top-row">
+
+        <!-- 3 pill KPIs -->
+        <div class="psh-pill-group">
+          <div class="psh-pill psh-pill--g">
+            <i class="fa fa-check-circle"></i>
+            <div class="psh-pill-body">
+              <strong>{{c.data.projectStatusData.summary.green || 0}}</strong>
+              <span>Healthy</span>
+            </div>
+            <div class="psh-pill-pct">
+              {{c.getPct(c.data.projectStatusData.summary.green||0,
+                         c.data.projectStatusData.totalReports||1)}}%
+            </div>
+          </div>
+          <div class="psh-pill psh-pill--y">
+            <i class="fa fa-exclamation-circle"></i>
+            <div class="psh-pill-body">
+              <strong>{{c.data.projectStatusData.summary.yellow || 0}}</strong>
+              <span>At Risk</span>
+            </div>
+            <div class="psh-pill-pct">
+              {{c.getPct(c.data.projectStatusData.summary.yellow||0,
+                         c.data.projectStatusData.totalReports||1)}}%
+            </div>
+          </div>
+          <div class="psh-pill psh-pill--r">
+            <i class="fa fa-times-circle"></i>
+            <div class="psh-pill-body">
+              <strong>{{c.data.projectStatusData.summary.red || 0}}</strong>
+              <span>Critical</span>
+            </div>
+            <div class="psh-pill-pct">
+              {{c.getPct(c.data.projectStatusData.summary.red||0,
+                         c.data.projectStatusData.totalReports||1)}}%
+            </div>
+          </div>
         </div>
 
-        <div ng-if="c.data.projectStatusData && c.data.projectStatusData.projects.length">
-
-          <!-- Top section: KPI strip + Radar side by side -->
-          <div class="gn-psh-top">
-
-            <!-- Left: KPI strip + stacked bars -->
-            <div class="gn-psh-left">
-
-              <!-- KPI strip -->
-              <div class="gn-ps-kpi-strip">
-                <div class="gn-ps-kpi gn-ps-kpi--green">
-                  <i class="fa fa-check-circle"></i>
-                  <strong>{{c.data.projectStatusData.summary.green || 0}}</strong>
-                  <span>Green</span>
-                </div>
-                <div class="gn-ps-kpi gn-ps-kpi--yellow">
-                  <i class="fa fa-exclamation-circle"></i>
-                  <strong>{{c.data.projectStatusData.summary.yellow || 0}}</strong>
-                  <span>Yellow</span>
-                </div>
-                <div class="gn-ps-kpi gn-ps-kpi--red">
-                  <i class="fa fa-times-circle"></i>
-                  <strong>{{c.data.projectStatusData.summary.red || 0}}</strong>
-                  <span>Red</span>
-                </div>
-              </div>
-
-              <!-- Stacked dimension bars -->
-              <div class="gn-ps-chart-title" style="margin-top:18px;">HEALTH BY DIMENSION</div>
-              <div class="gn-ps-dim-list">
-                <div class="gn-ps-dim-row"
-                     ng-repeat="dim in c.data.projectStatusData.dimensions">
-                  <div class="gn-ps-dim-label">
-                    <i class="fa" ng-class="{
-                      'fa-heartbeat':  dim.key === 'overall_health',
-                      'fa-calendar':   dim.key === 'schedule',
-                      'fa-usd':        dim.key === 'cost',
-                      'fa-users':      dim.key === 'resources',
-                      'fa-crosshairs': dim.key === 'scope'
-                    }"></i>
-                    {{dim.label}}
-                  </div>
-                  <div class="gn-ps-dim-bar-wrap">
-                    <div class="gn-ps-seg gn-ps-seg--green"
-                         ng-if="dim.green > 0"
-                         ng-style="{'width': c.getDimPct(dim.green, dim) + '%'}"
-                         title="Green: {{dim.green}}">
-                      <span>{{dim.green}}</span>
-                    </div>
-                    <div class="gn-ps-seg gn-ps-seg--yellow"
-                         ng-if="dim.yellow > 0"
-                         ng-style="{'width': c.getDimPct(dim.yellow, dim) + '%'}"
-                         title="Yellow: {{dim.yellow}}">
-                      <span>{{dim.yellow}}</span>
-                    </div>
-                    <div class="gn-ps-seg gn-ps-seg--red"
-                         ng-if="dim.red > 0"
-                         ng-style="{'width': c.getDimPct(dim.red, dim) + '%'}"
-                         title="Red: {{dim.red}}">
-                      <span>{{dim.red}}</span>
-                    </div>
-                    <div class="gn-ps-seg gn-ps-seg--empty"
-                         ng-if="dim.green===0 && dim.yellow===0 && dim.red===0"
-                         style="width:100%">
-                      <span>No data</span>
-                    </div>
-                  </div>
-                  <div class="gn-ps-dim-total">
-                    {{(dim.green||0)+(dim.yellow||0)+(dim.red||0)}}
-                  </div>
-                </div>
-              </div>
-
-            </div><!-- /gn-psh-left -->
-
-            <!-- Right: Radar chart -->
-            <div class="gn-psh-right">
-              <div class="gn-ps-chart-title">DIMENSION RADAR</div>
-              <div class="gn-chart-wrap" style="height:280px;">
-                <canvas id="projectStatusRadar"></canvas>
-              </div>
+        <!-- Overall health score bar -->
+        <div class="psh-score-card">
+          <div class="psh-score-label">
+            <span>Overall Health Score</span>
+            <strong>{{c.getPct(c.data.projectStatusData.summary.green||0,
+                               c.data.projectStatusData.totalReports||1)}}%</strong>
+          </div>
+          <div class="psh-score-track">
+            <div class="psh-score-seg psh-score-seg--r"
+                 ng-style="{'width': c.getPct(c.data.projectStatusData.summary.red||0,
+                             c.data.projectStatusData.totalReports||1) + '%'}">
             </div>
+            <div class="psh-score-seg psh-score-seg--y"
+                 ng-style="{'width': c.getPct(c.data.projectStatusData.summary.yellow||0,
+                             c.data.projectStatusData.totalReports||1) + '%'}">
+            </div>
+            <div class="psh-score-seg psh-score-seg--g"
+                 ng-style="{'width': c.getPct(c.data.projectStatusData.summary.green||0,
+                             c.data.projectStatusData.totalReports||1) + '%'}">
+            </div>
+          </div>
+          <div class="psh-score-legend">
+            <span><em class="psh-dot psh-dot--r"></em>
+              Red {{c.data.projectStatusData.summary.red||0}}</span>
+            <span><em class="psh-dot psh-dot--y"></em>
+              Yellow {{c.data.projectStatusData.summary.yellow||0}}</span>
+            <span><em class="psh-dot psh-dot--g"></em>
+              Green {{c.data.projectStatusData.summary.green||0}}</span>
+          </div>
+        </div>
 
-          </div><!-- /gn-psh-top -->
+      </div><!-- /psh-top-row -->
 
-          <!-- Bottom: Grouped bar chart (per-dimension Green/Yellow/Red) -->
-          <div class="gn-psh-bar-section">
-            <div class="gn-ps-chart-title">DIMENSION BREAKDOWN — GROUPED BAR</div>
-            <div class="gn-chart-wrap" style="height:220px;">
-              <canvas id="projectStatusGroupedBar"></canvas>
+      <!-- ══ ROW 2: Dimension bars (left) + Radar chart (right) ══ -->
+      <div class="psh-mid-row">
+
+        <!-- Animated dimension bars -->
+        <div class="psh-dims-card">
+          <div class="psh-card-title">
+            <i class="fa fa-bar-chart"></i> HEALTH BY DIMENSION
+          </div>
+
+          <div class="psh-dim-list">
+            <div class="psh-dim-item"
+                 ng-repeat="dim in c.data.projectStatusData.dimensions">
+
+              <div class="psh-dim-ico-wrap">
+                <i class="fa" ng-class="{
+                  'fa-heartbeat':  dim.key==='overall_health',
+                  'fa-calendar':   dim.key==='schedule',
+                  'fa-usd':        dim.key==='cost',
+                  'fa-users':      dim.key==='resources',
+                  'fa-crosshairs': dim.key==='scope'
+                }"></i>
+              </div>
+
+              <div class="psh-dim-name">{{dim.label}}</div>
+
+              <div class="psh-dim-bar-wrap">
+                <div class="psh-dim-bar-bg">
+                  <!-- Green -->
+                  <div class="psh-db-seg psh-db-g"
+                       ng-if="dim.green > 0"
+                       ng-style="{'width': c.getDimPct(dim.green, dim) + '%'}"
+                       title="Green: {{dim.green}}">
+                    <span ng-if="c.getDimPct(dim.green, dim) >= 14">{{dim.green}}</span>
+                  </div>
+                  <!-- Yellow -->
+                  <div class="psh-db-seg psh-db-y"
+                       ng-if="dim.yellow > 0"
+                       ng-style="{'width': c.getDimPct(dim.yellow, dim) + '%'}"
+                       title="Yellow: {{dim.yellow}}">
+                    <span ng-if="c.getDimPct(dim.yellow, dim) >= 14">{{dim.yellow}}</span>
+                  </div>
+                  <!-- Red -->
+                  <div class="psh-db-seg psh-db-r"
+                       ng-if="dim.red > 0"
+                       ng-style="{'width': c.getDimPct(dim.red, dim) + '%'}"
+                       title="Red: {{dim.red}}">
+                    <span ng-if="c.getDimPct(dim.red, dim) >= 14">{{dim.red}}</span>
+                  </div>
+                  <!-- Empty -->
+                  <div class="psh-db-empty"
+                       ng-if="!dim.green && !dim.yellow && !dim.red">
+                    No data
+                  </div>
+                </div>
+              </div>
+
+              <!-- mini badges -->
+              <div class="psh-dim-badges">
+                <span class="psh-mb psh-mb--g">{{dim.green||0}}</span>
+                <span class="psh-mb psh-mb--y">{{dim.yellow||0}}</span>
+                <span class="psh-mb psh-mb--r">{{dim.red||0}}</span>
+              </div>
+
             </div>
           </div>
 
-          <!-- Per-report table — all reports, scrollable -->
-          <div class="gn-ps-table-wrap">
-            <div class="gn-ps-table-title">ALL STATUS REPORTS</div>
-            <div class="gn-ps-scroll-wrap">
-              <table class="gn-ps-table">
-                <thead>
-                  <tr>
-                    <th>PROJECT</th>
-                    <th><i class="fa fa-heartbeat"></i> OVERALL</th>
-                    <th><i class="fa fa-calendar"></i> SCHEDULE</th>
-                    <th><i class="fa fa-usd"></i> COST</th>
-                    <th><i class="fa fa-users"></i> RESOURCES</th>
-                    <th><i class="fa fa-crosshairs"></i> SCOPE</th>
-                    <th>DATE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr ng-repeat="p in c.data.projectStatusData.projects">
-                    <td>
-                      <div class="gn-ps-proj-name" title="{{p.name}}">
-                        <span class="gn-ps-num" ng-if="p.number">{{p.number}}</span>
-                        {{p.name}}
-                      </div>
-                    </td>
-                    <td>
-                      <span class="gn-hs gn-hs--{{p.overall_health}}">
-                        <i class="fa"
-                           ng-class="{
-                             'fa-check':       p.overall_health==='green',
-                             'fa-exclamation': p.overall_health==='yellow',
-                             'fa-times':       p.overall_health==='red'
-                           }"></i>
-                        {{p.overall_health | capitalize}}
-                      </span>
-                    </td>
-                    <td>
-                      <span class="gn-hs gn-hs--{{p.schedule}}">
-                        <i class="fa"
-                           ng-class="{
-                             'fa-check':       p.schedule==='green',
-                             'fa-exclamation': p.schedule==='yellow',
-                             'fa-times':       p.schedule==='red'
-                           }"></i>
-                        {{p.schedule | capitalize}}
-                      </span>
-                    </td>
-                    <td>
-                      <span class="gn-hs gn-hs--{{p.cost}}">
-                        <i class="fa"
-                           ng-class="{
-                             'fa-check':       p.cost==='green',
-                             'fa-exclamation': p.cost==='yellow',
-                             'fa-times':       p.cost==='red'
-                           }"></i>
-                        {{p.cost | capitalize}}
-                      </span>
-                    </td>
-                    <td>
-                      <span class="gn-hs gn-hs--{{p.resources}}">
-                        <i class="fa"
-                           ng-class="{
-                             'fa-check':       p.resources==='green',
-                             'fa-exclamation': p.resources==='yellow',
-                             'fa-times':       p.resources==='red'
-                           }"></i>
-                        {{p.resources | capitalize}}
-                      </span>
-                    </td>
-                    <td>
-                      <span class="gn-hs gn-hs--{{p.scope}}">
-                        <i class="fa"
-                           ng-class="{
-                             'fa-check':       p.scope==='green',
-                             'fa-exclamation': p.scope==='yellow',
-                             'fa-times':       p.scope==='red'
-                           }"></i>
-                        {{p.scope | capitalize}}
-                      </span>
-                    </td>
-                    <td class="gn-ps-date">{{p.date}}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="psh-bar-legend">
+            <span class="psh-bl-item">
+              <em class="psh-dot psh-dot--g"></em> Green
+            </span>
+            <span class="psh-bl-item">
+              <em class="psh-dot psh-dot--y"></em> Yellow
+            </span>
+            <span class="psh-bl-item">
+              <em class="psh-dot psh-dot--r"></em> Red
+            </span>
           </div>
+        </div>
 
-        </div><!-- /ng-if has projects -->
-      </div><!-- /analytics-body -->
-    </div><!-- /project status card -->
+        <!-- Radar chart -->
+        <div class="psh-radar-card">
+          <div class="psh-card-title">
+            <i class="fa fa-bullseye"></i> DIMENSION RADAR
+          </div>
+          <div class="gn-chart-wrap" style="height:240px;">
+            <canvas id="projectStatusRadar"></canvas>
+          </div>
+        </div>
+
+      </div><!-- /psh-mid-row -->
+
+      <!-- ══ ROW 3: Project health matrix ══ -->
+      <div class="psh-grid-section">
+        <div class="psh-card-title" style="margin-bottom:12px;">
+          <i class="fa fa-th"></i> PROJECT HEALTH MATRIX
+          <span class="psh-card-sub">Aggregated counts across all reports per project</span>
+        </div>
+
+        <div class="psh-matrix-wrap">
+          <table class="psh-matrix">
+            <thead>
+              <tr>
+                <th class="psh-mth psh-mth--project">Project</th>
+                <th class="psh-mth">
+                  <i class="fa fa-heartbeat"></i> Overall
+                </th>
+                <th class="psh-mth">
+                  <i class="fa fa-calendar"></i> Schedule
+                </th>
+                <th class="psh-mth">
+                  <i class="fa fa-usd"></i> Cost
+                </th>
+                <th class="psh-mth">
+                  <i class="fa fa-users"></i> Resources
+                </th>
+                <th class="psh-mth">
+                  <i class="fa fa-crosshairs"></i> Scope
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="psh-mrow"
+                  ng-repeat="p in c.data.projectStatusData.projects"
+                  ng-class="p.overall_health==='green'  ? 'psh-mrow--g'
+                           : p.overall_health==='yellow' ? 'psh-mrow--y'
+                           : p.overall_health==='red'    ? 'psh-mrow--r' : ''">
+
+                <!-- Project name -->
+                <td class="psh-mtd psh-mtd--project">
+                  <div class="psh-mav"
+                       ng-style="{
+                         background: p.overall_health==='green'  ? '#d1fae5'
+                                   : p.overall_health==='yellow' ? '#fef3c7'
+                                   : p.overall_health==='red'    ? '#fee2e2' : '#f1f5f9',
+                         color:      p.overall_health==='green'  ? '#059669'
+                                   : p.overall_health==='yellow' ? '#d97706'
+                                   : p.overall_health==='red'    ? '#dc2626' : '#6b7280'
+                       }">
+                    {{(p.name||'P').charAt(0).toUpperCase()}}
+                  </div>
+                  <div class="psh-mname-wrap">
+                    <div class="psh-mname" title="{{p.name}}">{{p.name}}</div>
+                    <span class="psh-mnum" ng-if="p.number">#{{p.number}}</span>
+                  </div>
+                </td>
+
+                <!-- Overall -->
+                <td class="psh-mtd psh-mtd--health">
+                  <div class="psh-agg-cell">
+                    <span class="psh-hcell psh-hcell--{{p.overall_health || 'none'}}">
+                      <i class="fa fa-circle"></i>
+                    </span>
+                    <span class="psh-mb psh-mb--g"
+                          ng-if="p.overall_counts && p.overall_counts.green > 0">
+                      {{p.overall_counts.green}}
+                    </span>
+                    <span class="psh-mb psh-mb--y"
+                          ng-if="p.overall_counts && p.overall_counts.yellow > 0">
+                      {{p.overall_counts.yellow}}
+                    </span>
+                    <span class="psh-mb psh-mb--r"
+                          ng-if="p.overall_counts && p.overall_counts.red > 0">
+                      {{p.overall_counts.red}}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Schedule -->
+                <td class="psh-mtd psh-mtd--health">
+                  <div class="psh-agg-cell">
+                    <span class="psh-hcell psh-hcell--{{p.schedule || 'none'}}">
+                      <i class="fa fa-circle"></i>
+                    </span>
+                    <span class="psh-mb psh-mb--g"
+                          ng-if="p.schedule_counts && p.schedule_counts.green > 0">
+                      {{p.schedule_counts.green}}
+                    </span>
+                    <span class="psh-mb psh-mb--y"
+                          ng-if="p.schedule_counts && p.schedule_counts.yellow > 0">
+                      {{p.schedule_counts.yellow}}
+                    </span>
+                    <span class="psh-mb psh-mb--r"
+                          ng-if="p.schedule_counts && p.schedule_counts.red > 0">
+                      {{p.schedule_counts.red}}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Cost -->
+                <td class="psh-mtd psh-mtd--health">
+                  <div class="psh-agg-cell">
+                    <span class="psh-hcell psh-hcell--{{p.cost || 'none'}}">
+                      <i class="fa fa-circle"></i>
+                    </span>
+                    <span class="psh-mb psh-mb--g"
+                          ng-if="p.cost_counts && p.cost_counts.green > 0">
+                      {{p.cost_counts.green}}
+                    </span>
+                    <span class="psh-mb psh-mb--y"
+                          ng-if="p.cost_counts && p.cost_counts.yellow > 0">
+                      {{p.cost_counts.yellow}}
+                    </span>
+                    <span class="psh-mb psh-mb--r"
+                          ng-if="p.cost_counts && p.cost_counts.red > 0">
+                      {{p.cost_counts.red}}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Resources -->
+                <td class="psh-mtd psh-mtd--health">
+                  <div class="psh-agg-cell">
+                    <span class="psh-hcell psh-hcell--{{p.resources || 'none'}}">
+                      <i class="fa fa-circle"></i>
+                    </span>
+                    <span class="psh-mb psh-mb--g"
+                          ng-if="p.resources_counts && p.resources_counts.green > 0">
+                      {{p.resources_counts.green}}
+                    </span>
+                    <span class="psh-mb psh-mb--y"
+                          ng-if="p.resources_counts && p.resources_counts.yellow > 0">
+                      {{p.resources_counts.yellow}}
+                    </span>
+                    <span class="psh-mb psh-mb--r"
+                          ng-if="p.resources_counts && p.resources_counts.red > 0">
+                      {{p.resources_counts.red}}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Scope -->
+                <td class="psh-mtd psh-mtd--health">
+                  <div class="psh-agg-cell">
+                    <span class="psh-hcell psh-hcell--{{p.scope || 'none'}}">
+                      <i class="fa fa-circle"></i>
+                    </span>
+                    <span class="psh-mb psh-mb--g"
+                          ng-if="p.scope_counts && p.scope_counts.green > 0">
+                      {{p.scope_counts.green}}
+                    </span>
+                    <span class="psh-mb psh-mb--y"
+                          ng-if="p.scope_counts && p.scope_counts.yellow > 0">
+                      {{p.scope_counts.yellow}}
+                    </span>
+                    <span class="psh-mb psh-mb--r"
+                          ng-if="p.scope_counts && p.scope_counts.red > 0">
+                      {{p.scope_counts.red}}
+                    </span>
+                  </div>
+                </td>
+
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div><!-- /psh-grid-section -->
+
+    </div>
+  </div>
+</div>
 
     <!-- ══ ROW 4: Change Requests + Status Reports Timeline ══ -->
     <div class="gn-grid" style="margin-bottom:20px;">

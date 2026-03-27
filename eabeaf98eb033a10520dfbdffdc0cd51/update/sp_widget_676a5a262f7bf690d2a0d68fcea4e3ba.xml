@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $http, spUtil) {
+    var c = this;
+    
+    c.uploading = false;
+    c.progress = 0;
+
+    // Target configuration
+    var targetTable = 'x_enno_gatenow_service_applicants';
+    var targetSysID = 'd721ce192f9bbe10d2a0d68fcea4e305';
+
+    c.onFileSelect = function(inputElement) {
+        var files = inputElement.files;
+        if (!files || files.length === 0) return;
+
+        var file = files[0];
+        c.uploading = true;
+        c.progress = 0;
+        
+        console.log("Starting REST API upload for:", file.name);
+
+        // 1. Prepare the data payload
+        var formData = new FormData();
+        formData.append('table_name', targetTable);
+        formData.append('table_sys_id', targetSysID);
+        formData.append('uploadFile', file);
+
+        // 2. Call the Official ServiceNow Attachment API directly
+        $http({
+            method: 'POST',
+            url: '/api/now/attachment/upload', // Official upload endpoint
+            headers: {
+                // Let the browser automatically set the boundary for multipart/form-data
+                'Content-Type': undefined 
+            },
+            data: formData,
+            // Prevent Angular from trying to serialize the FormData object
+            transformRequest: angular.identity, 
+            uploadEventHandlers: {
+                progress: function(e) {
+                    if (e.lengthComputable) {
+                        c.progress = Math.round((e.loaded / e.total) * 100);
+                        $scope.$applyAsync(); // Safely update progress bar
+                    }
+                }
+            }
+        }).then(function successCallback(response) {
+            // Success!
+            c.uploading = false;
+            spUtil.addInfoMessage("File uploaded successfully via REST API!");
+            console.log("API Success Response:", response.data);
+            inputElement.value = ''; // Reset the input
+        }, function errorCallback(response) {
+            // Error!
+            c.uploading = false;
+            spUtil.addErrorMessage("Upload failed. Check the console for details.");
+            console.error("API Error Response:", response);
+            inputElement.value = ''; // Reset the input
+        });
+    };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css/>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>testing_the_sys_attachement</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {  }]]></link>
+        <name>testing the sys attachement</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {  /* populate the 'data' object */  /* e.g., data.table = $sp.getValue('table'); */})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-03-26 08:36:07</sys_created_on>
+        <sys_id>676a5a262f7bf690d2a0d68fcea4e3ba</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_name>testing the sys attachement</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_676a5a262f7bf690d2a0d68fcea4e3ba</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-03-26 09:53:28</sys_updated_on>
+        <template><![CDATA[<div class="panel panel-default">
+  <div class="panel-heading">
+    <h3 class="panel-title">Upload Applicant Document</h3>
+  </div>
+  <div class="panel-body">
+    
+    <div class="form-group">
+      <label>Select a file to attach:</label>
+      <input type="file" 
+             onchange="angular.element(this).scope().c.onFileSelect(this)" 
+             class="form-control" />
+    </div>
+    
+    <div ng-if="c.uploading" class="progress m-t-sm">
+      <div class="progress-bar progress-bar-success" 
+           role="progressbar" 
+           ng-style="{width: c.progress + '%'}">
+        Uploading... {{c.progress}}%
+      </div>
+    </div>
+
+  </div>
+</div>]]></template>
+    </sp_widget>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>676a5a262f7bf690d2a0d68fcea4e3ba</id>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-03-26 08:36:07</sys_created_on>
+        <sys_id>ab6a5e262f7bf690d2a0d68fcea4e3bb</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-03-26 08:36:07</sys_updated_on>
+        <table>sp_widget</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

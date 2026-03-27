@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update sys_domain="global" table="sys_script">
+    <sys_script action="DELETE">
+        <abort_action>false</abort_action>
+        <access>package_private</access>
+        <action_delete>false</action_delete>
+        <action_insert>false</action_insert>
+        <action_query>false</action_query>
+        <action_update>true</action_update>
+        <active>true</active>
+        <add_message>false</add_message>
+        <advanced>true</advanced>
+        <change_fields>false</change_fields>
+        <client_callable>false</client_callable>
+        <collection>sysapproval_approver</collection>
+        <condition>current.state == 'rejected' &amp;&amp; current.sysapproval.sys_class_name == 'x_enno_gatenow_reimbursement'</condition>
+        <description/>
+        <execute_function>false</execute_function>
+        <filter_condition/>
+        <is_rest>false</is_rest>
+        <message/>
+        <name>Copy Rejection Reason to Reimbursement</name>
+        <order>100</order>
+        <priority>100</priority>
+        <rest_method/>
+        <rest_method_text/>
+        <rest_service/>
+        <rest_service_text/>
+        <rest_variables/>
+        <role_conditions/>
+        <script><![CDATA[(function executeRule(current, previous) {
+
+    // Get the reimbursement record
+    var reimbursement = current.sysapproval.getRefRecord();
+
+    // Get rejection reason from comments
+    var reason = current.comments;
+
+    // Only proceed if everything is valid
+    if (reimbursement && reason) {
+
+        // Add entry to Work Notes
+        reimbursement.work_notes = "❌ Rejected by " 
+            + current.approver.getDisplayValue() 
+            + ":\n" + reason;
+
+        // OPTIONAL: If you create a separate field
+        // reimbursement.u_rejection_reason = reason;
+
+        // Save the record
+        reimbursement.update();
+    }
+
+})(current, previous);]]></script>
+        <sys_class_name>sys_script</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-26 08:24:16</sys_created_on>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>4e1712ee2f3bf690d2a0d68fcea4e35b</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Copy Rejection Reason to Reimbursement</sys_name>
+        <sys_overrides/>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_script_4e1712ee2f3bf690d2a0d68fcea4e35b</sys_update_name>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-26 08:24:16</sys_updated_on>
+        <template/>
+        <when>after</when>
+    </sys_script>
+    <sys_translated_text action="DELETE" query="documentkey=4e1712ee2f3bf690d2a0d68fcea4e35b"/>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>253cd7823b92b6d0677f04e0b5e45a33</instance_id>
+        <instance_name>enablenowincdemo1</instance_name>
+        <name>sys_script_4e1712ee2f3bf690d2a0d68fcea4e35b</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update sys_domain="global" table="sys_script"&gt;&lt;sys_script action="INSERT_OR_UPDATE"&gt;&lt;abort_action&gt;false&lt;/abort_action&gt;&lt;access&gt;package_private&lt;/access&gt;&lt;action_delete&gt;false&lt;/action_delete&gt;&lt;action_insert&gt;false&lt;/action_insert&gt;&lt;action_query&gt;false&lt;/action_query&gt;&lt;action_update&gt;true&lt;/action_update&gt;&lt;active&gt;true&lt;/active&gt;&lt;add_message&gt;false&lt;/add_message&gt;&lt;advanced&gt;true&lt;/advanced&gt;&lt;change_fields&gt;false&lt;/change_fields&gt;&lt;client_callable&gt;false&lt;/client_callable&gt;&lt;collection&gt;sysapproval_approver&lt;/collection&gt;&lt;condition&gt;current.state == 'rejected' &amp;amp;&amp;amp; current.sysapproval.sys_class_name == 'x_enno_gatenow_reimbursement'&lt;/condition&gt;&lt;description/&gt;&lt;execute_function&gt;false&lt;/execute_function&gt;&lt;filter_condition/&gt;&lt;is_rest&gt;false&lt;/is_rest&gt;&lt;message/&gt;&lt;name&gt;Copy Rejection Reason to Reimbursement&lt;/name&gt;&lt;order&gt;100&lt;/order&gt;&lt;priority&gt;100&lt;/priority&gt;&lt;rest_method/&gt;&lt;rest_method_text/&gt;&lt;rest_service/&gt;&lt;rest_service_text/&gt;&lt;rest_variables/&gt;&lt;role_conditions/&gt;&lt;script&gt;&lt;![CDATA[(function executeRule(current, previous) {
+
+    // Get the reimbursement record
+    var reimbursement = current.sysapproval.getRefRecord();
+
+    // Get rejection reason from comments
+    var reason = current.comments;
+
+    // Only proceed if everything is valid
+    if (reimbursement &amp;&amp; reason) {
+
+        // Add entry to Work Notes
+        reimbursement.work_notes = "❌ Rejected by " 
+            + current.approver.getDisplayValue() 
+            + ":\n" + reason;
+
+        // OPTIONAL: If you create a separate field
+        // reimbursement.u_rejection_reason = reason;
+
+        // Save the record
+        reimbursement.update();
+    }
+
+})(current, previous);]]&gt;&lt;/script&gt;&lt;sys_class_name&gt;sys_script&lt;/sys_class_name&gt;&lt;sys_created_by&gt;sharik.mir&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-03-26 08:24:16&lt;/sys_created_on&gt;&lt;sys_domain&gt;global&lt;/sys_domain&gt;&lt;sys_domain_path&gt;/&lt;/sys_domain_path&gt;&lt;sys_id&gt;4e1712ee2f3bf690d2a0d68fcea4e35b&lt;/sys_id&gt;&lt;sys_mod_count&gt;0&lt;/sys_mod_count&gt;&lt;sys_name&gt;Copy Rejection Reason to Reimbursement&lt;/sys_name&gt;&lt;sys_overrides/&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sys_script_4e1712ee2f3bf690d2a0d68fcea4e35b&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;sharik.mir&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-03-26 08:24:16&lt;/sys_updated_on&gt;&lt;template/&gt;&lt;when&gt;after&lt;/when&gt;&lt;/sys_script&gt;&lt;sys_translated_text action="delete_multiple" query="documentkey=4e1712ee2f3bf690d2a0d68fcea4e35b"/&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>1624450663</payload_hash>
+        <record_name>Copy Rejection Reason to Reimbursement</record_name>
+        <reverted_from/>
+        <source>466bfd2a2f77f690d2a0d68fcea4e390</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-26 08:24:16</sys_created_on>
+        <sys_id>06b712222f7bf690d2a0d68fcea4e3b2</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>19d293e87330000001</sys_recorded_at>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-26 08:24:16</sys_updated_on>
+        <type>Business Rule</type>
+        <update_guid>42b71222f07bf690c48ba7de4cc1fcb1</update_guid>
+        <update_guid_history>42b71222f07bf690c48ba7de4cc1fcb1:1624450663</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete/>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-03-26 08:29:27</sys_created_on>
+        <sys_db_object display_value="" name="sys_script">sys_script</sys_db_object>
+        <sys_id>0d14fcc0e896473c8ca45a96782f7b21</sys_id>
+        <sys_metadata>4e1712ee2f3bf690d2a0d68fcea4e35b</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Copy Rejection Reason to Reimbursement</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent display_value="Sysapproval Approver">8fcd23caeb163210520dfbdffdc0cd7a</sys_parent>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sys_script_4e1712ee2f3bf690d2a0d68fcea4e35b</sys_update_name>
+        <sys_update_version display_value="sys_script_4e1712ee2f3bf690d2a0d68fcea4e35b">06b712222f7bf690d2a0d68fcea4e3b2</sys_update_version>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-03-26 08:29:27</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>
