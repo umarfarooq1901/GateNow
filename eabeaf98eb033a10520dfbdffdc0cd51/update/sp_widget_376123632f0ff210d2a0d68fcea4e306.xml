@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[function(spUtil, $window, $timeout, $scope) {
+        <client_script><![CDATA[api.controller = function(spUtil, $window, $timeout, $scope) {
   var c = this;
 
-  // ── User session ──────────────────────────────────────────
   c.sessionUser = {
     name:     ($scope.user && $scope.user.name)   || c.data.currentUser.name   || 'Reviewer',
     email:    c.data.currentUser.email            || '',
@@ -13,7 +12,6 @@
     loggedIn: $scope.user && $scope.user.logged_in
   };
 
-  // ── Navigation ────────────────────────────────────────────
   c.activeSection = 'home';
   c.sidebarOpen   = true;
 
@@ -23,18 +21,16 @@
   };
   c.toggleSidebar = function() { c.sidebarOpen = !c.sidebarOpen; };
 
-  c.profileOpen = false;
+  c.profileOpen   = false;
   c.toggleProfile = function($event) { $event.stopPropagation(); c.profileOpen = !c.profileOpen; };
-  c.logout    = function() { $window.location.href = c.data.logoutUrl || '/login.do?logout=true'; };
-  c.goToProfile = function() { c.profileOpen = false; $window.location.href = c.data.profilePage || '?id=user_profile'; };
+  c.logout        = function() { $window.location.href = c.data.logoutUrl || '/login.do?logout=true'; };
+  c.goToProfile   = function() { c.profileOpen = false; $window.location.href = c.data.profilePage || '?id=user_profile'; };
 
-  // ── Filters ───────────────────────────────────────────────
   c.searchText     = '';
   c.statusFilter   = '';
   c.categoryFilter = '';
   c.programFilter  = '';
 
-  // ── Pagination ────────────────────────────────────────────
   c.proposalPage = 1;
   c.pageSize     = 12;
 
@@ -43,7 +39,6 @@
     function() { c.proposalPage = 1; }
   );
 
-  // ── Dropdown options ──────────────────────────────────────
   c.categoryOptions = function() {
     var seen = {}, opts = [];
     (c.data.reviews || []).forEach(function(r) {
@@ -64,16 +59,8 @@
     return opts.sort();
   };
 
-  // ── Status options (all 5 real values) ────────────────────
-  c.allStatuses = [
-    'Review pending',
-    'Review in progress',
-    'Review completed',
-    'Escalated',
-    'Declined by Reviewer'
-  ];
+  c.allStatuses = ['Review pending','Review in progress','Review completed','Escalated','Declined by Reviewer'];
 
-  // ── Filter logic ──────────────────────────────────────────
   c.filteredProposals = function() {
     return (c.data.reviews || []).filter(function(r) {
       if (r.status === 'Review completed') return false;
@@ -92,8 +79,7 @@
   };
 
   c.pagedProposals = function() {
-    var all = c.filteredProposals();
-    var start = (c.proposalPage - 1) * c.pageSize;
+    var all = c.filteredProposals(), start = (c.proposalPage - 1) * c.pageSize;
     return all.slice(start, start + c.pageSize);
   };
 
@@ -114,22 +100,14 @@
   c.prevPage = function() { if (c.proposalPage > 1) c.proposalPage--; };
   c.nextPage = function() { if (c.proposalPage < c.totalPages()) c.proposalPage++; };
 
-  // ── Completed / Recent ────────────────────────────────────
   c.completedReviews = function() {
     return (c.data.reviews || []).filter(function(r) { return r.status === 'Review completed'; });
   };
-
   c.recentActivity = function() {
     return (c.data.reviews || []).filter(function(r) { return r.status !== 'Review completed'; }).slice(0, 8);
   };
-
-  c.overdueReviews = function() {
-    return (c.data.reviews || []).filter(function(r) { return r.is_overdue; });
-  };
-
-  c.dueSoonReviews = function() {
-    return (c.data.reviews || []).filter(function(r) { return r.is_due_soon; });
-  };
+  c.overdueReviews = function() { return (c.data.reviews || []).filter(function(r) { return r.is_overdue; }); };
+  c.dueSoonReviews = function() { return (c.data.reviews || []).filter(function(r) { return r.is_due_soon; }); };
 
   c.openRecord = function(rev) {
     if (!rev || !rev.sys_id) return;
@@ -141,23 +119,53 @@
     return Math.min(Math.round((parseInt(score) / 10) * 100), 100) + '%';
   };
 
-  // deadline CSS helper
   c.deadlineClass = function(rev) {
     if (rev.is_overdue)  return 'rvd-deadline--overdue';
     if (rev.is_due_soon) return 'rvd-deadline--soon';
     return 'rvd-deadline--ok';
   };
 
-  // status color helper
   c.statusChipClass = function(status) {
-    if (status === 'Review completed')      return 'rvd-chip--green';
-    if (status === 'Escalated')             return 'rvd-chip--red';
-    if (status === 'Declined by Reviewer')  return 'rvd-chip--rose';
-    if (status === 'Review pending')        return 'rvd-chip--slate';
-    return 'rvd-chip--amber'; // in progress
+    if (status === 'Review completed')     return 'rvd-chip--green';
+    if (status === 'Escalated')            return 'rvd-chip--red';
+    if (status === 'Declined by Reviewer') return 'rvd-chip--rose';
+    if (status === 'Review pending')       return 'rvd-chip--slate';
+    return 'rvd-chip--amber';
   };
 
-  // ── Animated KPI counters ─────────────────────────────────
+  c.completionRate = function() {
+    var s = c.data.stats || {};
+    return s.total ? Math.round(s.completed / s.total * 100) : 0;
+  };
+c.statusPct = function(key) {
+  var s = c.data.stats || {};
+  var t = s.total || 0;
+  if (!t) return '0%';
+  var v = { inProgress: s.inProgress||0, completed: s.completed||0,
+            escalated: s.escalated||0, declined: s.declined||0, pending: s.pending||0 };
+  return Math.round((v[key]||0) / t * 100) + '%';
+};
+
+c.statusPctNum = function(key) {
+  var s = c.data.stats || {};
+  var t = s.total || 0;
+  if (!t) return 0;
+  var v = { inProgress: s.inProgress||0, completed: s.completed||0,
+            escalated: s.escalated||0, declined: s.declined||0, pending: s.pending||0 };
+  return Math.round((v[key]||0) / t * 100);
+};
+  c.topGroup = function() {
+    var grpMap = {};
+    (c.data.reviews || []).forEach(function(r) {
+      var g = r.assignment_group || 'Unassigned';
+      if (!grpMap[g]) grpMap[g] = 0;
+      if (r.status === 'Review completed') grpMap[g]++;
+    });
+    var top = '', max = 0;
+    Object.keys(grpMap).forEach(function(k) { if (grpMap[k] > max) { max = grpMap[k]; top = k; } });
+    return top || '—';
+  };
+
   c.animatedStats = { total:0, inProgress:0, completed:0, escalated:0, declined:0, pending:0 };
 
   function animateCount(key, target) {
@@ -181,11 +189,13 @@
     animateCount('pending',    s.pending    || 0);
   }, 300);
 
-  // ════════════════════════════════════════════════════════
-  // CHART.JS CHARTS
-  // ════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════
+  // DRAW CHARTS
+  // ══════════════════════════════════════════════════════
   c.drawCharts = function() {
-    var s       = c.data.stats  || {};
+    if (typeof Chart === 'undefined') { return; }
+
+    var s       = c.data.stats   || {};
     var reviews = c.data.reviews || [];
     var total   = s.total      || 0;
     var prog    = s.inProgress || 0;
@@ -194,227 +204,496 @@
     var dec     = s.declined   || 0;
     var pend    = s.pending    || 0;
 
-    if (typeof Chart === 'undefined') return;
-    Chart.defaults.font.family = "'Inter','Segoe UI',sans-serif";
-    Chart.defaults.color       = '#64748b';
+    // ── Globals ─────────────────────────────────────
+    Chart.defaults.font.family                     = "'Inter','Segoe UI',sans-serif";
+    Chart.defaults.font.size                       = 12;
+    Chart.defaults.color                           = '#64748b';
+    Chart.defaults.plugins.tooltip.cornerRadius    = 10;
+    Chart.defaults.plugins.tooltip.padding         = 12;
+    Chart.defaults.plugins.tooltip.boxPadding      = 6;
+    Chart.defaults.plugins.tooltip.titleFont       = { weight:'700', size:13 };
+    Chart.defaults.plugins.tooltip.bodyFont        = { size:12 };
+    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15,23,42,0.92)';
+    Chart.defaults.plugins.tooltip.titleColor      = '#f1f5f9';
+    Chart.defaults.plugins.tooltip.bodyColor       = '#cbd5e1';
 
-    // helper: destroy & recreate
-    function makeChart(id, config) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      if (el._ci) { try { el._ci.destroy(); } catch(e){} }
-      el._ci = new Chart(el, config);
+    var C = {
+      indigo:'#6366f1', green:'#10b981', red:'#ef4444', orange:'#f97316',
+      slate:'#94a3b8',  amber:'#f59e0b', rose:'#f43f5e', sky:'#0ea5e9',
+      violet:'#8b5cf6', teal:'#14b8a6',  cyan:'#06b6d4', lime:'#84cc16'
+    };
+
+    function rgba(hex, a) {
+      var r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+      return 'rgba('+r+','+g+','+b+','+a+')';
     }
 
-    /* ── 1. Full-status Donut ── */
-    makeChart('rvdDonutChart', {
-      type: 'doughnut',
-      data: {
-        labels: ['In Progress','Completed','Escalated','Declined','Pending'],
-        datasets: [{
-          data: [prog, done, esc, dec, pend],
-          backgroundColor: ['#6366f1','#10b981','#ef4444','#f97316','#94a3b8'],
-          borderWidth: 5, borderColor: '#fff', hoverOffset: 10
-        }]
-      },
-      options: {
-        cutout: '74%',
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: function(ctx) {
-            var pct = total ? Math.round(ctx.parsed / total * 100) : 0;
-            return ' ' + ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
-          }}}
-        },
-        animation: { animateRotate: true, duration: 1400, easing: 'easeOutQuart' }
-      }
-    });
+    // ── KEY FIX: destroy existing chart properly before re-creating ──
+    function dc(id, cfg) {
+      var el = document.getElementById(id);
+      if (!el) return null;
+      // FIX: use Chart.getChart() to properly destroy
+      var existing = Chart.getChart(el);
+      if (existing) { existing.destroy(); }
+      return new Chart(el, cfg);
+    }
 
-    /* ── 2. Horizontal Status Bar ── */
-    makeChart('rvdProgressBar', {
+    // ── KEY FIX: safe gradient — uses fixed height fallback ──
+    function grad(id, colorTop, colorBot) {
+      var el = document.getElementById(id);
+      if (!el) return rgba(colorTop, 0.2);
+      var h = (el.offsetHeight || el.clientHeight || 220);
+      var ctx = el.getContext('2d');
+      var g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, rgba(colorTop, 0.38));
+      g.addColorStop(1, rgba(colorBot || colorTop, 0.02));
+      return g;
+    }
+
+// ════════════════════════════════════════════════
+// CHART 1 — Arc Gauge: Completion Ring
+// ════════════════════════════════════════════════
+var arcData   = [prog||0, done||0, esc||0, dec||0, pend||0];
+var arcSum    = arcData.reduce(function(a,b){return a+b;},0);
+if (!arcSum) arcData = [1,1,1,1,1];
+
+dc('rvdDonutChart', {
+  type: 'doughnut',
+  data: {
+    labels: ['In Progress','Completed','Escalated','Declined','Pending'],
+    datasets: [{
+      data: arcData,
+      backgroundColor: [
+        rgba(C.indigo, 0.90),
+        rgba(C.green,  0.90),
+        rgba(C.red,    0.90),
+        rgba(C.orange, 0.90),
+        rgba(C.slate,  0.75)
+      ],
+      borderColor: '#ffffff',
+      borderWidth: 4,
+      hoverBorderColor: '#ffffff',
+      hoverOffset: 10,
+      spacing: 2
+    }]
+  },
+  options: {
+    cutout: '72%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function(ctx) {
+            if (!arcSum) return '  No data yet';
+            var pct = Math.round(ctx.parsed / arcSum * 100);
+            return '  ' + ctx.label + ':  ' + ctx.parsed + '  (' + pct + '%)';
+          }
+        }
+      }
+    },
+    animation: { animateRotate: true, duration: 1600, easing: 'easeOutQuart' }
+  }
+});
+    // ════════════════════════════════════════════════
+    // CHART 2 — Horizontal Bar: Status Count
+    // ════════════════════════════════════════════════
+    dc('rvdProgressBar', {
       type: 'bar',
       data: {
         labels: ['Pending','In Progress','Escalated','Declined','Completed'],
-        datasets: [{
-          label: 'Proposals',
-          data: [pend, prog, esc, dec, done],
-          backgroundColor: ['#94a3b8','#6366f1','#ef4444','#f97316','#10b981'],
-          borderRadius: 10, borderSkipped: false
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { max: total || 10, grid: { color: '#f1f5f9' },
-               ticks: { color: '#94a3b8', font: { size: 11 } } },
-          y: { grid: { display: false },
-               ticks: { color: '#374151', font: { size: 12, weight: '700' } } }
-        },
-        animation: { duration: 1200, easing: 'easeOutCubic' }
-      }
-    });
-
-    /* ── 3. Deadline Timeline Bar — overdue / due soon / on track ── */
-    var overdue  = s.overdue  || 0;
-    var dueSoon  = s.dueSoon  || 0;
-    var onTrack  = Math.max(0, total - done - dec - overdue - dueSoon);
-    makeChart('rvdDeadlineChart', {
-      type: 'bar',
-      data: {
-        labels: ['Overdue','Due in ≤3 Days','On Track'],
-        datasets: [{
+        datasets:[{
           label: 'Reviews',
-          data: [overdue, dueSoon, onTrack],
-          backgroundColor: ['#ef4444','#f59e0b','#10b981'],
-          borderRadius: 12, borderSkipped: false, barThickness: 40
+          data:  [pend, prog, esc, dec, done],
+          backgroundColor:[rgba(C.slate,0.82),rgba(C.indigo,0.82),rgba(C.red,0.82),rgba(C.orange,0.82),rgba(C.green,0.82)],
+          borderColor:    [C.slate, C.indigo, C.red, C.orange, C.green],
+          borderWidth: 2,
+          borderRadius:{ topRight:12, bottomRight:12, topLeft:0, bottomLeft:0 },
+          borderSkipped: false,
+          barThickness: 26
         }]
       },
-      options: {
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#374151', font: { size: 12, weight: '700' } } },
-          y: { beginAtZero: true, grid: { color: '#f1f5f9' },
-               ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 } }
+      options:{
+        indexAxis:'y',
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            callbacks:{
+              label:function(ctx){
+                var pct = total ? Math.round(ctx.parsed.x/total*100) : 0;
+                return '  '+ctx.parsed.x+' proposals  ·  '+pct+'%';
+              }
+            }
+          }
         },
-        animation: { duration: 1200, easing: 'easeOutCubic' }
+        scales:{
+          x:{
+            min: 0,
+            max: Math.max(total>0 ? Math.ceil(total*1.18) : 10, 1),
+            grid:{ color:'#f1f5f9', drawBorder:false },
+            ticks:{ color:'#94a3b8', font:{size:11}, precision:0,
+                    callback:function(v){ return Number.isInteger(v)?v:''; }},
+            border:{ display:false }
+          },
+          y:{ grid:{display:false}, ticks:{color:'#374151',font:{size:12,weight:'700'}}, border:{display:false} }
+        },
+        animation:{ duration:1300, easing:'easeOutCubic' }
       }
     });
 
-    /* ── 4. Review Activity Line (simulated from review data) ── */
-    var days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    var dist = [0,0,0,0,0,0,0];
-    reviews.forEach(function(r, i) { dist[i % 7]++; });
-    makeChart('rvdActivityLine', {
-      type: 'line',
-      data: {
+
+
+    // ════════════════════════════════════════════════
+    // CHART 4 — Area Line: Review Activity (KEPT)
+    // ════════════════════════════════════════════════
+    var days     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    var actDist  = [0,0,0,0,0,0,0];
+    var escDist  = [0,0,0,0,0,0,0];
+    var doneDist = [0,0,0,0,0,0,0];
+
+    reviews.forEach(function(r,i) {
+      var idx = i % 7;
+      actDist[idx]++;
+      if (r.status === 'Escalated')        escDist[idx]++;
+      if (r.status === 'Review completed') doneDist[idx]++;
+    });
+
+    var actGrad  = grad('rvdActivityLine', C.indigo);
+    var doneGrad = grad('rvdActivityLine', C.green);
+
+    dc('rvdActivityLine', {
+      type:'line',
+      data:{
         labels: days,
-        datasets: [{
-          label: 'Reviews Actioned',
-          data: dist,
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99,102,241,0.08)',
-          borderWidth: 3,
-          pointBackgroundColor: '#6366f1',
-          pointBorderColor: '#fff', pointBorderWidth: 2,
-          pointRadius: 6, pointHoverRadius: 9,
-          tension: 0.45, fill: true
-        }]
+        datasets:[
+          {
+            label:'Total Reviews',
+            data: actDist,
+            borderColor: C.indigo,
+            backgroundColor: actGrad,
+            borderWidth:3,
+            pointBackgroundColor:'#fff', pointBorderColor:C.indigo,
+            pointBorderWidth:2.5, pointRadius:6, pointHoverRadius:9,
+            pointHoverBackgroundColor:C.indigo,
+            tension:0.45, fill:true
+          },
+          {
+            label:'Completed',
+            data: doneDist,
+            borderColor: C.green,
+            backgroundColor: doneGrad,
+            borderWidth:2.5,
+            pointBackgroundColor:'#fff', pointBorderColor:C.green,
+            pointBorderWidth:2, pointRadius:5, pointHoverRadius:8,
+            tension:0.45, fill:true
+          },
+          {
+            label:'Escalated',
+            data: escDist,
+            borderColor: C.rose,
+            backgroundColor: rgba(C.rose,0.05),
+            borderWidth:2,
+            borderDash:[6,4],
+            pointBackgroundColor:'#fff', pointBorderColor:C.rose,
+            pointBorderWidth:2, pointRadius:4, pointHoverRadius:7,
+            tension:0.45, fill:false
+          }
+        ]
       },
-      options: {
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11, weight: '600' } } },
-          y: { beginAtZero: true, grid: { color: '#f1f5f9' },
-               ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 } }
+      options:{
+        plugins:{
+          legend:{
+            position:'top', align:'end',
+            labels:{ usePointStyle:true, pointStyle:'circle', padding:16, font:{size:12,weight:'600'}, color:'#374151' }
+          }
         },
-        animation: { duration: 1600, easing: 'easeOutQuart' }
+        scales:{
+          x:{ grid:{display:false}, ticks:{color:'#94a3b8',font:{size:11,weight:'600'}}, border:{display:false} },
+          y:{ beginAtZero:true, grid:{color:'#f1f5f9',drawBorder:false},
+              ticks:{color:'#94a3b8',font:{size:11},stepSize:1,precision:0}, border:{display:false} }
+        },
+        animation:{ duration:1600, easing:'easeOutQuart' },
+        interaction:{ mode:'index', intersect:false }
       }
     });
 
-    /* ── 5. Half-Donut Gauge — Escalation Rate ── */
-    var escRate = total ? Math.round(esc / total * 100) : 0;
-    makeChart('rvdGauge', {
-      type: 'doughnut',
-      data: {
-        datasets: [{
-          data: [escRate, 100 - escRate],
-          backgroundColor: [escRate > 10 ? '#ef4444' : '#10b981', '#f1f5f9'],
-          borderWidth: 0, circumference: 180, rotation: 270
-        }]
-      },
-      options: {
-        cutout: '75%',
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
-        animation: { animateRotate: true, duration: 1400 }
-      }
-    });
+   
 
-    /* ── 6. Category Grouped Bar ── */
+    // ════════════════════════════════════════════════
+    // CHART 6 — Stacked Bar: Category Distribution
+    // ════════════════════════════════════════════════
     var catMap = {};
-    reviews.forEach(function(r) {
+    reviews.forEach(function(r){
       var cat = r.program_category || 'Uncategorized';
-      if (!catMap[cat]) catMap[cat] = { prog:0, done:0, esc:0, dec:0, pend:0 };
-      if (r.status === 'Review in progress')   catMap[cat].prog++;
-      else if (r.status === 'Review completed') catMap[cat].done++;
-      else if (r.status === 'Escalated')        catMap[cat].esc++;
-      else if (r.status === 'Declined by Reviewer') catMap[cat].dec++;
-      else if (r.status === 'Review pending')   catMap[cat].pend++;
+      if (!catMap[cat]) catMap[cat]={prog:0,done:0,esc:0,dec:0,pend:0};
+      if      (r.status==='Review in progress')   catMap[cat].prog++;
+      else if (r.status==='Review completed')     catMap[cat].done++;
+      else if (r.status==='Escalated')            catMap[cat].esc++;
+      else if (r.status==='Declined by Reviewer') catMap[cat].dec++;
+      else if (r.status==='Review pending')       catMap[cat].pend++;
     });
     var catLabels = Object.keys(catMap);
+
     if (catLabels.length) {
-      makeChart('rvdCategoryChart', {
-        type: 'bar',
-        data: {
-          labels: catLabels,
-          datasets: [
-            { label: 'In Progress', data: catLabels.map(function(k){ return catMap[k].prog; }),
-              backgroundColor: '#6366f1', borderRadius: 6, borderSkipped: false },
-            { label: 'Completed',   data: catLabels.map(function(k){ return catMap[k].done; }),
-              backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
-            { label: 'Escalated',   data: catLabels.map(function(k){ return catMap[k].esc;  }),
-              backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false },
-            { label: 'Declined',    data: catLabels.map(function(k){ return catMap[k].dec;  }),
-              backgroundColor: '#f97316', borderRadius: 6, borderSkipped: false },
-            { label: 'Pending',     data: catLabels.map(function(k){ return catMap[k].pend; }),
-              backgroundColor: '#94a3b8', borderRadius: 6, borderSkipped: false }
+      dc('rvdCategoryChart', {
+        type:'bar',
+        data:{
+          labels:catLabels,
+          datasets:[
+            { label:'Pending',     stack:'cat', borderSkipped:false,
+              data:catLabels.map(function(k){return catMap[k].pend;}),
+              backgroundColor:rgba(C.slate,0.75),
+              borderRadius:{topLeft:0,topRight:0,bottomLeft:6,bottomRight:6} },
+            { label:'In Progress', stack:'cat', borderSkipped:false,
+              data:catLabels.map(function(k){return catMap[k].prog;}),
+              backgroundColor:rgba(C.indigo,0.82) },
+            { label:'Escalated',   stack:'cat', borderSkipped:false,
+              data:catLabels.map(function(k){return catMap[k].esc;}),
+              backgroundColor:rgba(C.red,0.82) },
+            { label:'Declined',    stack:'cat', borderSkipped:false,
+              data:catLabels.map(function(k){return catMap[k].dec;}),
+              backgroundColor:rgba(C.orange,0.82) },
+            { label:'Completed',   stack:'cat', borderSkipped:false,
+              data:catLabels.map(function(k){return catMap[k].done;}),
+              backgroundColor:rgba(C.green,0.82),
+              borderRadius:{topLeft:6,topRight:6,bottomLeft:0,bottomRight:0} }
           ]
         },
-        options: {
-          plugins: {
-            legend: { position: 'bottom', labels: {
-              usePointStyle: true, pointStyle: 'circle',
-              font: { size: 11, weight: '600' }, color: '#374151', padding: 16
-            }}
+        options:{
+          plugins:{
+            legend:{ position:'bottom', labels:{usePointStyle:true,pointStyle:'rectRounded',padding:18,font:{size:11,weight:'600'},color:'#374151'} },
+            tooltip:{ mode:'index', callbacks:{ footer:function(items){
+              var sum=items.reduce(function(a,i){return a+i.parsed.y;},0); return 'Total: '+sum;
+            }}}
           },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
-            y: { beginAtZero: true, grid: { color: '#f1f5f9' },
-                 ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 } }
+          scales:{
+            x:{ stacked:true, grid:{display:false}, ticks:{color:'#94a3b8',font:{size:11}}, border:{display:false} },
+            y:{ stacked:true, beginAtZero:true, grid:{color:'#f1f5f9',drawBorder:false},
+                ticks:{color:'#94a3b8',font:{size:11},precision:0}, border:{display:false} }
           },
-          animation: { duration: 1200, easing: 'easeOutCubic' }
+          animation:{ duration:1200, easing:'easeOutCubic' }
         }
       });
     }
 
-    /* ── 7. Reviewer Group Load Bar (who has how many) ── */
+    // ════════════════════════════════════════════════
+    // CHART 7 — Horizontal Stacked: Group Workload
+    // ════════════════════════════════════════════════
     var grpMap = {};
-    reviews.forEach(function(r) {
+    reviews.forEach(function(r){
       var grp = r.assignment_group || 'Unassigned';
-      grpMap[grp] = (grpMap[grp] || 0) + 1;
+      if (!grpMap[grp]) grpMap[grp]={prog:0,done:0,esc:0,dec:0,pend:0};
+      if      (r.status==='Review in progress')   grpMap[grp].prog++;
+      else if (r.status==='Review completed')     grpMap[grp].done++;
+      else if (r.status==='Escalated')            grpMap[grp].esc++;
+      else if (r.status==='Declined by Reviewer') grpMap[grp].dec++;
+      else                                        grpMap[grp].pend++;
     });
     var grpLabels = Object.keys(grpMap);
+
     if (grpLabels.length) {
-      makeChart('rvdGroupChart', {
-        type: 'bar',
-        data: {
-          labels: grpLabels,
-          datasets: [{
-            label: 'Proposals Assigned',
-            data: grpLabels.map(function(k){ return grpMap[k]; }),
-            backgroundColor: grpLabels.map(function(_, i) {
-              var palette = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#f97316'];
-              return palette[i % palette.length];
-            }),
-            borderRadius: 10, borderSkipped: false
-          }]
+      dc('rvdGroupChart', {
+        type:'bar',
+        data:{
+          labels:grpLabels,
+          datasets:[
+            { label:'Pending',     stack:'grp', borderSkipped:false, borderRadius:0,
+              data:grpLabels.map(function(k){return grpMap[k].pend;}), backgroundColor:rgba(C.slate,0.72) },
+            { label:'In Progress', stack:'grp', borderSkipped:false, borderRadius:0,
+              data:grpLabels.map(function(k){return grpMap[k].prog;}), backgroundColor:rgba(C.indigo,0.82) },
+            { label:'Escalated',   stack:'grp', borderSkipped:false, borderRadius:0,
+              data:grpLabels.map(function(k){return grpMap[k].esc;}),  backgroundColor:rgba(C.red,0.82) },
+            { label:'Declined',    stack:'grp', borderSkipped:false, borderRadius:0,
+              data:grpLabels.map(function(k){return grpMap[k].dec;}),  backgroundColor:rgba(C.orange,0.82) },
+            { label:'Completed',   stack:'grp', borderSkipped:false,
+              borderRadius:{topLeft:8,topRight:8,bottomLeft:0,bottomRight:0},
+              data:grpLabels.map(function(k){return grpMap[k].done;}), backgroundColor:rgba(C.green,0.82) }
+          ]
         },
-        options: {
-          indexAxis: 'y',
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { beginAtZero: true, grid: { color: '#f1f5f9' },
-                 ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 } },
-            y: { grid: { display: false },
-                 ticks: { color: '#374151', font: { size: 12, weight: '700' } } }
+        options:{
+          indexAxis:'y',
+          plugins:{
+            legend:{ position:'bottom', labels:{usePointStyle:true,pointStyle:'rectRounded',padding:16,font:{size:11,weight:'600'},color:'#374151'} },
+            tooltip:{ mode:'index', callbacks:{ footer:function(items){
+              var sum=items.reduce(function(a,i){return a+i.parsed.x;},0); return 'Group Total: '+sum;
+            }}}
           },
-          animation: { duration: 1200, easing: 'easeOutCubic' }
+          scales:{
+            x:{ stacked:true, beginAtZero:true, grid:{color:'#f1f5f9',drawBorder:false},
+                ticks:{color:'#94a3b8',font:{size:11},precision:0}, border:{display:false} },
+            y:{ stacked:true, grid:{display:false},
+                ticks:{color:'#374151',font:{size:12,weight:'700'}}, border:{display:false} }
+          },
+          animation:{ duration:1300, easing:'easeOutCubic' }
         }
       });
     }
-  };
 
-  // ── Load Chart.js then draw ───────────────────────────────
+    // ════════════════════════════════════════════════
+    // CHART 8 — Score Distribution Histogram
+    // ════════════════════════════════════════════════
+    var scoreBuckets = [0,0,0,0,0,0,0,0,0,0];
+    reviews.forEach(function(r) {
+      var sc = parseInt(r.score);
+      if (sc >= 1 && sc <= 10) scoreBuckets[sc-1]++;
+    });
+    // always draw even if all zero
+    dc('rvdScoreChart', {
+      type:'bar',
+      data:{
+        labels:['1','2','3','4','5','6','7','8','9','10'],
+        datasets:[{
+          label:'Proposals',
+          data: scoreBuckets,
+          backgroundColor: ['0','1','2','3','4','5','6','7','8','9'].map(function(v,i){
+            var ratio=i/9;
+            return ratio<0.4?rgba(C.red,0.78):ratio<0.7?rgba(C.amber,0.78):rgba(C.green,0.78);
+          }),
+          borderColor: ['0','1','2','3','4','5','6','7','8','9'].map(function(v,i){
+            var ratio=i/9; return ratio<0.4?C.red:ratio<0.7?C.amber:C.green;
+          }),
+          borderWidth:2,
+          borderRadius:{topLeft:8,topRight:8,bottomLeft:0,bottomRight:0},
+          borderSkipped:false,
+          barThickness:28
+        }]
+      },
+      options:{
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{
+            title:function(items){ return 'Score '+items[0].label+'/10'; },
+            label:function(ctx)  { return '  '+ctx.parsed.y+' proposals'; }
+          }}
+        },
+        scales:{
+          x:{ grid:{display:false}, ticks:{color:'#94a3b8',font:{size:12,weight:'700'}}, border:{display:false},
+              title:{display:true,text:'Review Score',color:'#94a3b8',font:{size:11}} },
+          y:{ beginAtZero:true, grid:{color:'#f1f5f9',drawBorder:false},
+              ticks:{color:'#94a3b8',font:{size:11},precision:0}, border:{display:false} }
+        },
+        animation:{ duration:1200, easing:'easeOutBounce' }
+      }
+    });
+
+    // ════════════════════════════════════════════════
+    // CHART 9 — Radar: Program Completion %
+    // ════════════════════════════════════════════════
+    var progMap = {};
+    reviews.forEach(function(r){
+      var p = r.program || 'Unknown';
+      if (!progMap[p]) progMap[p]={total:0,done:0};
+      progMap[p].total++;
+      if (r.status==='Review completed') progMap[p].done++;
+    });
+    var radarLabels = Object.keys(progMap).slice(0,8);
+    var radarData   = radarLabels.map(function(p){
+      return progMap[p].total ? Math.round(progMap[p].done/progMap[p].total*100) : 0;
+    });
+
+    // FIX: draw radar even with < 3 programs, pad to 3 minimum
+    while (radarLabels.length < 3) { radarLabels.push('—'); radarData.push(0); }
+
+    dc('rvdRadarChart', {
+      type:'radar',
+      data:{
+        labels: radarLabels,
+        datasets:[{
+          label:'Completion %',
+          data: radarData,
+          backgroundColor: rgba(C.indigo,0.18),
+          borderColor: C.indigo,
+          borderWidth:2.5,
+          pointBackgroundColor: C.indigo,
+          pointBorderColor:'#fff',
+          pointBorderWidth:2,
+          pointRadius:5,
+          pointHoverRadius:8
+        }]
+      },
+      options:{
+        scales:{
+          r:{
+            min:0, max:100,
+            ticks:{ stepSize:25, color:'#94a3b8', font:{size:10},
+                    backdropColor:'transparent', callback:function(v){return v+'%';} },
+            grid:       { color:'#e2e8f0' },
+            angleLines: { color:'#e2e8f0' },
+            pointLabels:{ color:'#374151', font:{size:11,weight:'700'} }
+          }
+        },
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ label:function(ctx){ return '  Completion: '+ctx.parsed.r+'%'; }}}
+        },
+        animation:{ duration:1600, easing:'easeOutQuart' }
+      }
+    });
+
+  }; // end drawCharts
+// ════════════════════════════════════════════════
+// ESCALATION SPEEDOMETER — SVG (no canvas)
+// ════════════════════════════════════════════════
+c.initEscGauge = function() {
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var svg   = document.querySelector('.rvd-esc-svg');
+  if (!svg) return;
+
+  // Inject gradient def
+  var defs = document.createElementNS(svgNS, 'defs');
+  defs.innerHTML =
+    '<linearGradient id="escGrad" x1="0%" y1="0%" x2="100%" y2="0%">' +
+      '<stop offset="0%"   stop-color="#10b981"/>' +
+      '<stop offset="50%"  stop-color="#f59e0b"/>' +
+      '<stop offset="100%" stop-color="#ef4444"/>' +
+    '</linearGradient>';
+  svg.insertBefore(defs, svg.firstChild);
+
+  // Animate fill arc
+  var s         = c.data.stats || {};
+  var total     = s.total     || 0;
+  var escalated = s.escalated || 0;
+  var pct       = total ? escalated / total : 0;
+  var arcLen    = 283;
+
+  $timeout(function() {
+    var fill = document.getElementById('rvdEscFill');
+    if (fill) {
+      fill.style.strokeDasharray = (pct * arcLen) + ' ' + arcLen;
+      // Color needle/arc based on rate
+      var rate = total ? escalated / total * 100 : 0;
+      fill.style.stroke = rate > 30 ? '#ef4444' : rate > 10 ? '#f59e0b' : '#10b981';
+    }
+  }, 400);
+};
+// ════════════════════════════════════════════════
+// DEADLINE RINGS — SVG (no canvas)
+// ════════════════════════════════════════════════
+c.initDeadlineRings = function() {
+  var s        = c.data.stats || {};
+  var overdue  = s.overdue  || 0;
+  var dueSoon  = s.dueSoon  || 0;
+  var onTrack  = Math.max(0, (s.total || 0) - (s.completed || 0) - (s.declined || 0) - overdue - dueSoon);
+
+  // Circumferences: r=82 → 515.2, r=62 → 389.6, r=42 → 263.9
+  var rings = [
+    { id: null, sel: '.rvd-ring--green', circ: 515.2, val: onTrack  },
+    { id: null, sel: '.rvd-ring--amber', circ: 389.6, val: dueSoon  },
+    { id: null, sel: '.rvd-ring--red',   circ: 263.9, val: overdue  }
+  ];
+
+  $timeout(function() {
+    rings.forEach(function(ring) {
+      var el = document.querySelector(ring.sel);
+      if (!el) return;
+      var filled = (ring.val / dlTotal) * ring.circ;
+      el.style.strokeDasharray = filled + ' ' + ring.circ;
+    });
+
+    // Also update stats on scope so ng-attr picks them up
+    c.data.stats.onTrack = onTrack;
+  }, 400);
+};
+  // ── Single clean loader ───────────────────────────────────
   function loadChartJS(cb) {
     if (typeof Chart !== 'undefined') { cb(); return; }
     var s = document.createElement('script');
@@ -423,18 +702,23 @@
     document.head.appendChild(s);
   }
 
-  $timeout(function() {
-    loadChartJS(function() {
-      $timeout(function() { c.drawCharts(); }, 100);
-    });
-  }, 500);
-
-  $scope.$watch('c.activeSection', function(newVal) {
-    if (newVal === 'home') {
-      $timeout(function() { c.drawCharts(); }, 150);
-    }
+$timeout(function() {
+  loadChartJS(function() {
+    $timeout(function() { c.drawCharts(); }, 300);
   });
-}]]></client_script>
+}, 800);
+
+ $scope.$watch('c.activeSection', function(newVal) {
+  if (newVal === 'home') {
+    $timeout(function() {
+      c.initEscGauge();
+      c.initDeadlineRings();
+      c.drawCharts();
+    }, 300);
+  }
+});
+
+};]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════════════════
    SHELL &amp; LAYOUT
@@ -468,6 +752,28 @@
 .rvd-sidebar--collapsed {
   width: 64px;
   min-width: 64px;
+}
+
+/* Base badge */
+.rvd-nav__badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #6366f1;   /* indigo — for Proposals */
+  color: #fff;
+}
+
+/* Green variant — for Completed Reviews */
+.rvd-nav__badge--green {
+  background: #059669;
+  color: #fff;
 }
 
 .rvd-sidebar--collapsed .rvd-brand-text,
@@ -541,49 +847,314 @@
   color: #fff;
   transform: translateX(2px);
 }
+.rvd-sb-card { overflow: hidden; }
 
-.rvd-nav__item--active {
-  background: rgba(255,255,255,0.15);
-  color: #fff;
+.rvd-sb-header-right { display: flex; align-items: center; gap: 12px; }
+
+.rvd-sb-rate {
+  font-size: 12px; font-weight: 600; color: #fff;
+  background: rgba(255,255,255,0.18);
+  border-radius: 20px; padding: 4px 12px;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.rvd-sb-body {
+  display: flex; gap: 28px; align-items: center;
+  padding: 24px 24px 20px;
+}
+
+.rvd-sb-gauge-wrap {
+  position: relative; flex-shrink: 0;
+  width: 220px; height: 220px;
+}
+
+.rvd-sb-gauge-center {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none;
+}
+
+.rvd-sbg-num      { font-size: 36px; font-weight: 800; color: #1e293b; line-height: 1; }
+.rvd-sbg-lbl      { font-size: 12px; color: #94a3b8; font-weight: 500; margin-top: 2px; }
+.rvd-sbg-rate     { font-size: 20px; font-weight: 700; color: #10b981; margin-top: 8px; line-height: 1; }
+.rvd-sbg-rate-lbl { font-size: 11px; color: #94a3b8; font-weight: 500; }
+
+.rvd-sb-rows { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+.rvd-sb-row {
+  background: #f8fafc; border-radius: 12px;
+  padding: 10px 14px 8px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  border: 1px solid #f1f5f9;
+}
+.rvd-sb-row:hover { background: #f1f5f9; transform: translateX(3px); }
+
+.rvd-sb-row-top   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+.rvd-sb-row-left  { display: flex; align-items: center; gap: 8px; }
+.rvd-sb-row-right { display: flex; align-items: baseline; gap: 6px; }
+
+.rvd-sb-icon {
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+}
+.rvd-sb-icon--indigo { background: rgba(99,102,241,0.12);  color: #6366f1; }
+.rvd-sb-icon--green  { background: rgba(16,185,129,0.12);  color: #10b981; }
+.rvd-sb-icon--red    { background: rgba(239,68,68,0.12);   color: #ef4444; }
+.rvd-sb-icon--orange { background: rgba(249,115,22,0.12);  color: #f97316; }
+.rvd-sb-icon--slate  { background: rgba(148,163,184,0.12); color: #94a3b8; }
+
+.rvd-sb-name  { font-size: 13px; font-weight: 600; color: #374151; }
+.rvd-sb-count { font-size: 18px; font-weight: 800; line-height: 1; }
+.rvd-sb-pct   { font-size: 11px; color: #94a3b8; font-weight: 500; }
+
+/* ── Progress bars ── */
+.rvd-sb-track {
+  height: 6px;
+  width: 100%;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.rvd-sb-fill {
+  height: 100%;
+  width: 0%;                            /* start at 0 so transition fires */
+  display: block;
+  border-radius: 99px;
+  transition: width 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rvd-sb-fill--indigo { background: linear-gradient(90deg, #818cf8, #6366f1); }
+.rvd-sb-fill--green  { background: linear-gradient(90deg, #34d399, #10b981); }
+.rvd-sb-fill--red    { background: linear-gradient(90deg, #f87171, #ef4444); }
+.rvd-sb-fill--orange { background: linear-gradient(90deg, #fb923c, #f97316); }
+.rvd-sb-fill--slate  { background: linear-gradient(90deg, #cbd5e1, #94a3b8); }
+
+/* ═══════════════════════════════════════════════════
+   ESCALATION RATE — SPEEDOMETER
+═══════════════════════════════════════════════════ */
+.rvd-cc-badge--ok {
+  background: rgba(16,185,129,0.25);
+  border-color: rgba(16,185,129,0.35);
+}
+
+.rvd-esc-body {
+  display: flex;
+  flex-direction: column;
+align-items: center;
+  gap: 0;
+  padding: 0;
+}
+
+/* ── Gauge ── */
+.rvd-esc-gauge-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+justify-content: center;   /* ADD THIS */
+  padding: 16px 16px 0; 
+
+}
+
+.rvd-esc-svg {
+  width: 100%;
+  max-width: 240px;   /* slightly tighter */
+  display: block;
+  margin: 0 auto;  
+}
+
+/* Zone arcs */
+.rvd-esc-zone {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0.2;
+}
+.rvd-esc-zone--green { stroke: #10b981; }
+.rvd-esc-zone--amber { stroke: #f59e0b; }
+.rvd-esc-zone--red   { stroke: #ef4444; }
+
+/* Track */
+.rvd-esc-track {
+  fill: none;
+  stroke: #f1f5f9;
+  stroke-width: 14;
+  stroke-linecap: round;
+}
+
+/* Animated fill — driven by JS below */
+.rvd-esc-fill {
+  fill: none;
+  stroke: url(#escGrad);
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-dasharray: 0 283;
+  transition: stroke-dasharray 1.6s cubic-bezier(.4,0,.2,1),
+              stroke 0.4s ease;
+}
+
+/* Tick marks */
+.rvd-esc-tick {
+  stroke: #cbd5e1;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* Needle */
+.rvd-esc-needle-g {
+  transform-origin: 110px 110px;
+  transition: transform 1.6s cubic-bezier(.4,0,.2,1);
+}
+
+.rvd-esc-needle {
+  stroke: #1e293b;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.rvd-esc-needle-hub {
+  fill: #1e293b;
+}
+
+.rvd-esc-needle-hub-inner {
+  fill: #fff;
+}
+
+/* Zone labels */
+.rvd-esc-zone-lbl {
+  font-size: 9px;
+  fill: #94a3b8;
+  font-family: 'Inter', sans-serif;
   font-weight: 600;
 }
 
-.rvd-nav__item--active::before {
-  content: '';
+/* Center % */
+.rvd-esc-center {
   position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  background: #818cf8;
-  border-radius: 0 3px 3px 0;
-}
-
-.rvd-nav__icon {
-  font-size: 16px;
-  width: 20px;
+  top: 60%;                /* adjust for perfect visual center */
+  left: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
+  margin: 0;               /* REMOVE old margins */
+}
+
+.rvd-esc-pct {
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
+  color: #059669;
+  transition: color 0.4s;
+
+  &amp;--green { color: #059669; }
+  &amp;--amber { color: #d97706; }
+  &amp;--red   { color: #dc2626; }
+}
+
+.rvd-esc-pct-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* ── Breakdown ── */
+.rvd-esc-breakdown {
+    padding: 10px 20px 20px;  /* reduce top padding */
+  margin-top: 6px;  
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rvd-esc-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+
+  i { color: #94a3b8; }
+}
+
+.rvd-esc-over  { color: #dc2626 !important; }
+.rvd-esc-under { color: #059669 !important; }
+
+.rvd-esc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: background 0.15s;
+
+  &amp;:hover { background: #f8fafc; }
+}
+
+.rvd-esc-row__icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+
+  &amp;--red   { background: #fee2e2; color: #dc2626; }
+  &amp;--green { background: #dcfce7; color: #059669; }
+  &amp;--slate { background: #f1f5f9; color: #64748b; }
+}
+
+.rvd-esc-row__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rvd-esc-row__lbl {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.rvd-esc-row__bar {
+  height: 5px;
+  background: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.rvd-esc-row__fill {
+  height: 100%;
+  border-radius: 99px;
+  min-width: 3px;
+  transition: width 1.4s cubic-bezier(.4,0,.2,1);
+
+  &amp;--red   { background: linear-gradient(90deg, #dc2626, #f87171); }
+  &amp;--green { background: linear-gradient(90deg, #059669, #34d399); }
+  &amp;--slate { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+}
+
+.rvd-esc-row__val {
+  font-size: 18px;
+  font-weight: 900;
   flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+
+  &amp;--red   { color: #dc2626; }
+  &amp;--green { color: #059669; }
+  &amp;--slate { color: #64748b; }
 }
-
-.rvd-nav__label {
-  font-size: 13.5px;
-  transition: opacity 0.2s, width 0.3s;
-}
-
-.rvd-nav__badge {
-  margin-left: auto;
-  background: #f59e0b;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 999px;
-  transition: opacity 0.2s;
-}
-
-.rvd-nav__badge--green { background: #10b981; }
-
 /* ═══════════════════════════════════════════════════
    SIDEBAR PROFILE &amp; DROPDOWN
 ═══════════════════════════════════════════════════ */
@@ -1002,7 +1573,7 @@
 ═══════════════════════════════════════════════════ */
 .rvd-kpi-row {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -1158,11 +1729,204 @@
   border: 1px solid #f1f5f9;
   transition: background 0.14s;
 }
+/* ═══════════════════════════════════════════════════
+   DEADLINE OVERVIEW — RADIAL RINGS
+═══════════════════════════════════════════════════ */
+.rvd-deadline-viz {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
 
-.rvd-dl-row:hover { background: #f1f5f9; }
-.rvd-dl-dot  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-.rvd-dl-lbl  { flex: 1; font-size: 12px; font-weight: 600; color: #374151; }
-.rvd-dl-val  { font-size: 14px; font-weight: 900; }
+/* ── Rings ── */
+.rvd-rings-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 200px;
+  height: 200px;
+}
+
+.rvd-rings-svg {
+  width: 200px;
+  height: 200px;
+  transform: rotate(-90deg);
+}
+
+.rvd-ring-track {
+  fill: none;
+  stroke: #f1f5f9;
+  stroke-width: 10;
+}
+
+.rvd-ring-fill {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 0 999;
+  transition: stroke-dasharray 1.4s cubic-bezier(.4, 0, .2, 1);
+}
+
+.rvd-ring--green { stroke: url(#ringGreen); stroke: #10b981; 
+  filter: drop-shadow(0 0 6px rgba(16,185,129,0.5)); }
+.rvd-ring--amber { stroke: #f59e0b;
+  filter: drop-shadow(0 0 6px rgba(245,158,11,0.5)); }
+.rvd-ring--red   { stroke: #ef4444;
+  filter: drop-shadow(0 0 6px rgba(239,68,68,0.55)); }
+
+.rvd-ring-center-num {
+  font-size: 30px;
+  font-weight: 900;
+  fill: #0f172a;
+  font-family: 'Inter', sans-serif;
+  transform: rotate(90deg);
+  transform-origin: 100px 100px;
+}
+
+.rvd-ring-center-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #94a3b8;
+  font-family: 'Inter', sans-serif;
+  transform: rotate(90deg);
+  transform-origin: 100px 100px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Floating glow orbs */
+.rvd-ring-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: rvdOrbit 6s ease-in-out infinite;
+}
+
+.rvd-ring-glow--red {
+  width: 12px; height: 12px;
+  background: #ef4444;
+  box-shadow: 0 0 10px 4px rgba(239,68,68,0.4);
+  top: 10px; left: 50%;
+  animation-delay: 0s;
+}
+
+.rvd-ring-glow--amber {
+  width: 10px; height: 10px;
+  background: #f59e0b;
+  box-shadow: 0 0 10px 4px rgba(245,158,11,0.4);
+  bottom: 20px; left: 20px;
+  animation-delay: 2s;
+}
+
+.rvd-ring-glow--green {
+  width: 10px; height: 10px;
+  background: #10b981;
+  box-shadow: 0 0 10px 4px rgba(16,185,129,0.4);
+  bottom: 20px; right: 20px;
+  animation-delay: 4s;
+}
+
+@keyframes rvdOrbit {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+  50%       { transform: translateY(-8px) scale(1.2); opacity: 1; }
+}
+
+/* ── Stats column ── */
+.rvd-deadline-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rvd-ds-card {
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  animation: rvdFadeUp 0.4s ease both;
+  transition: transform 0.18s, box-shadow 0.18s;
+
+  &amp;:hover { transform: translateX(4px); box-shadow: 0 6px 18px rgba(0,0,0,0.07); }
+  &amp;:nth-child(2) { animation-delay: 0.1s; }
+  &amp;:nth-child(3) { animation-delay: 0.2s; }
+
+  &amp;--red   { background: linear-gradient(135deg, #fff5f5, #fee2e2); border-color: #fecaca; }
+  &amp;--amber { background: linear-gradient(135deg, #fffbf0, #fef3c7); border-color: #fde68a; }
+  &amp;--green { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-color: #bbf7d0; }
+}
+
+.rvd-ds-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rvd-ds-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+
+  .rvd-ds-card--red   &amp; { background: #fee2e2; color: #dc2626; }
+  .rvd-ds-card--amber &amp; { background: #fef3c7; color: #d97706; }
+  .rvd-ds-card--green &amp; { background: #dcfce7; color: #059669; }
+}
+
+.rvd-ds-info { flex: 1; }
+
+.rvd-ds-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.rvd-ds-sub {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.rvd-ds-bottom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rvd-ds-val {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  flex-shrink: 0;
+
+  .rvd-ds-card--red   &amp; { color: #dc2626; }
+  .rvd-ds-card--amber &amp; { color: #d97706; }
+  .rvd-ds-card--green &amp; { color: #059669; }
+}
+
+.rvd-ds-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.rvd-ds-bar__fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 1.4s cubic-bezier(.4,0,.2,1);
+  min-width: 4px;
+
+  &amp;--red   { background: linear-gradient(90deg, #dc2626, #f87171); }
+  &amp;--amber { background: linear-gradient(90deg, #d97706, #fbbf24); }
+  &amp;--green { background: linear-gradient(90deg, #059669, #34d399); }
+}
+
+@keyframes rvdFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* ── Gauge ── */
 .rvd-gauge-info   { text-align: center; }
@@ -1206,7 +1970,25 @@
 .rvd-qi-num  { font-size: 12px; font-weight: 800; color: #1e293b; }
 
 .rvd-chip--sm { font-size: 9px !important; padding: 2px 8px !important; }
+/* ── Status Chips ── */
+.rvd-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
 
+.rvd-chip--green  { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.rvd-chip--red    { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+.rvd-chip--rose   { background: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
+.rvd-chip--slate  { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.rvd-chip--amber  { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.rvd-chip--indigo { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+.rvd-chip--orange { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
 .rvd-qi-prog {
   font-size: 12px;
   font-weight: 500;
@@ -1224,6 +2006,16 @@
   align-items: center; justify-content: center;
   padding: 36px 20px; color: #94a3b8; gap: 8px;
 }
+/* ── KPI color variants ── */
+
+.rvd-kpi--slate  { background: linear-gradient(135deg,#f1f5f9,#e2e8f0); border-color: #cbd5e1; }
+.rvd-kpi--orange { background: linear-gradient(135deg,#fff7ed,#ffedd5); border-color: #fed7aa; }
+
+.rvd-kpi--slate  .rvd-kpi__icon { background: rgba(100,116,139,.12); color: #64748b; }
+.rvd-kpi--orange .rvd-kpi__icon { background: rgba(234,88,12,.12);   color: #ea580c; }
+
+.rvd-kpi--slate  .rvd-kpi__val  { color: #64748b; }
+.rvd-kpi--orange .rvd-kpi__val  { color: #ea580c; }
 
 .rvd-queue-empty i { font-size: 26px; }
 .rvd-queue-empty p { font-size: 13px; font-weight: 600; margin: 0; }
@@ -1972,7 +2764,36 @@
         <id>proposal_review</id>
         <internal>false</internal>
         <link><![CDATA[function link(scope, element, attrs, controller) {
-  
+  function loadChartJS(cb) {
+    if (typeof Chart !== 'undefined') { cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  // Also load the Chart.js annotation plugin for deadline markers
+  function loadAnnotationPlugin(cb) {
+    if (typeof ChartAnnotation !== 'undefined' || !window.Chart) { cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  scope.$watch(function() {
+    return element[0].querySelector('#rvdDonutChart');
+  }, function(canvas) {
+    if (!canvas) return;
+    loadChartJS(function() {
+      loadAnnotationPlugin(function() {
+        scope.$apply(function() {
+          var c = scope.$$childHead || scope.c || scope;
+          if (c && c.drawCharts) c.drawCharts();
+        });
+      });
+    });
+  });
 }]]></link>
         <name>Proposal Review</name>
         <option_schema/>
@@ -2139,48 +2960,46 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>33</sys_mod_count>
+        <sys_mod_count>67</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-27 09:47:59</sys_updated_on>
+        <sys_updated_on>2026-03-30 09:53:39</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
-  <!-- ══════════ SIDEBAR ══════════ -->
+  <!-- SIDEBAR -->
   <aside class="rvd-sidebar" ng-class="{'rvd-sidebar--collapsed': !c.sidebarOpen}">
     <div class="rvd-sidebar__brand">
       <div class="rvd-brand-icon"><i class="fa fa-balance-scale"></i></div>
       <span class="rvd-brand-text">ReviewBoard</span>
     </div>
     <nav class="rvd-nav">
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='home'}" ng-click="c.navTo('home')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'home'}" ng-click="c.navTo('home')">
         <i class="fa fa-home rvd-nav__icon"></i><span class="rvd-nav__label">Dashboard</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='proposals'}" ng-click="c.navTo('proposals')">
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'proposals'}" ng-click="c.navTo('proposals')">
         <i class="fa fa-file-text-o rvd-nav__icon"></i>
         <span class="rvd-nav__label">Proposals</span>
-        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length>0">{{c.filteredProposals().length}}</span>
+        <span class="rvd-nav__badge" ng-if="c.filteredProposals().length > 0">{{c.filteredProposals().length}}</span>
       </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='agreements'}" ng-click="c.navTo('agreements')">
-        <i class="fa fa-handshake-o rvd-nav__icon"></i><span class="rvd-nav__label">Agreements</span>
-      </a>
-      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection==='completed'}" ng-click="c.navTo('completed')">
+  
+      <a class="rvd-nav__item" ng-class="{'rvd-nav__item--active': c.activeSection === 'completed'}" ng-click="c.navTo('completed')">
         <i class="fa fa-check-circle-o rvd-nav__icon"></i>
         <span class="rvd-nav__label">Completed Reviews</span>
-        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length>0">{{c.completedReviews().length}}</span>
+        <span class="rvd-nav__badge rvd-nav__badge--green" ng-if="c.completedReviews().length > 0">{{c.completedReviews().length}}</span>
       </a>
     </nav>
     <div class="rvd-sidebar__footer">
-      <div class="rvd-profile-card" ng-click="c.toggleProfile($event)" ng-class="{'rvd-profile-card--open':c.profileOpen}">
+      <div class="rvd-profile-card" ng-click="c.toggleProfile($event)" ng-class="{'rvd-profile-card--open': c.profileOpen}">
         <div class="rvd-profile-avatar">{{c.data.currentUser.initials}}</div>
         <div class="rvd-profile-details">
           <span class="rvd-profile-name">{{c.data.currentUser.first_name}} {{c.data.currentUser.last_name}}</span>
           <span class="rvd-profile-role">{{c.data.currentUser.title || 'Grant Reviewer'}}</span>
         </div>
-        <i class="fa rvd-profile-caret" ng-class="c.profileOpen?'fa-chevron-up':'fa-chevron-down'"></i>
+        <i class="fa rvd-profile-caret" ng-class="c.profileOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
       </div>
       <div class="rvd-profile-dropdown" ng-show="c.profileOpen">
         <div class="rvd-dropdown-head">
@@ -2198,22 +3017,21 @@
     </div>
   </aside>
 
-  <!-- ══════════ MAIN ══════════ -->
-  <div class="rvd-main" ng-class="{'rvd-main--expanded':!c.sidebarOpen}">
+  <!-- MAIN CONTENT -->
+  <div class="rvd-main" ng-class="{'rvd-main--expanded': !c.sidebarOpen}">
 
+    <!-- TOPBAR -->
     <header class="rvd-topbar">
       <button class="rvd-topbar__toggle" ng-click="c.toggleSidebar()"><i class="fa fa-bars"></i></button>
       <div class="rvd-topbar__breadcrumb">
-        <span ng-if="c.activeSection==='home'">Dashboard Overview</span>
-        <span ng-if="c.activeSection==='proposals'">Active Proposals</span>
-        <span ng-if="c.activeSection==='agreements'">Agreements</span>
-        <span ng-if="c.activeSection==='completed'">Completed Reviews</span>
+        <span ng-if="c.activeSection === 'home'">Dashboard Overview</span>
+        <span ng-if="c.activeSection === 'proposals'">Active Proposals</span>
+       
+        <span ng-if="c.activeSection === 'completed'">Completed Reviews</span>
       </div>
       <div class="rvd-topbar__right">
-        <!-- Overdue alert badge -->
         <div class="rvd-topbar__alert" ng-if="c.data.stats.overdue > 0" ng-click="c.navTo('proposals')">
-          <i class="fa fa-exclamation-circle"></i>
-          {{c.data.stats.overdue}} Overdue
+          <i class="fa fa-exclamation-circle"></i> {{c.data.stats.overdue}} Overdue
         </div>
         <div class="rvd-topbar__date">
           <i class="fa fa-calendar-o"></i><span>Grant Review Portal</span>
@@ -2221,27 +3039,30 @@
       </div>
     </header>
 
-    <!-- ════════════════════════════════════════
-         HOME
-    ════════════════════════════════════════ -->
-    <div class="rvd-content rvd-home" ng-show="c.activeSection==='home'">
+    <!-- ════════════ HOME ════════════ -->
+    <div class="rvd-content rvd-home" ng-show="c.activeSection === 'home'">
 
-      <!-- HERO -->
+      <!-- ── HERO BANNER ── -->
       <div class="rvd-hero">
         <div class="rvd-hero__left">
-          <div class="rvd-hero__eyebrow"><span class="rvd-hero__pulse"></span> Reviewer Workspace</div>
-          <h1 class="rvd-hero__title">Welcome back, <span class="rvd-hero__name">{{c.data.currentUser.first_name || 'Reviewer'}}</span> ]]>👋<![CDATA[</h1>
+          <div class="rvd-hero__eyebrow">
+            <span class="rvd-hero__pulse"></span> Reviewer Workspace
+          </div>
+          <h1 class="rvd-hero__title">
+            Welcome back, <span class="rvd-hero__name">{{c.data.currentUser.first_name || 'Reviewer'}}</span>
+          </h1>
           <p class="rvd-hero__sub">
-            You have <strong class="rvd-hero__highlight">{{c.data.stats.inProgress||0}} in progress</strong>,
-            <strong class="rvd-hero__highlight rvd-hero__highlight--green">{{c.data.stats.completed||0}} completed</strong>
-            and <strong class="rvd-hero__highlight rvd-hero__highlight--red">{{c.data.stats.overdue||0}} overdue</strong> this cycle.
+            You have
+            <strong class="rvd-hero__highlight">{{c.data.stats.inProgress || 0}} in progress</strong>,
+            <strong class="rvd-hero__highlight rvd-hero__highlight--green">{{c.data.stats.completed || 0}} completed</strong>
+            and <strong class="rvd-hero__highlight rvd-hero__highlight--red">{{c.data.stats.overdue || 0}} overdue</strong> this cycle.
           </p>
           <div class="rvd-hero__cta-row">
             <button class="rvd-hero__cta" ng-click="c.navTo('proposals')">
               <i class="fa fa-arrow-right"></i> View All Proposals
             </button>
-            <span class="rvd-hero__meta" ng-if="c.data.stats.dueSoon>0">
-              <i class="fa fa-clock-o"></i> {{c.data.stats.dueSoon}} due within 3 days
+            <span class="rvd-hero__meta">
+              <i class="fa fa-calendar-o"></i> {{c.data.stats.total || 0}} Total Assigned
             </span>
           </div>
         </div>
@@ -2255,14 +3076,15 @@
             <span class="rvd-hsp-lbl">Done</span>
           </div>
           <div class="rvd-hero__stat-pill rvd-hsp--red">
-            <span class="rvd-hsp-val">{{c.data.stats.overdue||0}}</span>
+            <span class="rvd-hsp-val">{{c.data.stats.overdue || 0}}</span>
             <span class="rvd-hsp-lbl">Overdue</span>
           </div>
         </div>
       </div>
 
-      <!-- KPI ROW — 6 tiles for all statuses -->
+      <!-- ── KPI TILES — 6 tiles ── -->
       <div class="rvd-kpi-row">
+
         <div class="rvd-kpi rvd-kpi--purple">
           <div class="rvd-kpi__icon"><i class="fa fa-inbox"></i></div>
           <div class="rvd-kpi__body">
@@ -2271,6 +3093,7 @@
           </div>
           <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" style="width:100%;background:#7c3aed"></div></div>
         </div>
+
         <div class="rvd-kpi rvd-kpi--slate">
           <div class="rvd-kpi__icon"><i class="fa fa-hourglass-start"></i></div>
           <div class="rvd-kpi__body">
@@ -2279,6 +3102,7 @@
           </div>
           <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.pending/c.data.stats.total*100):0)+'%','background':'#64748b'}"></div></div>
         </div>
+
         <div class="rvd-kpi rvd-kpi--amber">
           <div class="rvd-kpi__icon"><i class="fa fa-spinner"></i></div>
           <div class="rvd-kpi__body">
@@ -2287,6 +3111,7 @@
           </div>
           <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.inProgress/c.data.stats.total*100):0)+'%','background':'#d97706'}"></div></div>
         </div>
+
         <div class="rvd-kpi rvd-kpi--green">
           <div class="rvd-kpi__icon"><i class="fa fa-check-circle"></i></div>
           <div class="rvd-kpi__body">
@@ -2295,6 +3120,7 @@
           </div>
           <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.completed/c.data.stats.total*100):0)+'%','background':'#059669'}"></div></div>
         </div>
+
         <div class="rvd-kpi rvd-kpi--red">
           <div class="rvd-kpi__icon"><i class="fa fa-exclamation-triangle"></i></div>
           <div class="rvd-kpi__body">
@@ -2303,6 +3129,7 @@
           </div>
           <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.escalated/c.data.stats.total*100):0)+'%','background':'#dc2626'}"></div></div>
         </div>
+
         <div class="rvd-kpi rvd-kpi--orange">
           <div class="rvd-kpi__icon"><i class="fa fa-times-circle"></i></div>
           <div class="rvd-kpi__body">
@@ -2311,172 +3138,521 @@
           </div>
           <div class="rvd-kpi__bar"><div class="rvd-kpi__fill" ng-style="{'width':(c.data.stats.total?(c.data.stats.declined/c.data.stats.total*100):0)+'%','background':'#ea580c'}"></div></div>
         </div>
+
       </div>
 
-      <!-- ROW 1: Donut + Status Bar -->
+      <!-- ── CHARTS ROW 1: Donut + Horizontal Bar ── -->
       <div class="rvd-chart-grid-2">
 
-        <div class="rvd-chart-card">
-          <div class="rvd-chart-card__hdr rvd-cc-hdr--purple">
-            <div class="rvd-cc-hdr-left">
-              <i class="fa fa-pie-chart"></i>
-              <div><div class="rvd-cc-title">Status Breakdown</div><div class="rvd-cc-sub">All 5 review statuses</div></div>
-            </div>
-            <span class="rvd-cc-badge">{{c.data.stats.total||0}} Total</span>
+      <!-- STATUS BREAKDOWN — Redesigned: Stat Tiles + Arc Progress Bars -->
+<div class="rvd-chart-card rvd-sb-card">
+
+  <div class="rvd-chart-card__hdr rvd-cc-hdr--purple">
+    <div class="rvd-cc-hdr-left">
+      <i class="fa fa-bar-chart"></i>
+      <div>
+        <div class="rvd-cc-title">Proposal Status Breakdown</div>
+        <div class="rvd-cc-sub">Live distribution across all assigned proposals</div>
+      </div>
+    </div>
+    <div class="rvd-sb-header-right">
+      <span class="rvd-cc-badge">{{c.data.stats.total || 0}} Total</span>
+      <span class="rvd-sb-rate">
+        <i class="fa fa-check-circle"></i>
+        {{c.completionRate()}}% done
+      </span>
+    </div>
+  </div>
+
+  <div class="rvd-chart-card__body rvd-sb-body">
+
+    <!-- Arc gauge -->
+    <div class="rvd-sb-gauge-wrap">
+      <canvas id="rvdDonutChart" width="220" height="220"></canvas>
+      <div class="rvd-sb-gauge-center">
+        <span class="rvd-sbg-num">{{c.animatedStats.total}}</span>
+        <span class="rvd-sbg-lbl">Total</span>
+        <span class="rvd-sbg-rate">{{c.completionRate()}}%</span>
+        <span class="rvd-sbg-rate-lbl">complete</span>
+      </div>
+    </div>
+
+    <!-- Status rows -->
+    <div class="rvd-sb-rows">
+
+      <div class="rvd-sb-row" ng-click="c.statusFilter='Review in progress'; c.navTo('proposals')">
+        <div class="rvd-sb-row-top">
+          <div class="rvd-sb-row-left">
+            <span class="rvd-sb-icon rvd-sb-icon--indigo"><i class="fa fa-spinner"></i></span>
+            <span class="rvd-sb-name">In Progress</span>
           </div>
-          <div class="rvd-chart-card__body">
-            <div class="rvd-donut-layout">
-              <div class="rvd-donut-wrap">
-                <canvas id="rvdDonutChart" width="200" height="200"></canvas>
-                <div class="rvd-donut-center">
-                  <span class="rvd-dc-num">{{c.data.stats.total||0}}</span>
-                  <span class="rvd-dc-lbl">Reviews</span>
-                </div>
-              </div>
-              <div class="rvd-donut-legend">
-                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#6366f1"></span><span class="rvd-dl-lbl">In Progress</span><span class="rvd-dl-val" style="color:#6366f1">{{c.data.stats.inProgress||0}}</span></div>
-                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#10b981"></span><span class="rvd-dl-lbl">Completed</span><span class="rvd-dl-val" style="color:#10b981">{{c.data.stats.completed||0}}</span></div>
-                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#ef4444"></span><span class="rvd-dl-lbl">Escalated</span><span class="rvd-dl-val" style="color:#ef4444">{{c.data.stats.escalated||0}}</span></div>
-                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#f97316"></span><span class="rvd-dl-lbl">Declined</span><span class="rvd-dl-val" style="color:#f97316">{{c.data.stats.declined||0}}</span></div>
-                <div class="rvd-dl-row"><span class="rvd-dl-dot" style="background:#94a3b8"></span><span class="rvd-dl-lbl">Pending</span><span class="rvd-dl-val" style="color:#94a3b8">{{c.data.stats.pending||0}}</span></div>
-              </div>
-            </div>
+          <div class="rvd-sb-row-right">
+            <span class="rvd-sb-count" style="color:#6366f1">{{c.animatedStats.inProgress}}</span>
+            <span class="rvd-sb-pct">{{c.statusPctNum('inProgress')}}%</span>
           </div>
         </div>
+        <div class="rvd-sb-track">
+          <div class="rvd-sb-fill rvd-sb-fill--indigo" ng-style="{'width': c.statusPct('inProgress')}"></div>
+        </div>
+      </div>
 
+      <div class="rvd-sb-row" ng-click="c.statusFilter='Review completed'; c.navTo('proposals')">
+        <div class="rvd-sb-row-top">
+          <div class="rvd-sb-row-left">
+            <span class="rvd-sb-icon rvd-sb-icon--green"><i class="fa fa-check-circle"></i></span>
+            <span class="rvd-sb-name">Completed</span>
+          </div>
+          <div class="rvd-sb-row-right">
+            <span class="rvd-sb-count" style="color:#10b981">{{c.animatedStats.completed}}</span>
+            <span class="rvd-sb-pct">{{c.statusPctNum('completed')}}%</span>
+          </div>
+        </div>
+        <div class="rvd-sb-track">
+          <div class="rvd-sb-fill rvd-sb-fill--green" ng-style="{'width': c.statusPct('completed')}"></div>
+        </div>
+      </div>
+
+      <div class="rvd-sb-row" ng-click="c.statusFilter='Escalated'; c.navTo('proposals')">
+        <div class="rvd-sb-row-top">
+          <div class="rvd-sb-row-left">
+            <span class="rvd-sb-icon rvd-sb-icon--red"><i class="fa fa-exclamation-triangle"></i></span>
+            <span class="rvd-sb-name">Escalated</span>
+          </div>
+          <div class="rvd-sb-row-right">
+            <span class="rvd-sb-count" style="color:#ef4444">{{c.animatedStats.escalated}}</span>
+            <span class="rvd-sb-pct">{{c.statusPctNum('escalated')}}%</span>
+          </div>
+        </div>
+        <div class="rvd-sb-track">
+          <div class="rvd-sb-fill rvd-sb-fill--red" ng-style="{'width': c.statusPct('escalated')}"></div>
+        </div>
+      </div>
+
+      <div class="rvd-sb-row" ng-click="c.statusFilter='Declined by Reviewer'; c.navTo('proposals')">
+        <div class="rvd-sb-row-top">
+          <div class="rvd-sb-row-left">
+            <span class="rvd-sb-icon rvd-sb-icon--orange"><i class="fa fa-times-circle"></i></span>
+            <span class="rvd-sb-name">Declined</span>
+          </div>
+          <div class="rvd-sb-row-right">
+            <span class="rvd-sb-count" style="color:#f97316">{{c.animatedStats.declined}}</span>
+            <span class="rvd-sb-pct">{{c.statusPctNum('declined')}}%</span>
+          </div>
+        </div>
+        <div class="rvd-sb-track">
+          <div class="rvd-sb-fill rvd-sb-fill--orange" ng-style="{'width': c.statusPct('declined')}"></div>
+        </div>
+      </div>
+
+      <div class="rvd-sb-row" ng-click="c.statusFilter='Review pending'; c.navTo('proposals')">
+        <div class="rvd-sb-row-top">
+          <div class="rvd-sb-row-left">
+            <span class="rvd-sb-icon rvd-sb-icon--slate"><i class="fa fa-clock-o"></i></span>
+            <span class="rvd-sb-name">Pending</span>
+          </div>
+          <div class="rvd-sb-row-right">
+            <span class="rvd-sb-count" style="color:#94a3b8">{{c.animatedStats.pending}}</span>
+            <span class="rvd-sb-pct">{{c.statusPctNum('pending')}}%</span>
+          </div>
+        </div>
+        <div class="rvd-sb-track">
+          <div class="rvd-sb-fill rvd-sb-fill--slate" ng-style="{'width': c.statusPct('pending')}"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+        <!-- Horizontal Bar — Review Progress -->
         <div class="rvd-chart-card">
           <div class="rvd-chart-card__hdr rvd-cc-hdr--teal">
             <div class="rvd-cc-hdr-left">
               <i class="fa fa-bar-chart"></i>
-              <div><div class="rvd-cc-title">Status Distribution</div><div class="rvd-cc-sub">Count per review status</div></div>
+              <div>
+                <div class="rvd-cc-title">Review Progress</div>
+                <div class="rvd-cc-sub">Count per status across all assigned proposals</div>
+              </div>
             </div>
             <span class="rvd-cc-badge">{{c.data.stats.total ? Math.round(c.data.stats.completed/c.data.stats.total*100) : 0}}% Done</span>
           </div>
           <div class="rvd-chart-card__body">
-            <canvas id="rvdProgressBar" height="200"></canvas>
+            <canvas id="rvdProgressBar" height="190"></canvas>
           </div>
         </div>
 
       </div>
 
-      <!-- ROW 2: Deadline Timeline + Activity Line + Gauge -->
+      <!-- ── CHARTS ROW 2: Line + Gauge ── -->
       <div class="rvd-chart-grid-3">
 
+        <!-- Line — Activity Over Time -->
         <div class="rvd-chart-card rvd-chart-card--span2">
           <div class="rvd-chart-card__hdr rvd-cc-hdr--indigo">
             <div class="rvd-cc-hdr-left">
               <i class="fa fa-line-chart"></i>
-              <div><div class="rvd-cc-title">Review Activity</div><div class="rvd-cc-sub">Proposals actioned across review cycle</div></div>
+              <div>
+                <div class="rvd-cc-title">Review Activity</div>
+                <div class="rvd-cc-sub">Proposals actioned per day this week</div>
+              </div>
             </div>
-            <span class="rvd-cc-badge">This Cycle</span>
+            <span class="rvd-cc-badge">Last 7 Days</span>
           </div>
           <div class="rvd-chart-card__body">
             <canvas id="rvdActivityLine" height="130"></canvas>
           </div>
         </div>
 
-        <div class="rvd-chart-card">
-          <div class="rvd-chart-card__hdr rvd-cc-hdr--rose">
-            <div class="rvd-cc-hdr-left">
-              <i class="fa fa-tachometer"></i>
-              <div><div class="rvd-cc-title">Escalation Rate</div><div class="rvd-cc-sub">% of proposals escalated</div></div>
+     <!-- Escalation Rate — Speedometer Redesign -->
+<div class="rvd-chart-card">
+  <div class="rvd-chart-card__hdr rvd-cc-hdr--rose">
+    <div class="rvd-cc-hdr-left">
+      <i class="fa fa-tachometer"></i>
+      <div>
+        <div class="rvd-cc-title">Escalation Rate</div>
+        <div class="rvd-cc-sub">% of proposals escalated</div>
+      </div>
+    </div>
+    <span class="rvd-cc-badge"
+          ng-class="(c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10) ? 'rvd-cc-badge--warn' : 'rvd-cc-badge--ok'">
+      <i class="fa" ng-class="(c.data.stats.escalated/c.data.stats.total*100 > 10) ? 'fa-exclamation-triangle' : 'fa-check'"></i>
+      {{(c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10) ? 'Above Target' : 'On Target'}}
+    </span>
+  </div>
+
+  <div class="rvd-chart-card__body rvd-esc-body">
+
+    <!-- Speedometer SVG -->
+    <div class="rvd-esc-gauge-wrap">
+      <svg class="rvd-esc-svg" viewBox="0 0 220 130">
+        <!-- Zone arcs (track) -->
+        <!-- Green zone 0–33% -->
+        <path class="rvd-esc-zone rvd-esc-zone--green"
+              d="M 20 110 A 90 90 0 0 1 93 21" />
+        <!-- Amber zone 33–66% -->
+        <path class="rvd-esc-zone rvd-esc-zone--amber"
+              d="M 93 21 A 90 90 0 0 1 167 36" />
+        <!-- Red zone 66–100% -->
+        <path class="rvd-esc-zone rvd-esc-zone--red"
+              d="M 167 36 A 90 90 0 0 1 200 110" />
+
+        <!-- Track base -->
+        <path class="rvd-esc-track"
+              d="M 20 110 A 90 90 0 0 1 200 110" />
+
+        <!-- Animated fill arc -->
+        <path class="rvd-esc-fill"
+              id="rvdEscFill"
+              d="M 20 110 A 90 90 0 0 1 200 110" />
+
+        <!-- Tick marks -->
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="28"  y2="110" transform="rotate(-90, 110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="26"  y2="110" transform="rotate(-67, 110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="28"  y2="110" transform="rotate(-45, 110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="26"  y2="110" transform="rotate(-22, 110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="28"  y2="110" transform="rotate(0,   110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="26"  y2="110" transform="rotate(22,  110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="28"  y2="110" transform="rotate(45,  110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="26"  y2="110" transform="rotate(67,  110, 110)" />
+        <line class="rvd-esc-tick" x1="20"  y1="110" x2="28"  y2="110" transform="rotate(90,  110, 110)" />
+
+        <!-- Needle -->
+        <g class="rvd-esc-needle-g"
+           ng-attr-transform="rotate({{(c.data.stats.total ? c.data.stats.escalated/c.data.stats.total : 0) * 180 - 90}}, 110, 110)">
+          <line class="rvd-esc-needle" x1="110" y1="110" x2="110" y2="30" />
+          <circle class="rvd-esc-needle-hub" cx="110" cy="110" r="7" />
+          <circle class="rvd-esc-needle-hub-inner" cx="110" cy="110" r="3.5" />
+        </g>
+
+        <!-- Zone labels -->
+        <text class="rvd-esc-zone-lbl" x="38"  y="106">0%</text>
+        <text class="rvd-esc-zone-lbl" x="103" y="18">50%</text>
+        <text class="rvd-esc-zone-lbl" x="186" y="106">100%</text>
+      </svg>
+
+      <!-- Big percentage below needle -->
+      <div class="rvd-esc-center">
+        <span class="rvd-esc-pct"
+              ng-class="{
+                'rvd-esc-pct--red':   (c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 30),
+                'rvd-esc-pct--amber': (c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10 && c.data.stats.escalated/c.data.stats.total*100 <= 30),
+                'rvd-esc-pct--green': (c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 <= 10)
+              }">
+          {{c.data.stats.total ? (c.data.stats.escalated/c.data.stats.total*100 | number:1) : 0}}%
+        </span>
+        <span class="rvd-esc-pct-lbl">Escalation Rate</span>
+      </div>
+    </div>
+
+    <!-- Breakdown rows -->
+    <div class="rvd-esc-breakdown">
+
+      <!-- Target chip -->
+      <div class="rvd-esc-target">
+        <i class="fa fa-flag"></i>
+        Target &lt; 10% &nbsp;·&nbsp;
+        <strong ng-class="(c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10) ? 'rvd-esc-over' : 'rvd-esc-under'">
+          {{(c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10) ? '▲ Above' : '✓ Within target'}}
+        </strong>
+      </div>
+
+      <!-- Stat rows -->
+      <div class="rvd-esc-row">
+        <div class="rvd-esc-row__icon rvd-esc-row__icon--red">
+          <i class="fa fa-arrow-up"></i>
+        </div>
+        <div class="rvd-esc-row__info">
+          <span class="rvd-esc-row__lbl">Escalated</span>
+          <div class="rvd-esc-row__bar">
+            <div class="rvd-esc-row__fill rvd-esc-row__fill--red"
+                 ng-style="{width: (c.data.stats.total ? c.data.stats.escalated/c.data.stats.total*100 : 0) + '%'}">
             </div>
           </div>
-          <div class="rvd-chart-card__body rvd-cc-body--center">
-            <canvas id="rvdGauge" width="180" height="110"></canvas>
-            <div class="rvd-gauge-info">
-              <span class="rvd-gauge-val">{{c.data.stats.total ? Math.round(c.data.stats.escalated/c.data.stats.total*100) : 0}}%</span>
-              <span class="rvd-gauge-lbl">Escalation Rate</span>
+        </div>
+        <span class="rvd-esc-row__val rvd-esc-row__val--red">{{c.data.stats.escalated || 0}}</span>
+      </div>
+
+      <div class="rvd-esc-row">
+        <div class="rvd-esc-row__icon rvd-esc-row__icon--green">
+          <i class="fa fa-check"></i>
+        </div>
+        <div class="rvd-esc-row__info">
+          <span class="rvd-esc-row__lbl">Not Escalated</span>
+          <div class="rvd-esc-row__bar">
+            <div class="rvd-esc-row__fill rvd-esc-row__fill--green"
+                 ng-style="{width: (c.data.stats.total ? (c.data.stats.total - c.data.stats.escalated)/c.data.stats.total*100 : 0) + '%'}">
             </div>
-            <div class="rvd-gauge-chip" ng-class="(c.data.stats.total && c.data.stats.escalated/c.data.stats.total*100 > 10) ? 'rvd-gauge-chip--red' : 'rvd-gauge-chip--green'">
-              <i class="fa fa-flag"></i> Target &lt; 10%
+          </div>
+        </div>
+        <span class="rvd-esc-row__val rvd-esc-row__val--green">{{(c.data.stats.total || 0) - (c.data.stats.escalated || 0)}}</span>
+      </div>
+
+      <div class="rvd-esc-row">
+        <div class="rvd-esc-row__icon rvd-esc-row__icon--slate">
+          <i class="fa fa-folder"></i>
+        </div>
+        <div class="rvd-esc-row__info">
+          <span class="rvd-esc-row__lbl">Total Proposals</span>
+          <div class="rvd-esc-row__bar">
+            <div class="rvd-esc-row__fill rvd-esc-row__fill--slate" style="width: 100%"></div>
+          </div>
+        </div>
+        <span class="rvd-esc-row__val rvd-esc-row__val--slate">{{c.data.stats.total || 0}}</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+      </div>
+
+      <!-- ── CHARTS ROW 3: Deadline Overview + Group Workload ── -->
+      <div class="rvd-chart-grid-2">
+
+   <!-- Deadline Overview — Radial Rings Redesign -->
+<div class="rvd-chart-card">
+  <div class="rvd-chart-card__hdr rvd-cc-hdr--rose">
+    <div class="rvd-cc-hdr-left">
+      <i class="fa fa-calendar-times-o"></i>
+      <div>
+        <div class="rvd-cc-title">Deadline Overview</div>
+        <div class="rvd-cc-sub">Overdue / Due Soon / On Track</div>
+      </div>
+    </div>
+    <span class="rvd-cc-badge rvd-cc-badge--warn" ng-if="c.data.stats.overdue > 0">
+      {{c.data.stats.overdue}} Overdue!
+    </span>
+    <span class="rvd-cc-badge" ng-if="!c.data.stats.overdue">
+      <i class="fa fa-check"></i> All on track
+    </span>
+  </div>
+
+  <div class="rvd-chart-card__body">
+    <div class="rvd-deadline-viz">
+
+      <!-- Center radial rings SVG -->
+      <div class="rvd-rings-wrap">
+        <svg class="rvd-rings-svg" viewBox="0 0 200 200">
+          <!-- Track rings -->
+          <circle class="rvd-ring-track" cx="100" cy="100" r="82" />
+          <circle class="rvd-ring-track" cx="100" cy="100" r="62" />
+          <circle class="rvd-ring-track" cx="100" cy="100" r="42" />
+
+          <!-- Animated fill rings -->
+          <!-- On Track (outermost) — green -->
+          <circle class="rvd-ring-fill rvd-ring--green"
+                  cx="100" cy="100" r="82"
+                  ng-attr-stroke-dasharray="{{(c.data.stats.onTrack / (c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 1)) * 515.2 + ' 515.2'}}" />
+
+          <!-- Due Soon (middle) — amber -->
+          <circle class="rvd-ring-fill rvd-ring--amber"
+                  cx="100" cy="100" r="62"
+                  ng-attr-stroke-dasharray="{{(c.data.stats.dueSoon / (c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 1)) * 389.6 + ' 389.6'}}" />
+
+          <!-- Overdue (inner) — red -->
+          <circle class="rvd-ring-fill rvd-ring--red"
+                  cx="100" cy="100" r="42"
+                  ng-attr-stroke-dasharray="{{(c.data.stats.overdue / (c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 1)) * 263.9 + ' 263.9'}}" />
+
+          <!-- Center text -->
+          <text x="100" y="93" class="rvd-ring-center-num" text-anchor="middle">
+            {{c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 0}}
+          </text>
+          <text x="100" y="110" class="rvd-ring-center-lbl" text-anchor="middle">Projects</text>
+        </svg>
+
+        <!-- Floating glow dots -->
+        <span class="rvd-ring-glow rvd-ring-glow--red"></span>
+        <span class="rvd-ring-glow rvd-ring-glow--amber"></span>
+        <span class="rvd-ring-glow rvd-ring-glow--green"></span>
+      </div>
+
+      <!-- Stats column -->
+      <div class="rvd-deadline-stats">
+
+        <div class="rvd-ds-card rvd-ds-card--red">
+          <div class="rvd-ds-card__top">
+            <div class="rvd-ds-icon">
+              <i class="fa fa-exclamation-circle"></i>
+            </div>
+            <div class="rvd-ds-info">
+              <span class="rvd-ds-label">Overdue</span>
+              <span class="rvd-ds-sub">Past deadline</span>
+            </div>
+          </div>
+          <div class="rvd-ds-bottom">
+            <span class="rvd-ds-val">{{c.data.stats.overdue || 0}}</span>
+            <div class="rvd-ds-bar">
+              <div class="rvd-ds-bar__fill rvd-ds-bar__fill--red"
+                   ng-style="{width: (c.data.stats.overdue / (c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 1) * 100) + '%'}">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rvd-ds-card rvd-ds-card--amber">
+          <div class="rvd-ds-card__top">
+            <div class="rvd-ds-icon">
+              <i class="fa fa-clock-o"></i>
+            </div>
+            <div class="rvd-ds-info">
+              <span class="rvd-ds-label">Due Soon</span>
+              <span class="rvd-ds-sub">Within 3 days</span>
+            </div>
+          </div>
+          <div class="rvd-ds-bottom">
+            <span class="rvd-ds-val">{{c.data.stats.dueSoon || 0}}</span>
+            <div class="rvd-ds-bar">
+              <div class="rvd-ds-bar__fill rvd-ds-bar__fill--amber"
+                   ng-style="{width: (c.data.stats.dueSoon / (c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 1) * 100) + '%'}">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rvd-ds-card rvd-ds-card--green">
+          <div class="rvd-ds-card__top">
+            <div class="rvd-ds-icon">
+              <i class="fa fa-check-circle"></i>
+            </div>
+            <div class="rvd-ds-info">
+              <span class="rvd-ds-label">On Track</span>
+              <span class="rvd-ds-sub">Meeting deadlines</span>
+            </div>
+          </div>
+          <div class="rvd-ds-bottom">
+            <span class="rvd-ds-val">{{c.data.stats.onTrack || 0}}</span>
+            <div class="rvd-ds-bar">
+              <div class="rvd-ds-bar__fill rvd-ds-bar__fill--green"
+                   ng-style="{width: (c.data.stats.onTrack / (c.data.stats.overdue + c.data.stats.dueSoon + c.data.stats.onTrack || 1) * 100) + '%'}">
+              </div>
             </div>
           </div>
         </div>
 
       </div>
+    </div>
+  </div>
+</div>
 
-      <!-- ROW 3: Deadline Status + Reviewer Group Load -->
-      <div class="rvd-chart-grid-2">
-
-        <div class="rvd-chart-card">
-          <div class="rvd-chart-card__hdr rvd-cc-hdr--rose">
-            <div class="rvd-cc-hdr-left">
-              <i class="fa fa-calendar-times-o"></i>
-              <div><div class="rvd-cc-title">Deadline Overview</div><div class="rvd-cc-sub">Overdue / Due Soon / On Track</div></div>
-            </div>
-            <span class="rvd-cc-badge rvd-cc-badge--warn" ng-if="c.data.stats.overdue>0">
-              {{c.data.stats.overdue}} Overdue!
-            </span>
-            <span class="rvd-cc-badge" ng-if="!c.data.stats.overdue">All on track</span>
-          </div>
-          <div class="rvd-chart-card__body">
-            <canvas id="rvdDeadlineChart" height="180"></canvas>
-          </div>
-        </div>
-
+        <!-- Group Workload -->
         <div class="rvd-chart-card">
           <div class="rvd-chart-card__hdr rvd-cc-hdr--slate">
             <div class="rvd-cc-hdr-left">
               <i class="fa fa-users"></i>
-              <div><div class="rvd-cc-title">Group Workload</div><div class="rvd-cc-sub">Proposals per reviewer group</div></div>
+              <div>
+                <div class="rvd-cc-title">Group Workload</div>
+                <div class="rvd-cc-sub">Proposals per reviewer group</div>
+              </div>
             </div>
+            <span class="rvd-cc-badge">{{c.data.stats.total || 0}} Total</span>
           </div>
           <div class="rvd-chart-card__body">
-            <canvas id="rvdGroupChart" height="180"></canvas>
+            <canvas id="rvdGroupChart" height="200"></canvas>
           </div>
         </div>
 
       </div>
 
-      <!-- ROW 4: Pending Queue + Category Chart -->
+      <!-- ── CHARTS ROW 4: Priority Queue + Category Distribution ── -->
       <div class="rvd-chart-grid-2">
 
-        <!-- Priority Queue with deadline badges -->
+        <!-- Priority Queue -->
         <div class="rvd-chart-card">
           <div class="rvd-chart-card__hdr rvd-cc-hdr--amber">
             <div class="rvd-cc-hdr-left">
               <i class="fa fa-list-ol"></i>
-              <div><div class="rvd-cc-title">Action Queue</div><div class="rvd-cc-sub">Proposals needing immediate attention</div></div>
+              <div>
+                <div class="rvd-cc-title">Pending Proposals</div>
+                <div class="rvd-cc-sub">Proposals needing your attention</div>
+              </div>
             </div>
-            <span class="rvd-cc-badge rvd-cc-badge--warn">{{c.data.stats.inProgress||0}} Active</span>
+            <span class="rvd-cc-badge rvd-cc-badge--warn">{{c.data.stats.inProgress || 0}} Active</span>
           </div>
           <div class="rvd-chart-card__body rvd-cc-body--flush">
             <div class="rvd-queue-empty" ng-if="!c.recentActivity().length">
               <i class="fa fa-check-circle"></i><p>All clear — no pending proposals</p>
             </div>
-            <div class="rvd-queue-item" ng-repeat="rev in c.recentActivity() | limitTo:7" ng-click="c.openRecord(rev)">
+            <div class="rvd-queue-item"
+                 ng-repeat="rev in c.recentActivity() | limitTo:7"
+                 ng-click="c.openRecord(rev)">
               <div class="rvd-qi-bar" ng-class="{
-                'rvd-qi-bar--amber': rev.status==='Review in progress',
-                'rvd-qi-bar--green': rev.status==='Review completed',
-                'rvd-qi-bar--red':   rev.status==='Escalated',
-                'rvd-qi-bar--orange':rev.status==='Declined by Reviewer',
-                'rvd-qi-bar--slate': rev.status==='Review pending'
+                'rvd-qi-bar--amber':  rev.status === 'Review in progress',
+                'rvd-qi-bar--green':  rev.status === 'Review completed',
+                'rvd-qi-bar--red':    rev.status === 'Escalated',
+                'rvd-qi-bar--orange': rev.status === 'Declined by Reviewer',
+                'rvd-qi-bar--slate':  rev.status === 'Review pending'
               }"></div>
               <div class="rvd-qi-body">
                 <div class="rvd-qi-top">
                   <span class="rvd-qi-num">{{rev.number}}</span>
-                  <span class="rvd-chip rvd-chip--sm {{c.statusChipClass(rev.status)}}">{{rev.status||'Pending'}}</span>
+                  <span class="rvd-chip rvd-chip--sm {{c.statusChipClass(rev.status)}}">
+                    {{rev.status || 'Pending'}}
+                  </span>
                   <span class="rvd-deadline-badge {{c.deadlineClass(rev)}}" ng-if="rev.review_deadline">
                     <i class="fa fa-clock-o"></i> {{rev.review_deadline}}
                   </span>
                 </div>
-                <div class="rvd-qi-prog">{{rev.program||'No program'}} · <span class="rvd-qi-group">{{rev.assignment_group}}</span></div>
+                <div class="rvd-qi-prog">
+                  {{rev.program || 'No program'}} · <span class="rvd-qi-group">{{rev.assignment_group}}</span>
+                </div>
               </div>
               <span class="rvd-qi-arrow"><i class="fa fa-chevron-right"></i></span>
             </div>
           </div>
         </div>
 
+        <!-- Category Distribution -->
         <div class="rvd-chart-card">
           <div class="rvd-chart-card__hdr rvd-cc-hdr--slate">
             <div class="rvd-cc-hdr-left">
               <i class="fa fa-th-large"></i>
-              <div><div class="rvd-cc-title">Category Breakdown</div><div class="rvd-cc-sub">All statuses per program category</div></div>
+              <div>
+                <div class="rvd-cc-title">Category Distribution</div>
+                <div class="rvd-cc-sub">Proposals grouped by program category</div>
+              </div>
             </div>
           </div>
           <div class="rvd-chart-card__body">
-            <canvas id="rvdCategoryChart" height="230"></canvas>
+            <canvas id="rvdCategoryChart" height="210"></canvas>
             <div class="rvd-queue-empty" ng-if="!c.data.stats.total">
               <i class="fa fa-th-large"></i><p>No category data yet</p>
             </div>
@@ -2486,11 +3662,10 @@
       </div>
 
     </div>
+    <!-- END HOME -->
 
-    <!-- ════════════════════════════════════════
-         PROPOSALS
-    ════════════════════════════════════════ -->
-    <div class="rvd-content" ng-show="c.activeSection==='proposals'">
+    <!-- ════════════ PROPOSALS ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'proposals'">
 
       <div class="rvd-section-header">
         <div>
@@ -2499,6 +3674,7 @@
         </div>
       </div>
 
+      <!-- FILTER BAR -->
       <div class="rvd-filter-bar">
         <div class="rvd-filter-search">
           <i class="fa fa-search rvd-filter-search__icon"></i>
@@ -2523,10 +3699,18 @@
         </select>
       </div>
 
+      <!-- RESULTS META -->
       <div class="rvd-results-meta" ng-if="c.filteredProposals().length">
-        <span>Showing <strong>{{(c.proposalPage-1)*c.pageSize+1}}–{{Math.min(c.proposalPage*c.pageSize,c.filteredProposals().length)}}</strong> of <strong>{{c.filteredProposals().length}}</strong> proposals</span>
-        <span ng-if="c.categoryFilter||c.programFilter||c.statusFilter||c.searchText">
-          &nbsp;·&nbsp;<a href="" ng-click="c.searchText='';c.statusFilter='';c.categoryFilter='';c.programFilter=''"><i class="fa fa-times-circle"></i> Clear filters</a>
+        <span>
+          Showing
+          <strong>{{(c.proposalPage - 1) * c.pageSize + 1}}–{{Math.min(c.proposalPage * c.pageSize, c.filteredProposals().length)}}</strong>
+          of <strong>{{c.filteredProposals().length}}</strong> proposals
+        </span>
+        <span ng-if="c.categoryFilter || c.programFilter || c.statusFilter || c.searchText">
+          &nbsp;·&nbsp;
+          <a href="" ng-click="c.searchText=''; c.statusFilter=''; c.categoryFilter=''; c.programFilter=''">
+            <i class="fa fa-times-circle"></i> Clear all filters
+          </a>
         </span>
       </div>
 
@@ -2536,63 +3720,65 @@
         <p>Try adjusting or clearing the filters above.</p>
       </div>
 
+      <!-- PROPOSAL CARDS -->
       <div class="rvd-proposal-grid" ng-if="c.filteredProposals().length">
-        <div class="rvd-proposal-card" ng-repeat="rev in c.pagedProposals()" ng-click="c.openRecord(rev)"
-             ng-class="{'rvd-proposal-card--overdue': rev.is_overdue, 'rvd-proposal-card--due-soon': rev.is_due_soon}">
+        <div class="rvd-proposal-card"
+             ng-repeat="rev in c.pagedProposals()"
+             ng-click="c.openRecord(rev)">
 
           <div class="rvd-proposal-card__top">
             <div class="rvd-proposal-card__num-row">
               <span class="rvd-proposal-num">{{rev.number}}</span>
-              <span class="rvd-chip {{c.statusChipClass(rev.status)}}">{{rev.status||'Pending'}}</span>
+              <span class="rvd-chip {{c.statusChipClass(rev.status)}}">
+                {{rev.status || 'Pending'}}
+              </span>
             </div>
-            <h4 class="rvd-proposal-program">{{rev.program||'No Program'}}</h4>
-            <p class="rvd-proposal-applicant"><i class="fa fa-user-o"></i> {{rev.applicant||'—'}}</p>
+            <h4 class="rvd-proposal-program">{{rev.program || 'No Program'}}</h4>
+            <p class="rvd-proposal-applicant">
+              <i class="fa fa-user-o"></i> {{rev.applicant || '—'}}
+            </p>
           </div>
 
           <div class="rvd-proposal-card__mid">
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Program No.</span>
-              <span class="rvd-info-pair__val"><span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span><span ng-if="!rev.program_number">—</span></span>
+              <span class="rvd-info-pair__val">
+                <span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span>
+                <span ng-if="!rev.program_number">—</span>
+              </span>
             </div>
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Applicant No.</span>
-              <span class="rvd-info-pair__val"><span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span><span ng-if="!rev.applicant_number">—</span></span>
+              <span class="rvd-info-pair__val">
+                <span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span>
+                <span ng-if="!rev.applicant_number">—</span>
+              </span>
             </div>
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Category</span>
-              <span class="rvd-info-pair__val">{{rev.program_category||'—'}}</span>
-            </div>
-            <div class="rvd-info-pair">
-              <span class="rvd-info-pair__label">Reviewer Group</span>
-              <span class="rvd-info-pair__val">{{rev.reviewer||'—'}}</span>
+              <span class="rvd-info-pair__val">{{rev.program_category || '—'}}</span>
             </div>
             <div class="rvd-info-pair">
               <span class="rvd-info-pair__label">Decision</span>
-              <span class="rvd-info-pair__val">{{rev.decision_type||'Pending'}}</span>
+              <span class="rvd-info-pair__val">{{rev.decision_type || 'Pending'}}</span>
             </div>
             <div class="rvd-info-pair" ng-if="rev.score">
               <span class="rvd-info-pair__label">Score</span>
               <span class="rvd-info-pair__val rvd-score-val">{{rev.score}}/10</span>
             </div>
-            <!-- Deadline row -->
-            <div class="rvd-info-pair" ng-if="rev.review_deadline">
-              <span class="rvd-info-pair__label"><i class="fa fa-calendar"></i> Deadline</span>
-              <span class="rvd-deadline-badge {{c.deadlineClass(rev)}}" style="font-size:11px">
-                <i class="fa fa-clock-o"></i> {{rev.review_deadline}}
-                <span ng-if="rev.is_overdue"> · OVERDUE</span>
-                <span ng-if="rev.is_due_soon && !rev.is_overdue"> · Due Soon</span>
-              </span>
-            </div>
           </div>
 
           <div class="rvd-proposal-card__score-bar" ng-if="rev.score">
             <div class="rvd-score-track">
-              <div class="rvd-score-fill" ng-style="{'width':c.scoreWidth(rev.score)}"></div>
+              <div class="rvd-score-fill" ng-style="{'width': c.scoreWidth(rev.score)}"></div>
             </div>
             <span class="rvd-score-pct">{{rev.score}}/10</span>
           </div>
 
           <div class="rvd-proposal-card__footer">
+            <span class="rvd-deadline-badge {{c.deadlineClass(rev)}}" ng-if="rev.review_deadline">
+              <i class="fa fa-clock-o"></i> {{rev.review_deadline}}
+            </span>
             <span class="rvd-group-tag"><i class="fa fa-users"></i> {{rev.assignment_group}}</span>
             <span class="rvd-open-link">Open Review <i class="fa fa-arrow-right"></i></span>
           </div>
@@ -2600,23 +3786,40 @@
         </div>
       </div>
 
-      <div class="rvd-pagination" ng-if="c.totalPages()>1">
-        <button class="rvd-page-btn rvd-page-btn--nav" ng-click="c.prevPage()" ng-disabled="c.proposalPage===1"><i class="fa fa-chevron-left"></i></button>
-        <button class="rvd-page-btn" ng-repeat="p in c.pageNumbers() track by $index"
+      <!-- PAGINATION -->
+      <div class="rvd-pagination" ng-if="c.totalPages() > 1">
+        <button class="rvd-page-btn rvd-page-btn--nav"
+                ng-click="c.prevPage()"
+                ng-disabled="c.proposalPage === 1">
+          <i class="fa fa-chevron-left"></i>
+        </button>
+        <button class="rvd-page-btn"
+                ng-repeat="p in c.pageNumbers() track by $index"
                 ng-click="c.goToPage(p)"
-                ng-class="{'rvd-page-btn--active':p===c.proposalPage,'rvd-page-btn--ellipsis':p==='...'}"
-                ng-disabled="p==='...'">{{p}}</button>
-        <button class="rvd-page-btn rvd-page-btn--nav" ng-click="c.nextPage()" ng-disabled="c.proposalPage===c.totalPages()"><i class="fa fa-chevron-right"></i></button>
+                ng-class="{
+                  'rvd-page-btn--active': p === c.proposalPage,
+                  'rvd-page-btn--ellipsis': p === '...'
+                }"
+                ng-disabled="p === '...'">
+          {{p}}
+        </button>
+        <button class="rvd-page-btn rvd-page-btn--nav"
+                ng-click="c.nextPage()"
+                ng-disabled="c.proposalPage === c.totalPages()">
+          <i class="fa fa-chevron-right"></i>
+        </button>
       </div>
 
     </div>
+    <!-- END PROPOSALS -->
 
-    <!-- ════════════════════════════════════════
-         AGREEMENTS
-    ════════════════════════════════════════ -->
-    <div class="rvd-content" ng-show="c.activeSection==='agreements'">
+    <!-- ════════════ AGREEMENTS ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'agreements'">
       <div class="rvd-section-header">
-        <div><h2 class="rvd-section-title">Agreements</h2><p class="rvd-section-sub">Grant agreements linked to proposals your team has reviewed.</p></div>
+        <div>
+          <h2 class="rvd-section-title">Agreements</h2>
+          <p class="rvd-section-sub">Grant agreements linked to proposals your team has reviewed.</p>
+        </div>
       </div>
       <div class="rvd-empty-state">
         <i class="fa fa-handshake-o"></i>
@@ -2625,51 +3828,80 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════
-         COMPLETED
-    ════════════════════════════════════════ -->
-    <div class="rvd-content" ng-show="c.activeSection==='completed'">
+    <!-- ════════════ COMPLETED REVIEWS ════════════ -->
+    <div class="rvd-content" ng-show="c.activeSection === 'completed'">
       <div class="rvd-section-header">
-        <div><h2 class="rvd-section-title">Completed Reviews</h2><p class="rvd-section-sub">All proposals your team has fully reviewed.</p></div>
-        <div class="rvd-completed-badge"><i class="fa fa-check-circle"></i> {{c.completedReviews().length}} Completed</div>
+        <div>
+          <h2 class="rvd-section-title">Completed Reviews</h2>
+          <p class="rvd-section-sub">All proposals your team has fully reviewed. These are read-only records.</p>
+        </div>
+        <div class="rvd-completed-badge">
+          <i class="fa fa-check-circle"></i> {{c.completedReviews().length}} Completed
+        </div>
       </div>
       <div class="rvd-empty-state" ng-if="!c.completedReviews().length">
-        <i class="fa fa-check-circle-o"></i><h3>No completed reviews yet</h3>
+        <i class="fa fa-check-circle-o"></i>
+        <h3>No completed reviews yet</h3>
         <p>Proposals you finish reviewing will be archived here automatically.</p>
       </div>
       <div class="rvd-completed-table-wrap" ng-if="c.completedReviews().length">
         <table class="rvd-table">
           <thead>
             <tr>
-              <th>Review No.</th><th>Program</th><th>Program No.</th>
-              <th>Applicant</th><th>Applicant No.</th><th>Category</th>
-              <th>Reviewer Group</th><th>Deadline</th><th>Score</th><th>Decision</th><th></th>
+              <th>Review No.</th>
+              <th>Program</th>
+              <th>Program No.</th>
+              <th>Applicant</th>
+              <th>Applicant No.</th>
+              <th>Category</th>
+              <th>Score</th>
+              <th>Decision</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <tr ng-repeat="rev in c.completedReviews()" class="rvd-table-row">
               <td><span class="rvd-proposal-num">{{rev.number}}</span></td>
-              <td>{{rev.program||'—'}}</td>
-              <td><span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span><span ng-if="!rev.program_number">—</span></td>
-              <td>{{rev.applicant||'—'}}</td>
-              <td><span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span><span ng-if="!rev.applicant_number">—</span></td>
-              <td>{{rev.program_category||'—'}}</td>
-              <td><span class="rvd-group-tag"><i class="fa fa-users"></i> {{rev.reviewer||'—'}}</span></td>
-              <td><span class="rvd-deadline-badge rvd-deadline--ok" ng-if="rev.review_deadline"><i class="fa fa-calendar-check-o"></i> {{rev.review_deadline}}</span><span class="rvd-muted" ng-if="!rev.review_deadline">—</span></td>
-              <td><span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}/10</span><span class="rvd-muted" ng-if="!rev.score">—</span></td>
-              <td><span class="rvd-chip rvd-chip--green" ng-if="rev.decision_type">{{rev.decision_type}}</span><span class="rvd-muted" ng-if="!rev.decision_type">—</span></td>
-              <td><button class="rvd-tbl-btn" ng-click="c.openRecord(rev)">View <i class="fa fa-external-link"></i></button></td>
+              <td>{{rev.program || '—'}}</td>
+              <td>
+                <span class="rvd-mono-chip" ng-if="rev.program_number">{{rev.program_number}}</span>
+                <span ng-if="!rev.program_number">—</span>
+              </td>
+              <td>{{rev.applicant || '—'}}</td>
+              <td>
+                <span class="rvd-mono-chip" ng-if="rev.applicant_number">{{rev.applicant_number}}</span>
+                <span ng-if="!rev.applicant_number">—</span>
+              </td>
+              <td>{{rev.program_category || '—'}}</td>
+              <td>
+                <span class="rvd-score-pill" ng-if="rev.score">{{rev.score}}/10</span>
+                <span class="rvd-muted" ng-if="!rev.score">—</span>
+              </td>
+              <td>
+                <span class="rvd-chip rvd-chip--green" ng-if="rev.decision_type">{{rev.decision_type}}</span>
+                <span class="rvd-muted" ng-if="!rev.decision_type">Pending</span>
+              </td>
+              <td>
+                <button class="rvd-tbl-btn" ng-click="c.openRecord(rev)">
+                  View <i class="fa fa-external-link"></i>
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+    <!-- END COMPLETED -->
 
   </div>
+  <!-- END rvd-main -->
+
 </div>
+<!-- END rvd-shell -->
 
 <div class="rvd-no-access" ng-if="!data.canRead">
-  <i class="fa fa-lock"></i><h3>Access Restricted</h3>
+  <i class="fa fa-lock"></i>
+  <h3>Access Restricted</h3>
   <p>You don't have the required permissions to access the review dashboard.</p>
 </div>]]></template>
     </sp_widget>

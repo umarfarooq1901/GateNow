@@ -548,25 +548,25 @@ c.submitReimbursement = function() {
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>// ==========================================================================
-// VARIABLES - Federal DOT Theme (Used in forms &amp; legacy cards)
+// VARIABLES - Federal DOT Theme
 // ==========================================================================
-$dot-primary: #0a1f61;
-$dot-secondary: #2c5aa0;
-$dot-accent: #005ea2;
-$dot-dark: #1b1b1b;
-$dot-light: #f0f0f0;
+$dot-primary:    #0a1f61;
+$dot-secondary:  #2c5aa0;
+$dot-accent:     #005ea2;
+$dot-dark:       #1b1b1b;
+$dot-light:      #f0f0f0;
 
 $success: #00a91c;
 $warning: #ffbe2e;
-$danger: #d83933;
-$info: #00bde3;
+$danger:  #d83933;
+$info:    #00bde3;
 
-$bg-page: #f5f7fb;
-$bg-card: #ffffff;
-$border-color: #dfe1e5;
-$text-primary: #1b1b1b;
+$bg-page:        #f5f7fb;
+$bg-card:        #ffffff;
+$border-color:   #dfe1e5;
+$text-primary:   #1b1b1b;
 $text-secondary: #71767a;
-$text-muted: #a9aeb1;
+$text-muted:     #a9aeb1;
 
 $shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
 $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -574,56 +574,63 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
 // ==========================================================================
 // 1. LAYOUT &amp; SERVICENOW OVERRIDES
 // ==========================================================================
-:host {
-  display: block;
-  margin: 0;
-  padding: 0;
-}
-
-[widget-model="data.projects"] .vbox.region,
-.vbox.region, 
+.vbox.region,
 .col-md-12 {
   padding-left: 0 !important;
   padding-right: 0 !important;
   padding: 0 !important;
 }
 
-.projects-wrapper,
-.full-page-reset {
-  width: calc(100% + 30px);
-  overflow-x: hidden;
-}
-
+// ==========================================================================
+// 2. SIDEBAR
+// ==========================================================================
 .sidebar {
-  width: 250px;
+  width: 220px;
   flex-shrink: 0;
-  background: #5a46be;
+  background: #5443AD;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   position: sticky;
-  top: 60px; 
-  height: calc(100vh - 60px);
+  top: 0;
+padding-top: 45px;
+  height: 100vh;
+  align-self: flex-start;
   overflow-y: auto;
-  transition: all 0.3s ease;
-  z-index: 10;
-  border-right: 1px solid rgba(255,255,255,0.1);
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-.sidebar::-webkit-scrollbar {
-  display: none;
-}
-
-.main-content-scroll {
-  flex-grow: 1;
-  background: #f8fafc;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  z-index: 10;
+  display: flex;              
+  flex-direction: column;     
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &amp;::-webkit-scrollbar { display: none; }
+
+  // Force sp-widget to fill full height
+  sp-widget,
+  sp-widget &gt; div,
+  sp-widget &gt; [ng-include],
+  sp-widget &gt; div &gt; div {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    width: 100% !important;
+    flex: 1 !important;
+  }
+}
+// ==========================================================================
+// 3. MAIN CONTENT
+// ==========================================================================
+.main-content-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+  background: #f8fafc;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 // ==========================================================================
-// 2. LOADING &amp; ERROR STATES
+// 4. LOADING &amp; ERROR STATES
 // ==========================================================================
 .gpa-loading,
 .gpa-error {
@@ -641,21 +648,17 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     margin: 1rem 0;
   }
 
-  .btn {
-    margin-top: 1.5rem;
-  }
+  .btn { margin-top: 1.5rem; }
 }
 
-.gpa-error i {
-  color: $danger;
-}
+.gpa-error i { color: $danger; }
 
 // ==========================================================================
-// 3. MODERN PROJECT HEADER
+// 5. PROJECT HEADER
 // ==========================================================================
 .gatenow-light-wrapper {
   background: #f1f5f9;
-  padding: 20px 0;
+ 
   position: relative;
   overflow: hidden;
   font-family: 'Inter', sans-serif;
@@ -680,7 +683,7 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   display: flex;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 20px 25px -5px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 20px 25px -5px rgba(0,0,0,0.03);
   z-index: 1;
 }
 
@@ -705,11 +708,11 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   gap: 8px;
   margin-bottom: 25px;
   transition: 0.3s ease;
-}
 
-.btn-back-light:hover { 
-  color: #334155; 
-  transform: translateX(-3px); 
+  &amp;:hover {
+    color: #334155;
+    transform: translateX(-3px);
+  }
 }
 
 .context-label-light {
@@ -755,19 +758,21 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   font-size: 1.1rem;
 }
 
-.box-data label {
-  display: block;
-  color: #94a3b8;
-  font-size: 10px;
-  margin-bottom: 2px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
+.box-data {
+  label {
+    display: block;
+    color: #94a3b8;
+    font-size: 10px;
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
 
-.box-data strong {
-  color: #334155;
-  font-size: 1.05rem;
-  font-weight: 700;
+  strong {
+    color: #334155;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
 }
 
 .highlight-date .box-icon-light {
@@ -777,78 +782,75 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 // ==========================================================================
-// 4. MODERN TABS NAVIGATION
+// 6. TABS NAVIGATION
 // ==========================================================================
-/* --- TAB NAVIGATION CSS --- */
 .gpa-tabs-wrapper-modern {
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
   padding: 8px 0;
-  /* Allows horizontal scrolling on very small screens instead of breaking the row */
-  overflow-x: auto; 
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 
-/* Hide the scrollbar for a cleaner look */
-.gpa-tabs-wrapper-modern::-webkit-scrollbar {
-  display: none; 
+  &amp;::-webkit-scrollbar { display: none; }
 }
 
 .gpa-tabs-modern {
   display: flex;
-  flex-wrap: nowrap; /* FORCES SINGLE LINE */
+  flex-wrap: nowrap;
   list-style: none;
   padding: 0;
   margin: 0;
-  gap: 4px; /* Reduced gap between tabs */
-}
+  gap: 4px;
 
-.gpa-tabs-modern li a {
-  display: flex;
-  align-items: center;
-  gap: 6px; /* Reduced gap between the icon and the text */
-  padding: 8px 10px; /* Tighter padding */
-  border-radius: 8px;
-  color: #64748b;
-  font-weight: 600;
-  font-size: 12px; /* Slightly smaller font to fit all 7 tabs */
-  text-decoration: none !important;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  white-space: nowrap; /* Prevents text from stacking */
-}
+  li a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 12px;
+    text-decoration: none !important;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+    white-space: nowrap;
 
-.gpa-tabs-modern li a:hover {
-  background: #f1f5f9;
-  color: #334155;
-}
+    &amp;:hover {
+      background: #f1f5f9;
+      color: #334155;
+    }
+  }
 
-.gpa-tabs-modern li.tab-active a {
-  background: #eef2ff;
-  color: #6366f1;
-}
+  li.tab-active a {
+    background: #eef2ff;
+    color: #6366f1;
+  }
 
-.gpa-tabs-modern i {
-  font-size: 13px; /* Scaled down slightly to match the text */
-  opacity: 0.8;
+  i {
+    font-size: 13px;
+    opacity: 0.8;
+  }
 }
 
 .badge-pill {
   background: #f1f5f9;
   color: #475569;
   font-size: 10px;
-  padding: 2px 6px; /* Tighter badge padding */
+  padding: 2px 6px;
   border-radius: 12px;
   font-weight: 700;
+
+  &amp;.highlight {
+    background: #6366f1;
+    color: #ffffff;
+  }
 }
 
-.badge-pill.highlight {
-  background: #6366f1;
-  color: #ffffff;
-}
-
-/* Tab Content Transitions */
+// ==========================================================================
+// 7. TAB CONTENT
+// ==========================================================================
 .gpa-tab-content {
   padding: 3rem 15px;
   min-height: 60vh;
@@ -860,97 +862,680 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 // ==========================================================================
-// 5. OVERVIEW SECTION (Cards, Info Grids, Sidebars)
+// 5. PROJECT HEADER (keep existing — no changes needed)
 // ==========================================================================
-.gpa-overview-wrapper {
-  padding: 30px 0;
-  background: #f8fafc;
+// (Your existing .gatenow-light-wrapper, .header-card-light etc. stay as-is)
+
+// ==========================================================================
+// 8. OVERVIEW — Full Redesign
+// ==========================================================================
+
+/* ── Keyframes ── */
+@keyframes ovFadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ovPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+@keyframes ovGlow {
+  0%, 100% { transform: scale(1) translate(0, 0); opacity: 0.6; }
+  50%       { transform: scale(1.15) translate(20px, -20px); opacity: 0.3; }
 }
 
-.overview-sidebar {
+/* ── Wrapper ── */
+.ov-wrapper {
+  padding: 0 0 60px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  animation: ovFadeUp 0.4s ease both;
+}
+
+/* ── Hero Banner ── */
+.ov-hero {
+  position: relative;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+  border-radius: 20px;
+  padding: 40px 44px;
+  margin-bottom: 20px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  position: sticky;
-  top: 20px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  overflow: hidden;
+  flex-wrap: wrap;
 }
 
-.sidebar-link {
-  padding: 12px 16px;
-  color: #64748b;
+.ov-hero__glow {
+  position: absolute;
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139,92,246,0.4) 0%, transparent 70%);
+  top: -100px;
+  right: -80px;
+  animation: ovGlow 6s ease-in-out infinite;
+  pointer-events: none;
+
+  &amp;--2 {
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%);
+    top: auto;
+    bottom: -80px;
+    left: 30%;
+    animation-delay: 3s;
+  }
+}
+
+.ov-hero__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+   color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+
+.ov-pulse {
+  width: 8px;
+  height: 8px;
+  background: #4ade80;
+  border-radius: 50%;
+  animation: ovPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25);
+}
+
+.ov-hero__title {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #fff;
+  margin: 0 0 18px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.ov-hero__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ov-hero .ov-tag,
+.ov-hero .ov-tag span,
+.ov-hero__tags .ov-tag {
+  color: #ffffff !important;
+}
+
+.ov-hero .ov-tag--indigo,
+.ov-hero .ov-tag--indigo span {
+  background: rgba(99,102,241,0.35);
+  color: #ffffff !important;
+  border: 1px solid rgba(99,102,241,0.5);
+}
+
+.ov-hero .ov-tag--purple,
+.ov-hero .ov-tag--purple span {
+  background: rgba(168,85,247,0.3);
+  color: #ffffff !important;
+  border: 1px solid rgba(168,85,247,0.5);
+}
+
+.ov-hero .ov-tag--slate,
+.ov-hero .ov-tag--slate span {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+.ov-hero .ov-tag i,
+.ov-hero .ov-tag span i {
+  color: #ffffff !important;
+}
+.ov-phase-badge {
+  background: rgba(74,222,128,0.2);
+  color: #86efac;
+  border: 1px solid rgba(74,222,128,0.3);
+  padding: 4px 14px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* KPI Blocks */
+.ov-hero__kpis {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.ov-kpi {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 14px;
+  padding: 14px 18px;
+  backdrop-filter: blur(8px);
+  min-width: 140px;
+  transition: background 0.2s;
+
+  &amp;:hover { background: rgba(255,255,255,0.16); }
+}
+
+.ov-kpi__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+
+  &amp;--green { 
+    background: rgba(74, 222, 128, 0.3); 
+    i { color: #86efac !important; }
+  }
+  &amp;--blue  { 
+    background: rgba(96, 165, 250, 0.3); 
+    i { color: #93c5fd !important; }
+  }
+  &amp;--amber { 
+    background: rgba(251, 191, 36, 0.3); 
+    i { color: #fde68a !important; }
+  }
+  &amp;--red   { 
+    background: rgba(248, 113, 113, 0.3); 
+    i { color: #fca5a5 !important; }
+  }
+
+  i { color: inherit !important; }
+}
+.ov-hero i {
+  color: inherit !important;
+}
+
+.ov-kpi__icon--green i { color: #86efac !important; }
+.ov-kpi__icon--blue  i { color: #93c5fd !important; }
+.ov-kpi__icon--amber i { color: #fde68a !important; }
+.ov-kpi__icon--red   i { color: #fca5a5 !important; }
+.ov-kpi__val {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.ov-kpi__lbl {
+  display: block;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
   font-weight: 600;
-  font-size: 14px;
-  border-radius: 8px;
-  text-decoration: none !important;
-  transition: 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
 }
 
-.sidebar-link:hover { background: #f1f5f9; color: #1e293b; }
-.sidebar-link.active { background: #f1f5f9; color: #000; }
-
-.modern-card {
+/* ── Timeline Strip ── */
+.ov-timeline-strip {
+  display: flex;
+  align-items: center;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 32px;
-  margin-bottom: 24px;
+  border-radius: 14px;
+  padding: 18px 28px;
+  margin-bottom: 22px;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &amp;::-webkit-scrollbar { display: none; }
 }
 
-.section-header {
-  font-size: 20px;
+.ov-tl-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ov-tl-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &amp;--green  { background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
+  &amp;--blue   { background: #3b82f6; box-shadow: 0 0 0 3px #dbeafe; }
+  &amp;--indigo { background: #6366f1; box-shadow: 0 0 0 3px #e0e7ff; }
+  &amp;--red    { background: #ef4444; box-shadow: 0 0 0 3px #fee2e2; }
+}
+
+.ov-tl-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.ov-tl-val {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ov-tl-line {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, #e2e8f0, #c7d2fe, #e2e8f0);
+  border-radius: 2px;
+  min-width: 40px;
+  margin: 0 16px;
+}
+
+/* ── Body Grid ── */
+.ov-body-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── Cards ── */
+.ov-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 26px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: box-shadow 0.25s;
+
+  &amp;:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+
+  &amp;--anim { animation: ovFadeUp 0.4s ease both; }
+
+  &amp;--mint {
+    background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 100%);
+    border-color: #ccfbf1;
+  }
+
+  &amp;--activity {
+    position: sticky;
+    top: 20px;
+  }
+}
+
+.ov-card__hdr {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.ov-card__hdr-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+
+  &amp;--teal   { background: #f0fdfa; color: #0d9488; }
+  &amp;--violet { background: #f5f3ff; color: #7c3aed; }
+}
+
+.ov-card__title {
+  font-size: 16px;
   font-weight: 800;
-  margin-bottom: 24px;
   color: #0f172a;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
-.form-item.full-width { grid-column: span 2; }
-
-.form-item label {
-  display: block;
+.ov-card__sub {
   font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-  margin-bottom: 6px;
-}
-
-.form-item i {
-  margin-right: 8px;
   color: #94a3b8;
-  font-size: 0.9rem;
+  margin-top: 2px;
 }
 
-.view-input {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+.ov-card__action {
+  margin-left: auto;
+}
+
+/* Description */
+.ov-description {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.7;
+  margin-bottom: 22px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* Recipient */
+.ov-recipient {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  padding: 16px 18px;
+  flex-wrap: wrap;
+}
+
+.ov-rec-avatar {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #e0e7ff, #ede9fe);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.ov-rec-info {
+  strong { display: block; font-size: 15px; font-weight: 700; color: #1e293b; }
+  span   { font-size: 12px; color: #64748b; }
+}
+
+.ov-rec-contact {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+
+  span {
+    font-size: 13px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+
+    i { color: #94a3b8; font-size: 12px; }
+  }
+}
+
+/* Documents */
+.ov-btn-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #0f172a;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &amp;:hover { background: #1e293b; transform: translateY(-1px); }
+  &amp;.is-loading { opacity: 0.6; cursor: not-allowed; }
+}
+
+.ov-doc-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: #94a3b8;
+  border: 2px dashed #e2e8f0;
+  border-radius: 12px;
+
+  i { font-size: 2rem; margin-bottom: 10px; display: block; color: #cbd5e1; }
+  p { margin: 0; font-size: 13px; }
+}
+
+.ov-doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.ov-doc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
   background: #fff;
-  color: #1e293b;
-  font-size: 14px;
-}
-
-.description-view {
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 15px;
-  min-height: 100px;
-  font-size: 14px;
-  color: #334155;
+  border-radius: 12px;
+  transition: all 0.2s;
+
+  &amp;:hover {
+    border-color: #6366f1;
+    box-shadow: 0 4px 12px rgba(99,102,241,0.1);
+    transform: translateY(-2px);
+  }
 }
 
-// Dates Section Overrides
+.ov-doc-icon {
+  width: 40px;
+  height: 40px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 18px;
+  flex-shrink: 0;
+
+  &amp;--pdf  { background: #fff1f2; color: #e11d48; }
+  &amp;--img  { background: #f0fdf4; color: #16a34a; }
+  &amp;--word { background: #eff6ff; color: #2563eb; }
+}
+
+.ov-doc-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ov-doc-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ov-doc-size {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.ov-doc-dl {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+  flex-shrink: 0;
+
+  &amp;:hover { background: #f1f5f9; color: #6366f1; }
+}
+
+/* Activity */
+.ov-activity-list {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
+.ov-activity-empty {
+  text-align: center;
+  padding: 36px 20px;
+  color: #94a3b8;
+
+  i { font-size: 2rem; margin-bottom: 10px; display: block; color: #cbd5e1; }
+  p { margin: 0; font-size: 13px; }
+}
+
+.ov-activity-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f8fafc;
+
+  &amp;:last-child { border-bottom: none; }
+}
+
+.ov-act-avatar {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #e0e7ff, #ede9fe);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ov-act-body { flex: 1; min-width: 0; }
+
+.ov-act-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ov-act-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ov-act-date {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.ov-act-text {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+/* Comment Input */
+.ov-comment-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px 6px 6px 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &amp;:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    background: #fff;
+  }
+}
+
+.ov-comment-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1e293b;
+  outline: none;
+
+  &amp;::placeholder { color: #94a3b8; }
+}
+
+.ov-comment-send {
+  width: 36px;
+  height: 36px;
+  background: #6366f1;
+  border: none;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+
+  &amp;:hover:not(:disabled) { background: #4f46e5; transform: scale(1.05); }
+  &amp;:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+}
+
+@media (max-width: 1024px) {
+  .ov-body-grid { grid-template-columns: 1fr; }
+  .ov-card--activity { position: static; }
+}
+
+@media (max-width: 640px) {
+  .ov-hero { padding: 28px 20px; }
+  .ov-hero__title { font-size: 1.6rem; }
+  .ov-hero__kpis { gap: 8px; }
+  .ov-kpi { min-width: 110px; padding: 10px 12px; }
+  .ov-timeline-strip { padding: 14px 16px; }
+}
+// ==========================================================================
+// 9. DATES SECTION
+// ==========================================================================
 #dates {
   border-top: 2px solid #f1f5f9;
+
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+    padding-top: 10px;
+  }
+
+  .form-item label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #64748b;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
 }
 
 .view-input.highlight-date {
@@ -959,28 +1544,12 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   font-weight: 600;
   color: #1e293b;
   transition: all 0.2s ease;
-}
 
-.view-input.highlight-date:hover {
-  background-color: #ffffff !important;
-  border-left-color: #4f46e5 !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-#dates .form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  padding-top: 10px;
-}
-
-#dates .form-item label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #64748b;
-  margin-bottom: 8px;
-  font-weight: 700;
+  &amp;:hover {
+    background-color: #ffffff !important;
+    border-left-color: #4f46e5 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
 }
 
 @media (max-width: 768px) {
@@ -988,7 +1557,6 @@ $shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     grid-template-columns: 1fr;
   }
 }
-
 // ==========================================================================
 // 6. ATTACHMENTS &amp; FINANCIALS
 // ==========================================================================
@@ -2986,20 +3554,20 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>369</sys_mod_count>
+        <sys_mod_count>408</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-03-26 16:21:21</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-03-30 09:14:24</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
-  <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: flex-start;">
+  <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
-    <div class="sidebar" style="width: 250px; flex-shrink: 0;padding: 20px 0; background: #5a46be; position: sticky; top: 0; height: 100vh; overflow-y: auto;">
-      <sp-widget widget="data.sideBar"></sp-widget>
-    </div>
+   <div class="sidebar" style="width: 220px; flex-shrink: 0; background: #5443AD; position: sticky; top: 0; height: 100vh; overflow-y: auto; align-self: flex-start; overflow-x: hidden; display: flex; flex-direction: column;">
+  <sp-widget widget="data.sideBar" style="display: flex; flex-direction: column; height: 100%; width: 100%;"></sp-widget>
+</div>
 
     <div class="main-content-scroll" style="flex-grow: 1; background: #f8fafc; min-height: 100vh; width: 100%; overflow-x: hidden;">
       
@@ -3153,125 +3721,218 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
           
           
       
-       <div ng-if="c.activeTab === 'overview'" class="soft-dashboard-wrapper">
+     <div ng-if="c.activeTab === 'overview'" class="ov-wrapper">
 
-   <div class="dash-top-row">
-        <div class="dash-title-area">
-            <h1>Project<br>Overview</h1>
-            <span class="soft-badge phase-badge">{{c.project.phase || 'N/A'}}</span>
-        </div>
-        
-        <div class="dash-stats-area">
-            <div class="stat-block">
-                <span class="stat-label">Total Cost <i class="fa fa-arrow-up text-mint"></i></span>
-                <span class="stat-big">{{c.formatCurrency(c.project.build_grant_amount)}}</span>
-            </div>
-            <div class="stat-block">
-                <span class="stat-label">Requested <i class="fa fa-arrow-down text-blue"></i></span>
-                <span class="stat-big">{{c.formatCurrency(c.project.requested_budget)}}</span>
-            </div>
-            
-            <div class="stat-block">
-                <span class="stat-label">Risks <i class="fa fa-exclamation-triangle text-warning"></i></span>
-                <span class="stat-big">{{c.risks.length || '0'}}</span>
-            </div>
-            <div class="stat-block">
-                <span class="stat-label">Issues <i class="fa fa-times-circle text-coral"></i></span>
-                <span class="stat-big">{{c.issues.length || '0'}}</span>
-            </div>
+  <!-- ── HERO BANNER ─────────────────────────────── -->
+  <div class="ov-hero">
+    <div class="ov-hero__glow"></div>
+    <div class="ov-hero__glow ov-hero__glow--2"></div>
 
-            <div class="stat-block id-block">
-                <span class="stat-label">Applicant</span>
-                <span class="stat-medium">{{c.project.x_enno_gatenow_applicant || 'N/A'}}</span>
-            </div>
-            <div class="stat-block id-block">
-                <span class="stat-label">Award ID</span>
-                <span class="stat-medium">{{c.project.x_enno_gatenow_award || 'N/A'}}</span>
-            </div>
-        </div>
-    </div>
-         
-    <div class="dash-middle-grid">
-        
-        <div class="main-soft-panel">
-            <div class="panel-header-row">
-                <h2>Details</h2>
-            </div>
-            
-            <div class="text-content-area" ng-bind-html="c.project.description || '<span style=\'color:#a0aabf\'>No description provided.</span>'"></div>
-            
-            <div class="recipient-flex-row mt-4">
-                <div class="rec-block">
-                    <div class="rec-avatar"><i class="fa fa-user"></i></div>
-                    <div class="rec-info">
-                        <strong>{{c.project.first_name}}</strong>
-                        <span>{{c.project.gender}}</span>
-                    </div>
-                </div>
-                <div class="rec-contact">
-                    <span title="{{c.project.email}}"><i class="fa fa-envelope-o"></i> {{c.project.email}}</span>
-                    <span><i class="fa fa-phone"></i> {{c.project.phone_number}}</span>
-                </div>
-            </div>
-
-            <div class="timeline-minimal mt-4">
-                <div class="time-item"><span>Start</span><strong>{{c.project.project_start_date || 'N/A'}}</strong></div>
-                <div class="time-item"><span>End</span><strong>{{c.project.project_end_date || 'N/A'}}</strong></div>
-                <div class="time-item"><span>Submitted</span><strong>{{c.project.submission_date || 'N/A'}}</strong></div>
-                <div class="time-item"><span>Effective</span><strong>{{c.project.effective_date_of_award || 'N/A'}}</strong></div>
-            </div>
-        </div>
-
-        <div class="side-soft-list">
-            <h2>Activity</h2>
-            <div class="activity-scroller">
-                <div ng-if="!c.comments || c.comments.length === 0" class="empty-soft">No activity yet.</div>
-                
-                <div class="performer-row" ng-repeat="comment in c.comments">
-                    <div class="perf-avatar"><i class="fa fa-comment-o"></i></div>
-                    <div class="perf-details">
-                        <span class="perf-name">{{comment.created_by_name}}</span>
-                        <span class="perf-text">{{comment.comment}}</span>
-                    </div>
-                    <div class="perf-stat">{{comment.created_on.split(' ')[0]}}</div>
-                </div>
-            </div>
-            
-            <div class="soft-input-group mt-3">
-                <input type="text" ng-model="c.newComment" placeholder="Add an update...">
-                <button ng-click="c.postComment()" ng-disabled="!c.newComment"><i class="fa fa-send"></i></button>
-            </div>
-        </div>
+    <div class="ov-hero__left">
+      <span class="ov-hero__eyebrow">
+        <span class="ov-pulse"></span> Grant Project
+      </span>
+      <h1 class="ov-hero__title">{{c.project.name}}</h1>
+      <div class="ov-hero__tags">
+        <span class="ov-tag ov-tag--indigo">
+          <i class="fa fa-hashtag"></i> {{c.project.number}}
+        </span>
+        <span class="ov-tag ov-tag--purple">
+          <i class="fa fa-trophy"></i> {{c.project.x_enno_gatenow_award || 'No Award'}}
+        </span>
+        <span class="ov-tag ov-tag--slate">
+          <i class="fa fa-user"></i> {{c.project.x_enno_gatenow_applicant || 'N/A'}}
+        </span>
+        <span class="ov-phase-badge">{{c.project.phase || 'Planning'}}</span>
+      </div>
     </div>
 
-    <div class="dash-bottom-mint">
-        <div class="mint-intro">
-            <h2>Documents</h2>
-            <p>Project files and attachments.</p>
-            
-            <label class="btn-soft-upload" ng-class="{'is-loading': c.uploading}">
-                <span ng-if="!c.uploading">Upload File</span>
-                <span ng-if="c.uploading">Uploading...</span>
-                <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
-            </label>
+    <div class="ov-hero__kpis">
+      <div class="ov-kpi">
+        <span class="ov-kpi__icon ov-kpi__icon--green"><i class="fa fa-dollar"></i></span>
+        <div>
+          <span class="ov-kpi__val">{{c.formatCurrency(c.project.build_grant_amount)}}</span>
+          <span class="ov-kpi__lbl">Total Cost</span>
+        </div>
+      </div>
+      <div class="ov-kpi">
+        <span class="ov-kpi__icon ov-kpi__icon--blue"><i class="fa fa-arrow-down"></i></span>
+        <div>
+          <span class="ov-kpi__val">{{c.formatCurrency(c.project.requested_budget)}}</span>
+          <span class="ov-kpi__lbl">Requested</span>
+        </div>
+      </div>
+      <div class="ov-kpi">
+        <span class="ov-kpi__icon ov-kpi__icon--amber"><i class="fa fa-exclamation-triangle"></i></span>
+        <div>
+          <span class="ov-kpi__val">{{c.risks.length || 0}}</span>
+          <span class="ov-kpi__lbl">Risks</span>
+        </div>
+      </div>
+      <div class="ov-kpi">
+        <span class="ov-kpi__icon ov-kpi__icon--red"><i class="fa fa-bug"></i></span>
+        <div>
+          <span class="ov-kpi__val">{{c.issues.length || 0}}</span>
+          <span class="ov-kpi__lbl">Issues</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TIMELINE STRIP ──────────────────────────── -->
+  <div class="ov-timeline-strip">
+    <div class="ov-tl-item">
+      <span class="ov-tl-dot ov-tl-dot--green"></span>
+      <div>
+        <span class="ov-tl-label">Start Date</span>
+        <strong class="ov-tl-val">{{c.project.project_start_date || '—'}}</strong>
+      </div>
+    </div>
+    <div class="ov-tl-line"></div>
+    <div class="ov-tl-item">
+      <span class="ov-tl-dot ov-tl-dot--blue"></span>
+      <div>
+        <span class="ov-tl-label">Submitted</span>
+        <strong class="ov-tl-val">{{c.project.submission_date || '—'}}</strong>
+      </div>
+    </div>
+    <div class="ov-tl-line"></div>
+    <div class="ov-tl-item">
+      <span class="ov-tl-dot ov-tl-dot--indigo"></span>
+      <div>
+        <span class="ov-tl-label">Effective</span>
+        <strong class="ov-tl-val">{{c.project.effective_date_of_award || '—'}}</strong>
+      </div>
+    </div>
+    <div class="ov-tl-line"></div>
+    <div class="ov-tl-item">
+      <span class="ov-tl-dot ov-tl-dot--red"></span>
+      <div>
+        <span class="ov-tl-label">End Date</span>
+        <strong class="ov-tl-val">{{c.project.project_end_date || '—'}}</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BODY GRID ────────────────────────────────── -->
+  <div class="ov-body-grid">
+
+    <!-- LEFT — Details + Recipient -->
+    <div class="ov-body-left">
+
+      <!-- Details Card -->
+      <div class="ov-card ov-card--anim">
+        <div class="ov-card__hdr">
+          <div class="ov-card__hdr-icon"><i class="fa fa-info-circle"></i></div>
+          <div>
+            <div class="ov-card__title">Project Details</div>
+            <div class="ov-card__sub">Description and program information</div>
+          </div>
+        </div>
+        <div class="ov-description" ng-bind-html="c.project.description || '<span style=\'color:#a0aabf\'>No description provided.</span>'"></div>
+
+        <!-- Recipient -->
+        <div class="ov-recipient">
+          <div class="ov-rec-avatar"><i class="fa fa-user"></i></div>
+          <div class="ov-rec-info">
+            <strong>{{c.project.first_name}}</strong>
+            <span>{{c.project.gender}}</span>
+          </div>
+          <div class="ov-rec-contact">
+            <span><i class="fa fa-envelope-o"></i> {{c.project.email || '—'}}</span>
+            <span><i class="fa fa-phone"></i> {{c.project.phone_number || '—'}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Documents Card -->
+      <div class="ov-card ov-card--mint ov-card--anim">
+        <div class="ov-card__hdr">
+          <div class="ov-card__hdr-icon ov-card__hdr-icon--teal"><i class="fa fa-paperclip"></i></div>
+          <div>
+            <div class="ov-card__title">Documents</div>
+            <div class="ov-card__sub">Project files and attachments</div>
+          </div>
+          <label class="ov-btn-upload ov-card__action" ng-class="{'is-loading': c.uploading}">
+            <i class="fa fa-upload"></i>
+            <span ng-if="!c.uploading">Upload File</span>
+            <span ng-if="c.uploading">Uploading…</span>
+            <input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
+          </label>
         </div>
 
-        <div class="mint-cards-wrapper">
-            <div ng-if="c.attachments.length === 0" class="empty-soft text-white">No documents uploaded.</div>
-            
-            <div class="channel-card" ng-repeat="attachment in c.attachments">
-                <div class="chan-icon" ng-class="{'icon-pdf': attachment.content_type.indexOf('pdf') > -1, 'icon-img': attachment.content_type.indexOf('image') > -1, 'icon-doc': attachment.content_type.indexOf('word') > -1}">
-                    <i class="fa fa-file-text-o"></i>
-                </div>
-                <span class="chan-title" title="{{attachment.file_name}}">{{attachment.file_name}}</span>
-                <span class="chan-sub">{{c.formatFileSize(attachment.size_bytes)}}</span>
-                <button class="chan-action" ng-click="c.downloadAttachment(attachment)"><i class="fa fa-download"></i></button>
-            </div>
+        <div class="ov-doc-empty" ng-if="!c.attachments || c.attachments.length === 0">
+          <i class="fa fa-folder-open-o"></i>
+          <p>No documents uploaded yet</p>
         </div>
+
+        <div class="ov-doc-grid" ng-if="c.attachments && c.attachments.length > 0">
+          <div class="ov-doc-card" ng-repeat="a in c.attachments">
+            <div class="ov-doc-icon"
+              ng-class="{
+                'ov-doc-icon--pdf':   a.content_type.indexOf('pdf')   > -1,
+                'ov-doc-icon--img':   a.content_type.indexOf('image') > -1,
+                'ov-doc-icon--word':  a.content_type.indexOf('word')  > -1
+              }">
+              <i class="fa fa-file-text-o"></i>
+            </div>
+            <div class="ov-doc-meta">
+              <span class="ov-doc-name" title="{{a.file_name}}">{{a.file_name}}</span>
+              <span class="ov-doc-size">{{c.formatFileSize(a.size_bytes)}}</span>
+            </div>
+            <button class="ov-doc-dl" ng-click="c.downloadAttachment(a)">
+              <i class="fa fa-download"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-</div>
-            
+    <!-- RIGHT — Activity -->
+    <div class="ov-body-right">
+      <div class="ov-card ov-card--activity ov-card--anim">
+        <div class="ov-card__hdr">
+          <div class="ov-card__hdr-icon ov-card__hdr-icon--violet"><i class="fa fa-comments"></i></div>
+          <div>
+            <div class="ov-card__title">Activity</div>
+            <div class="ov-card__sub">Updates and comments</div>
+          </div>
+        </div>
+
+        <div class="ov-activity-list">
+          <div class="ov-activity-empty" ng-if="!c.comments || c.comments.length === 0">
+            <i class="fa fa-inbox"></i>
+            <p>No activity yet</p>
+          </div>
+          <div class="ov-activity-item" ng-repeat="comment in c.comments">
+            <div class="ov-act-avatar"><i class="fa fa-user"></i></div>
+            <div class="ov-act-body">
+              <div class="ov-act-top">
+                <span class="ov-act-name">{{comment.created_by_name}}</span>
+                <span class="ov-act-date">{{comment.created_on.split(' ')[0]}}</span>
+              </div>
+              <p class="ov-act-text">{{comment.comment}}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ov-comment-box">
+          <input type="text" class="ov-comment-input"
+                 ng-model="c.newComment"
+                 placeholder="Add an update…"
+                 ng-keyup="$event.keyCode === 13 && c.newComment && c.postComment()">
+          <button class="ov-comment-send"
+                  ng-click="c.postComment()"
+                  ng-disabled="!c.newComment">
+            <i class="fa fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>   
             
             
 
