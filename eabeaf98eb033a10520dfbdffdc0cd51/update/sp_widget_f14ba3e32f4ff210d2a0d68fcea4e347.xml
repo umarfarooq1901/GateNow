@@ -4,40 +4,31 @@
         <client_script><![CDATA[api.controller = function($window, spModal) {
   var c = this;
 
-  c.tab = 'overview';
+  c.tab        = 'overview';
+  c.newNote    = '';
+  c.saving     = false;
+  c.addingNote = false;
+  c.error      = '';
 
   c.form = {
     score:    c.data.score      || '',
     comments: c.data.work_notes || ''
   };
 
-  c.newNote    = '';
-  c.saving     = false;
-  c.addingNote = false;
-  c.error      = '';
-
-  // ── VISIBILITY FLAGS ──
-  // isCompleted → review fully done (status = 'Review completed')
-  // canScore    → last reviewer group + not yet completed → can score + submit
-  // isReadOnly  → non-last active reviewer → can proceed + add notes, no score
   c.isCompleted = (c.data.status === 'Review completed');
-  c.canScore    = !c.isCompleted && c.data.is_last_reviewer;
+  c.canScore    = !c.isCompleted && !!c.data.is_last_reviewer;
   c.isReadOnly  = !c.isCompleted && !c.data.is_last_reviewer && !c.data.submitted;
 
-  // ── FORMAT FILE SIZE ──
   c.formatSize = function(bytes) {
     if (!bytes) return '';
-    return (parseInt(bytes) / 1024).toFixed(2) + ' KB';
+    return (parseInt(bytes, 10) / 1024).toFixed(2) + ' KB';
   };
 
-  // ── SUBMIT / PROCEED ──
   c.submit = function() {
     if (!c.data.found) {
       c.error = 'No record found.';
       return;
     }
-
-    // Score is required ONLY for the last reviewer
     if (c.canScore && !c.form.score) {
       c.error = 'Please select a score before submitting.';
       return;
@@ -51,14 +42,12 @@
 
     c.server.update().then(function() {
       c.saving = false;
-
       if (c.data.success) {
-       var msg = c.data.last_reviewer ? 
-  '✅ Review completed! All groups have finished reviewing.' : 
-  '✅ Review submitted! Assigned to next group: ' + (c.data.next_group || '');
-
+        var msg = c.data.last_reviewer
+          ? 'Review completed! All groups have finished reviewing.'
+          : 'Review submitted! Assigned to next group: ' + (c.data.next_group || '');
         spModal.alert(msg).then(function() {
-          $window.location.href = 'https://enablenowincdemo1.service-now.com/review';
+          $window.location.href = '/review';
         });
       } else {
         c.error = c.data.error || 'An unexpected server error occurred.';
@@ -66,7 +55,6 @@
     });
   };
 
-  // ── ADD WORK NOTE ──
   c.addNote = function() {
     if (!c.newNote || !c.newNote.trim()) return;
 
@@ -74,21 +62,19 @@
     c.error      = '';
 
     c.data.action = 'add_note';
-    c.data.form   = { comments: c.newNote };
+    c.data.form   = { comments: c.newNote.trim() };
 
     c.server.update().then(function() {
       c.addingNote = false;
-
       if (c.data.success) {
         c.newNote = '';
-        spModal.alert('✅ Work note added successfully!');
+        spModal.alert('Work note added successfully!');
       } else {
         c.error = c.data.error || 'Failed to add note.';
       }
     });
   };
-}
-]]></client_script>
+};]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════ RESET ═══════ */
 .rp-shell *, .rp-denied * { box-sizing: border-box; }
@@ -779,7 +765,7 @@ body .sp-notification-container .alert {
 
   // ── GET CURRENT USER'S GROUPS ──
   var groups = [];
-  var grMem = new GlideRecord('sys_user_grmember');
+  var grMem = new GlideRecordSecure('sys_user_grmember');
   grMem.addQuery('user', userId);
   grMem.query();
   while (grMem.next()) {
@@ -789,7 +775,7 @@ body .sp-notification-container .alert {
   var sysId = $sp.getParameter('sys_id');
   if (!sysId) return;
 
-  var gr = new GlideRecord('x_enno_gatenow_grant_review');
+  var gr = new GlideRecordSecure('x_enno_gatenow_grant_review');
   if (!gr.get(sysId)) return;
 
   // ── ACCESS GUARD (FIXED) ──
@@ -850,7 +836,7 @@ body .sp-notification-container .alert {
       // ── NOT LAST — pass to next group ──
       var nextGroupSysId = groupArray[nextIndex];
       var nextGroupName  = '';
-      var grpGr = new GlideRecord('sys_user_group');
+      var grpGr = new GlideRecordSecure('sys_user_group');
       if (grpGr.get(nextGroupSysId)) {
         nextGroupName = grpGr.getDisplayValue('name');
       }
@@ -891,7 +877,7 @@ body .sp-notification-container .alert {
   var applicantSysId = gr.getValue('applicant');
   var applicant = {};
   if (applicantSysId) {
-    var appGr = new GlideRecord('x_enno_gatenow_service_applicants');
+    var appGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     if (appGr.get(applicantSysId)) {
       applicant.number           = appGr.getValue('number')                         || '';
       applicant.first_name       = appGr.getValue('first_name')                     || '';
@@ -931,7 +917,7 @@ body .sp-notification-container .alert {
       applicant.state            = appGr.getDisplayValue('state')                   || '';
 
       var appDocs  = [];
-      var appAttGr = new GlideRecord('sys_attachment');
+      var appAttGr = new GlideRecordSecure('sys_attachment');
       appAttGr.addQuery('table_name', 'x_enno_gatenow_service_applicants');
       appAttGr.addQuery('table_sys_id', appGr.getUniqueValue());
       appAttGr.query();
@@ -951,7 +937,7 @@ body .sp-notification-container .alert {
   var programSysId = gr.getValue('program');
   var program = {};
   if (programSysId) {
-    var progGr = new GlideRecord('x_enno_gatenow_grant_program');
+    var progGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
     if (progGr.get(programSysId)) {
       program.name              = progGr.getDisplayValue('program_name')   || '';
       program.number            = progGr.getValue('number')                || '';
@@ -967,7 +953,7 @@ body .sp-notification-container .alert {
       program.summary_statement = progGr.getValue('summary_statement')     || '';
 
       var progDocs  = [];
-      var progAttGr = new GlideRecord('sys_attachment');
+      var progAttGr = new GlideRecordSecure('sys_attachment');
       progAttGr.addQuery('table_name', 'x_enno_gatenow_grant_program');
       progAttGr.addQuery('table_sys_id', progGr.getUniqueValue());
       progAttGr.query();
@@ -985,7 +971,7 @@ body .sp-notification-container .alert {
 
   // ── LOAD WORK NOTES ──
   var workNotesList = [];
-  var jrnlGr = new GlideRecord('sys_journal_field');
+  var jrnlGr = new GlideRecordSecure('sys_journal_field');
   jrnlGr.addQuery('name', 'x_enno_gatenow_grant_review');
   jrnlGr.addQuery('element', 'work_notes');
   jrnlGr.addQuery('element_id', gr.getUniqueValue());
@@ -1017,14 +1003,14 @@ body .sp-notification-container .alert {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 10:17:06</sys_created_on>
         <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
-        <sys_mod_count>93</sys_mod_count>
+        <sys_mod_count>95</sys_mod_count>
         <sys_name>Review Proposal Detail</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-03-31 08:26:42</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-03-31 15:09:14</sys_updated_on>
         <template><![CDATA[<!-- ACCESS DENIED -->
 <div class="rp-denied" ng-if="!data.found">
   <div class="rp-denied__box">

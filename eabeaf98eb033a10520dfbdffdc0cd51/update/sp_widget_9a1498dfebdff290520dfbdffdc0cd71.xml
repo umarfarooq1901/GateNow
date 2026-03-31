@@ -1037,7 +1037,7 @@ c.countByBadge = function(badgeClass) {
     data.error       = '';
 
     try {
-      var gr = new GlideRecord('x_enno_gatenow_service_applicants');
+      var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
       if (!gr.get(input.sys_id)) {
         data.error = 'Record not found.';
@@ -1050,7 +1050,7 @@ c.countByBadge = function(badgeClass) {
       }
 
       var attachments = [];
-      var attGR = new GlideRecord('sys_attachment');
+      var attGR = new GlideRecordSecure('sys_attachment');
       attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
       attGR.addQuery('table_sys_id', input.sys_id);
       attGR.query();
@@ -1117,7 +1117,7 @@ c.countByBadge = function(badgeClass) {
     data.error   = '';
 
     try {
-      var upd = new GlideRecord('x_enno_gatenow_service_applicants');
+      var upd = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
       if (!upd.get(input.sys_id)) {
         data.error = 'Record not found.';
@@ -1190,7 +1190,7 @@ if (input && input.action === 'uploadAttachment') {
   data.error      = '';
 
   try {
-    var gr = new GlideRecord('x_enno_gatenow_service_applicants');
+    var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
     if (!gr.get(input.sys_id)) {
       data.error = 'Record not found.';
@@ -1205,14 +1205,14 @@ if (input && input.action === 'uploadAttachment') {
     // Use GlideSysAttachment.write() with base64 string directly
     var attachmentMgr = new GlideSysAttachment();
     var attSysId      = attachmentMgr.write(
-      gr,                          // GlideRecord to attach to
+      gr,                          // GlideRecordSecure to attach to
       input.file_name,             // file name
       input.content_type,          // MIME type
       input.file_data              // raw base64 string — write() accepts this directly
     );
 
     if (attSysId) {
-      var attGR = new GlideRecord('sys_attachment');
+      var attGR = new GlideRecordSecure('sys_attachment');
       attGR.get(attSysId);
       data.attachment = {
         sys_id:       attSysId,
@@ -1240,7 +1240,7 @@ if (input && input.action === 'uploadAttachment') {
     data.error   = '';
 
     try {
-      var attGR = new GlideRecord('sys_attachment');
+      var attGR = new GlideRecordSecure('sys_attachment');
 
       if (!attGR.get(input.att_sys_id)) {
         data.error = 'Attachment not found.';
@@ -1249,7 +1249,7 @@ if (input && input.action === 'uploadAttachment') {
 
       // Verify the attachment belongs to a record owned by current user
       var tableSysId = attGR.getValue('table_sys_id');
-      var appGR      = new GlideRecord('x_enno_gatenow_service_applicants');
+      var appGR      = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
       if (!appGR.get(tableSysId) || appGR.getValue('sys_created_by') !== currentUser) {
         data.error = 'Unauthorized.';
@@ -1306,7 +1306,7 @@ var badgeMap = {
   'Closed':                'badge-new'           // ← was badge-closed
 };
 
-  var gr = new GlideRecord('x_enno_gatenow_service_applicants');
+  var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
   gr.addQuery('sys_created_by', currentUser);
   gr.orderByDesc('sys_updated_on');
   gr.query();
@@ -1317,7 +1317,7 @@ var badgeMap = {
     var sysId        = gr.getUniqueValue();
 
     var attachments = [];
-    var attGR = new GlideRecord('sys_attachment');
+    var attGR = new GlideRecordSecure('sys_attachment');
     attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
     attGR.addQuery('table_sys_id', sysId);
     attGR.query();
@@ -1405,14 +1405,14 @@ var badgeMap = {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>121</sys_mod_count>
+        <sys_mod_count>122</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-26 19:14:26</sys_updated_on>
+        <sys_updated_on>2026-03-31 15:15:00</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

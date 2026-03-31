@@ -2802,7 +2802,7 @@ justify-content: center;   /* ADD THIS */
         <script><![CDATA[(function() {
 
   // ── Current user ──────────────────────────────────────────
-  var userGr = new GlideRecord('sys_user');
+  var userGr = new GlideRecordSecure('sys_user');
   if (userGr.get(gs.getUserID())) {
     data.currentUser = {
       sys_id:     userGr.getUniqueValue(),
@@ -2840,7 +2840,7 @@ justify-content: center;   /* ADD THIS */
 
   // ── Groups ───────────────────────────────────────────────
   var groups = [];
-  var grMem  = new GlideRecord('sys_user_grmember');
+  var grMem  = new GlideRecordSecure('sys_user_grmember');
   grMem.addQuery('user', userId);
   grMem.query();
   while (grMem.next()) { groups.push(grMem.getValue('group')); }
@@ -2848,7 +2848,7 @@ justify-content: center;   /* ADD THIS */
   if (groups.length === 0) return;
 
   // ── Query reviews ────────────────────────────────────────
-  var gr = new GlideRecord('x_enno_gatenow_grant_review');
+  var gr = new GlideRecordSecure('x_enno_gatenow_grant_review');
   var qc = gr.addQuery('assignment_group', 'IN', groups.join(','));
   for (var i = 0; i < groups.length; i++) {
     var orCond = qc.addOrCondition('status', 'Review completed');
@@ -2884,7 +2884,7 @@ justify-content: center;   /* ADD THIS */
     var programName = '', programCategory = '', programNumber = '';
     var programSysId = gr.getValue('program');
     if (programSysId) {
-      var progGr = new GlideRecord('x_enno_gatenow_grant_program');
+      var progGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
       if (progGr.get(programSysId)) {
         programName     = progGr.getDisplayValue('program_name') || '';
         programCategory = progGr.getDisplayValue('category')     || '';
@@ -2896,7 +2896,7 @@ justify-content: center;   /* ADD THIS */
     var applicantName = '', applicantNumber = '';
     var applicantSysId = gr.getValue('applicant');
     if (applicantSysId) {
-      var appGr = new GlideRecord('x_enno_gatenow_service_applicants');
+      var appGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
       if (appGr.get(applicantSysId)) {
         applicantName   = ((appGr.getValue('first_name') || '') + ' ' + (appGr.getValue('last_name') || '')).trim();
         applicantNumber = appGr.getValue('number') || '';
@@ -2938,7 +2938,7 @@ justify-content: center;   /* ADD THIS */
   if (input && input.action === 'save_review' && input.review_sys_id) {
     var reviewId = String(input.review_sys_id);
     var form     = input.form || {};
-    var grUpdate = new GlideRecord('x_enno_gatenow_grant_review');
+    var grUpdate = new GlideRecordSecure('x_enno_gatenow_grant_review');
     if (grUpdate.get(reviewId)) {
       if (groups.indexOf(grUpdate.getValue('assignment_group')) === -1) {
         data.success = false; data.error = 'Not allowed.'; return;
@@ -2960,14 +2960,14 @@ justify-content: center;   /* ADD THIS */
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>67</sys_mod_count>
+        <sys_mod_count>68</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-30 09:53:39</sys_updated_on>
+        <sys_updated_on>2026-03-31 15:20:08</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
   <!-- SIDEBAR -->

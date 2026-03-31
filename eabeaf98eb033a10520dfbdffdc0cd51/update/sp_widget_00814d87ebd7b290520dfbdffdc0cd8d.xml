@@ -1704,7 +1704,7 @@
   // TOTAL APPLICATIONS
   // ══════════════════════════════════════════════════════
   try {
-    var appGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    var appGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     appGR.addQuery('sys_created_by', gs.getUserName());
     appGR.query();
     while (appGR.next()) { data.totalApplications++; }
@@ -1716,7 +1716,7 @@
   try {
     var monthAgo = new GlideDateTime();
     monthAgo.addMonthsLocalTime(-1);
-    var newGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    var newGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     newGR.addQuery('sys_created_by', gs.getUserName());
     newGR.addQuery('sys_created_on', '>=', monthAgo.getValue());
     newGR.query();
@@ -1727,7 +1727,7 @@
   // ACTIVE PROJECTS  (KPI counter)
   // ══════════════════════════════════════════════════════
   try {
-    var projectGR = new GlideRecord('pm_project');
+    var projectGR = new GlideRecordSecure('pm_project');
     projectGR.addActiveQuery();
     projectGR.addQuery('x_enno_gatenow_applicant.user', userId);
     projectGR.query();
@@ -1739,7 +1739,7 @@
   // ══════════════════════════════════════════════════════
   var applicantIds = [];
   try {
-    var applicantGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    var applicantGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     applicantGR.addQuery('user', userId);
     applicantGR.query();
     while (applicantGR.next()) {
@@ -1752,7 +1752,7 @@
   // ══════════════════════════════════════════════════════
   if (applicantIds.length > 0) {
     try {
-      var pendingGR = new GlideRecord('x_enno_gatenow_grant_awards');
+      var pendingGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
       pendingGR.addQuery('applicant', 'IN', applicantIds.join(','));
       pendingGR.addQuery('applicant_response', 'Pending');
       pendingGR.query();
@@ -1765,7 +1765,7 @@
   // ══════════════════════════════════════════════════════
   var projectIds = [];
   try {
-    var pidGR = new GlideRecord('pm_project');
+    var pidGR = new GlideRecordSecure('pm_project');
     pidGR.addActiveQuery();
     pidGR.addQuery('x_enno_gatenow_applicant.user', userId);
     pidGR.query();
@@ -1780,7 +1780,7 @@
   data.appStatusChart = { labels: [], counts: [] };
   try {
     var statusMap = {};
-    var statusGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    var statusGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     statusGR.addQuery('sys_created_by', gs.getUserName());
     statusGR.query();
     while (statusGR.next()) {
@@ -1832,7 +1832,7 @@ try {
     // Map: projectSysId → { name, number, counts per dimension }
     var projectMap = {};
 
-    var psGR = new GlideRecord('project_status');
+    var psGR = new GlideRecordSecure('project_status');
     psGR.addQuery('project', 'IN', projectIds.join(','));
     psGR.orderByDesc('sys_created_on');
     psGR.query();
@@ -1941,7 +1941,7 @@ try {
 // PROJECT PROGRESS
 data.projectProgress = [];
 try {
-  var ppGR = new GlideRecord('pm_project');
+  var ppGR = new GlideRecordSecure('pm_project');
   ppGR.addActiveQuery();
   ppGR.addQuery('x_enno_gatenow_applicant.user', userId);
   ppGR.setLimit(8);
@@ -1969,7 +1969,7 @@ try {
   try {
     if (projectIds.length > 0) {
       var rMap = {};
-      var rGR  = new GlideRecord('x_enno_gatenow_reimbursement');
+      var rGR  = new GlideRecordSecure('x_enno_gatenow_reimbursement');
       rGR.addQuery('parent', 'IN', projectIds.join(','));
       rGR.query();
       while (rGR.next()) {
@@ -1999,7 +1999,7 @@ try {
       var categoryMap = {};
       var crList      = [];
 
-      var crGR = new GlideRecord('project_change_request');
+      var crGR = new GlideRecordSecure('project_change_request');
       crGR.addQuery('parent', 'IN', projectIds.join(','));
       crGR.orderByDesc('sys_created_on');
       crGR.query();
@@ -2051,7 +2051,7 @@ try {
   try {
     if (projectIds.length > 0) {
       var srMap = {};
-      var srGR  = new GlideRecord('project_status');
+      var srGR  = new GlideRecordSecure('project_status');
       srGR.addQuery('project', 'IN', projectIds.join(','));
       srGR.orderBy('sys_created_on');
       srGR.query();
@@ -2081,14 +2081,14 @@ try {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-02 18:54:14</sys_created_on>
         <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
-        <sys_mod_count>249</sys_mod_count>
+        <sys_mod_count>250</sys_mod_count>
         <sys_name>Applicant Dashboard Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-27 10:05:34</sys_updated_on>
+        <sys_updated_on>2026-03-31 15:11:19</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

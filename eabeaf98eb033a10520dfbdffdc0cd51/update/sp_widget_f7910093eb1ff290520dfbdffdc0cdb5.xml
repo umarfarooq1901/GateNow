@@ -1252,7 +1252,7 @@ min-height: 100vh;
 
     /* --- 1. HANDLE STATUS UPDATE --- */
     if (input && input.action === 'update_award_choice') {
-        var upGr = new GlideRecord('x_enno_gatenow_grant_awards');
+        var upGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
         if (upGr.get(input.target_id)) {
             upGr.setValue('applicant_response', input.new_status);
             if (input.comment_submission) {
@@ -1264,7 +1264,7 @@ min-height: 100vh;
 
     /* --- 2. IDENTIFY THE APPLICANT --- */
     var applicantIds = [];
-    var applGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    var applGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     applGR.addQuery('user', currentUser);
     applGR.query();
     while (applGR.next()) {
@@ -1273,7 +1273,7 @@ min-height: 100vh;
 
     /* --- 3. FETCH AWARD DATA --- */
     if (applicantIds.length > 0) {
-        var gr = new GlideRecord('x_enno_gatenow_grant_awards');
+        var gr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
         gr.addQuery('applicant', 'IN', applicantIds.join(','));
         gr.orderByDesc('sys_created_on');
         gr.query();
@@ -1284,7 +1284,7 @@ min-height: 100vh;
 
             /* --- Fetch attachments for this record --- */
             var attachments = [];
-            var attGR = new GlideRecord('sys_attachment');
+            var attGR = new GlideRecordSecure('sys_attachment');
             attGR.addQuery('table_name', 'x_enno_gatenow_grant_awards');
             attGR.addQuery('table_sys_id', sysId);
             attGR.query();
@@ -1331,14 +1331,14 @@ min-height: 100vh;
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-03 08:54:13</sys_created_on>
         <sys_id>f7910093eb1ff290520dfbdffdc0cdb5</sys_id>
-        <sys_mod_count>148</sys_mod_count>
+        <sys_mod_count>149</sys_mod_count>
         <sys_name>My Awards</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f7910093eb1ff290520dfbdffdc0cdb5</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-26 19:18:07</sys_updated_on>
+        <sys_updated_on>2026-03-31 15:15:56</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

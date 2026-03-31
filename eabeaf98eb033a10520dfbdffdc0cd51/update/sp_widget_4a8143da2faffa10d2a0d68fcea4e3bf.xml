@@ -3025,7 +3025,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         return;
     }
 
-    var grProject = new GlideRecord('pm_project');
+    var grProject = new GlideRecordSecure('pm_project');
     if (!grProject.get(projectId)) {
         data.error = "Project record not found.";
         return;
@@ -3042,7 +3042,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     if (input && input.action) {
         
         if (input.action === 'postComment') {
-            var grMsg = new GlideRecord('pm_project');
+            var grMsg = new GlideRecordSecure('pm_project');
             if (grMsg.get(input.sys_id)) {
                 grMsg.comments = input.comment; 
                 grMsg.update();
@@ -3051,7 +3051,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         if (input.action === 'submitBaselineReport') {
             var percents = input.report.percent_complete;
-            var baseline = new GlideRecord('project_status');
+            var baseline = new GlideRecordSecure('project_status');
             baseline.initialize();
             baseline.project = projectId;
             baseline.x_enno_gatenow_report_status = input.report.report_status;
@@ -3069,7 +3069,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         if (input.action === 'submitStatusReport') {
             var percent = input.report.percent_complete;
-            var monthly = new GlideRecord('project_status');
+            var monthly = new GlideRecordSecure('project_status');
             monthly.initialize();
             monthly.project = projectId;
             monthly.as_on = input.report.as_on;
@@ -3098,7 +3098,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 			
 			
 			if (input.action === 'postIssueWorkNote') {
-            var grIssueNote = new GlideRecord('issue');
+            var grIssueNote = new GlideRecordSecure('issue');
             if (grIssueNote.get(input.issue_sys_id)) {
                 grIssueNote.work_notes = input.work_note; 
                 grIssueNote.update();
@@ -3113,7 +3113,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 });
 
                 // 2. Fetch historical notes
-                var journalIssue = new GlideRecord('sys_journal_field');
+                var journalIssue = new GlideRecordSecure('sys_journal_field');
                 journalIssue.addQuery('element_id', input.issue_sys_id);
                 journalIssue.addQuery('element', 'work_notes'); 
                 journalIssue.orderByDesc('sys_created_on');
@@ -3135,7 +3135,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 			
 
         if (input.action === 'submitChangeRequest') {
-            var cr = new GlideRecord('project_change_request');
+            var cr = new GlideRecordSecure('project_change_request');
             cr.initialize();
             cr.parent = projectId;
             cr.short_description = input.change.short_description;
@@ -3150,7 +3150,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         if (input.action === 'submit_reimbursement_form') {
             var formData = input.reimbursementData;
-            var grReimbursement = new GlideRecord('x_enno_gatenow_reimbursement'); 
+            var grReimbursement = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
             grReimbursement.initialize();
             grReimbursement.setValue('parent', projectId);
 
@@ -3237,7 +3237,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         }
 
         if (input.action === 'postRiskWorkNote') {
-            var grRiskNote = new GlideRecord('risk');
+            var grRiskNote = new GlideRecordSecure('risk');
             if (grRiskNote.get(input.risk_sys_id)) {
                 
                 grRiskNote.work_notes = input.work_note; 
@@ -3253,7 +3253,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 });
 
                 // 2. Fetch the historical notes
-                var journalRisk = new GlideRecord('sys_journal_field');
+                var journalRisk = new GlideRecordSecure('sys_journal_field');
                 journalRisk.addQuery('element_id', input.risk_sys_id);
                 journalRisk.addQuery('element', 'work_notes'); 
                 journalRisk.orderByDesc('sys_created_on');
@@ -3278,14 +3278,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         
         // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST POST LOGIC ]]>🟢
 <![CDATA[        if (input.action === 'postChangeWorkNote') {
-            var grChangeNote = new GlideRecord('project_change_request'); 
+            var grChangeNote = new GlideRecordSecure('project_change_request'); 
             if (grChangeNote.get(input.change_sys_id)) {
                 
                 grChangeNote.work_notes = input.work_note;
                 grChangeNote.update();
 
                 data.updatedChangeActivities = [];
-                var journalChange = new GlideRecord('sys_journal_field');
+                var journalChange = new GlideRecordSecure('sys_journal_field');
                 journalChange.addQuery('element_id', input.change_sys_id);
                 journalChange.addQuery('element', 'work_notes'); 
                 journalChange.orderByDesc('sys_created_on');
@@ -3318,7 +3318,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         
     var awardSid = grProject.getValue('x_enno_gatenow_award'); 
     if (awardSid) {
-        var grAward = new GlideRecord('x_enno_gatenow_grant_awards');
+        var grAward = new GlideRecordSecure('x_enno_gatenow_grant_awards');
         if (grAward.get(awardSid)) {
             data.projectData.build_grant_amount = grAward.getValue('build_grant_amount');
             data.projectData.effective_date_of_award = grAward.getDisplayValue('effective_date_of_award');
@@ -3327,7 +3327,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
     var applicantSid = grProject.getValue('x_enno_gatenow_applicant');
     if (applicantSid) {
-        var grApp = new GlideRecord('x_enno_gatenow_service_applicants');
+        var grApp = new GlideRecordSecure('x_enno_gatenow_service_applicants');
         if (grApp.get(applicantSid)) {
             $sp.getRecordDisplayValues(data.projectData, grApp, 'email,first_name,uei,phone_number,gender,zip_postal_code,ssn,project_start_date,project_end_date,submission_date');
             data.projectData.tin = grApp.getDisplayValue('tin_ein');
@@ -3339,7 +3339,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     data.baselineSubmitted = false;
     data.baselineReport = {}; 
 
-    var grSR = new GlideRecord('project_status');
+    var grSR = new GlideRecordSecure('project_status');
     grSR.addQuery('project', projectId);
     grSR.orderByDesc('as_on');
     grSR.query();
@@ -3375,7 +3375,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     // REIMBURSEMENT HISTORY
     // ==========================================
     data.reimbursementHistory = [];
-    var grReimb = new GlideRecord('x_enno_gatenow_reimbursement'); 
+    var grReimb = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
     grReimb.addQuery('parent', projectId);
     grReimb.orderByDesc('sys_created_on');
     grReimb.query();
@@ -3406,7 +3406,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         // 2. NEW: Fetch attachments specifically for THIS reimbursement record
         reimb.attachments = [];
-        var grReimbAtt = new GlideRecord('sys_attachment');
+        var grReimbAtt = new GlideRecordSecure('sys_attachment');
         grReimbAtt.addQuery('table_name', 'x_enno_gatenow_reimbursement');
         grReimbAtt.addQuery('table_sys_id', reimb.sys_id);
         grReimbAtt.query();
@@ -3426,7 +3426,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     // ISSUE RECORDS
     // ==========================================
     data.issues = [];
-    var grIssue = new GlideRecord('issue'); 
+    var grIssue = new GlideRecordSecure('issue'); 
     grIssue.addQuery('parent', projectId); 
     grIssue.orderByDesc('sys_created_on');
     grIssue.query();
@@ -3441,7 +3441,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         
         // Fetch historical work notes for this issue
         issueObj.activities = [];
-        var issueNotes = new GlideRecord('sys_journal_field');
+        var issueNotes = new GlideRecordSecure('sys_journal_field');
         issueNotes.addQuery('element_id', issueObj.sys_id);
         issueNotes.addQuery('element', 'work_notes'); 
         issueNotes.orderByDesc('sys_created_on');
@@ -3462,7 +3462,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     // RISK RECORDS
     // ==========================================
     data.risks = [];
-    var grRisk = new GlideRecord('risk'); 
+    var grRisk = new GlideRecordSecure('risk'); 
     grRisk.addQuery('task', projectId); 
     grRisk.orderByDesc('sys_created_on');
     grRisk.query();
@@ -3473,7 +3473,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         $sp.getRecordDisplayValues(riskObj, grRisk, 'sys_id,task,state,assigned_to,due_date,risk_value,cost,a,number,short_description,impact,risk_rank,state,probability,assigned_to,description,mitigation');
         
         riskObj.activities = [];
-        var riskNotes = new GlideRecord('sys_journal_field');
+        var riskNotes = new GlideRecordSecure('sys_journal_field');
         riskNotes.addQuery('element_id', riskObj.sys_id);
         riskNotes.addQuery('element', 'work_notes'); 
         riskNotes.orderByDesc('sys_created_on');
@@ -3490,7 +3490,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     }
     
     // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST FETCH WITH SYS_ID ]]>🟢
-<![CDATA[    var grCR = new GlideRecord('project_change_request');
+<![CDATA[    var grCR = new GlideRecordSecure('project_change_request');
     grCR.addQuery('parent', projectId);
     grCR.orderByDesc('sys_created_on');
     grCR.query();
@@ -3504,7 +3504,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         
         // Fetch historical activities for Change Requests
         change.activities = [];
-        var changeNotes = new GlideRecord('sys_journal_field');
+        var changeNotes = new GlideRecordSecure('sys_journal_field');
         changeNotes.addQuery('element_id', change.sys_id);
         changeNotes.addQuery('element', 'work_notes'); 
         changeNotes.orderByDesc('sys_created_on');
@@ -3520,7 +3520,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         data.changeRequests.push(change);
     }
 
-    var grAtt = new GlideRecord('sys_attachment');
+    var grAtt = new GlideRecordSecure('sys_attachment');
     grAtt.addQuery('table_sys_id', projectId);
     grAtt.query();
     while (grAtt.next()) {
@@ -3536,7 +3536,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     /* --- HELPER FUNCTIONS --- */
     function getComments(sysId) {
         var list = [];
-        var journal = new GlideRecord('sys_journal_field');
+        var journal = new GlideRecordSecure('sys_journal_field');
         journal.addQuery('element_id', sysId);
         journal.addQuery('element', 'comments'); 
         journal.orderByDesc('sys_created_on');
@@ -3556,14 +3556,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>413</sys_mod_count>
+        <sys_mod_count>414</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-03-31 07:46:27</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-03-31 15:19:39</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     

@@ -450,7 +450,7 @@
 
     data.projects = [];
 
-    var grProjects = new GlideRecord('pm_project');
+    var grProjects = new GlideRecordSecure('pm_project');
     
     // Filter for current user
     grProjects.addQuery('x_enno_gatenow_applicant.user', currentUser);
@@ -506,7 +506,7 @@ if (createdDate) {
 }
 
 // 2. Change Request Submitted
-var grChange = new GlideRecord('project_change_request');
+var grChange = new GlideRecordSecure('project_change_request');
 grChange.addQuery('parent', grProjects.getUniqueValue()); // Adjust 'parent' to your actual reference field
 grChange.query();
 if (grChange.next()) {
@@ -518,7 +518,7 @@ if (grChange.next()) {
 }
 
 // 3. Status Report Created
-var grReport = new GlideRecord('project_status'); // Adjust table name if different
+var grReport = new GlideRecordSecure('project_status'); // Adjust table name if different
 grReport.addQuery('project', grProjects.getUniqueValue());
 grReport.orderByDesc('sys_created_on'); // Get the latest one
 grReport.query();
@@ -550,14 +550,14 @@ projectObj.activities.sort(function(a, b) {
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-04 09:10:31</sys_created_on>
         <sys_id>8b1f452feb53b690520dfbdffdc0cd1f</sys_id>
-        <sys_mod_count>139</sys_mod_count>
+        <sys_mod_count>140</sys_mod_count>
         <sys_name>My Project</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_8b1f452feb53b690520dfbdffdc0cd1f</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-30 09:15:15</sys_updated_on>
+        <sys_updated_on>2026-03-31 15:17:35</sys_updated_on>
         <template><![CDATA[<div class="projects-wrapper" style="margin: -15px;">
   <div class="main-flex-container" style="display: flex; align-items: flex-start;">
     

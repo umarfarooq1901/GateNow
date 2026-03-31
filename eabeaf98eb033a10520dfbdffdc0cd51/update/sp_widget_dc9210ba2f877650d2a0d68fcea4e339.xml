@@ -1220,7 +1220,7 @@ margin: 0 auto;
 
   function getChoicesSys(table, element) {
     var out = [];
-    var ch = new GlideRecord('sys_choice');
+    var ch = new GlideRecordSecure('sys_choice');
     ch.addQuery('name', table);
     ch.addQuery('element', element);
     ch.addQuery('inactive', false);
@@ -1258,7 +1258,7 @@ margin: 0 auto;
   // ============================================================
   function hasAlreadySubmitted(userId, programId) {
     if (!userId || !programId) return false;
-    var check = new GlideRecord(applicantTable);
+    var check = new GlideRecordSecure(applicantTable);
     check.addQuery('submitted_by', userId);
     check.addQuery('program', programId);
     check.addQuery('state', 'new');
@@ -1271,7 +1271,7 @@ margin: 0 auto;
   // ============================================================
   function getExistingDraft(userId, programId) {
     if (!userId || !programId) return null;
-    var draft = new GlideRecord(applicantTable);
+    var draft = new GlideRecordSecure(applicantTable);
     draft.addQuery('submitted_by', userId);
     draft.addQuery('program', programId);
     draft.addQuery('state', 'draft');
@@ -1287,7 +1287,7 @@ margin: 0 auto;
   // ============================================================
   function resolveProgramCategory(programSysId) {
     if (!programSysId) return '';
-    var prog = new GlideRecord(programTable);
+    var prog = new GlideRecordSecure(programTable);
     if (prog.get(programSysId)) {
       var cat = prog.getValue('category') || '';  // ← reads 'category' field directly
       gs.info('[Intake] Resolved program_category: "' + cat + '" from program: ' + programSysId);
@@ -1298,7 +1298,7 @@ margin: 0 auto;
   }
 
   // ============================================================
-  // FIELD MAPPER — maps input to GlideRecord fields
+  // FIELD MAPPER — maps input to GlideRecordSecure fields
   // ============================================================
   function mapFields(gr) {
 
@@ -1390,7 +1390,7 @@ margin: 0 auto;
         return;
       }
 
-      var gr       = new GlideRecord(applicantTable);
+      var gr       = new GlideRecordSecure(applicantTable);
       var isUpdate = false;
       var targetId = getParam(input, 'applicant_sys_id', '');
 
@@ -1420,7 +1420,7 @@ margin: 0 auto;
       // ── Attachments ───────────────────────────────────────
       var attachments = getParam(input, 'attachments', []);
       if (attachments && attachments.length > 0) {
-        var recForAtt = new GlideRecord(applicantTable);
+        var recForAtt = new GlideRecordSecure(applicantTable);
         if (recForAtt.get(savedId)) {
           var successCount = 0;
           for (var i = 0; i < attachments.length; i++) {
@@ -1457,7 +1457,7 @@ margin: 0 auto;
   // ============================================================
   else if (actionVal === 'save_draft') {
     try {
-      var draftGr       = new GlideRecord(applicantTable);
+      var draftGr       = new GlideRecordSecure(applicantTable);
       var isDraftUpdate = false;
 
       var draftId = getParam(input, 'applicant_sys_id', '');
@@ -1522,7 +1522,7 @@ margin: 0 auto;
   // PREFILL from existing record
   // ============================================================
   if (data.applicant_sys_id) {
-    var p = new GlideRecord(applicantTable);
+    var p = new GlideRecordSecure(applicantTable);
     if (p.get(data.applicant_sys_id)) {
       data.prefill = {
         first_name:                     p.getValue('first_name')          || '',
@@ -1585,7 +1585,7 @@ margin: 0 auto;
   // LOAD GRANT PROGRAMS
   // ============================================================
   data.programs = [];
-  var pgr = new GlideRecord(programTable);
+  var pgr = new GlideRecordSecure(programTable);
   pgr.addQuery('active', true);
   pgr.orderBy('program_name');
   pgr.query();
@@ -1606,14 +1606,14 @@ margin: 0 auto;
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-17 10:39:56</sys_created_on>
         <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
-        <sys_mod_count>23</sys_mod_count>
+        <sys_mod_count>24</sys_mod_count>
         <sys_name>Applicant_form</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-03-09 09:34:01</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-03-31 15:11:57</sys_updated_on>
         <template><![CDATA[<div class="multistep-grant-form-wrapper">
 
   <!-- Progress Indicator -->
