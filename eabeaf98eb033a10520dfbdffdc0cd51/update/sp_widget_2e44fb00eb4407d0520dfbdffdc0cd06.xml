@@ -1,18 +1,532 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller=function() {
-  /* widget controller */
-  var c = this;
+        <client_script><![CDATA[api.controller = function($scope, $sce, spUtil, $location) {
+    var c = this;
+
+    c.detailTab = 'overview';
+
+    /* Initialize specific fields when the data loads */
+    if (c.data.selectedAward) {
+        c.data.selectedAward.award_letter = $sce.trustAsHtml(
+            c.data.selectedAward.award_letter || '<p>No award letter content found.</p>'
+        );
+        if (!c.data.selectedAward.decision_reason) {
+            c.data.selectedAward.decision_reason = 'No rationale provided.';
+        }
+    }
+
+    c.setDetailTab = function(tab) { c.detailTab = tab; };
+
+    /* Navigate back to the List widget dynamically */
+    c.backToList = function() { 
+        $location.search({
+            id: c.data.list_page || 'my_award_list' // Defined in Server Script
+        });
+    };
+
+    /* Fills the progress bar. (Defaults to 100% since we only loaded one award) */
+    c.amountPercent = function(award) {
+        return 100; 
+    };
+
+    c.formatSize = function(bytes) {
+        if (!bytes) return '—';
+        if (bytes < 1024)    return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    };
+
+    c.fileIcon = function(contentType) {
+        if (!contentType) return 'fa-file-o';
+        if (contentType.indexOf('pdf')    > -1) return 'fa-file-pdf-o';
+        if (contentType.indexOf('image')  > -1) return 'fa-file-image-o';
+        if (contentType.indexOf('word')   > -1) return 'fa-file-word-o';
+        if (contentType.indexOf('sheet')  > -1 ||
+            contentType.indexOf('excel')  > -1) return 'fa-file-excel-o';
+        if (contentType.indexOf('zip')    > -1) return 'fa-file-archive-o';
+        return 'fa-file-o';
+    };
+
+    c.updateChoice = function(award, statusValue) {
+        c.data.action             = 'update_award_choice';
+        c.data.target_id          = award.sys_id;
+        c.data.new_status         = statusValue;
+        c.data.comment_submission = award.work_notes;
+        
+        c.server.update().then(function() {
+            // Update UI immediately without needing a full page reload
+            award.applicant_response = statusValue.toLowerCase();
+            award.applicant_response_display = (statusValue === 'acknowledged') ? 'Acknowledged' : 'Declined';
+            award.work_notes = '';
+            
+            spUtil.addInfoMessage('Your response has been recorded.');
+            
+            // Navigate back to the list page automatically (Optional)
+            // c.backToList();
+        });
+    };
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css/>
+        <css>/* ══ RESET &amp; VARS ══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --brand:      #5443AD;
+  --brand-lt:   #ede9fe;
+  --green:      #059669; --green-lt: #dcfce7; --green-mid: #10b981;
+  --amber:      #d97706; --amber-lt: #fef3c7; --amber-mid: #f59e0b;
+  --red:        #dc2626; --red-lt:   #fee2e2; --red-mid:   #ef4444;
+  --slate-900:  #0f172a; --slate-700: #334155; --slate-500: #64748b;
+  --slate-300:  #cbd5e1; --slate-200: #e2e8f0; --slate-100: #f1f5f9; --slate-50: #f8fafc;
+  --white:      #ffffff;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
+}
+
+/* ══ LAYOUT &amp; SIDEBAR ════════════════════════════════════════ */
+.gn-layout {
+  margin-left: -15px;
+  margin-right: -15px;
+  margin-top: 35px;
+  width: calc(100% + 30px);
+  display: flex;
+  align-items: stretch;          
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #f0f2f8;
+  position: relative;
+  min-height: 100vh;
+}
+
+.gn-layout *,
+.gn-layout *::before,
+.gn-layout *::after {
+  box-sizing: border-box;
+}
+
+.aw-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #5443AD;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  align-self: flex-start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  z-index: 10;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* ══ MAIN DETAIL CONTAINER ═══════════════════════════════════ */
+.aw-detail {
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+  padding: 36px 40px 72px;
+  box-sizing: border-box;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #f0f2f8;
+  animation: awUp .3s ease both;
+}
+
+/* ── Sticky Top Bar ── */
+.dt-topbar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--white); border: 1px solid #e4e9f2;
+  border-radius: var(--r-lg); padding: 12px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  animation: awUp .3s ease both;
+}
+.dt-back {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; color: var(--brand);
+  background: var(--brand-lt); border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  white-space: nowrap; transition: all .18s;
+}
+.dt-back:hover { background: var(--brand); color: #fff; }
+.dt-topbar-crumb {
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  font-size: 13px; overflow: hidden;
+}
+.dt-crumb-prog {
+  color: var(--slate-500); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+}
+.dt-crumb-sep { color: var(--slate-200); }
+.dt-crumb-num { color: var(--slate-900); font-weight: 800; white-space: nowrap; }
+.dt-topbar-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 14px; border-radius: 99px;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.dt-badge--green { background: var(--green-lt); color: var(--green); border: 1px solid #86efac; }
+.dt-badge--amber { background: var(--amber-lt); color: var(--amber); border: 1px solid #fde68a; }
+.dt-badge--red   { background: var(--red-lt);   color: var(--red);   border: 1px solid #fca5a5; }
+
+/* ── Hero ── */
+.dt-hero {
+  border-radius: var(--r-xl); overflow: hidden;
+  margin-bottom: 20px; position: relative;
+  animation: awUp .35s ease both;
+}
+.dt-hero--green { background: linear-gradient(135deg, #022c22 0%, #064e3b 35%, #059669 70%, #34d399 100%); box-shadow: 0 20px 56px rgba(5,150,105,0.35); }
+.dt-hero--amber { background: linear-gradient(135deg, #1c0700 0%, #451a03 35%, #d97706 70%, #fbbf24 100%); box-shadow: 0 20px 56px rgba(217,119,6,0.35); }
+.dt-hero--red   { background: linear-gradient(135deg, #1a0000 0%, #450a0a 35%, #dc2626 70%, #f87171 100%); box-shadow: 0 20px 56px rgba(220,38,38,0.35); }
+.dt-hero-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 15% 50%, rgba(255,255,255,0.07) 0%, transparent 55%),
+              radial-gradient(ellipse at 90% 10%, rgba(255,255,255,0.05) 0%, transparent 45%);
+}
+.dt-hero-inner {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; padding: 36px 40px 28px; position: relative; z-index: 1;
+}
+.dt-hero-left { display: flex; align-items: flex-start; gap: 20px; flex: 1; min-width: 0; }
+.dt-hero-icon-wrap {
+  width: 64px; height: 64px; border-radius: 18px; flex-shrink: 0;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.dt-hero-eyebrow {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,.65);
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+}
+.dt-hero-title {
+  font-size: 36px; font-weight: 900; color: #fff;
+  letter-spacing: -1px; line-height: 1; margin-bottom: 7px;
+}
+.dt-hero-subtitle { font-size: 15px; color: rgba(255,255,255,.75); margin-bottom: 14px; }
+.dt-hero-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.dt-hero-tag {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,.85); padding: 4px 10px; border-radius: 6px;
+}
+.dt-hero-right { flex-shrink: 0; }
+.dt-amount-card {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--r-lg); padding: 22px 28px; min-width: 220px;
+  backdrop-filter: blur(10px); text-align: center;
+}
+.dt-ac-label {
+  font-size: 10px; font-weight: 700; color: rgba(255,255,255,.6);
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+}
+.dt-ac-value {
+  font-size: 30px; font-weight: 900; color: #fff;
+  letter-spacing: -1px; line-height: 1; margin-bottom: 14px;
+}
+.dt-ac-bar-wrap {
+  height: 5px; background: rgba(255,255,255,0.15);
+  border-radius: 99px; overflow: hidden; margin-bottom: 6px;
+}
+.dt-ac-bar-fill {
+  height: 100%; border-radius: 99px; background: rgba(255,255,255,0.7);
+  animation: awBarIn 1.2s cubic-bezier(.4,0,.2,1) both;
+}
+.dt-ac-note { font-size: 10px; color: rgba(255,255,255,.5); }
+
+.dt-hero-tl {
+  display: flex; align-items: center; background: rgba(0,0,0,0.15); border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 16px 40px; position: relative; z-index: 1;
+}
+.dt-htl-node { display: flex; align-items: center; gap: 12px; flex: 1; }
+.dt-htl-dot {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff;
+}
+.dt-htl-dot--start { background: rgba(255,255,255,0.2);  border: 1px solid rgba(255,255,255,0.3); }
+.dt-htl-dot--eff   { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.35); }
+.dt-htl-dot--end   { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); }
+.dt-htl-lbl {
+  display: block; font-size: 9px; font-weight: 700; color: rgba(255,255,255,.55);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.dt-htl-val { display: block; font-size: 13px; font-weight: 700; color: #fff; }
+.dt-htl-connector { flex: 0 0 48px; display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+.dt-htl-line { flex: 1; height: 1px; background: rgba(255,255,255,0.2); }
+.dt-htl-arrow { font-size: 9px; color: rgba(255,255,255,.3); }
+
+/* ── Tabs ── */
+.dt-tabs {
+  display: flex; align-items: center; gap: 4px; background: var(--white); border: 1px solid #e4e9f2;
+  border-radius: var(--r-lg); padding: 6px; margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04); animation: awUp .38s ease both; flex-wrap: wrap;
+}
+.dt-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 10px;
+  border: none; background: transparent; font-size: 13px; font-weight: 700; color: var(--slate-500);
+  cursor: pointer; position: relative; transition: all .18s; white-space: nowrap;
+}
+.dt-tab:hover { background: var(--slate-50); color: var(--slate-900); }
+.dt-tab--active {
+  background: var(--brand-lt) !important; color: var(--brand) !important;
+  box-shadow: 0 2px 8px rgba(84,67,173,0.12);
+}
+.dt-tab--amber.dt-tab--active { background: var(--amber-lt) !important; color: var(--amber) !important; }
+.dt-tab-count {
+  background: var(--brand); color: #fff; font-size: 10px; font-weight: 800;
+  padding: 2px 7px; border-radius: 99px; min-width: 18px; text-align: center;
+}
+.dt-tab-pulse {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--amber-mid);
+  animation: awPulse 1.6s ease-in-out infinite;
+}
+
+/* ── Panels ── */
+.dt-panel { animation: awUp .3s ease both; }
+.dt-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+
+/* Generic card */
+.dt-card {
+  background: var(--white); border: 1px solid #e4e9f2; border-radius: var(--r-lg); padding: 24px 26px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+}
+.dt-card--full { margin-bottom: 18px; }
+.dt-card-hdr { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.dt-card-ico {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.dt-ico--indigo { background: #e0e7ff; color: #4f46e5; }
+.dt-ico--teal   { background: #ccfbf1; color: #0d9488; }
+.dt-ico--violet { background: #f3e8ff; color: #9333ea; }
+.dt-ico--blue   { background: #dbeafe; color: #2563eb; }
+.dt-ico--green  { background: var(--green-lt); color: var(--green); }
+.dt-ico--slate  { background: var(--slate-100); color: var(--slate-500); }
+.dt-card-title { font-size: 15px; font-weight: 800; color: var(--slate-900); margin-bottom: 2px; }
+.dt-card-sub   { font-size: 12px; color: var(--slate-500); }
+
+/* Field list */
+.dt-field-list { display: flex; flex-direction: column; }
+.dt-field-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 0; border-bottom: 1px solid #f1f5f9;
+}
+.dt-field-row:last-child { border-bottom: none; padding-bottom: 0; }
+.dt-fl { font-size: 12px; font-weight: 600; color: var(--slate-500); text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; }
+.dt-fv { font-size: 13px; font-weight: 700; color: var(--slate-900); text-align: right; }
+.dt-fv--brand { color: var(--brand); }
+.dt-fv--green { color: var(--green); font-size: 15px; font-weight: 900; }
+
+/* Compliance grid */
+.dt-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dt-comp-tile {
+  background: var(--slate-50); border: 1px solid #eef1f8; border-radius: 10px; padding: 12px 14px;
+  transition: background .15s, transform .15s;
+}
+.dt-comp-tile:hover { background: #eef3ff; transform: translateY(-1px); }
+.dt-comp-lbl {
+  display: block; font-size: 9px; font-weight: 700; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px;
+}
+.dt-comp-lbl i { font-size: 8px; margin-right: 3px; }
+.dt-comp-val { font-size: 13px; font-weight: 700; color: var(--slate-900); }
+
+/* Blockquote */
+.dt-blockquote {
+  display: flex; gap: 16px; background: #fafbff; border-radius: 10px; padding: 18px 20px;
+}
+.dt-bq-accent {
+  width: 4px; border-radius: 4px; flex-shrink: 0; background: linear-gradient(180deg, #9333ea, #c084fc);
+}
+.dt-bq-text { font-size: 14px; color: var(--slate-700); line-height: 1.8; font-style: italic; }
+
+/* ── Financial Tab ── */
+.dt-fin-hero {
+  background: linear-gradient(135deg, #1e1b4b, #312e81, #4338ca);
+  border-radius: var(--r-xl); padding: 32px 36px; display: flex; align-items: center; gap: 40px; margin-bottom: 18px;
+  box-shadow: 0 16px 48px rgba(67,56,202,0.3);
+}
+.dt-fin-eyebrow { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.dt-fin-big { font-size: 42px; font-weight: 900; color: #fff; letter-spacing: -1.5px; line-height: 1; margin-bottom: 6px; }
+.dt-fin-caption { font-size: 12px; color: rgba(255,255,255,.5); }
+.dt-fin-hero-right { flex: 1; }
+.dt-fin-bar-label { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.6); margin-bottom: 8px; }
+.dt-fin-bar-track { height: 8px; background: rgba(255,255,255,0.15); border-radius: 99px; overflow: hidden; }
+.dt-fin-bar-fill { height: 100%; border-radius: 99px; animation: awBarIn 1.2s cubic-bezier(.4,0,.2,1) both; }
+.dt-fill--green { background: linear-gradient(90deg, #059669, #34d399); }
+.dt-fill--amber { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.dt-fill--red   { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+/* Date track */
+.dt-date-track { display: flex; flex-direction: column; }
+.dt-date-node { display: flex; align-items: center; gap: 14px; }
+.dt-date-line { width: 2px; height: 24px; background: var(--slate-200); margin-left: 16px; }
+.dt-dn-dot { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.dt-dn--start { background: var(--green-lt); color: var(--green); }
+.dt-dn--eff   { background: var(--brand-lt); color: var(--brand); }
+.dt-dn--end   { background: var(--red-lt);   color: var(--red); }
+.dt-dn-lbl { display: block; font-size: 10px; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: .4px; }
+.dt-dn-val { display: block; font-size: 14px; font-weight: 700; color: var(--slate-900); }
+
+/* ── Award Letter Tab ── */
+.dt-letter-meta { margin-left: auto; }
+.dt-letter-meta-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #2563eb;
+  background: #dbeafe; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 6px;
+}
+.dt-letter-body {
+  background: #fdfdff; border: 1px solid #eef1f8; border-radius: 10px; padding: 28px 32px;
+  font-size: 14px; color: var(--slate-700); line-height: 1.9; min-height: 120px;
+}
+
+/* ── Attachments Tab ── */
+.dt-att-empty { text-align: center; padding: 56px 24px; }
+.dt-att-empty-icon {
+  width: 64px; height: 64px; border-radius: 18px; background: var(--slate-100);
+  display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--slate-500); margin: 0 auto 16px;
+}
+.dt-att-empty-title { font-size: 16px; font-weight: 800; color: var(--slate-900); margin-bottom: 6px; }
+.dt-att-empty-sub   { font-size: 13px; color: var(--slate-500); }
+.dt-att-list { display: flex; flex-direction: column; gap: 10px; }
+.dt-att-item {
+  display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 12px;
+  border: 1px solid #eef1f8; background: var(--slate-50); text-decoration: none; color: inherit; cursor: pointer;
+  transition: background .15s, transform .15s, box-shadow .15s;
+}
+.dt-att-item:hover {
+  background: #eef3ff; border-color: rgba(99,102,241,0.25); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(84,67,173,0.08);
+}
+.dt-att-icon-wrap {
+  width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; background: var(--brand-lt); border: 1px solid rgba(99,102,241,0.2);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--brand);
+}
+.dt-att-meta { flex: 1; min-width: 0; }
+.dt-att-name {
+  display: block; font-size: 14px; font-weight: 700; color: var(--slate-900);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+}
+.dt-att-info { font-size: 11px; color: var(--slate-500); }
+.dt-att-dl {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--brand);
+  background: var(--brand-lt); border: 1px solid rgba(99,102,241,0.2); padding: 6px 14px; border-radius: 8px; white-space: nowrap; transition: background .15s;
+}
+.dt-att-item:hover .dt-att-dl { background: var(--brand); color: #fff; }
+
+/* ── RESPOND TAB ── */
+.dt-responded {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 72px 24px; text-align: center;
+}
+.dt-responded-icon {
+  width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 20px; position: relative;
+}
+.dt-responded-icon::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px dashed; animation: awSpin 12s linear infinite; opacity: .4;
+}
+.dt-ri--green { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #059669; box-shadow: 0 12px 32px rgba(5,150,105,0.2); }
+.dt-ri--green::after { border-color: #059669; }
+.dt-ri--red { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; box-shadow: 0 12px 32px rgba(220,38,38,0.2); }
+.dt-ri--red::after { border-color: #dc2626; }
+.dt-responded-title { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: -.3px; }
+.dt-responded-sub { font-size: 14px; color: #64748b; line-height: 1.65; max-width: 360px; }
+
+.dt-respond-wrap { display: flex; flex-direction: column; gap: 16px; }
+.dt-resp-alert {
+  display: flex; align-items: flex-start; gap: 14px; background: #fffdf5;
+  border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 12px; padding: 16px 18px;
+}
+.dt-resp-alert-icon {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 15px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; box-shadow: 0 4px 12px rgba(245,158,11,0.2);
+}
+.dt-resp-alert-title { font-size: 13px; font-weight: 800; color: #78350f; margin-bottom: 3px; }
+.dt-resp-alert-sub { font-size: 12px; color: #92400e; line-height: 1.6; }
+
+.dt-resp-recap {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  background: #f8fafc; border: 1px solid #e8edf5; border-radius: 12px; overflow: hidden;
+}
+.dt-resp-recap-field { padding: 14px 18px; border-right: 1px solid #e8edf5; }
+.dt-resp-recap-field:last-child { border-right: none; }
+.dt-resp-recap-lbl { display: block; font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px; }
+.dt-resp-recap-val { display: block; font-size: 14px; font-weight: 800; color: #0f172a; letter-spacing: -.2px; }
+.dt-resp-recap-val--green { color: #059669; }
+
+.dt-resp-form {
+  background: #ffffff; border: 1.5px solid #e8edf5; border-radius: 14px; padding: 18px 20px; transition: border-color .2s, box-shadow .2s;
+}
+.dt-resp-form:focus-within { border-color: #a78bfa; box-shadow: 0 0 0 4px rgba(167,139,250,0.12); }
+.dt-resp-form-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.dt-resp-lbl { font-size: 13px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; }
+.dt-req { color: #dc2626; margin-left: 2px; }
+.dt-resp-counter { font-size: 11px; font-weight: 600; color: #94a3b8; background: #f1f5f9; border-radius: 5px; padding: 2px 8px; }
+.dt-cnt--ok { color: #059669; background: #dcfce7; }
+.dt-resp-ta {
+  width: 100%; resize: vertical; min-height: 90px; border: 1.5px solid #e8edf5; border-radius: 10px; padding: 12px 14px;
+  font-size: 13px; color: #1e293b; background: #f8fafc; font-family: inherit; box-sizing: border-box; line-height: 1.65;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.dt-resp-ta::placeholder { color: #94a3b8; }
+.dt-resp-ta:focus { outline: none; border-color: #a78bfa; background: #ffffff; box-shadow: 0 2px 8px rgba(167,139,250,0.1); }
+.dt-resp-hint { font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 5px; }
+.dt-resp-hint i { font-size: 10px; }
+
+.dt-resp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dt-btn-accept, .dt-btn-decline {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: 12px;
+  border: none; cursor: pointer; font-size: 14px; font-weight: 700; letter-spacing: -.1px;
+  transition: transform .18s ease, box-shadow .18s ease, background .15s ease;
+}
+.dt-btn-accept[disabled], .dt-btn-decline[disabled] { opacity: .4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+.dt-btn-accept { background: #059669; color: #ffffff; box-shadow: 0 2px 8px rgba(5,150,105,0.22); }
+.dt-btn-accept:hover:not([disabled]) { background: #047857; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(5,150,105,0.3); }
+.dt-btn-accept:active:not([disabled]) { transform: translateY(0); box-shadow: none; }
+
+.dt-btn-decline { background: #ffffff; color: #dc2626; border: 1.5px solid #fca5a5; box-shadow: 0 2px 6px rgba(220,38,38,0.06); }
+.dt-btn-decline:hover:not([disabled]) { background: #fef2f2; border-color: #f87171; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(220,38,38,0.12); }
+.dt-btn-decline:active:not([disabled]) { transform: translateY(0); box-shadow: none; }
+.dt-btn-accept i, .dt-btn-decline i { font-size: 13px; opacity: .85; }
+
+/* ══ KEYFRAME ANIMATIONS ═════════════════════════════════════ */
+@keyframes awUp { from { opacity: 0; transform: translateY(18px); } to   { opacity: 1; transform: translateY(0); } }
+@keyframes awBarIn { from { width: 0 !important; } }
+@keyframes awPulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+@keyframes awSpin { 100% { transform: rotate(360deg); } }
+
+/* ══ RESPONSIVE ══════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .dt-two-col { grid-template-columns: 1fr; }
+  .dt-compliance-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 960px) {
+  .dt-fin-hero { flex-direction: column; gap: 20px; }
+  .dt-hero-inner { flex-direction: column; }
+  .dt-hero-right { width: 100%; }
+  .dt-amount-card { min-width: auto; width: 100%; }
+}
+@media (max-width: 768px) {
+  .aw-sidebar { display: none; }
+  .aw-detail { padding: 18px 16px 48px; }
+  .dt-hero-inner { padding: 22px 20px 18px; }
+  .dt-hero-tl { flex-wrap: wrap; gap: 12px; padding: 16px 20px; }
+  .dt-htl-connector { display: none; }
+  .dt-htl-node { flex: 0 0 calc(50% - 6px); }
+  .dt-resp-actions { flex-direction: column; }
+  .dt-resp-recap { flex-direction: column; }
+  .dt-resp-recap-field { border-right: none; border-bottom: 1px solid #f1f5f9; }
+  .dt-tabs { gap: 2px; }
+  .dt-tab { padding: 8px 12px; font-size: 12px; }
+}
+@media (max-width: 560px) {
+  .dt-compliance-grid { grid-template-columns: 1fr; }
+  .dt-resp-actions { grid-template-columns: 1fr; }  
+  .dt-hero-title { font-size: 26px; }
+  .dt-fin-big { font-size: 30px; }
+  .dt-topbar-crumb { display: none; }
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
         <docs/>
         <field_list/>
-        <has_preview>false</has_preview>
+        <has_preview>true</has_preview>
         <id>my_award_details</id>
         <internal>false</internal>
         <link><![CDATA[function link(scope, element, attrs, controller) {
@@ -23,25 +537,556 @@
         <public>false</public>
         <roles/>
         <script><![CDATA[(function() {
-  /* populate the 'data' object */
-  /* e.g., data.table = $sp.getValue('table'); */
+	data.sideBar = $sp.getWidget('sidebar_dashboard');
+    // Allows instance-independent dynamic linking (set 'list_page_id' in Widget Options)
+    data.list_page = options.list_page_id || 'my_award_list';
+    
+    var currentUser = gs.getUserID();
+    
+    // Get the sys_id from the URL parameter (or from the input object if it's an update call)
+    var sysId = $sp.getParameter('sys_id') || (input && input.target_id);
 
+    if (!sysId) return;
+
+    /* --- 1. HANDLE STATUS UPDATE --- */
+    if (input && input.action === 'update_award_choice') {
+        var upGr = new GlideRecord('x_enno_gatenow_grant_awards');
+        if (upGr.get(input.target_id)) {
+            upGr.setValue('applicant_response', input.new_status);
+            if (input.comment_submission) {
+                upGr.work_notes = input.comment_submission;
+            }
+            upGr.update();
+        }
+    }
+
+    /* --- 2. IDENTIFY THE APPLICANT (Security Check) --- */
+    var applicantIds = [];
+    var applGR = new GlideRecord('x_enno_gatenow_service_applicants');
+    applGR.addQuery('user', currentUser);
+    applGR.query();
+    while (applGR.next()) {
+        applicantIds.push(applGR.getUniqueValue());
+    }
+
+    /* --- 3. FETCH SINGLE AWARD DATA --- */
+    if (applicantIds.length > 0) {
+        var gr = new GlideRecord('x_enno_gatenow_grant_awards');
+        gr.addQuery('sys_id', sysId);
+        gr.addQuery('applicant', 'IN', applicantIds.join(',')); // Ensures user can only view their own awards
+        gr.query();
+
+        if (gr.next()) {
+            var rawResponse = String(gr.getValue('applicant_response') || '').toLowerCase();
+
+            /* --- Fetch attachments for this specific record --- */
+            var attachments = [];
+            var attGR = new GlideRecord('sys_attachment');
+            attGR.addQuery('table_name', 'x_enno_gatenow_grant_awards');
+            attGR.addQuery('table_sys_id', sysId);
+            attGR.query();
+            while (attGR.next()) {
+                attachments.push({
+                    sys_id:        attGR.getUniqueValue(),
+                    file_name:     attGR.getDisplayValue('file_name'),
+                    content_type:  attGR.getDisplayValue('content_type'),
+                    size_bytes:    parseInt(attGR.getValue('size_bytes') || 0),
+                    download_link: '/sys_attachment.do?sys_id=' + attGR.getUniqueValue()
+                });
+            }
+
+            data.selectedAward = {
+                sys_id:                     gr.getUniqueValue(),
+                number:                     gr.getDisplayValue('number'),
+                program_name:               gr.getDisplayValue('program_name'),
+                proposal_number:            gr.getDisplayValue('applicant'),
+                effective_date_of_award:    gr.getDisplayValue('effective_date_of_award'),
+                award_start_date:           gr.getDisplayValue('award_start_date'),
+                award_end_date:             gr.getDisplayValue('award_end_date'),
+                award_amount:               parseFloat(gr.getValue('build_grant_amount') || 0),
+                applicant_response:         rawResponse,
+                applicant_response_display: gr.getDisplayValue('applicant_response'),
+                grant_program_id:           gr.getDisplayValue('grant_program'),
+                decision_reason:            gr.getDisplayValue('decision_reason'),
+                award_letter:               gr.getValue('award_letter'),
+                fain:                       gr.getDisplayValue('fain'),
+                assistance_listing:         gr.getDisplayValue('assistance_listing'),
+                unique_entity_id:           gr.getDisplayValue('unique_entity_id'),
+                tin:                        gr.getDisplayValue('tin'),
+                funding_opportunity_number: gr.getDisplayValue('funding_opportunity_number'),
+                procurement_request_number: gr.getDisplayValue('procurement_request_number'),
+                attachments:                attachments,
+                work_notes:                 '' // Initializes the textarea
+            };
+        }
+    }
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-31 07:00:33</sys_created_on>
         <sys_id>2e44fb00eb4407d0520dfbdffdc0cd06</sys_id>
-        <sys_mod_count>0</sys_mod_count>
+        <sys_mod_count>3</sys_mod_count>
         <sys_name>My Award Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_2e44fb00eb4407d0520dfbdffdc0cd06</sys_update_name>
         <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-03-31 07:00:33</sys_updated_on>
-        <template><![CDATA[<div>
-<!-- your widget template -->
+        <sys_updated_on>2026-03-31 07:21:20</sys_updated_on>
+        <template><![CDATA[<div class="gn-layout">
+  <div class="aw-sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+  <main class="aw-detail" ng-if="data.selectedAward">
+
+    <div class="dt-topbar">
+      <button class="dt-back" ng-click="c.backToList()">
+        <i class="fa fa-chevron-left"></i> My Awards
+      </button>
+      <div class="dt-topbar-crumb">
+        <span class="dt-crumb-prog">{{data.selectedAward.program_name}}</span>
+        <span class="dt-crumb-sep">/</span>
+        <span class="dt-crumb-num">{{data.selectedAward.number}}</span>
+      </div>
+      <div class="dt-topbar-badge"
+           ng-class="{
+             'dt-badge--green': data.selectedAward.applicant_response === 'acknowledged',
+             'dt-badge--amber': data.selectedAward.applicant_response === 'pending',
+             'dt-badge--red':   data.selectedAward.applicant_response === 'rejected'
+           }">
+        <i class="fa fa-check-circle" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
+        <i class="fa fa-clock-o"      ng-if="data.selectedAward.applicant_response === 'pending'"></i>
+        <i class="fa fa-times-circle" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
+        {{data.selectedAward.applicant_response_display}}
+      </div>
+    </div>
+
+    <div class="dt-hero"
+         ng-class="{
+           'dt-hero--green': data.selectedAward.applicant_response === 'acknowledged',
+           'dt-hero--amber': data.selectedAward.applicant_response === 'pending',
+           'dt-hero--red':   data.selectedAward.applicant_response === 'rejected'
+         }">
+      <div class="dt-hero-glow"></div>
+      <div class="dt-hero-inner">
+
+        <div class="dt-hero-left">
+          <div class="dt-hero-icon-wrap">
+            <i class="fa fa-trophy"></i>
+          </div>
+          <div class="dt-hero-text">
+            <p class="dt-hero-eyebrow">
+              <i class="fa fa-certificate"></i> Grant Award &nbsp;·&nbsp; GateNow
+            </p>
+            <h1 class="dt-hero-title">{{data.selectedAward.number}}</h1>
+            <p class="dt-hero-subtitle">{{data.selectedAward.program_name}}</p>
+            <div class="dt-hero-tags">
+              <span class="dt-hero-tag" ng-if="data.selectedAward.grant_program_id">
+                <i class="fa fa-sitemap"></i> {{data.selectedAward.grant_program_id}}
+              </span>
+              <span class="dt-hero-tag" ng-if="data.selectedAward.fain">
+                <i class="fa fa-barcode"></i> FAIN: {{data.selectedAward.fain}}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dt-hero-right">
+          <div class="dt-amount-card">
+            <p class="dt-ac-label">Build Grant Amount</p>
+            <p class="dt-ac-value">{{data.selectedAward.award_amount | currency:'$':2}}</p>
+            <div class="dt-ac-bar-wrap">
+              <div class="dt-ac-bar-fill"
+                   ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
+            </div>
+            <p class="dt-ac-note">Relative to highest award</p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dt-hero-tl">
+        <div class="dt-htl-node">
+          <div class="dt-htl-dot dt-htl-dot--start">
+            <i class="fa fa-play-circle"></i>
+          </div>
+          <div class="dt-htl-info">
+            <span class="dt-htl-lbl">Award Start</span>
+            <span class="dt-htl-val">{{data.selectedAward.award_start_date || '—'}}</span>
+          </div>
+        </div>
+        <div class="dt-htl-connector">
+          <div class="dt-htl-line"></div>
+          <span class="dt-htl-arrow">▶</span>
+        </div>
+        <div class="dt-htl-node">
+          <div class="dt-htl-dot dt-htl-dot--eff">
+            <i class="fa fa-star"></i>
+          </div>
+          <div class="dt-htl-info">
+            <span class="dt-htl-lbl">Effective Date</span>
+            <span class="dt-htl-val">{{data.selectedAward.effective_date_of_award || '—'}}</span>
+          </div>
+        </div>
+        <div class="dt-htl-connector">
+          <div class="dt-htl-line"></div>
+          <span class="dt-htl-arrow">▶</span>
+        </div>
+        <div class="dt-htl-node">
+          <div class="dt-htl-dot dt-htl-dot--end">
+            <i class="fa fa-flag-checkered"></i>
+          </div>
+          <div class="dt-htl-info">
+            <span class="dt-htl-lbl">Award End</span>
+            <span class="dt-htl-val">{{data.selectedAward.award_end_date || '—'}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dt-tabs">
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'overview'}"
+              ng-click="c.setDetailTab('overview')">
+        <i class="fa fa-th-large"></i> Overview
+      </button>
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'financial'}"
+              ng-click="c.setDetailTab('financial')">
+        <i class="fa fa-dollar"></i> Financial
+      </button>
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'letter'}"
+              ng-click="c.setDetailTab('letter')">
+        <i class="fa fa-envelope-open-o"></i> Award Letter
+      </button>
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'attachments'}"
+              ng-click="c.setDetailTab('attachments')">
+        <i class="fa fa-paperclip"></i> Attachments
+        <span class="dt-tab-count" ng-if="data.selectedAward.attachments.length > 0">
+          {{data.selectedAward.attachments.length}}
+        </span>
+      </button>
+      <button class="dt-tab dt-tab--amber"
+              ng-if="data.selectedAward.applicant_response === 'pending'"
+              ng-class="{'dt-tab--active': c.detailTab === 'respond'}"
+              ng-click="c.setDetailTab('respond')">
+        <i class="fa fa-pencil-square-o"></i> Respond
+        <span class="dt-tab-pulse"></span>
+      </button>
+    </div>
+
+    <div class="dt-panel" ng-if="c.detailTab === 'overview'">
+
+      <div class="dt-two-col">
+
+        <div class="dt-card">
+          <div class="dt-card-hdr">
+            <div class="dt-card-ico dt-ico--indigo"><i class="fa fa-id-badge"></i></div>
+            <div>
+              <h3 class="dt-card-title">Primary Identifiers</h3>
+              <p class="dt-card-sub">Core references</p>
+            </div>
+          </div>
+          <div class="dt-field-list">
+            <div class="dt-field-row">
+              <span class="dt-fl">Award Number</span>
+              <span class="dt-fv dt-fv--brand">{{data.selectedAward.number}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">Applicant</span>
+              <span class="dt-fv">{{data.selectedAward.proposal_number || '—'}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">Grant Program</span>
+              <span class="dt-fv dt-fv--brand">{{data.selectedAward.grant_program_id || '—'}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">Program Name</span>
+              <span class="dt-fv">{{data.selectedAward.program_name || '—'}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">Funding Opp #</span>
+              <span class="dt-fv">{{data.selectedAward.funding_opportunity_number || '—'}}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dt-card">
+          <div class="dt-card-hdr">
+            <div class="dt-card-ico dt-ico--teal"><i class="fa fa-shield"></i></div>
+            <div>
+              <h3 class="dt-card-title">Compliance IDs</h3>
+              <p class="dt-card-sub">Regulatory references</p>
+            </div>
+          </div>
+          <div class="dt-compliance-grid">
+            <div class="dt-comp-tile">
+              <span class="dt-comp-lbl"><i class="fa fa-barcode"></i> FAIN</span>
+              <span class="dt-comp-val">{{data.selectedAward.fain || '—'}}</span>
+            </div>
+            <div class="dt-comp-tile">
+              <span class="dt-comp-lbl"><i class="fa fa-list-alt"></i> Assistance Listing</span>
+              <span class="dt-comp-val">{{data.selectedAward.assistance_listing || '—'}}</span>
+            </div>
+            <div class="dt-comp-tile">
+              <span class="dt-comp-lbl"><i class="fa fa-id-badge"></i> Unique Entity ID</span>
+              <span class="dt-comp-val">{{data.selectedAward.unique_entity_id || '—'}}</span>
+            </div>
+            <div class="dt-comp-tile">
+              <span class="dt-comp-lbl"><i class="fa fa-id-card-o"></i> TIN</span>
+              <span class="dt-comp-val">{{data.selectedAward.tin || '—'}}</span>
+            </div>
+            <div class="dt-comp-tile" ng-if="data.selectedAward.procurement_request_number">
+              <span class="dt-comp-lbl"><i class="fa fa-shopping-cart"></i> Procurement Req #</span>
+              <span class="dt-comp-val">{{data.selectedAward.procurement_request_number}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dt-card dt-card--full">
+        <div class="dt-card-hdr">
+          <div class="dt-card-ico dt-ico--violet"><i class="fa fa-commenting-o"></i></div>
+          <div>
+            <h3 class="dt-card-title">Decision Reason</h3>
+            <p class="dt-card-sub">Rationale from the program office</p>
+          </div>
+        </div>
+        <div class="dt-blockquote">
+          <div class="dt-bq-accent"></div>
+          <p class="dt-bq-text">{{data.selectedAward.decision_reason || 'No rationale provided.'}}</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="dt-panel" ng-if="c.detailTab === 'financial'">
+      <div class="dt-fin-hero">
+        <div class="dt-fin-hero-left">
+          <p class="dt-fin-eyebrow">Total Grant Value</p>
+          <p class="dt-fin-big">{{data.selectedAward.award_amount | currency:'$':2}}</p>
+          <p class="dt-fin-caption">Build Grant Amount as approved by program office</p>
+        </div>
+        <div class="dt-fin-hero-right">
+          <div class="dt-fin-bar-label">
+            <span>Award vs. Max</span>
+            <span>{{c.amountPercent(data.selectedAward)}}%</span>
+          </div>
+          <div class="dt-fin-bar-track">
+            <div class="dt-fin-bar-fill"
+                 ng-class="{
+                   'dt-fill--green': data.selectedAward.applicant_response === 'acknowledged',
+                   'dt-fill--amber': data.selectedAward.applicant_response === 'pending',
+                   'dt-fill--red':   data.selectedAward.applicant_response === 'rejected'
+                 }"
+                 ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dt-two-col">
+        <div class="dt-card">
+          <div class="dt-card-hdr">
+            <div class="dt-card-ico dt-ico--green"><i class="fa fa-bank"></i></div>
+            <div>
+              <h3 class="dt-card-title">Financial References</h3>
+              <p class="dt-card-sub">Award funding details</p>
+            </div>
+          </div>
+          <div class="dt-field-list">
+            <div class="dt-field-row">
+              <span class="dt-fl">Build Grant Amount</span>
+              <span class="dt-fv dt-fv--green">{{data.selectedAward.award_amount | currency:'$':2}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">FAIN</span>
+              <span class="dt-fv">{{data.selectedAward.fain || '—'}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">Assistance Listing</span>
+              <span class="dt-fv">{{data.selectedAward.assistance_listing || '—'}}</span>
+            </div>
+            <div class="dt-field-row">
+              <span class="dt-fl">Funding Opp #</span>
+              <span class="dt-fv">{{data.selectedAward.funding_opportunity_number || '—'}}</span>
+            </div>
+          </div>
+        </div>
+        <div class="dt-card">
+          <div class="dt-card-hdr">
+            <div class="dt-card-ico dt-ico--indigo"><i class="fa fa-calendar"></i></div>
+            <div>
+              <h3 class="dt-card-title">Award Period</h3>
+              <p class="dt-card-sub">Key dates</p>
+            </div>
+          </div>
+          <div class="dt-date-track">
+            <div class="dt-date-node">
+              <div class="dt-dn-dot dt-dn--start"><i class="fa fa-play-circle"></i></div>
+              <div class="dt-dn-body">
+                <span class="dt-dn-lbl">Start Date</span>
+                <span class="dt-dn-val">{{data.selectedAward.award_start_date || '—'}}</span>
+              </div>
+            </div>
+            <div class="dt-date-line"></div>
+            <div class="dt-date-node">
+              <div class="dt-dn-dot dt-dn--eff"><i class="fa fa-star"></i></div>
+              <div class="dt-dn-body">
+                <span class="dt-dn-lbl">Effective Date</span>
+                <span class="dt-dn-val">{{data.selectedAward.effective_date_of_award || '—'}}</span>
+              </div>
+            </div>
+            <div class="dt-date-line"></div>
+            <div class="dt-date-node">
+              <div class="dt-dn-dot dt-dn--end"><i class="fa fa-flag-checkered"></i></div>
+              <div class="dt-dn-body">
+                <span class="dt-dn-lbl">End Date</span>
+                <span class="dt-dn-val">{{data.selectedAward.award_end_date || '—'}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dt-panel" ng-if="c.detailTab === 'letter'">
+      <div class="dt-card dt-card--full">
+        <div class="dt-card-hdr">
+          <div class="dt-card-ico dt-ico--blue"><i class="fa fa-envelope-open-o"></i></div>
+          <div>
+            <h3 class="dt-card-title">Award Letter</h3>
+            <p class="dt-card-sub">Official communication from the agency</p>
+          </div>
+          <div class="dt-letter-meta">
+            <span class="dt-letter-meta-chip">
+              <i class="fa fa-file-text-o"></i> Official Document
+            </span>
+          </div>
+        </div>
+        <div class="dt-letter-body" ng-bind-html="data.selectedAward.award_letter"></div>
+      </div>
+    </div>
+
+    <div class="dt-panel" ng-if="c.detailTab === 'attachments'">
+      <div class="dt-card dt-card--full">
+        <div class="dt-card-hdr">
+          <div class="dt-card-ico dt-ico--slate"><i class="fa fa-paperclip"></i></div>
+          <div>
+            <h3 class="dt-card-title">Attachments</h3>
+            <p class="dt-card-sub">
+              {{data.selectedAward.attachments.length}} file{{data.selectedAward.attachments.length !== 1 ? 's' : ''}} attached to this record
+            </p>
+          </div>
+        </div>
+
+        <div class="dt-att-empty" ng-if="data.selectedAward.attachments.length === 0">
+          <div class="dt-att-empty-icon"><i class="fa fa-folder-open-o"></i></div>
+          <p class="dt-att-empty-title">No attachments</p>
+          <p class="dt-att-empty-sub">No files have been uploaded to this award record.</p>
+        </div>
+
+        <div class="dt-att-list" ng-if="data.selectedAward.attachments.length > 0">
+          <a class="dt-att-item"
+             ng-repeat="att in data.selectedAward.attachments"
+             ng-href="{{att.download_link}}"
+             target="_blank"
+             ng-click="$event.stopPropagation()">
+            <div class="dt-att-icon-wrap">
+              <i class="fa {{c.fileIcon(att.content_type)}}"></i>
+            </div>
+            <div class="dt-att-meta">
+              <span class="dt-att-name">{{att.file_name}}</span>
+              <span class="dt-att-info">{{att.content_type}} &nbsp;·&nbsp; {{c.formatSize(att.size_bytes)}}</span>
+            </div>
+            <div class="dt-att-action">
+              <span class="dt-att-dl"><i class="fa fa-download"></i> Download</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="dt-panel" ng-if="c.detailTab === 'respond'">
+
+      <div class="dt-responded" ng-if="data.selectedAward.applicant_response !== 'pending'">
+        <div class="dt-responded-icon"
+             ng-class="{
+               'dt-ri--green': data.selectedAward.applicant_response === 'acknowledged',
+               'dt-ri--red':   data.selectedAward.applicant_response === 'rejected'
+             }">
+          <i class="fa fa-check" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
+          <i class="fa fa-times" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
+        </div>
+        <h3 class="dt-responded-title">Response Already Submitted</h3>
+        <p class="dt-responded-sub">
+          You have <strong>{{data.selectedAward.applicant_response_display}}</strong> this award.
+        </p>
+      </div>
+
+      <div class="dt-respond-wrap" ng-if="data.selectedAward.applicant_response === 'pending'">
+
+        <div class="dt-resp-alert">
+          <div class="dt-resp-alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
+          <div>
+            <p class="dt-resp-alert-title">Action Required</p>
+            <p class="dt-resp-alert-sub">
+              Please review this award carefully and submit your response. Your comments will be shared with the program office.
+            </p>
+          </div>
+        </div>
+
+        <div class="dt-resp-recap">
+          <div class="dt-resp-recap-field">
+            <span class="dt-resp-recap-lbl">Program</span>
+            <span class="dt-resp-recap-val">{{data.selectedAward.program_name}}</span>
+          </div>
+          <div class="dt-resp-recap-field">
+            <span class="dt-resp-recap-lbl">Award #</span>
+            <span class="dt-resp-recap-val">{{data.selectedAward.number}}</span>
+          </div>
+          <div class="dt-resp-recap-field">
+            <span class="dt-resp-recap-lbl">Amount</span>
+            <span class="dt-resp-recap-val dt-resp-recap-val--green">
+              {{data.selectedAward.award_amount | currency:'$':0}}
+            </span>
+          </div>
+        </div>
+
+        <div class="dt-resp-form">
+          <div class="dt-resp-form-hdr">
+            <label class="dt-resp-lbl">
+              Your Response Comments <span class="dt-req">*</span>
+            </label>
+            <span class="dt-resp-counter"
+                  ng-class="(data.selectedAward.work_notes||'').length < 10 ? 'dt-cnt--low' : 'dt-cnt--ok'">
+              {{(data.selectedAward.work_notes||'').length}} / 4000
+            </span>
+          </div>
+          <textarea class="dt-resp-ta" rows="6"
+                    ng-model="data.selectedAward.work_notes"
+                    placeholder="Describe your decision clearly (minimum 10 characters)…"></textarea>
+          <p class="dt-resp-hint">
+            <i class="fa fa-lock"></i> Your response is confidential and sent directly to the program office.
+          </p>
+        </div>
+
+        <div class="dt-resp-actions">
+          <button class="dt-btn-accept"
+            ng-click="c.updateChoice(data.selectedAward, 'acknowledged')">
+            <i class="fa fa-check"></i>
+            Accept Award
+          </button>
+
+          <button class="dt-btn-decline"
+            ng-click="c.updateChoice(data.selectedAward, 'declined')">
+            <i class="fa fa-times"></i>
+            Decline Award
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
 </div>]]></template>
     </sp_widget>
 </record_update>

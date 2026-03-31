@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[function($window, spModal) {
+        <client_script><![CDATA[api.controller = function($window, spModal) {
   var c = this;
 
   c.tab = 'overview';
@@ -53,9 +53,9 @@
       c.saving = false;
 
       if (c.data.success) {
-        var msg = c.data.last_reviewer
-          ? '✅ Review completed! All groups have finished reviewing.'
-          : '✅ Review submitted! Assigned to next group: ' + (c.data.next_group || '');
+       var msg = c.data.last_reviewer ? 
+  '✅ Review completed! All groups have finished reviewing.' : 
+  '✅ Review submitted! Assigned to next group: ' + (c.data.next_group || '');
 
         spModal.alert(msg).then(function() {
           $window.location.href = 'https://enablenowincdemo1.service-now.com/review';
@@ -662,7 +662,96 @@ margin: 0;                /* ← remove auto centering */
   .rp-f--span2  { grid-column: span 1; }
   .rp-score-grid { grid-template-columns: repeat(5,1fr); gap: 5px; }
 }
-</css>
+
+
+
+
+
+/* 1. Force the Modal/Pop-up above the Nav Bar */
+.modal-dialog, 
+.modal-content,
+.sp-notification-container { 
+    z-index: 9999 !important; 
+}
+
+/* 2. Ensure the backdrop overlay also clears the nav */
+.modal-backdrop {
+    z-index: 9998 !important;
+}
+
+/* 3. If you are using a custom 'success' toast/alert */
+.rp-alert {
+    position: relative;
+    z-index: 10; /* Lower than modal, but ensures it stays within the card flow */
+}
+
+
+
+
+/* 1. Target the specific ServiceNow SP Notification wrapper */
+.sp-notification-container {
+    z-index: 9999 !important;
+    position: fixed !important;
+    top: 70px !important; /* Adjust this to be slightly BELOW your nav bar height */
+}
+
+/* 2. Target standard Bootstrap Modals used in the Portal */
+.modal-dialog {
+    z-index: 10001 !important;
+}
+
+.modal-backdrop {
+    z-index: 10000 !important;
+}
+
+/* 3. Force the Nav Bar to be lower if it's being stubborn */
+/* Note: Only use this if you know the class of your header */
+.nav-wrapper, .navbar-fixed-top, .sp-header-root {
+    z-index: 1000 !important; 
+}
+
+
+
+
+
+
+
+
+
+
+/* This targets the standard 'Work note added' pop-up in ServiceNow */
+body .sp-notification-container {
+    display: block !important;
+    z-index: 99999 !important; /* Extremely high to beat any header */
+    position: fixed !important;
+    top: 20px !important;     /* Force it to the top of the viewport */
+}
+
+/* This ensures the individual alert boxes inside follow suit */
+body .sp-notification-container .alert {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
+    border: 1px solid #fff !important;
+}
+
+/* Force the Page Header to be lower than the pop-up */
+.sp-header-root, header, .navbar {
+    z-index: 1000 !important;
+}
+
+
+
+/* Force the ServiceNow notification container to start BELOW the nav bar */
+body .sp-notification-container {
+    top: 70px !important; /* &lt;-- Adjust this to your Nav Bar's height */
+    position: fixed !important;
+    z-index: 99999 !important;
+}
+
+/* Optional: Add a little breathing room between the notifications */
+body .sp-notification-container .alert {
+    margin-top: 10px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; /* Makes it pop */
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -928,14 +1017,14 @@ margin: 0;                /* ← remove auto centering */
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 10:17:06</sys_created_on>
         <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
-        <sys_mod_count>88</sys_mod_count>
+        <sys_mod_count>93</sys_mod_count>
         <sys_name>Review Proposal Detail</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-10 09:07:26</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-03-31 08:26:42</sys_updated_on>
         <template><![CDATA[<!-- ACCESS DENIED -->
 <div class="rp-denied" ng-if="!data.found">
   <div class="rp-denied__box">

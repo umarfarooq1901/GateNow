@@ -3086,6 +3086,8 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             monthly.scope = input.report.scope;
             monthly.scope_comments = input.report.scope_comments;
             monthly.comments = input.report.comments;
+					monthly.resources = input.report.resources;
+            monthly.resources_comments = input.report.resources_comments;
 
             if (monthly.insert()) {
                 data.success = true;
@@ -3344,7 +3346,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     
     while (grSR.next()) {
         var sr = {};
-       $sp.getRecordDisplayValues(sr, grSR, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments');
+       $sp.getRecordDisplayValues(sr, grSR, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments,resources,resources_comments');
         
         sr.health_label = grSR.getDisplayValue('overall_health');
         sr.health_color = grSR.getValue('overall_health').toUpperCase(); 
@@ -3554,14 +3556,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>408</sys_mod_count>
+        <sys_mod_count>413</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-30 09:14:24</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-03-31 07:46:27</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -4148,6 +4150,42 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             </div>
           </div>
         </div>
+        
+        
+        
+        
+        
+       <div class="gpa-status-section">
+  <h4><i class="fa fa-users"></i> Resources Status</h4>
+  <div class="row">
+    <div class="col-md-3">
+      <div class="form-group">
+        <label>Resources Health <span class="required">*</span></label>
+        <select class="form-control" ng-model="c.statusReport.resources" required>
+          <option value="">-- Select --</option>
+          <option value="green">Green</option>
+          <option value="yellow">Yellow</option>
+          <option value="red">Red</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="col-md-9">
+      <div class="form-group">
+        <label>Resources Comments</label>
+        <textarea class="form-control" 
+                  rows="4" 
+                  ng-model="c.statusReport.resources_comments" 
+                  placeholder="Explain resource availability, staffing changes, or constraints"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+        
+        
+        
+        
+        
         
         <div class="gpa-status-section">
           <h4><i class="fa fa-sitemap"></i> Scope Status</h4>
@@ -5144,40 +5182,48 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             
 
           </div> </div> </div> <div class="modal fade modern-report-modal" id="reportModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg" role="document">
-          <div class="modal-content" ng-if="c.selectedReport">
-            <div class="modal-header-modern">
-              <div class="header-content">
-                <div class="report-icon"><i class="fa fa-file-text-o"></i></div>
-                <div><h3 class="modal-title-modern">Status Report</h3><span class="report-date">{{c.selectedReport.as_on}}</span></div>
-              </div>
-              <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body modern-body">
-              <div class="health-indicator-bar">
-                <div class="indicator-item"><label>Overall Health</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.overall_health.toLowerCase()">{{c.selectedReport.overall_health}}</span></div>
-                <div class="indicator-item"><label>Schedule</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.schedule.toLowerCase()">{{c.selectedReport.schedule}}</span></div>
-                <div class="indicator-item"><label>Cost</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.cost.toLowerCase()">{{c.selectedReport.cost}}</span></div>
-                <div class="indicator-item border-none"><label>Scope</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.scope.toLowerCase()">{{c.selectedReport.scope}}</span></div>
-              </div>
-              <div class="report-content-grid">
-                <div class="content-section full-width"><h4><i class="fa fa-align-left"></i> Executive Summary</h4><div class="narrative-box" ng-bind-html="c.selectedReport.executive_summary"></div></div>
-                <div class="content-row">
-                  <div class="content-section half-width"><h4><i class="fa fa-trophy"></i> Achievements Last Week</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.achievements_last_week"></div></div>
-                  <div class="content-section half-width"><h4><i class="fa fa-rocket"></i> Key Activities Next Week</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.key_activities_next_week"></div></div>
-                </div>
-                <div class="commentary-grid">
-                  <div class="comment-item"><label>Schedule Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.schedule_comments || 'No comments.'"></div></div>
-                  <div class="comment-item"><label>Cost Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.cost_comments || 'No comments.'"></div></div>
-                  <div class="comment-item"><label>Scope Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.scope_comments || 'No comments.'"></div></div>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer-modern"><button type="button" class="btn-modern-secondary" data-dismiss="modal">Close Report</button></div>
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content" ng-if="c.selectedReport">
+      <div class="modal-header-modern">
+        <div class="header-content">
+          <div class="report-icon"><i class="fa fa-file-text-o"></i></div>
+          <div><h3 class="modal-title-modern">Status Report</h3><span class="report-date">{{c.selectedReport.as_on}}</span></div>
+        </div>
+        <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body modern-body">
+        
+        <div class="health-indicator-bar">
+          <div class="indicator-item"><label>Overall Health</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.overall_health.toLowerCase()">{{c.selectedReport.overall_health}}</span></div>
+          <div class="indicator-item"><label>Schedule</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.schedule.toLowerCase()">{{c.selectedReport.schedule}}</span></div>
+          <div class="indicator-item"><label>Cost</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.cost.toLowerCase()">{{c.selectedReport.cost}}</span></div>
+          
+          <div class="indicator-item"><label>Resources</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.resources.toLowerCase()">{{c.selectedReport.resources}}</span></div>
+          
+          <div class="indicator-item border-none"><label>Scope</label><span class="status-badge-pill" ng-class="'pill-' + c.selectedReport.scope.toLowerCase()">{{c.selectedReport.scope}}</span></div>
+        </div>
+
+        <div class="report-content-grid">
+          <div class="content-section full-width"><h4><i class="fa fa-align-left"></i> Executive Summary</h4><div class="narrative-box" ng-bind-html="c.selectedReport.executive_summary"></div></div>
+          <div class="content-row">
+            <div class="content-section half-width"><h4><i class="fa fa-trophy"></i> Achievements Last Week</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.achievements_last_week"></div></div>
+            <div class="content-section half-width"><h4><i class="fa fa-rocket"></i> Key Activities Next Week</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.key_activities_next_week"></div></div>
+          </div>
+
+          <div class="commentary-grid">
+            <div class="comment-item"><label>Schedule Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.schedule_comments || 'No comments.'"></div></div>
+            <div class="comment-item"><label>Cost Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.cost_comments || 'No comments.'"></div></div>
+            
+            <div class="comment-item"><label>Resources Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.resources_comments || 'No comments.'"></div></div>
+            
+            <div class="comment-item"><label>Scope Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.scope_comments || 'No comments.'"></div></div>
           </div>
         </div>
       </div>
-      
+      <div class="modal-footer-modern"><button type="button" class="btn-modern-secondary" data-dismiss="modal">Close Report</button></div>
+    </div>
+  </div>
+</div>
       
       
       
