@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window, $timeout) {
+        <client_script><![CDATA[api.controller = function($scope, $window, $timeout, spUtil) {
   var c = this;
 
   // ── Colour palette ──────────────────────────────────
@@ -10,11 +10,15 @@
   // ══════════════════════════════════════════════════════
   // NAVIGATION
   // ══════════════════════════════════════════════════════
-  c.goTo = function(pageId) {
-    var base = c.data.portalSuffix || '/applicant';
-    $window.location.href = base + '?id=' + pageId;
-  };
+c.goTo = function(pageId) {
+    var allowedPages = ['home', 'dashboard', 'profile', 'applications'];
 
+    if (!pageId || allowedPages.indexOf(pageId) === -1) {
+      return;
+    }
+
+    spUtil.navigateTo(pageId);
+  };
   // ══════════════════════════════════════════════════════
   // SHARED HELPERS
   // ══════════════════════════════════════════════════════
@@ -1688,7 +1692,7 @@
         <name>Applicant Dashboard Widget</name>
         <option_schema/>
         <public>false</public>
-        <roles>snc_external</roles>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function() {
   data.sideBar = $sp.getWidget('sidebar_dashboard');
   var userId   = gs.getUserID();
@@ -2081,14 +2085,14 @@ try {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-02 18:54:14</sys_created_on>
         <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
-        <sys_mod_count>250</sys_mod_count>
+        <sys_mod_count>258</sys_mod_count>
         <sys_name>Applicant Dashboard Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:11:19</sys_updated_on>
+        <sys_updated_on>2026-04-02 07:17:43</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -2123,7 +2127,7 @@ try {
           <div class="gn-card-new-val">{{c.data.totalApplications || 0}}</div>
           <div class="gn-card-new-lbl">Total Applications</div>
         </div>
-        <div class="gn-card-new-bar" style="--pct:{{c.data.totalApplications > 0 ? 100 : 0}}%; --clr:#5443AD;"></div>
+        <div class="gn-card-new-bar" ng-style="{'--pct': (c.data.totalApplications > 0 ? 100 : 0) + '%', '--clr': '#5443AD'}"></div>
       </div>
       <div class="gn-card-new">
         <div class="gn-card-new-header">
@@ -2134,7 +2138,7 @@ try {
           <div class="gn-card-new-val">{{c.data.pendingAwards || 0}}</div>
           <div class="gn-card-new-lbl">Pending Awards</div>
         </div>
-        <div class="gn-card-new-bar" style="--pct:{{c.data.pendingAwards > 0 ? 75 : 0}}%; --clr:#ea580c;"></div>
+        <div class="gn-card-new-bar" ng-style="{'--pct': (c.data.pendingAwards > 0 ? 75 : 0) + '%', '--clr': '#ea580c'}"></div>
       </div>
       <div class="gn-card-new">
         <div class="gn-card-new-header">
@@ -2145,7 +2149,7 @@ try {
           <div class="gn-card-new-val">{{c.data.activeProjects || 0}}</div>
           <div class="gn-card-new-lbl">Active Projects</div>
         </div>
-        <div class="gn-card-new-bar" style="--pct:{{c.data.activeProjects > 0 ? 60 : 0}}%; --clr:#10b981;"></div>
+        <div class="gn-card-new-bar" ng-style="{'--pct': (c.data.activeProjects > 0 ? 60 : 0) + '%', '--clr': '#10b981'}"></div>
       </div>
     </div>
 

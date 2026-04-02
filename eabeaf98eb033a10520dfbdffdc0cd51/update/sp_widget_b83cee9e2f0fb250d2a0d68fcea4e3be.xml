@@ -1,20 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $location, $window) {
+        <client_script><![CDATA[api.controller = function($scope, $window, spUtil, $location) {
   var c = this;
-  c.tab = 'overview'; // Default tab
-  
+
+  c.tab = 'overview';
+
   c.applyForGrant = function() {
-    // Navigate to application page
-    $window.location.href = '?id=grant_application&program_id=' + ($scope.data.program && $scope.data.program.sys_id);
+    if (!c.data.program || !c.data.program.sys_id) return;
+    
+    // 2. Use $location.search to update parameters safely
+    $location.search({
+      id: 'grant_application',
+      program: c.data.program.sys_id // Ensure parameter name matches your application logic
+    });
   };
-  
+
   c.goBack = function() {
     $window.history.back();
   };
-};
-]]></client_script>
+};]]></client_script>
         <controller_as>c</controller_as>
         <css>.grant-detail-page {
   background: #f5f7fa;
@@ -406,74 +411,71 @@
         <public>true</public>
         <roles/>
         <script><![CDATA[(function() {
-  data.loaded = false;
+  data.loaded  = false;
   data.program = null;
 
-  // --- For Service Portal, get param from 'input', for Workspace from 'options', also try gs.action.getGlideURI()
-  var programId =
-     (input && input.program_id)
-     || (options && options.program_id)
-     || (function() {
-           var url = gs.action.getGlideURI ? gs.action.getGlideURI() : null;
-           if (url) {
-             return url.get('program_id');
-           }
-           // Try old-fashioned parsing
-           var qs = '' + (gs.request && gs.request.getQueryString() ? gs.request.getQueryString() : '');
-           var match = qs.match(/program_id=([^&]*)/);
-           return match ? match[1] : '';
-        })();
+ 
+  var programId = $sp.getParameter('sys_id') || $sp.getParameter('program_id');
 
-  if (!programId) return; // Defensive: fail quietly if nothing found
-
-  // Now get the program record
-  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-  if (gr.get(programId)) {
-var budgetDisplay = gr.getDisplayValue('program_budget')
-    data.program = {
-      number: gr.getValue('number'),
-      name: gr.getValue('program_name'),
-      lead: gr.getDisplayValue('program_lead'),
-      manager: gr.getDisplayValue('program_manager'),
-      status: gr.getDisplayValue('status'),
-      active: gr.getValue('active') == '1' || gr.getValue('active') == true,
-      start_date: gr.getDisplayValue('start_date'),
-      end_date: gr.getDisplayValue('end_date'),
-      proposal_open: gr.getDisplayValue('proposal_open_date'),
-      proposal_close: gr.getDisplayValue('proposal_close_date'),
-      priority: gr.getDisplayValue('priority'),
-      announcement: gr.getValue('announcement'),
-      budget: budgetDisplay,
-     
-      disbursement_schedule: gr.getDisplayValue('disbursement_schedule'),
-      disbursement_type: gr.getDisplayValue('disbursement_type'),
-      category: gr.getDisplayValue('category'),
-      award_type: gr.getDisplayValue('award_type'),
-      description: gr.getValue('description'),
-      image: gr.getDisplayValue('image'),
-      synopsis: gr.getValue('synopsis'),
-      summary_statement: gr.getValue('summary_statement'),
-      eligibility_summary: gr.getValue('eligibility_summary'),
-      terms: gr.getValue('terms_and_conditions'),
-      work_notes: gr.getValue('work_notes')
-    };
-    data.loaded = true;
+  if (!programId) {
+    data.loaded = true; 
+    return;
   }
-})();
-]]></script>
+
+  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+  gr.addQuery('sys_id', programId);
+  gr.addQuery('active', true);
+  gr.setLimit(1);
+  gr.query();
+
+  if (!gr.next()) {
+    data.loaded = true;
+    return;
+  }
+
+  data.program = {
+    sys_id:                gr.getUniqueValue(),
+    number:                gr.getValue('number'),
+    name:                  gr.getDisplayValue('program_name'),
+    lead:                  gr.getDisplayValue('program_lead'),
+    manager:               gr.getDisplayValue('program_manager'),
+    status:                gr.getDisplayValue('status'),
+    active:                gr.getValue('active') === '1',
+    start_date:            gr.getDisplayValue('start_date'),
+    end_date:              gr.getDisplayValue('end_date'),
+    proposal_open:         gr.getDisplayValue('proposal_open_date'),
+    proposal_close:        gr.getDisplayValue('proposal_close_date'),
+    priority:              gr.getDisplayValue('priority'),
+    budget:                gr.getDisplayValue('program_budget'),
+    currency:              '$',
+    disbursement_schedule: gr.getDisplayValue('disbursement_schedule'),
+    disbursement_type:     gr.getDisplayValue('disbursement_type'),
+    category:              gr.getDisplayValue('category'),
+    award_type:            gr.getDisplayValue('award_type'),
+    description:           gr.getValue('description'),
+    image:                 gr.getDisplayValue('image'),
+    synopsis:              gr.getValue('synopsis'),
+    summary_statement:     gr.getValue('summary_statement'),
+    eligibility_summary:   gr.getValue('eligibility_summary'),
+    terms:                 gr.getValue('terms_and_conditions')
+  };
+
+  data.loaded = true;
+
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-16 08:29:06</sys_created_on>
         <sys_id>b83cee9e2f0fb250d2a0d68fcea4e3be</sys_id>
-        <sys_mod_count>8</sys_mod_count>
+        <sys_mod_count>14</sys_mod_count>
         <sys_name>Published Program Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:09:57</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-02 09:53:15</sys_updated_on>
         <template><![CDATA[<div class="grant-detail-page" ng-if="data.loaded && data.program">
   
   <!-- Hero Section with Clean Image (NO TEXT OVERLAY) -->

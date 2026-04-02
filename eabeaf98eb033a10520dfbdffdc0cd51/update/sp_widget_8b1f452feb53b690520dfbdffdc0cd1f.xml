@@ -442,122 +442,116 @@
         <name>My Project</name>
         <option_schema/>
         <public>false</public>
-        <roles>snc_external</roles>
-        <script><![CDATA[(function() {
-	data.sideBar = $sp.getWidget('sidebar_dashboard');
-    var currentUser = gs.getUserID();
-    var q = (input && input.q) ? String(input.q) : "";
+        <roles>x_enno_gatenow.Grantee</roles>
+        <script><![CDATA[data.sideBar  = $sp.getWidget('sidebar_dashboard');
+data.projects = [];
+data.meta     = { total: 0 };
+data.error    = '';
 
-    data.projects = [];
+var currentUser = gs.getUserID();
+var q = (input && input.q) ? String(input.q) : '';
 
-    var grProjects = new GlideRecordSecure('pm_project');
-    
-    // Filter for current user
-    grProjects.addQuery('x_enno_gatenow_applicant.user', currentUser);
-	
-	grProjects.addQuery('phase', 'planning');
+var grProjects = new GlideRecordSecure('pm_project');
+grProjects.addQuery('x_enno_gatenow_applicant.user', currentUser);
+grProjects.addQuery('phase', 'planning');
 
-    if (q) {
-        var qc = grProjects.addQuery('number', 'CONTAINS', q);
-        qc.addOrCondition('short_description', 'CONTAINS', q);
-    }
-
-    grProjects.orderByDesc('sys_created_on');
-
-    // --- LEAD'S LOGGING STYLE ---
-    gs.info('=== PROJECT SEARCH ===');
-    gs.info('User ID: ' + currentUser);
-    gs.info('Encoded Query: ' + grProjects.getEncodedQuery());
-
-    grProjects.query();
-
-    gs.info('Projects Found: ' + grProjects.getRowCount());
-
-    while (grProjects.next()) {
-        // Handle dates defensively like she does
-        var rawStart = grProjects.getValue('work_start');
-        var rawEnd = grProjects.getValue('work_end');
-        
-        var projectObj = {
-            sys_id: grProjects.getUniqueValue(),
-            name: grProjects.getValue('short_description') || 'No Description',
-            number: grProjects.getValue('number') || '',
-            phase: grProjects.getValue('phase') || '',
-            agreement_status: grProjects.getDisplayValue('state') || '',
-            
-            // Following her date formatting pattern
-            start_date: rawStart ? rawStart.split(' ')[0] : '',
-            end_date: rawEnd ? rawEnd.split(' ')[0] : '',
-            
-            percent_complete: parseFloat(grProjects.getValue('percent_complete')) || 0,
-            activities: []
-        };
-
-        // --- ACTIVITY LOGIC ---
-        // Using her style of checking for values before pushing
-       // 1. Project Created (Your existing logic)
-var createdDate = grProjects.getValue('sys_created_on');
-if (createdDate) {
-    projectObj.activities.push({
-        label: "Project created",
-        date: grProjects.sys_created_on.getDisplayValue().split(' ')[0],
-        sortDate: grProjects.sys_created_on.getGlideObject().getNumericValue()
-    });
+if (q) {
+    var qc = grProjects.addQuery('number', 'CONTAINS', q);
+    qc.addOrCondition('short_description', 'CONTAINS', q);
 }
 
-// 2. Change Request Submitted
-var grChange = new GlideRecordSecure('project_change_request');
-grChange.addQuery('parent', grProjects.getUniqueValue()); // Adjust 'parent' to your actual reference field
-grChange.query();
-if (grChange.next()) {
-    projectObj.activities.push({
-        label: "Change request submitted",
-        date: grChange.sys_created_on.getDisplayValue().split(' ')[0],
-        sortDate: grChange.sys_created_on.getGlideObject().getNumericValue()
-    });
-}
+grProjects.orderByDesc('sys_created_on');
 
-// 3. Status Report Created
-var grReport = new GlideRecordSecure('project_status'); // Adjust table name if different
-grReport.addQuery('project', grProjects.getUniqueValue());
-grReport.orderByDesc('sys_created_on'); // Get the latest one
-grReport.query();
-if (grReport.next()) {
-    projectObj.activities.push({
-        label: "Report created",
-        date: grReport.sys_created_on.getDisplayValue().split(' ')[0],
-        sortDate: grReport.sys_created_on.getGlideObject().getNumericValue()
-    });
-}
+gs.info('=== PROJECT SEARCH ===');
+gs.info('User ID: ' + currentUser);
+gs.info('Encoded Query: ' + grProjects.getEncodedQuery());
 
-// 4. IMPORTANT: Re-sort the activities by date
-projectObj.activities.sort(function(a, b) {
-    return b.sortDate - a.sortDate; 
-});
+grProjects.query();
 
-        data.projects.push(projectObj);
+// ✅ Use a counter variable instead of getRowCount()
+var rowCount = 0;
+
+while (grProjects.next()) {
+    rowCount++;
+
+    var rawStart = grProjects.getValue('work_start');
+    var rawEnd   = grProjects.getValue('work_end');
+
+    var projectObj = {
+        sys_id:           grProjects.getUniqueValue(),
+        name:             grProjects.getValue('short_description') || 'No Description',
+        number:           grProjects.getValue('number')            || '',
+        phase:            grProjects.getValue('phase')             || '',
+        agreement_status: grProjects.getDisplayValue('state')      || '',
+        start_date:       rawStart ? rawStart.split(' ')[0] : '',
+        end_date:         rawEnd   ? rawEnd.split(' ')[0]   : '',
+        percent_complete: parseFloat(grProjects.getValue('percent_complete')) || 0,
+        activities:       []
+    };
+
+    // Activity 1 — Project Created
+    var createdDate = grProjects.getValue('sys_created_on');
+    if (createdDate) {
+        projectObj.activities.push({
+            label:    'Project created',
+            date:     grProjects.sys_created_on.getDisplayValue().split(' ')[0],
+            sortDate: grProjects.sys_created_on.getGlideObject().getNumericValue()
+        });
     }
 
-    // Adding the "Meta" and "Error" blocks she uses at the end
-    data.meta = { total: data.projects.length };
-
-    if (data.projects.length === 0 && !q) {
-        data.error = "No projects found for your account.";
+    // Activity 2 — Change Request Submitted
+    var grChange = new GlideRecordSecure('project_change_request');
+    grChange.addQuery('parent', grProjects.getUniqueValue());
+    grChange.query();
+    if (grChange.next()) {
+        projectObj.activities.push({
+            label:    'Change request submitted',
+            date:     grChange.sys_created_on.getDisplayValue().split(' ')[0],
+            sortDate: grChange.sys_created_on.getGlideObject().getNumericValue()
+        });
     }
-})();]]></script>
+
+    // Activity 3 — Status Report Created
+    var grReport = new GlideRecordSecure('project_status');
+    grReport.addQuery('project', grProjects.getUniqueValue());
+    grReport.orderByDesc('sys_created_on');
+    grReport.query();
+    if (grReport.next()) {
+        projectObj.activities.push({
+            label:    'Report created',
+            date:     grReport.sys_created_on.getDisplayValue().split(' ')[0],
+            sortDate: grReport.sys_created_on.getGlideObject().getNumericValue()
+        });
+    }
+
+    // Sort activities by most recent first
+    projectObj.activities.sort(function(a, b) {
+        return b.sortDate - a.sortDate;
+    });
+
+    data.projects.push(projectObj);
+}
+
+gs.info('Projects Found: ' + rowCount);
+
+data.meta = { total: rowCount };
+
+if (rowCount === 0 && !q) {
+    data.error = 'No projects found for your account.';
+}]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-04 09:10:31</sys_created_on>
         <sys_id>8b1f452feb53b690520dfbdffdc0cd1f</sys_id>
-        <sys_mod_count>140</sys_mod_count>
+        <sys_mod_count>142</sys_mod_count>
         <sys_name>My Project</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_8b1f452feb53b690520dfbdffdc0cd1f</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:17:35</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-01 17:11:27</sys_updated_on>
         <template><![CDATA[<div class="projects-wrapper" style="margin: -15px;">
   <div class="main-flex-container" style="display: flex; align-items: flex-start;">
     

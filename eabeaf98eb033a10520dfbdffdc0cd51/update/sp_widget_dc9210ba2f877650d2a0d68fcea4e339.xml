@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $timeout, spModal) {
+        <client_script><![CDATA[api.controller = function($scope, $timeout, spModal, $window, spUtil) {
   var c = this;
 
   var CONFIG = {
@@ -40,13 +40,13 @@
     education_level: '', marital_status: '',
     military_status: '', disability_status: '',
     citizenship_status: '',
-    grant_program: c.data.program_param || '',
+    grant_program:      c.data.program_param || '',
     proposal_title: '', short_description: '',
     proposal_description: '',
     project_goals_and_objectives: '',
     project_activities_methodology: '',
     organization: '',
-    requested_budget: null,
+    requested_budget:   null,
     project_start_date: '', project_end_date: ''
   }, c.data.prefill || {});
 
@@ -78,10 +78,10 @@
   c.goToStep = function(step) {
     if (c.formBlocked) return;
     if (step >= 1 && step <= c.totalSteps && !c.saving) {
-      c.errors = {};
+      c.errors      = {};
       c.currentStep = step;
       $timeout(function() {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        $window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 100);
     }
   };
@@ -102,29 +102,29 @@
     }
 
     if (step === 1) {
-      if (checkEmpty(c.form.first_name))     setError('first_name',     'First name is required');
-      if (checkEmpty(c.form.last_name))      setError('last_name',      'Last name is required');
-      if (checkEmpty(c.form.email))          setError('email',          'Email is required');
+      if (checkEmpty(c.form.first_name))      setError('first_name',      'First name is required');
+      if (checkEmpty(c.form.last_name))       setError('last_name',       'Last name is required');
+      if (checkEmpty(c.form.email))           setError('email',           'Email is required');
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.form.email))
-                                             setError('email',          'Please enter a valid email address');
-      if (checkEmpty(c.form.phone_number))   setError('phone_number',   'Phone number is required');
-      if (checkEmpty(c.form.birthdate))      setError('birthdate',      'Date of birth is required');
-      if (checkEmpty(c.form.street))         setError('street',         'Street address is required');
-      if (checkEmpty(c.form.city))           setError('city',           'City is required');
-      if (checkEmpty(c.form.zip_postal_code))setError('zip_postal_code','Zip/Postal code is required');
-      if (checkEmpty(c.form.country))        setError('country',        'Country is required');
+                                              setError('email',           'Please enter a valid email address');
+      if (checkEmpty(c.form.phone_number))    setError('phone_number',    'Phone number is required');
+      if (checkEmpty(c.form.birthdate))       setError('birthdate',       'Date of birth is required');
+      if (checkEmpty(c.form.street))          setError('street',          'Street address is required');
+      if (checkEmpty(c.form.city))            setError('city',            'City is required');
+      if (checkEmpty(c.form.zip_postal_code)) setError('zip_postal_code', 'Zip/Postal code is required');
+      if (checkEmpty(c.form.country))         setError('country',         'Country is required');
     }
 
     else if (step === 2) {
-      if (checkEmpty(c.form.ssn))               setError('ssn',               'SSN is required');
-      if (checkEmpty(c.form.gender))            setError('gender',            'Gender is required');
-      if (checkEmpty(c.form.race))              setError('race',              'Race is required');
-      if (checkEmpty(c.form.ethnicity))         setError('ethnicity',         'Ethnicity is required');
-      if (checkEmpty(c.form.education_level))   setError('education_level',   'Education level is required');
-      if (checkEmpty(c.form.marital_status))    setError('marital_status',    'Marital status is required');
-      if (checkEmpty(c.form.military_status))   setError('military_status',   'Military status is required');
-      if (checkEmpty(c.form.disability_status)) setError('disability_status', 'Disability status is required');
-      if (checkEmpty(c.form.citizenship_status))setError('citizenship_status','Citizenship status is required');
+      if (checkEmpty(c.form.ssn))                setError('ssn',                'SSN is required');
+      if (checkEmpty(c.form.gender))             setError('gender',             'Gender is required');
+      if (checkEmpty(c.form.race))               setError('race',               'Race is required');
+      if (checkEmpty(c.form.ethnicity))          setError('ethnicity',          'Ethnicity is required');
+      if (checkEmpty(c.form.education_level))    setError('education_level',    'Education level is required');
+      if (checkEmpty(c.form.marital_status))     setError('marital_status',     'Marital status is required');
+      if (checkEmpty(c.form.military_status))    setError('military_status',    'Military status is required');
+      if (checkEmpty(c.form.disability_status))  setError('disability_status',  'Disability status is required');
+      if (checkEmpty(c.form.citizenship_status)) setError('citizenship_status', 'Citizenship status is required');
     }
 
     else if (step === 3) {
@@ -180,7 +180,7 @@
       if (c.completedSteps.indexOf(c.currentStep) === -1)
         c.completedSteps.push(c.currentStep);
       c.currentStep++;
-      $timeout(function() { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
+      $timeout(function() { $window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
     }
   };
 
@@ -188,7 +188,7 @@
     if (c.currentStep > 1) {
       c.errors = {};
       c.currentStep--;
-      $timeout(function() { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
+      $timeout(function() { $window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
     }
   };
 
@@ -220,7 +220,7 @@
     angular.forEach($files, function(file) {
       if (file.size > CONFIG.MAX_FILE_SIZE) {
         spModal.open({
-          title: 'File Too Large',
+          title:   'File Too Large',
           message: '"' + file.name + '" exceeds the 10MB limit.',
           buttons: [{ label: 'OK', primary: true }]
         });
@@ -229,7 +229,7 @@
       }
       if (CONFIG.ALLOWED_FILE_TYPES.indexOf(file.type) === -1) {
         spModal.open({
-          title: 'Invalid File Type',
+          title:   'Invalid File Type',
           message: '"' + file.name + '" is not supported. Upload PDF, Word, or image files only.',
           buttons: [{ label: 'OK', primary: true }]
         });
@@ -247,8 +247,9 @@
 
   c.formatFileSize = function(bytes) {
     if (!bytes || bytes === 0) return '0 Bytes';
-    var k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    var k     = 1024;
+    var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    var i     = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
@@ -260,8 +261,12 @@
         var reader = new FileReader();
         reader.onload = function(e) {
           try {
-            resolve({ name: file.name, type: file.type, size: file.size,
-                      data: e.target.result.split(',')[1] });
+            resolve({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              data: e.target.result.split(',')[1]
+            });
           } catch(err) { reject('Failed to process: ' + file.name); }
         };
         reader.onerror = function() { reject('Failed to read: ' + file.name); };
@@ -272,17 +277,15 @@
     return Promise.all(promises);
   };
 
- 
-
   // ─── Submit ────────────────────────────────────────────────
   c.submit = function() {
     if (!c.validateStep(5)) return;
     c.saving         = true;
     c.uploadProgress = 0;
 
-    var payload = angular.copy(c.form);
-    payload.action           = 'save_applicant';
-    payload.applicant_sys_id = c.data.applicant_sys_id || '';
+    var payload                  = angular.copy(c.form);
+    payload.action               = 'save_applicant';
+    payload.applicant_sys_id     = c.data.applicant_sys_id || '';
 
     if (c.uploadedFiles && c.uploadedFiles.length > 0) {
       c.uploadProgress = 10;
@@ -296,7 +299,8 @@
           c.saving         = false;
           c.uploadProgress = 0;
           spModal.open({
-            title: 'File Error', message: 'Unable to process files. Please try again.',
+            title:   'File Error',
+            message: 'Unable to process files. Please try again.',
             buttons: [{ label: 'OK', primary: true }]
           });
           removeModalTooltip();
@@ -312,9 +316,9 @@
       function(response) {
         c.saving         = false;
         c.uploadProgress = 0;
-        var data = response && response.data ? response.data : {};
+        var resp = response && response.data ? response.data : {};
 
-        if (data.success) {
+        if (resp.success) {
           spModal.open({
             title:    'Application Submitted',
             message:  'Your grant application has been received and is under review. You will receive a confirmation email shortly.',
@@ -322,26 +326,25 @@
             keyboard: false,
             buttons:  [{ label: 'Go to Dashboard', primary: true }]
           }).then(function() {
-            window.location.href = '/applicant?id=app_home_page';
+           spUtil.navigateTo('/applicant?id=app_home_page');
           });
           removeModalTooltip();
 
-        } else if (data.alreadySubmitted) {
-          // Block the form in-place
+        } else if (resp.alreadySubmitted) {
           c.formBlocked = true;
           spModal.open({
             title:   'Already Submitted',
             message: 'You have already submitted an application for this grant program.',
             buttons: [{ label: 'Go to Dashboard', primary: true }]
           }).then(function() {
-            window.location.href = '/applicant?id=app_home_page';
+             spUtil.navigateTo('/applicant?id=app_home_page');
           });
           removeModalTooltip();
 
         } else {
           spModal.open({
             title:   'Submission Error',
-            message: data.error || 'Unable to submit application. Please try again.',
+            message: resp.error || 'Unable to submit application. Please try again.',
             buttons: [{ label: 'OK', primary: true }]
           });
           removeModalTooltip();
@@ -351,7 +354,8 @@
         c.saving         = false;
         c.uploadProgress = 0;
         spModal.open({
-          title: 'Connection Error', message: 'Unable to submit. Check your connection and try again.',
+          title:   'Connection Error',
+          message: 'Unable to submit. Check your connection and try again.',
           buttons: [{ label: 'OK', primary: true }]
         });
         removeModalTooltip();
@@ -365,16 +369,16 @@
       title:   'Cancel Application?',
       message: 'Are you sure you want to cancel? All unsaved progress will be lost.',
       buttons: [
-        { label: 'No, Continue', cancel: true },
+        { label: 'No, Continue', cancel: true  },
         { label: 'Yes, Cancel',  primary: true }
       ]
     }).then(function() {
-      window.location.href = '/applicant?id=app_home_page';
+     spUtil.navigateTo('/applicant?id=app_home_page');
     });
     removeModalTooltip();
   };
-};
-]]></client_script>
+
+};]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ─── Reset ───────────────────────────────────────────── */
 .multistep-grant-form-wrapper *,
@@ -1184,8 +1188,8 @@ margin: 0 auto;
 }]]></link>
         <name>Applicant_form</name>
         <option_schema/>
-        <public>false</public>
-        <roles>snc_external</roles>
+        <public>true</public>
+        <roles/>
         <script><![CDATA[(function() {
   data.success = false;
   data.message = '';
@@ -1606,14 +1610,14 @@ margin: 0 auto;
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-17 10:39:56</sys_created_on>
         <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
-        <sys_mod_count>24</sys_mod_count>
+        <sys_mod_count>27</sys_mod_count>
         <sys_name>Applicant_form</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:11:57</sys_updated_on>
+        <sys_updated_on>2026-04-02 11:01:58</sys_updated_on>
         <template><![CDATA[<div class="multistep-grant-form-wrapper">
 
   <!-- Progress Indicator -->

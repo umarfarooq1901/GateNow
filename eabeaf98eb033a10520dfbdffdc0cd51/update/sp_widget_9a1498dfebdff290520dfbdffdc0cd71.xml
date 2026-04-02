@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window) {
+        <client_script><![CDATA[api.controller = function($scope, $window, $location) {
 
   var c = this;
 
@@ -129,7 +129,7 @@ c.countByBadge = function(badgeClass) {
 
   // ── Navigation ──────────────────────────────────────────────────────────
   c.goBack = function() {
-    $window.location.href = '/applicant?id=applicant_dashboard';
+   $location.url("/applicant?id=applicant_dashboard");
   };
 
   // ── Per-row Timeline Toggle ─────────────────────────────────────────────
@@ -1019,7 +1019,7 @@ c.countByBadge = function(badgeClass) {
         <name>My Application</name>
         <option_schema/>
         <public>false</public>
-        <roles>snc_external</roles>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function() {
 
   data.sideBar      = $sp.getWidget('sidebar_dashboard');
@@ -1211,18 +1211,21 @@ if (input && input.action === 'uploadAttachment') {
       input.file_data              // raw base64 string — write() accepts this directly
     );
 
-    if (attSysId) {
-      var attGR = new GlideRecordSecure('sys_attachment');
-      attGR.get(attSysId);
-      data.attachment = {
-        sys_id:       attSysId,
-        name:         attGR.getValue('file_name')    || input.file_name,
-        size:         attGR.getValue('size_bytes')   || '0',
-        content_type: attGR.getValue('content_type') || input.content_type
-      };
+   if (attSysId) {
+    var attGR = new GlideRecordSecure('sys_attachment');
+    if (attGR.get(attSysId)) {
+        data.attachment = {
+            sys_id:       attSysId,
+            name:         attGR.getValue('file_name')    || input.file_name,
+            size:         attGR.getValue('size_bytes')   || '0',
+            content_type: attGR.getValue('content_type') || input.content_type
+        };
     } else {
-      data.error = 'Failed to save attachment.';
+        data.error = 'Attachment record not found.';
     }
+} else {
+    data.error = 'Failed to save attachment.';
+}
 
   } catch(e) {
     data.error = e.message;
@@ -1405,14 +1408,14 @@ var badgeMap = {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>122</sys_mod_count>
+        <sys_mod_count>132</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:15:00</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-01 17:25:24</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

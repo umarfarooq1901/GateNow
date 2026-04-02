@@ -1,0 +1,1859 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope,$location) {
+var c = this;
+
+c.startEligibility = function($event) {
+if ($event) {
+$event.preventDefault();
+$event.stopPropagation();
+}
+
+if (!c.data.program || !c.data.program.sys_id) {
+alert('Program information is not available. Please try again.');
+return;
+}
+
+// Target Service Portal page id
+var targetPageId = 'applicant_intake'; // your page id
+var grantProgramSysId = c.data.program.sys_id;
+
+// Redirect to the intake page with program context
+var redirectUrl = '/applicant?id=' + encodeURIComponent(targetPageId) +
+'&program=' + encodeURIComponent(grantProgramSysId);
+
+$location.url(redirectUrl);
+};
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>// ===========================
+// DESIGN SYSTEM
+// ===========================
+$navy-primary: #051A53;
+$navy-dark: #030d2b;
+$white: #ffffff;
+$off-white: #f8f9fa;
+$light-gray: #f1f3f5;
+$lighter-gray: #fafafa;
+$border-color: #e5e7eb;
+$text-dark: #1a1a1a;
+$text-medium: #4a5568;
+$text-light: #6b7280;
+$text-muted: #9ca3af;
+$accent-blue: #e8eef9;
+$accent-blue-dark: #1e40af;
+$accent-green: #10b981;
+$accent-orange: #f59e0b;
+$error-red: #ef4444;
+
+$shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+$radius-sm: 6px;
+$radius-md: 10px;
+$radius-lg: 16px;
+$radius-xl: 20px;
+$radius-full: 9999px;
+
+$gap-xs: 8px;
+$gap-sm: 12px;
+$gap-md: 16px;
+$gap-lg: 24px;
+$gap-xl: 32px;
+$gap-xxl: 48px;
+$gap-xxxl: 64px;
+
+// ===========================
+// PAGE WRAPPER
+// ===========================
+.grant-detail-page-premium {
+  background: $off-white;
+  min-height: 100vh;
+}
+
+// ===========================
+// HERO BANNER
+// ===========================
+.program-hero-banner {
+  position: relative;
+  min-height: 400px;
+  background-size: cover;
+  background-position: center;
+  background-color: $navy-primary;
+  display: flex;
+  align-items: center;
+  
+  @media (max-width: 768px) {
+    min-height: 300px;
+  }
+  
+  .hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(5, 26, 83, 0.92) 0%, rgba(3, 13, 43, 0.85) 100%);
+  }
+  
+  .hero-content-wrapper {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    padding: $gap-xxl $gap-lg;
+  }
+  
+  .hero-inner-container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .program-category-tag {
+    display: inline-block;
+    padding: $gap-sm $gap-lg;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    color: $white;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: $radius-full;
+    margin-bottom: $gap-lg;
+  }
+  
+  .hero-program-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: $white;
+    margin: 0;
+    line-height: 1.2;
+    max-width: 900px;
+    
+    @media (max-width: 768px) {
+      font-size: 32px;
+    }
+  }
+}
+
+// ===========================
+// MAIN CONTAINER
+// ===========================
+.program-detail-main-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: $gap-xl $gap-lg $gap-xxxl;
+  
+  @media (max-width: 768px) {
+    padding: $gap-lg $gap-md $gap-xxl;
+  }
+}
+
+// ===========================
+// BREADCRUMB
+// ===========================
+.detail-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: $gap-sm;
+  margin-bottom: $gap-xl;
+  font-size: 14px;
+  
+  .breadcrumb-link {
+    color: $text-medium;
+    text-decoration: none;
+    transition: color 0.2s;
+    
+    &amp;:hover {
+      color: $navy-primary;
+    }
+  }
+  
+  .breadcrumb-sep {
+    color: $text-muted;
+    font-size: 12px;
+  }
+  
+  .breadcrumb-current {
+    color: $text-dark;
+    font-weight: 500;
+  }
+}
+
+// ===========================
+// GRID LAYOUT
+// ===========================
+.detail-grid-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: $gap-xl;
+  align-items: start;
+  
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr 350px;
+  }
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ===========================
+// MAIN CONTENT SECTION
+// ===========================
+.detail-main-section {
+  min-width: 0;
+  
+  // Quick Stats Bar
+  .program-stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: $gap-lg;
+    margin-bottom: $gap-xxl;
+    
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: $gap-md;
+    }
+  }
+  
+  .stat-item {
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $gap-lg;
+    display: flex;
+    align-items: center;
+    gap: $gap-md;
+    box-shadow: $shadow-sm;
+    transition: all 0.3s ease;
+    
+    &amp;:hover {
+      box-shadow: $shadow-md;
+      transform: translateY(-2px);
+    }
+  }
+  
+  .stat-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, $accent-blue 0%, darken($accent-blue, 5%) 100%);
+    border-radius: $radius-md;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    i {
+      font-size: 24px;
+      color: $accent-blue-dark;
+    }
+  }
+  
+  .stat-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .stat-label {
+    font-size: 13px;
+    color: $text-muted;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .stat-value {
+    font-size: 16px;
+    color: $text-dark;
+    font-weight: 600;
+  }
+  
+  // Content Blocks
+  .content-block {
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $gap-xxl;
+    margin-bottom: $gap-lg;
+    box-shadow: $shadow-sm;
+    
+    @media (max-width: 768px) {
+      padding: $gap-xl;
+    }
+    
+    &amp;.eligibility-highlight {
+      border-left: 4px solid $accent-green;
+    }
+    
+    &amp;.terms-section {
+      background: $lighter-gray;
+    }
+  }
+  
+  .content-heading-row {
+    display: flex;
+    align-items: center;
+    gap: $gap-md;
+    margin-bottom: $gap-xl;
+  }
+  
+  .heading-icon-circle {
+    width: 48px;
+    height: 48px;
+    background: $accent-blue;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    i {
+      font-size: 20px;
+      color: $accent-blue-dark;
+    }
+  }
+  
+  .content-section-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: $text-dark;
+    margin: 0;
+    
+    @media (max-width: 768px) {
+      font-size: 24px;
+    }
+  }
+  
+  .content-block-inner {
+    font-size: 16px;
+    line-height: 1.8;
+    color: $text-medium;
+    
+    p {
+      margin-bottom: $gap-md;
+      
+      &amp;:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      color: $text-dark;
+      margin-top: $gap-xl;
+      margin-bottom: $gap-md;
+      font-weight: 600;
+    }
+    
+    ul, ol {
+      margin: $gap-md 0;
+      padding-left: $gap-xl;
+    }
+    
+    li {
+      margin-bottom: $gap-sm;
+    }
+    
+    strong {
+      color: $text-dark;
+      font-weight: 600;
+    }
+  }
+}
+
+// ===========================
+// SIDEBAR SECTION
+// ===========================
+.detail-sidebar-section {
+  .sidebar-sticky-container {
+    position: sticky;
+    top: 20px;
+    
+    @media (max-width: 1024px) {
+      position: static;
+    }
+  }
+  
+  // CTA Card
+  .sidebar-cta-card {
+    background: linear-gradient(135deg, $navy-primary 0%, $navy-dark 100%);
+    border-radius: $radius-xl;
+    padding: $gap-xxl;
+    margin-bottom: $gap-lg;
+    box-shadow: $shadow-xl;
+    text-align: center;
+    
+    .cta-content {
+      display: flex;
+      flex-direction: column;
+      gap: $gap-md;
+    }
+    
+    .cta-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: $white;
+      margin: 0;
+    }
+    
+    .cta-description {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.85);
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    .cta-apply-button {
+      width: 100%;
+      background: $white;
+      color: $navy-primary;
+      border: none;
+      border-radius: $radius-md;
+      padding: $gap-md $gap-lg;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: $gap-sm;
+      transition: all 0.3s ease;
+      margin-top: $gap-md;
+      
+      &amp;:hover {
+        background: $off-white;
+        transform: translateY(-2px);
+        box-shadow: $shadow-lg;
+        
+        .button-arrow {
+          transform: translateX(4px);
+        }
+      }
+      
+      .button-arrow {
+        transition: transform 0.3s ease;
+      }
+    }
+  }
+  
+  // Info Cards
+  .sidebar-info-card {
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $gap-xl;
+    margin-bottom: $gap-lg;
+    box-shadow: $shadow-sm;
+  }
+  
+  .info-card-header {
+    display: flex;
+    align-items: center;
+    gap: $gap-md;
+    margin-bottom: $gap-lg;
+    padding-bottom: $gap-md;
+    border-bottom: 2px solid $light-gray;
+  }
+  
+  .card-icon {
+    font-size: 24px;
+    color: $accent-blue-dark;
+  }
+  
+  .card-heading {
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-dark;
+    margin: 0;
+  }
+  
+  .info-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: $gap-lg;
+  }
+  
+  .info-detail-row {
+    display: flex;
+    align-items: flex-start;
+    gap: $gap-md;
+  }
+  
+  .detail-icon {
+    width: 36px;
+    height: 36px;
+    background: $light-gray;
+    border-radius: $radius-sm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    i {
+      font-size: 16px;
+      color: $text-medium;
+    }
+  }
+  
+  .detail-text-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+  
+  .detail-label {
+    font-size: 13px;
+    color: $text-muted;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .detail-value {
+    font-size: 15px;
+    color: $text-dark;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+}
+
+// ===========================
+// ERROR STATE
+// ===========================
+.grant-detail-error-state {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $gap-xxl;
+  background: $off-white;
+  
+  .error-container {
+    max-width: 600px;
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-xl;
+    padding: $gap-xxxl;
+    text-align: center;
+    box-shadow: $shadow-lg;
+  }
+  
+  .error-icon-circle {
+    width: 96px;
+    height: 96px;
+    background: lighten($error-red, 40%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto $gap-xl;
+    
+    i {
+      font-size: 48px;
+      color: $error-red;
+    }
+  }
+  
+  .error-heading {
+    font-size: 28px;
+    font-weight: 600;
+    color: $text-dark;
+    margin: 0 0 $gap-md 0;
+  }
+  
+  .error-text {
+    font-size: 16px;
+    color: $text-medium;
+    line-height: 1.6;
+    margin: 0 0 $gap-xl 0;
+  }
+  
+  .error-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: $gap-sm;
+    padding: $gap-md $gap-xl;
+    background: $navy-primary;
+    color: $white;
+    border-radius: $radius-md;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    
+    &amp;:hover {
+      background: $navy-dark;
+      transform: translateY(-2px);
+      box-shadow: $shadow-md;
+    }
+  }
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>program_dashboard_detail</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Program Dashboard Detail</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>snc_external</roles>
+        <script><![CDATA[(function() {
+  // 1) Read the program parameter for the intake page and expose to client/prefill
+  var programParam = $sp.getParameter('program') || '';
+  data.program_param = programParam;
+
+  // 2) Initialize prefill holder so the next block can safely set defaults
+  if (!data.prefill) data.prefill = {};
+  if (programParam && !data.prefill.grant_program) {
+    data.prefill.grant_program = programParam;
+  }
+  
+  data.program = {};
+  data.error = "";
+
+  var sysId = $sp.getParameter('sys_id');
+  if (!sysId) {
+      data.error = "Missing sys_id parameter.";
+      return;
+  }
+
+  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+  if (gr.get(sysId)) {
+      data.program = {
+          sys_id: gr.getUniqueValue(),
+          title: gr.getValue('program_name'),
+          description: gr.getValue('description'),
+          synopsis: gr.getValue('synopsis'),
+          eligibility_summary: gr.getValue('eligibility_summary'),
+          terms_conditions: gr.getDisplayValue('terms_and_conditions'),
+          image: gr.getDisplayValue('image'),
+          open_date: gr.getDisplayValue('proposal_open_date'),
+          close_date: gr.getDisplayValue('proposal_close_date'),
+          award_type: gr.getDisplayValue('award_type'),
+          program_budget: parseFloat(gr.getValue('program_budget')) || 0,
+          program_manager: gr.getDisplayValue('program_manager'),
+          program_lead: gr.getDisplayValue('program_lead'),
+          // Added status field so the client side can evaluate if the program is published/accepting
+          status_value: gr.getValue('status') 
+      };
+  } else {
+      data.error = "No grant program found for sys_id: " + sysId;
+  }
+})();
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-03-08 16:40:54</sys_created_on>
+        <sys_id>54bc97f42f27b210d2a0d68fcea4e3d9</sys_id>
+        <sys_mod_count>9</sys_mod_count>
+        <sys_name>Program Dashboard Detail</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_54bc97f42f27b210d2a0d68fcea4e3d9</sys_update_name>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-04-01 12:01:46</sys_updated_on>
+        <template><![CDATA[<div ng-if="!data.error && data.program.sys_id" class="grant-detail-page-premium">
+  
+  <!-- Hero Banner with Image -->
+  <div class="program-hero-banner" ng-style="{'background-image': data.program.image ? 'url(' + data.program.image + ')' : 'none'}">
+    <div class="hero-overlay"></div>
+    <div class="hero-content-wrapper">
+      <div class="hero-inner-container">
+        <span class="program-category-tag">Grant Program</span>
+        <h1 class="hero-program-title">{{data.program.title || "Program Title"}}</h1>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Content Section -->
+  <div class="program-detail-main-container">
+    
+    <!-- Breadcrumb (Optional) -->
+    <nav class="detail-breadcrumb">
+      <a href="/applicant?id=applicant_dashboard" class="breadcrumb-link">Dashboard</a>
+      <i class="fa fa-angle-right breadcrumb-sep"></i>
+      <a href="/applicant?id=program_dashboard" class="breadcrumb-link">Programs</a>
+      <i class="fa fa-angle-right breadcrumb-sep"></i>
+      <span class="breadcrumb-current">{{data.program.title}}</span>
+    </nav>
+    
+    <!-- Two Column Layout -->
+    <div class="detail-grid-layout">
+      
+      <!-- LEFT: Main Content -->
+      <main class="detail-main-section">
+        
+        <!-- Quick Stats Bar -->
+        <div class="program-stats-bar">
+          <div class="stat-item">
+            <div class="stat-icon-wrapper">
+              <i class="fa fa-calendar"></i>
+            </div>
+            <div class="stat-content">
+              <span class="stat-label">Applications Open</span>
+              <span class="stat-value">{{data.program.open_date || "TBA"}}</span>
+            </div>
+          </div>
+          
+          <div class="stat-item">
+            <div class="stat-icon-wrapper">
+              <i class="fa fa-clock-o"></i>
+            </div>
+            <div class="stat-content">
+              <span class="stat-label">Deadline</span>
+              <span class="stat-value">{{data.program.close_date || "TBA"}}</span>
+            </div>
+          </div>
+          
+          <div class="stat-item">
+            <div class="stat-icon-wrapper">
+              <i class="fa fa-money"></i>
+            </div>
+            <div class="stat-content">
+              <span class="stat-label">Budget</span>
+              <span class="stat-value">{{data.program.program_budget | currency:"$":0}}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Program Description -->
+        <div ng-if="data.program.program_description" class="content-block">
+          <div class="content-block-inner" ng-bind-html="data.program.program_description"></div>
+        </div>
+        
+        <!-- Synopsis Section -->
+        <div ng-if="data.program.synopsis" class="content-block">
+          <div class="content-heading-row">
+            <div class="heading-icon-circle">
+              <i class="fa fa-file-text"></i>
+            </div>
+            <h2 class="content-section-title">Synopsis</h2>
+          </div>
+          <div class="content-block-inner" ng-bind-html="data.program.synopsis"></div>
+        </div>
+        
+        <!-- Eligibility Section -->
+        <div ng-if="data.program.eligibility_summary" class="content-block eligibility-highlight">
+          <div class="content-heading-row">
+            <div class="heading-icon-circle">
+              <i class="fa fa-check-circle"></i>
+            </div>
+            <h2 class="content-section-title">Eligibility Requirements</h2>
+          </div>
+          <div class="content-block-inner" ng-bind-html="data.program.eligibility_summary"></div>
+        </div>
+        
+        <!-- Details Section -->
+        <div ng-if="data.program.description" class="content-block">
+          <div class="content-heading-row">
+            <div class="heading-icon-circle">
+              <i class="fa fa-info-circle"></i>
+            </div>
+            <h2 class="content-section-title">Program Details</h2>
+          </div>
+          <div class="content-block-inner" ng-bind-html="data.program.description"></div>
+        </div>
+        
+        <!-- Terms and Conditions -->
+        <div ng-if="data.program.terms_conditions" class="content-block terms-section">
+          <div class="content-heading-row">
+            <div class="heading-icon-circle">
+              <i class="fa fa-gavel"></i>
+            </div>
+            <h2 class="content-section-title">Terms & Conditions</h2>
+          </div>
+          <div class="content-block-inner" ng-bind-html="data.program.terms_conditions"></div>
+        </div>
+        
+      </main>
+      
+      <!-- RIGHT: Sidebar -->
+      <aside class="detail-sidebar-section">
+        
+        <!-- Sticky Sidebar Wrapper -->
+        <div class="sidebar-sticky-container">
+          
+          <!-- CTA Card (Dynamic based on status) -->
+          <div class="sidebar-cta-card">
+            
+            <!-- Showing "Apply Now" if Status is Accepting Proposals -->
+            <div class="cta-content" ng-if="data.program.status_value === 'accepting_proposals'">
+              <h3 class="cta-title">Ready to Apply?</h3>
+              <p class="cta-description">Start your application today and unlock funding opportunities.</p>
+              <button class="cta-apply-button" ng-click="c.startEligibility($event)">
+                <span class="button-text">Apply Now</span>
+                <i class="fa fa-arrow-right button-arrow"></i>
+              </button>
+            </div>
+            
+            <!-- Showing "Upcoming" message if Status is Published -->
+            <div class="cta-content" ng-if="data.program.status_value === 'published'">
+              <h3 class="cta-title">Upcoming Opportunity</h3>
+              <p class="cta-description" style="font-size: 16px;">
+                You can apply for this grant starting on:
+                <strong style="font-size: 18px; display: block; margin-top: 10px; color: #fff;">
+                  <i class="fa fa-calendar-check-o"></i> {{data.program.open_date}}
+                </strong>
+              </p>
+            </div>
+            
+          </div>
+          
+          <!-- Timeline Card -->
+          <div class="sidebar-info-card">
+            <div class="info-card-header">
+              <i class="fa fa-calendar-check-o card-icon"></i>
+              <h3 class="card-heading">Timeline</h3>
+            </div>
+            <div class="info-card-body">
+              <div class="info-detail-row">
+                <span class="detail-icon">
+                  <i class="fa fa-play-circle"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Opens</span>
+                  <span class="detail-value">{{data.program.open_date || "To be announced"}}</span>
+                </div>
+              </div>
+              
+              <div class="info-detail-row">
+                <span class="detail-icon">
+                  <i class="fa fa-stop-circle"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Closes</span>
+                  <span class="detail-value">{{data.program.close_date || "To be announced"}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Award Information Card -->
+          <div class="sidebar-info-card">
+            <div class="info-card-header">
+              <i class="fa fa-trophy card-icon"></i>
+              <h3 class="card-heading">Award Information</h3>
+            </div>
+            <div class="info-card-body">
+              <div class="info-detail-row">
+                <span class="detail-icon">
+                  <i class="fa fa-bookmark"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Award Type</span>
+                  <span class="detail-value">{{data.program.award_type || "Single Award"}}</span>
+                </div>
+              </div>
+              
+              <div class="info-detail-row">
+                <span class="detail-icon">
+                  <i class="fa fa-dollar"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Total Budget</span>
+                  <span class="stat-value">{{data.program.program_budget | currency:"$":0}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Contact Card -->
+          <div class="sidebar-info-card">
+            <div class="info-card-header">
+              <i class="fa fa-user-circle card-icon"></i>
+              <h3 class="card-heading">Program Contacts</h3>
+            </div>
+            <div class="info-card-body">
+              <div class="info-detail-row">
+                <span class="detail-icon">
+                  <i class="fa fa-user"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Program Manager</span>
+                  <span class="detail-value">{{data.program.program_manager || "Not assigned"}}</span>
+                </div>
+              </div>
+              
+              <div class="info-detail-row">
+                <span class="detail-icon">
+                  <i class="fa fa-star"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Program Lead</span>
+                  <span class="detail-value">{{data.program.program_lead || "Not assigned"}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </aside>
+      
+    </div>
+  </div>
+</div>
+
+<!-- Error State -->
+<div ng-if="data.error" class="grant-detail-error-state">
+  <div class="error-container">
+    <div class="error-icon-circle">
+      <i class="fa fa-exclamation-triangle"></i>
+    </div>
+    <h2 class="error-heading">Program Not Found</h2>
+    <p class="error-text">{{data.error}}</p>
+    <a href="?id=grant_programs_list" class="error-back-button">
+      <i class="fa fa-arrow-left"></i> Back to Programs
+    </a>
+  </div>
+</div>
+]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>253cd7823b92b6d0677f04e0b5e45a33</instance_id>
+        <instance_name>enablenowincdemo1</instance_name>
+        <name>sp_widget_54bc97f42f27b210d2a0d68fcea4e3d9</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function($scope,$location) {
+var c = this;
+
+c.startEligibility = function($event) {
+if ($event) {
+$event.preventDefault();
+$event.stopPropagation();
+}
+
+if (!c.data.program || !c.data.program.sys_id) {
+alert('Program information is not available. Please try again.');
+return;
+}
+
+// Target Service Portal page id
+var targetPageId = 'applicant_intake'; // your page id
+var grantProgramSysId = c.data.program.sys_id;
+
+// Redirect to the intake page with program context
+var redirectUrl = '/applicant?id=' + encodeURIComponent(targetPageId) +
+'&amp;program=' + encodeURIComponent(grantProgramSysId);
+
+$location.url(redirectUrl);
+};
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;// ===========================
+// DESIGN SYSTEM
+// ===========================
+$navy-primary: #051A53;
+$navy-dark: #030d2b;
+$white: #ffffff;
+$off-white: #f8f9fa;
+$light-gray: #f1f3f5;
+$lighter-gray: #fafafa;
+$border-color: #e5e7eb;
+$text-dark: #1a1a1a;
+$text-medium: #4a5568;
+$text-light: #6b7280;
+$text-muted: #9ca3af;
+$accent-blue: #e8eef9;
+$accent-blue-dark: #1e40af;
+$accent-green: #10b981;
+$accent-orange: #f59e0b;
+$error-red: #ef4444;
+
+$shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+$radius-sm: 6px;
+$radius-md: 10px;
+$radius-lg: 16px;
+$radius-xl: 20px;
+$radius-full: 9999px;
+
+$gap-xs: 8px;
+$gap-sm: 12px;
+$gap-md: 16px;
+$gap-lg: 24px;
+$gap-xl: 32px;
+$gap-xxl: 48px;
+$gap-xxxl: 64px;
+
+// ===========================
+// PAGE WRAPPER
+// ===========================
+.grant-detail-page-premium {
+  background: $off-white;
+  min-height: 100vh;
+}
+
+// ===========================
+// HERO BANNER
+// ===========================
+.program-hero-banner {
+  position: relative;
+  min-height: 400px;
+  background-size: cover;
+  background-position: center;
+  background-color: $navy-primary;
+  display: flex;
+  align-items: center;
+  
+  @media (max-width: 768px) {
+    min-height: 300px;
+  }
+  
+  .hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(5, 26, 83, 0.92) 0%, rgba(3, 13, 43, 0.85) 100%);
+  }
+  
+  .hero-content-wrapper {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    padding: $gap-xxl $gap-lg;
+  }
+  
+  .hero-inner-container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .program-category-tag {
+    display: inline-block;
+    padding: $gap-sm $gap-lg;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    color: $white;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: $radius-full;
+    margin-bottom: $gap-lg;
+  }
+  
+  .hero-program-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: $white;
+    margin: 0;
+    line-height: 1.2;
+    max-width: 900px;
+    
+    @media (max-width: 768px) {
+      font-size: 32px;
+    }
+  }
+}
+
+// ===========================
+// MAIN CONTAINER
+// ===========================
+.program-detail-main-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: $gap-xl $gap-lg $gap-xxxl;
+  
+  @media (max-width: 768px) {
+    padding: $gap-lg $gap-md $gap-xxl;
+  }
+}
+
+// ===========================
+// BREADCRUMB
+// ===========================
+.detail-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: $gap-sm;
+  margin-bottom: $gap-xl;
+  font-size: 14px;
+  
+  .breadcrumb-link {
+    color: $text-medium;
+    text-decoration: none;
+    transition: color 0.2s;
+    
+    &amp;amp;:hover {
+      color: $navy-primary;
+    }
+  }
+  
+  .breadcrumb-sep {
+    color: $text-muted;
+    font-size: 12px;
+  }
+  
+  .breadcrumb-current {
+    color: $text-dark;
+    font-weight: 500;
+  }
+}
+
+// ===========================
+// GRID LAYOUT
+// ===========================
+.detail-grid-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: $gap-xl;
+  align-items: start;
+  
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr 350px;
+  }
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ===========================
+// MAIN CONTENT SECTION
+// ===========================
+.detail-main-section {
+  min-width: 0;
+  
+  // Quick Stats Bar
+  .program-stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: $gap-lg;
+    margin-bottom: $gap-xxl;
+    
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: $gap-md;
+    }
+  }
+  
+  .stat-item {
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $gap-lg;
+    display: flex;
+    align-items: center;
+    gap: $gap-md;
+    box-shadow: $shadow-sm;
+    transition: all 0.3s ease;
+    
+    &amp;amp;:hover {
+      box-shadow: $shadow-md;
+      transform: translateY(-2px);
+    }
+  }
+  
+  .stat-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, $accent-blue 0%, darken($accent-blue, 5%) 100%);
+    border-radius: $radius-md;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    i {
+      font-size: 24px;
+      color: $accent-blue-dark;
+    }
+  }
+  
+  .stat-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .stat-label {
+    font-size: 13px;
+    color: $text-muted;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .stat-value {
+    font-size: 16px;
+    color: $text-dark;
+    font-weight: 600;
+  }
+  
+  // Content Blocks
+  .content-block {
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $gap-xxl;
+    margin-bottom: $gap-lg;
+    box-shadow: $shadow-sm;
+    
+    @media (max-width: 768px) {
+      padding: $gap-xl;
+    }
+    
+    &amp;amp;.eligibility-highlight {
+      border-left: 4px solid $accent-green;
+    }
+    
+    &amp;amp;.terms-section {
+      background: $lighter-gray;
+    }
+  }
+  
+  .content-heading-row {
+    display: flex;
+    align-items: center;
+    gap: $gap-md;
+    margin-bottom: $gap-xl;
+  }
+  
+  .heading-icon-circle {
+    width: 48px;
+    height: 48px;
+    background: $accent-blue;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    i {
+      font-size: 20px;
+      color: $accent-blue-dark;
+    }
+  }
+  
+  .content-section-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: $text-dark;
+    margin: 0;
+    
+    @media (max-width: 768px) {
+      font-size: 24px;
+    }
+  }
+  
+  .content-block-inner {
+    font-size: 16px;
+    line-height: 1.8;
+    color: $text-medium;
+    
+    p {
+      margin-bottom: $gap-md;
+      
+      &amp;amp;:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      color: $text-dark;
+      margin-top: $gap-xl;
+      margin-bottom: $gap-md;
+      font-weight: 600;
+    }
+    
+    ul, ol {
+      margin: $gap-md 0;
+      padding-left: $gap-xl;
+    }
+    
+    li {
+      margin-bottom: $gap-sm;
+    }
+    
+    strong {
+      color: $text-dark;
+      font-weight: 600;
+    }
+  }
+}
+
+// ===========================
+// SIDEBAR SECTION
+// ===========================
+.detail-sidebar-section {
+  .sidebar-sticky-container {
+    position: sticky;
+    top: 20px;
+    
+    @media (max-width: 1024px) {
+      position: static;
+    }
+  }
+  
+  // CTA Card
+  .sidebar-cta-card {
+    background: linear-gradient(135deg, $navy-primary 0%, $navy-dark 100%);
+    border-radius: $radius-xl;
+    padding: $gap-xxl;
+    margin-bottom: $gap-lg;
+    box-shadow: $shadow-xl;
+    text-align: center;
+    
+    .cta-content {
+      display: flex;
+      flex-direction: column;
+      gap: $gap-md;
+    }
+    
+    .cta-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: $white;
+      margin: 0;
+    }
+    
+    .cta-description {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.85);
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    .cta-apply-button {
+      width: 100%;
+      background: $white;
+      color: $navy-primary;
+      border: none;
+      border-radius: $radius-md;
+      padding: $gap-md $gap-lg;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: $gap-sm;
+      transition: all 0.3s ease;
+      margin-top: $gap-md;
+      
+      &amp;amp;:hover {
+        background: $off-white;
+        transform: translateY(-2px);
+        box-shadow: $shadow-lg;
+        
+        .button-arrow {
+          transform: translateX(4px);
+        }
+      }
+      
+      .button-arrow {
+        transition: transform 0.3s ease;
+      }
+    }
+  }
+  
+  // Info Cards
+  .sidebar-info-card {
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $gap-xl;
+    margin-bottom: $gap-lg;
+    box-shadow: $shadow-sm;
+  }
+  
+  .info-card-header {
+    display: flex;
+    align-items: center;
+    gap: $gap-md;
+    margin-bottom: $gap-lg;
+    padding-bottom: $gap-md;
+    border-bottom: 2px solid $light-gray;
+  }
+  
+  .card-icon {
+    font-size: 24px;
+    color: $accent-blue-dark;
+  }
+  
+  .card-heading {
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-dark;
+    margin: 0;
+  }
+  
+  .info-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: $gap-lg;
+  }
+  
+  .info-detail-row {
+    display: flex;
+    align-items: flex-start;
+    gap: $gap-md;
+  }
+  
+  .detail-icon {
+    width: 36px;
+    height: 36px;
+    background: $light-gray;
+    border-radius: $radius-sm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    i {
+      font-size: 16px;
+      color: $text-medium;
+    }
+  }
+  
+  .detail-text-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+  
+  .detail-label {
+    font-size: 13px;
+    color: $text-muted;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .detail-value {
+    font-size: 15px;
+    color: $text-dark;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+}
+
+// ===========================
+// ERROR STATE
+// ===========================
+.grant-detail-error-state {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $gap-xxl;
+  background: $off-white;
+  
+  .error-container {
+    max-width: 600px;
+    background: $white;
+    border: 1px solid $border-color;
+    border-radius: $radius-xl;
+    padding: $gap-xxxl;
+    text-align: center;
+    box-shadow: $shadow-lg;
+  }
+  
+  .error-icon-circle {
+    width: 96px;
+    height: 96px;
+    background: lighten($error-red, 40%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto $gap-xl;
+    
+    i {
+      font-size: 48px;
+      color: $error-red;
+    }
+  }
+  
+  .error-heading {
+    font-size: 28px;
+    font-weight: 600;
+    color: $text-dark;
+    margin: 0 0 $gap-md 0;
+  }
+  
+  .error-text {
+    font-size: 16px;
+    color: $text-medium;
+    line-height: 1.6;
+    margin: 0 0 $gap-xl 0;
+  }
+  
+  .error-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: $gap-sm;
+    padding: $gap-md $gap-xl;
+    background: $navy-primary;
+    color: $white;
+    border-radius: $radius-md;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    
+    &amp;amp;:hover {
+      background: $navy-dark;
+      transform: translateY(-2px);
+      box-shadow: $shadow-md;
+    }
+  }
+}
+&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;true&lt;/has_preview&gt;&lt;id&gt;program_dashboard_detail&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Program Dashboard Detail&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles&gt;snc_external&lt;/roles&gt;&lt;script&gt;&lt;![CDATA[(function() {
+  // 1) Read the program parameter for the intake page and expose to client/prefill
+  var programParam = $sp.getParameter('program') || '';
+  data.program_param = programParam;
+
+  // 2) Initialize prefill holder so the next block can safely set defaults
+  if (!data.prefill) data.prefill = {};
+  if (programParam &amp;&amp; !data.prefill.grant_program) {
+    data.prefill.grant_program = programParam;
+  }
+  
+  data.program = {};
+  data.error = "";
+
+  var sysId = $sp.getParameter('sys_id');
+  if (!sysId) {
+      data.error = "Missing sys_id parameter.";
+      return;
+  }
+
+  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+  if (gr.get(sysId)) {
+      data.program = {
+          sys_id: gr.getUniqueValue(),
+          title: gr.getValue('program_name'),
+          description: gr.getValue('description'),
+          synopsis: gr.getValue('synopsis'),
+          eligibility_summary: gr.getValue('eligibility_summary'),
+          terms_conditions: gr.getDisplayValue('terms_and_conditions'),
+          image: gr.getDisplayValue('image'),
+          open_date: gr.getDisplayValue('proposal_open_date'),
+          close_date: gr.getDisplayValue('proposal_close_date'),
+          award_type: gr.getDisplayValue('award_type'),
+          program_budget: parseFloat(gr.getValue('program_budget')) || 0,
+          program_manager: gr.getDisplayValue('program_manager'),
+          program_lead: gr.getDisplayValue('program_lead'),
+          // Added status field so the client side can evaluate if the program is published/accepting
+          status_value: gr.getValue('status') 
+      };
+  } else {
+      data.error = "No grant program found for sys_id: " + sysId;
+  }
+})();
+]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;adnan.tariq&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-03-08 16:40:54&lt;/sys_created_on&gt;&lt;sys_id&gt;54bc97f42f27b210d2a0d68fcea4e3d9&lt;/sys_id&gt;&lt;sys_mod_count&gt;9&lt;/sys_mod_count&gt;&lt;sys_name&gt;Program Dashboard Detail&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_54bc97f42f27b210d2a0d68fcea4e3d9&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;adnan.tariq&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-04-01 12:01:46&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div ng-if="!data.error &amp;&amp; data.program.sys_id" class="grant-detail-page-premium"&gt;
+  
+  &lt;!-- Hero Banner with Image --&gt;
+  &lt;div class="program-hero-banner" ng-style="{'background-image': data.program.image ? 'url(' + data.program.image + ')' : 'none'}"&gt;
+    &lt;div class="hero-overlay"&gt;&lt;/div&gt;
+    &lt;div class="hero-content-wrapper"&gt;
+      &lt;div class="hero-inner-container"&gt;
+        &lt;span class="program-category-tag"&gt;Grant Program&lt;/span&gt;
+        &lt;h1 class="hero-program-title"&gt;{{data.program.title || "Program Title"}}&lt;/h1&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  
+  &lt;!-- Main Content Section --&gt;
+  &lt;div class="program-detail-main-container"&gt;
+    
+    &lt;!-- Breadcrumb (Optional) --&gt;
+    &lt;nav class="detail-breadcrumb"&gt;
+      &lt;a href="/applicant?id=applicant_dashboard" class="breadcrumb-link"&gt;Dashboard&lt;/a&gt;
+      &lt;i class="fa fa-angle-right breadcrumb-sep"&gt;&lt;/i&gt;
+      &lt;a href="/applicant?id=program_dashboard" class="breadcrumb-link"&gt;Programs&lt;/a&gt;
+      &lt;i class="fa fa-angle-right breadcrumb-sep"&gt;&lt;/i&gt;
+      &lt;span class="breadcrumb-current"&gt;{{data.program.title}}&lt;/span&gt;
+    &lt;/nav&gt;
+    
+    &lt;!-- Two Column Layout --&gt;
+    &lt;div class="detail-grid-layout"&gt;
+      
+      &lt;!-- LEFT: Main Content --&gt;
+      &lt;main class="detail-main-section"&gt;
+        
+        &lt;!-- Quick Stats Bar --&gt;
+        &lt;div class="program-stats-bar"&gt;
+          &lt;div class="stat-item"&gt;
+            &lt;div class="stat-icon-wrapper"&gt;
+              &lt;i class="fa fa-calendar"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;div class="stat-content"&gt;
+              &lt;span class="stat-label"&gt;Applications Open&lt;/span&gt;
+              &lt;span class="stat-value"&gt;{{data.program.open_date || "TBA"}}&lt;/span&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+          &lt;div class="stat-item"&gt;
+            &lt;div class="stat-icon-wrapper"&gt;
+              &lt;i class="fa fa-clock-o"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;div class="stat-content"&gt;
+              &lt;span class="stat-label"&gt;Deadline&lt;/span&gt;
+              &lt;span class="stat-value"&gt;{{data.program.close_date || "TBA"}}&lt;/span&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+          &lt;div class="stat-item"&gt;
+            &lt;div class="stat-icon-wrapper"&gt;
+              &lt;i class="fa fa-money"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;div class="stat-content"&gt;
+              &lt;span class="stat-label"&gt;Budget&lt;/span&gt;
+              &lt;span class="stat-value"&gt;{{data.program.program_budget | currency:"$":0}}&lt;/span&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;!-- Program Description --&gt;
+        &lt;div ng-if="data.program.program_description" class="content-block"&gt;
+          &lt;div class="content-block-inner" ng-bind-html="data.program.program_description"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;!-- Synopsis Section --&gt;
+        &lt;div ng-if="data.program.synopsis" class="content-block"&gt;
+          &lt;div class="content-heading-row"&gt;
+            &lt;div class="heading-icon-circle"&gt;
+              &lt;i class="fa fa-file-text"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;h2 class="content-section-title"&gt;Synopsis&lt;/h2&gt;
+          &lt;/div&gt;
+          &lt;div class="content-block-inner" ng-bind-html="data.program.synopsis"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;!-- Eligibility Section --&gt;
+        &lt;div ng-if="data.program.eligibility_summary" class="content-block eligibility-highlight"&gt;
+          &lt;div class="content-heading-row"&gt;
+            &lt;div class="heading-icon-circle"&gt;
+              &lt;i class="fa fa-check-circle"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;h2 class="content-section-title"&gt;Eligibility Requirements&lt;/h2&gt;
+          &lt;/div&gt;
+          &lt;div class="content-block-inner" ng-bind-html="data.program.eligibility_summary"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;!-- Details Section --&gt;
+        &lt;div ng-if="data.program.description" class="content-block"&gt;
+          &lt;div class="content-heading-row"&gt;
+            &lt;div class="heading-icon-circle"&gt;
+              &lt;i class="fa fa-info-circle"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;h2 class="content-section-title"&gt;Program Details&lt;/h2&gt;
+          &lt;/div&gt;
+          &lt;div class="content-block-inner" ng-bind-html="data.program.description"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;!-- Terms and Conditions --&gt;
+        &lt;div ng-if="data.program.terms_conditions" class="content-block terms-section"&gt;
+          &lt;div class="content-heading-row"&gt;
+            &lt;div class="heading-icon-circle"&gt;
+              &lt;i class="fa fa-gavel"&gt;&lt;/i&gt;
+            &lt;/div&gt;
+            &lt;h2 class="content-section-title"&gt;Terms &amp; Conditions&lt;/h2&gt;
+          &lt;/div&gt;
+          &lt;div class="content-block-inner" ng-bind-html="data.program.terms_conditions"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        
+      &lt;/main&gt;
+      
+      &lt;!-- RIGHT: Sidebar --&gt;
+      &lt;aside class="detail-sidebar-section"&gt;
+        
+        &lt;!-- Sticky Sidebar Wrapper --&gt;
+        &lt;div class="sidebar-sticky-container"&gt;
+          
+          &lt;!-- CTA Card (Dynamic based on status) --&gt;
+          &lt;div class="sidebar-cta-card"&gt;
+            
+            &lt;!-- Showing "Apply Now" if Status is Accepting Proposals --&gt;
+            &lt;div class="cta-content" ng-if="data.program.status_value === 'accepting_proposals'"&gt;
+              &lt;h3 class="cta-title"&gt;Ready to Apply?&lt;/h3&gt;
+              &lt;p class="cta-description"&gt;Start your application today and unlock funding opportunities.&lt;/p&gt;
+              &lt;button class="cta-apply-button" ng-click="c.startEligibility($event)"&gt;
+                &lt;span class="button-text"&gt;Apply Now&lt;/span&gt;
+                &lt;i class="fa fa-arrow-right button-arrow"&gt;&lt;/i&gt;
+              &lt;/button&gt;
+            &lt;/div&gt;
+            
+            &lt;!-- Showing "Upcoming" message if Status is Published --&gt;
+            &lt;div class="cta-content" ng-if="data.program.status_value === 'published'"&gt;
+              &lt;h3 class="cta-title"&gt;Upcoming Opportunity&lt;/h3&gt;
+              &lt;p class="cta-description" style="font-size: 16px;"&gt;
+                You can apply for this grant starting on:
+                &lt;strong style="font-size: 18px; display: block; margin-top: 10px; color: #fff;"&gt;
+                  &lt;i class="fa fa-calendar-check-o"&gt;&lt;/i&gt; {{data.program.open_date}}
+                &lt;/strong&gt;
+              &lt;/p&gt;
+            &lt;/div&gt;
+            
+          &lt;/div&gt;
+          
+          &lt;!-- Timeline Card --&gt;
+          &lt;div class="sidebar-info-card"&gt;
+            &lt;div class="info-card-header"&gt;
+              &lt;i class="fa fa-calendar-check-o card-icon"&gt;&lt;/i&gt;
+              &lt;h3 class="card-heading"&gt;Timeline&lt;/h3&gt;
+            &lt;/div&gt;
+            &lt;div class="info-card-body"&gt;
+              &lt;div class="info-detail-row"&gt;
+                &lt;span class="detail-icon"&gt;
+                  &lt;i class="fa fa-play-circle"&gt;&lt;/i&gt;
+                &lt;/span&gt;
+                &lt;div class="detail-text-group"&gt;
+                  &lt;span class="detail-label"&gt;Opens&lt;/span&gt;
+                  &lt;span class="detail-value"&gt;{{data.program.open_date || "To be announced"}}&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+              
+              &lt;div class="info-detail-row"&gt;
+                &lt;span class="detail-icon"&gt;
+                  &lt;i class="fa fa-stop-circle"&gt;&lt;/i&gt;
+                &lt;/span&gt;
+                &lt;div class="detail-text-group"&gt;
+                  &lt;span class="detail-label"&gt;Closes&lt;/span&gt;
+                  &lt;span class="detail-value"&gt;{{data.program.close_date || "To be announced"}}&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+          &lt;!-- Award Information Card --&gt;
+          &lt;div class="sidebar-info-card"&gt;
+            &lt;div class="info-card-header"&gt;
+              &lt;i class="fa fa-trophy card-icon"&gt;&lt;/i&gt;
+              &lt;h3 class="card-heading"&gt;Award Information&lt;/h3&gt;
+            &lt;/div&gt;
+            &lt;div class="info-card-body"&gt;
+              &lt;div class="info-detail-row"&gt;
+                &lt;span class="detail-icon"&gt;
+                  &lt;i class="fa fa-bookmark"&gt;&lt;/i&gt;
+                &lt;/span&gt;
+                &lt;div class="detail-text-group"&gt;
+                  &lt;span class="detail-label"&gt;Award Type&lt;/span&gt;
+                  &lt;span class="detail-value"&gt;{{data.program.award_type || "Single Award"}}&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+              
+              &lt;div class="info-detail-row"&gt;
+                &lt;span class="detail-icon"&gt;
+                  &lt;i class="fa fa-dollar"&gt;&lt;/i&gt;
+                &lt;/span&gt;
+                &lt;div class="detail-text-group"&gt;
+                  &lt;span class="detail-label"&gt;Total Budget&lt;/span&gt;
+                  &lt;span class="stat-value"&gt;{{data.program.program_budget | currency:"$":0}}&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+          &lt;!-- Contact Card --&gt;
+          &lt;div class="sidebar-info-card"&gt;
+            &lt;div class="info-card-header"&gt;
+              &lt;i class="fa fa-user-circle card-icon"&gt;&lt;/i&gt;
+              &lt;h3 class="card-heading"&gt;Program Contacts&lt;/h3&gt;
+            &lt;/div&gt;
+            &lt;div class="info-card-body"&gt;
+              &lt;div class="info-detail-row"&gt;
+                &lt;span class="detail-icon"&gt;
+                  &lt;i class="fa fa-user"&gt;&lt;/i&gt;
+                &lt;/span&gt;
+                &lt;div class="detail-text-group"&gt;
+                  &lt;span class="detail-label"&gt;Program Manager&lt;/span&gt;
+                  &lt;span class="detail-value"&gt;{{data.program.program_manager || "Not assigned"}}&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+              
+              &lt;div class="info-detail-row"&gt;
+                &lt;span class="detail-icon"&gt;
+                  &lt;i class="fa fa-star"&gt;&lt;/i&gt;
+                &lt;/span&gt;
+                &lt;div class="detail-text-group"&gt;
+                  &lt;span class="detail-label"&gt;Program Lead&lt;/span&gt;
+                  &lt;span class="detail-value"&gt;{{data.program.program_lead || "Not assigned"}}&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+        &lt;/div&gt;
+      &lt;/aside&gt;
+      
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;!-- Error State --&gt;
+&lt;div ng-if="data.error" class="grant-detail-error-state"&gt;
+  &lt;div class="error-container"&gt;
+    &lt;div class="error-icon-circle"&gt;
+      &lt;i class="fa fa-exclamation-triangle"&gt;&lt;/i&gt;
+    &lt;/div&gt;
+    &lt;h2 class="error-heading"&gt;Program Not Found&lt;/h2&gt;
+    &lt;p class="error-text"&gt;{{data.error}}&lt;/p&gt;
+    &lt;a href="?id=grant_programs_list" class="error-back-button"&gt;
+      &lt;i class="fa fa-arrow-left"&gt;&lt;/i&gt; Back to Programs
+    &lt;/a&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>663689118</payload_hash>
+        <record_name>Program Dashboard Detail</record_name>
+        <reverted_from/>
+        <source>884a29642f0807d0d2a0d68fcea4e3c2</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-04-01 12:01:46</sys_created_on>
+        <sys_id>a6030e242fc807d0d2a0d68fcea4e378</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>19d48ebce540000001</sys_recorded_at>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-04-01 12:01:46</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>66030e24cac807d0239ad6c894fce977</update_guid>
+        <update_guid_history>66030e24cac807d0239ad6c894fce977:663689118,7b76e954c78047d0558f702889c0899e:-2145930947,2c57830585a736109eacd786cdc7f9c4:1546236276,155fabf444a7b2102f339dc2126ef5d1:1327890301,946e63b41ea7b210d4f9e28301cb11f4:-668040444,8bd8af3ce467b210ac7b0992444259b7:1893774168,8260e77cb027b21055b7005ec4caaeb1:800911051,becf973c9327b2103cf9f4c35b5e3d64:2144336416,261d53385927b21055a812fb276d5ec7:-1394695026,25ccd7f49c27b210d1179e63add7da8e:653168492</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Program Dashboard Detail">2d3ac6b0ebcc0bd0520dfbdffdc0cd4a</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-04-02 07:11:36</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>2b3669149551407a8ab3af011df45f51</sys_id>
+        <sys_metadata>54bc97f42f27b210d2a0d68fcea4e3d9</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Program Dashboard Detail</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_54bc97f42f27b210d2a0d68fcea4e3d9</sys_update_name>
+        <sys_update_version display_value="sp_widget_54bc97f42f27b210d2a0d68fcea4e3d9">a6030e242fc807d0d2a0d68fcea4e378</sys_update_version>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-04-02 07:11:36</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

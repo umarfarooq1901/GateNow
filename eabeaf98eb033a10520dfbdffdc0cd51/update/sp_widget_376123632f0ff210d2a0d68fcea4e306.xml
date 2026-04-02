@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function(spUtil, $window, $timeout, $scope) {
+        <client_script><![CDATA[api.controller = function(spUtil, $window, $timeout, $scope, $location) {
   var c = this;
 
   c.sessionUser = {
@@ -23,9 +23,16 @@
 
   c.profileOpen   = false;
   c.toggleProfile = function($event) { $event.stopPropagation(); c.profileOpen = !c.profileOpen; };
-  c.logout        = function() { $window.location.href = c.data.logoutUrl || '/login.do?logout=true'; };
-  c.goToProfile   = function() { c.profileOpen = false; $window.location.href = c.data.profilePage || '?id=user_profile'; };
-
+  c.logout = function() { 
+  window.location.assign('/login.do?logout=true'); 
+};
+  c.goToProfile = function() { 
+  c.profileOpen = false; 
+  
+  $location.search({
+    id: 'user_profile'
+  });
+};
   c.searchText     = '';
   c.statusFilter   = '';
   c.categoryFilter = '';
@@ -109,10 +116,14 @@
   c.overdueReviews = function() { return (c.data.reviews || []).filter(function(r) { return r.is_overdue; }); };
   c.dueSoonReviews = function() { return (c.data.reviews || []).filter(function(r) { return r.is_due_soon; }); };
 
-  c.openRecord = function(rev) {
-    if (!rev || !rev.sys_id) return;
-    $window.location.href = '/review?id=review_proposal_detail_page&sys_id=' + rev.sys_id;
-  };
+ c.openRecord = function(rev) {
+  if (!rev || !rev.sys_id) return;
+  
+  $location.search({
+    id: 'review_proposal_detail_page',
+    sys_id: rev.sys_id
+  });
+};
 
   c.scoreWidth = function(score) {
     if (!score) return '0%';
@@ -2798,7 +2809,7 @@ justify-content: center;   /* ADD THIS */
         <name>Proposal Review</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>x_enno_gatenow.grant_review_user</roles>
         <script><![CDATA[(function() {
 
   // ── Current user ──────────────────────────────────────────
@@ -2960,14 +2971,14 @@ justify-content: center;   /* ADD THIS */
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>68</sys_mod_count>
+        <sys_mod_count>71</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:20:08</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-01 18:14:44</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
   <!-- SIDEBAR -->

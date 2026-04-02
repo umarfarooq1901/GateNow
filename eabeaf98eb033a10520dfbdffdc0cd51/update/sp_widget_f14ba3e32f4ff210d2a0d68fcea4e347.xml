@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($window, spModal) {
+        <client_script><![CDATA[api.controller = function($window, spModal, spUtil) {
   var c = this;
 
   c.tab        = 'overview';
@@ -47,8 +47,8 @@
           ? 'Review completed! All groups have finished reviewing.'
           : 'Review submitted! Assigned to next group: ' + (c.data.next_group || '');
         spModal.alert(msg).then(function() {
-          $window.location.href = '/review';
-        });
+  spUtil.navigateTo('review');
+});
       } else {
         c.error = c.data.error || 'An unexpected server error occurred.';
       }
@@ -752,7 +752,7 @@ body .sp-notification-container .alert {
         <name>Review Proposal Detail</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>x_enno_gatenow.grant_review_user</roles>
         <script><![CDATA[(function() {
   data.found            = false;
   data.success          = false;
@@ -1003,14 +1003,14 @@ body .sp-notification-container .alert {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 10:17:06</sys_created_on>
         <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
-        <sys_mod_count>95</sys_mod_count>
+        <sys_mod_count>98</sys_mod_count>
         <sys_name>Review Proposal Detail</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:09:14</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-01 17:08:25</sys_updated_on>
         <template><![CDATA[<!-- ACCESS DENIED -->
 <div class="rp-denied" ng-if="!data.found">
   <div class="rp-denied__box">
