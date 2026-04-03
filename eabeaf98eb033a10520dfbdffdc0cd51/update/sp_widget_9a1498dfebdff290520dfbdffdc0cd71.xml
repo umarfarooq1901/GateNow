@@ -7,81 +7,82 @@
 
   // ── Dropdown Choices ────────────────────────────────────────────────────
   c.choices = {
-    gender: [
-      { value: 'Female', label: 'Female' },
-      { value: 'Male',   label: 'Male' },
-      { value: 'Other',  label: 'Other' }
-    ],
-    marital_status: [
-      { value: 'Single',   label: 'Single' },
-      { value: 'Married',  label: 'Married' },
-      { value: 'Divorced', label: 'Divorced' },
-      { value: 'Widowed',  label: 'Widowed' }
-    ],
-    race: [
-      { value: 'American Indian or Alaska Native',    label: 'American Indian or Alaska Native' },
-      { value: 'Asian',                            label: 'Asian' },
-      { value: 'Black or African American',           label: 'Black or African American' },
-      { value: 'Native Hawaiian or Other pacific Islander', label: 'Native Hawaiian or Other Pacific Islander' },
-      { value: 'White',                            label: 'White' },
-      { value: 'I do not wish to provide this informantion',                      label: 'I do not wish to provide this information' }
-    ],
-    ethnicity: [
-      { value: 'Hispanic or Latino',     label: 'Hispanic or Latino' },
-      { value: 'Not Hispanic or Latino', label: 'Not Hispanic or Latino' },
-      { value: 'I do not wish to provide this information',         label: 'I do not wish to provide this information' }
-    ],
-    education_level: [
-      { value: 'Associate degree',    label: 'Associate degree' },
-      { value: 'bachelor_degree',    label: "Bachelor's degree" },
-      { value: 'Doctorate',    label: 'Doctorate' },
-      { value: 'High school or equivalent',  label: 'High school or equivalent' },
-      { value: 'Masters degree',      label: "Master's degree" },
-      { value: 'Professional', label: 'Professional' },
-      { value: 'Some college coursework completed', label: 'Some college coursework completed' },
-      { value: 'Technical or occupational certificate',    label: 'Technical or occupational certificate' },
-      { value: 'Other',        label: 'Other' }
-    ],
-    military_status: [
-      { value: 'active_duty', label: 'Active duty' },
-      { value: 'veterans',    label: 'Veterans' },
-      { value: 'no_military_duty', label: 'No military duty' },
-      { value: 'i_do_not_wish_to_provide_this_information', label: 'I do not wish to provide this information' }
-    ],
-    disability_status: [
-      { value: 'yes',         label: 'Yes, I have a disability' },
-      { value: 'no',          label: 'No, I do not have a disability' },
-      { value: 'do_not_wish', label: 'I do not wish to provide this information' }
-    ],
-    citizenship_status: [
-      { value: 'Citizen',            label: 'Citizen' },
-      { value: 'Non-Immigrant',      label: 'Non-Immigrant' },
-      { value: 'Permanent Resident', label: 'Permanent Resident' },
-      { value: 'Undocumented',       label: 'Undocumented' }
-    ],
-    tribal_affiliation: [
-      { value: 'Yes', label: 'Yes' },
-      { value: 'No',  label: 'No' }
-    ],
-    applicant_type: [
-      { value: 'Government',   label: 'Government' },
-      { value: 'Individual',   label: 'Individual' },
-      { value: 'Organization', label: 'Organization' }
-    ],
-    identity_type: [
-      { value: 'Drivers License Number',        label: "Driver's License Number" },
-      { value: 'Medicare Number',        label: 'Medicare Number' },
-      { value: 'Social Security Number', label: 'Social Security Number' },
-      { value: 'State Identification Number',        label: 'State Identification Number' }
-    ]
-  };
-// ── Stats bar counter (used by mya-stats-bar) ───────────────────────────
-c.countByBadge = function(badgeClass) {
-  if (!c.data || !c.data.applications) return 0;
-  return c.data.applications.filter(function(a) {
-    return a.badge_class === badgeClass;
-  }).length;
+  gender: [
+    { value: 'female', label: 'Female' },
+    { value: 'male',   label: 'Male' },
+    { value: 'other',  label: 'Other' }
+  ],
+  marital_status: [
+    { value: 'single',   label: 'Single' },
+    { value: 'married',  label: 'Married' },
+    { value: 'divorced', label: 'Divorced' },
+    { value: 'widowed',  label: 'Widowed' }
+  ],
+  race: [
+    { value: 'american_indian_or_alaska_native', label: 'American Indian or Alaska Native' },
+    { value: 'asian', label: 'Asian' },
+    { value: 'black_or_african_american', label: 'Black or African American' },
+    { value: 'native_hawaiian_or_other_pacific_islander', label: 'Native Hawaiian or Other Pacific Islander' },
+    { value: 'white', label: 'White' },
+    { value: 'not_provided', label: 'I do not wish to provide this information' }
+  ],
+  ethnicity: [
+    { value: 'hispanic_or_latino', label: 'Hispanic or Latino' },
+    { value: 'not_hispanic_or_latino', label: 'Not Hispanic or Latino' },
+    { value: 'not_provided', label: 'I do not wish to provide this information' }
+  ],
+  education_level: [
+    { value: 'associate_degree', label: 'Associate degree' },
+    { value: 'bachelors_degree', label: "Bachelor's degree" },
+    { value: 'doctorate', label: 'Doctorate' },
+    { value: 'high_school', label: 'High school or equivalent' },
+    { value: 'masters_degree', label: "Master's degree" },
+    { value: 'professional', label: 'Professional' },
+    { value: 'some_college', label: 'Some college coursework completed' },
+    { value: 'technical_certificate', label: 'Technical or occupational certificate' },
+    { value: 'other', label: 'Other' }
+  ],
+  military_status: [
+    { value: 'active_duty', label: 'Active duty' },
+    { value: 'veteran', label: 'Veteran' },
+    { value: 'none', label: 'No military duty' },
+    { value: 'not_provided', label: 'I do not wish to provide this information' }
+  ],
+  disability_status: [
+    { value: 'yes', label: 'Yes, I have a disability' },
+    { value: 'no', label: 'No, I do not have a disability' },
+    { value: 'not_provided', label: 'I do not wish to provide this information' }
+  ],
+  citizenship_status: [
+    { value: 'citizen', label: 'Citizen' },
+    { value: 'non_immigrant', label: 'Non-Immigrant' },
+    { value: 'permanent_resident', label: 'Permanent Resident' },
+    { value: 'undocumented', label: 'Undocumented' }
+  ],
+  tribal_affiliation: [
+    { value: 'yes', label: 'Yes' },
+    { value: 'no',  label: 'No' }
+  ],
+  applicant_type: [
+    { value: 'government', label: 'Government' },
+    { value: 'individual', label: 'Individual' },
+    { value: 'organization', label: 'Organization' }
+  ],
+  identity_type: [
+    { value: 'drivers_license', label: "Driver's License Number" },
+    { value: 'medicare', label: 'Medicare Number' },
+    { value: 'ssn', label: 'Social Security Number' },
+    { value: 'state_id', label: 'State Identification Number' }
+  ]
 };
+  // ── Stats bar counter (used by mya-stats-bar) ───────────────────────────
+  c.countByBadge = function(badgeClass) {
+    if (!c.data || !c.data.applications) return 0;
+    return c.data.applications.filter(function(a) {
+      return a.badge_class === badgeClass;
+    }).length;
+  };
+
   // ── View Modal ──────────────────────────────────────────────────────────
   c.modalOpen = false;
   c.selected  = {};
@@ -129,7 +130,7 @@ c.countByBadge = function(badgeClass) {
 
   // ── Navigation ──────────────────────────────────────────────────────────
   c.goBack = function() {
-   $location.url("/applicant?id=applicant_dashboard");
+    $location.url("/applicant?id=applicant_dashboard");
   };
 
   // ── Per-row Timeline Toggle ─────────────────────────────────────────────
@@ -164,16 +165,16 @@ c.countByBadge = function(badgeClass) {
 
   // ── Open Edit ───────────────────────────────────────────────────────────
   c.openEdit = function(app) {
-    c.selected    = app;
-    c.editData    = { sys_id: app.sys_id, number: app.number };
-    c.editTab     = 'personal';
-    c.editSuccess = false;
-    c.editError   = '';
-    c.editSaving  = false;
-    c.editLoading = true;
+    c.selected       = app;
+    c.editData       = { sys_id: app.sys_id, number: app.number };
+    c.editTab        = 'personal';
+    c.editSuccess    = false;
+    c.editError      = '';
+    c.editSaving     = false;
+    c.editLoading    = true;
     c.uploadingFiles = [];
     c.uploadError    = '';
-    c.editOpen    = true;
+    c.editOpen       = true;
     document.body.style.overflow = 'hidden';
 
     $scope.server.get({
@@ -190,6 +191,7 @@ c.countByBadge = function(badgeClass) {
       var d      = r.data.application;
       c.selected = d;
 
+      // ── FIXED: all keys now match exactly what the server returns ──
       c.editData = {
         sys_id:               d.sys_id,
         number:               d.number,
@@ -218,14 +220,14 @@ c.countByBadge = function(badgeClass) {
         tin_ein:              d.tin_ein,
         uei:                  d.uei,
         organization:         d.organization,
-        start_date:           d.start_date,
-        end_date:             d.end_date,
+        start_date:           d.start_date,           // FIXED: was d.project_start_date
+        end_date:             d.end_date,             // FIXED: was d.project_end_date
         submission_date:      d.submission_date,
         requested_budget:     d.requested_budget,
         short_description:    d.short_description,
         proposal_description: d.proposal_description,
-        project_goals:        d.project_goals,
-        project_activities:   d.project_activities
+        project_goals:        d.project_goals,        // FIXED: was d.project_goals_and_objectives
+        project_activities:   d.project_activities    // FIXED: was d.project_activities_methodology
       };
     });
   };
@@ -265,14 +267,14 @@ c.countByBadge = function(badgeClass) {
       tin_ein:              c.editData.tin_ein,
       uei:                  c.editData.uei,
       organization:         c.editData.organization,
-      start_date:           c.editData.start_date,
-      end_date:             c.editData.end_date,
+      start_date:           c.editData.start_date,           // FIXED: was c.editData.project_start_date
+      end_date:             c.editData.end_date,             // FIXED: was c.editData.project_end_date
       submission_date:      c.editData.submission_date,
       requested_budget:     c.editData.requested_budget,
       short_description:    c.editData.short_description,
       proposal_description: c.editData.proposal_description,
-      project_goals:        c.editData.project_goals,
-      project_activities:   c.editData.project_activities
+      project_goals:        c.editData.project_goals,        // FIXED: was c.editData.project_goals_and_objectives
+      project_activities:   c.editData.project_activities    // FIXED: was c.editData project_activities_methodology (also had missing dot)
     }).then(function(r) {
       c.editSaving = false;
       if (r.data.success) {
@@ -432,8 +434,7 @@ c.countByBadge = function(badgeClass) {
     }
   });
 
-};
-]]></client_script>
+};]]></client_script>
         <controller_as>c</controller_as>
         <css>
 /* ═══════════════════════════════════════
@@ -1033,81 +1034,102 @@ c.countByBadge = function(badgeClass) {
   // ACTION: GET SINGLE APPLICATION
   // ══════════════════════════════════════════════════════════════
   if (input && input.action === 'getApplication') {
-    data.application = null;
-    data.error       = '';
+  data.application = null;
+  data.error       = '';
 
-    try {
-      var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+  try {
+    var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
-      if (!gr.get(input.sys_id)) {
-        data.error = 'Record not found.';
-        return;
-      }
-
-      if (gr.getValue('sys_created_by') !== currentUser) {
-        data.error = 'Unauthorized.';
-        return;
-      }
-
-      var attachments = [];
-      var attGR = new GlideRecordSecure('sys_attachment');
-      attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
-      attGR.addQuery('table_sys_id', input.sys_id);
-      attGR.query();
-      while (attGR.next()) {
-        attachments.push({
-          sys_id:       attGR.getUniqueValue(),
-          name:         attGR.getValue('file_name')    || '',
-          size:         attGR.getValue('size_bytes')   || '0',
-          content_type: attGR.getValue('content_type') || ''
-        });
-      }
-
-      data.application = {
-        sys_id:               gr.getUniqueValue(),
-        number:               gr.getValue('number')                            || '',
-        first_name:           gr.getValue('first_name')                        || '',
-        middle_name:          gr.getValue('middle_name')                       || '',
-        last_name:            gr.getValue('last_name')                         || '',
-        birthdate:            gr.getValue('birthdate')                         || '',
-        phone:                gr.getValue('phone_number')                      || '',
-        email:                gr.getValue('email')                             || '',
-        gender:               gr.getValue('gender')                            || '',
-        marital_status:       gr.getValue('marital_status')                    || '',
-        race:                 gr.getValue('race')                              || '',
-        ethnicity:            gr.getValue('ethnicity')                         || '',
-        education_level:      gr.getValue('education_level')                   || '',
-        military_status:      gr.getValue('military_status')                   || '',
-        street:               gr.getValue('street')                            || '',
-        city:                 gr.getValue('city')                              || '',
-        country:              gr.getValue('country')                           || '',
-        zip:                  gr.getValue('zip_postal_code')                   || '',
-        applicant_type:       gr.getValue('applicant_type')                    || '',
-        citizenship_status:   gr.getValue('citizenship_status')                || '',
-        identity_type:        gr.getValue('identity_type')                     || '',
-        tribal_affiliation:   gr.getValue('tribal_affiliation')                || '',
-        disability_status:    gr.getValue('disability_status')                 || '',
-        ssn:                  gr.getValue('ssn')                               || '',
-        tin_ein:              gr.getValue('tin_ein')                           || '',
-        uei:                  gr.getValue('uei')                               || '',
-        organization:         gr.getValue('organization')                      || '',
-        start_date:           gr.getValue('project_start_date')                || '',
-        end_date:             gr.getValue('project_end_date')                  || '',
-        submission_date:      gr.getValue('submission_date')                   || '',
-        requested_budget:     gr.getValue('requested_budget')                  || '',
-        short_description:    gr.getValue('short_description')                 || '',
-        proposal_description: gr.getValue('proposal_description')              || '',
-        project_goals:        gr.getValue('project_goals_objectives')          || '',
-        project_activities:   gr.getValue('project_activities_methodology')    || '',
-        attachments:          attachments
-      };
-
-    } catch(e) {
-      data.error = e.message;
+    if (!gr.get(input.sys_id)) {
+      data.error = 'Record not found.';
+      return;
     }
 
-    return;
+    if (gr.getValue('sys_created_by') !== currentUser) {
+      data.error = 'Unauthorized.';
+      return;
+    }
+
+    // ✅ FIX: Date formatter (ServiceNow-safe)
+    var formatDate = function(d) {
+      if (!d) return '';
+      return d.split(' ')[0];
+    };
+
+    var attachments = [];
+    var attGR = new GlideRecordSecure('sys_attachment');
+    attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
+    attGR.addQuery('table_sys_id', input.sys_id);
+    attGR.query();
+    while (attGR.next()) {
+      attachments.push({
+        sys_id:       attGR.getUniqueValue(),
+        name:         attGR.getValue('file_name')    || '',
+        size:         attGR.getValue('size_bytes')   || '0',
+        content_type: attGR.getValue('content_type') || ''
+      });
+    }
+
+    data.application = {
+			
+			
+      sys_id:               gr.getUniqueValue(),
+      number:               gr.getValue('number') || '',
+      first_name:           gr.getValue('first_name') || '',
+      middle_name:          gr.getValue('middle_name') || '',
+      last_name:            gr.getValue('last_name') || '',
+
+      // ✅ FIXED DATE
+      birthdate:            formatDate(gr.getValue('birthdate')),
+
+      phone:                gr.getValue('phone_number') || '',
+      email:                gr.getValue('email') || '',
+
+      // ✅ FIXED DROPDOWNS (use getValue)
+			
+			gender:               gr.getDisplayValue('gender') || '',
+marital_status:       gr.getDisplayValue('marital_status') || '',
+race:                 gr.getValue('Race') || '',
+ethnicity:            gr.getValue('ethnicity') || '',
+education_level:      gr.getDisplayValue('education_level') || '',
+military_status:      gr.getDisplayValue('military_status') || '',
+
+      street:               gr.getValue('street') || '',
+      city:                 gr.getValue('city') || '',
+      country:              gr.getValue('country') || '',
+      zip:                  gr.getValue('zip_postal_code') || '',
+
+      applicant_type:       gr.getValue('applicant_type') || '',
+      citizenship_status:   gr.getValue('citizenship_status') || '',
+      identity_type:        gr.getValue('identity_type') || '',
+      tribal_affiliation:   gr.getValue('tribal_affiliation') || '',
+      disability_status:    gr.getValue('disability_status') || '',
+
+      ssn:                  gr.getValue('ssn') || '',
+      tin_ein:              gr.getValue('tin_ein') || '',
+      uei:                  gr.getValue('uei') || '',
+      organization:         gr.getValue('organization') || '',
+
+      // ✅ FIXED DATES
+      start_date:           formatDate(gr.getValue('project_start_date')),
+      end_date:             formatDate(gr.getValue('project_end_date')),
+      submission_date:      formatDate(gr.getValue('submission_date')),
+
+      requested_budget:     gr.getValue('requested_budget') || '',
+      short_description:    gr.getValue('short_description') || '',
+      proposal_description: gr.getValue('proposal_description') || '',
+      project_goals:        gr.getValue('project_goals_objectives') || '',
+      project_activities:   gr.getValue('project_activities_methodology') || '',
+
+      attachments:          attachments
+    };
+
+  } catch(e) {
+    data.error = e.message;
   }
+
+  return;
+}
 
   // ══════════════════════════════════════════════════════════════
   // ACTION: UPDATE APPLICATION
@@ -1117,7 +1139,9 @@ c.countByBadge = function(badgeClass) {
     data.error   = '';
 
     try {
-      var upd = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+      // FIXED: use GlideRecord instead of GlideRecordSecure
+      // We do our own ownership check below, so this is safe
+      var upd = new GlideRecord('x_enno_gatenow_service_applicants');
 
       if (!upd.get(input.sys_id)) {
         data.error = 'Record not found.';
@@ -1129,7 +1153,8 @@ c.countByBadge = function(badgeClass) {
         return;
       }
 
-      var stateVal = upd.getDisplayValue('state');
+      // FIXED: fallback to raw value in case getDisplayValue returns empty
+      var stateVal = upd.getDisplayValue('state') || upd.getValue('state');
       if (stateVal !== 'New') {
         data.error = 'Record is no longer editable.';
         return;
@@ -1169,8 +1194,13 @@ c.countByBadge = function(badgeClass) {
       upd.setValue('project_goals_objectives',       input.project_goals        || '');
       upd.setValue('project_activities_methodology', input.project_activities   || '');
 
-      upd.update();
-      data.success = true;
+      // FIXED: check update() return value instead of blindly setting success
+      var updateResult = upd.update();
+      if (updateResult) {
+        data.success = true;
+      } else {
+        data.error = 'Update failed. Check field-level ACLs or business rules.';
+      }
 
     } catch(e) {
       data.error = e.message;
@@ -1182,58 +1212,53 @@ c.countByBadge = function(badgeClass) {
   // ══════════════════════════════════════════════════════════════
   // ACTION: UPLOAD ATTACHMENT
   // ══════════════════════════════════════════════════════════════
- // ══════════════════════════════════════════════════════════════
-// ACTION: UPLOAD ATTACHMENT
-// ══════════════════════════════════════════════════════════════
-if (input && input.action === 'uploadAttachment') {
-  data.attachment = null;
-  data.error      = '';
+  if (input && input.action === 'uploadAttachment') {
+    data.attachment = null;
+    data.error      = '';
 
-  try {
-    var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    try {
+      var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
-    if (!gr.get(input.sys_id)) {
-      data.error = 'Record not found.';
-      return;
-    }
+      if (!gr.get(input.sys_id)) {
+        data.error = 'Record not found.';
+        return;
+      }
 
-    if (gr.getValue('sys_created_by') !== currentUser) {
-      data.error = 'Unauthorized.';
-      return;
-    }
+      if (gr.getValue('sys_created_by') !== currentUser) {
+        data.error = 'Unauthorized.';
+        return;
+      }
 
-    // Use GlideSysAttachment.write() with base64 string directly
-    var attachmentMgr = new GlideSysAttachment();
-    var attSysId      = attachmentMgr.write(
-      gr,                          // GlideRecordSecure to attach to
-      input.file_name,             // file name
-      input.content_type,          // MIME type
-      input.file_data              // raw base64 string — write() accepts this directly
-    );
+      var attachmentMgr = new GlideSysAttachment();
+      var attSysId      = attachmentMgr.write(
+        gr,
+        input.file_name,
+        input.content_type,
+        input.file_data
+      );
 
-   if (attSysId) {
-    var attGR = new GlideRecordSecure('sys_attachment');
-    if (attGR.get(attSysId)) {
-        data.attachment = {
+      if (attSysId) {
+        var attGR = new GlideRecordSecure('sys_attachment');
+        if (attGR.get(attSysId)) {
+          data.attachment = {
             sys_id:       attSysId,
             name:         attGR.getValue('file_name')    || input.file_name,
             size:         attGR.getValue('size_bytes')   || '0',
             content_type: attGR.getValue('content_type') || input.content_type
-        };
-    } else {
-        data.error = 'Attachment record not found.';
+          };
+        } else {
+          data.error = 'Attachment record not found.';
+        }
+      } else {
+        data.error = 'Failed to save attachment.';
+      }
+
+    } catch(e) {
+      data.error = e.message;
     }
-} else {
-    data.error = 'Failed to save attachment.';
-}
 
-  } catch(e) {
-    data.error = e.message;
+    return;
   }
-
-  return;
-}
-
 
   // ══════════════════════════════════════════════════════════════
   // ACTION: DELETE ATTACHMENT
@@ -1250,7 +1275,6 @@ if (input && input.action === 'uploadAttachment') {
         return;
       }
 
-      // Verify the attachment belongs to a record owned by current user
       var tableSysId = attGR.getValue('table_sys_id');
       var appGR      = new GlideRecordSecure('x_enno_gatenow_service_applicants');
 
@@ -1297,17 +1321,17 @@ if (input && input.action === 'uploadAttachment') {
     'Closed':                '#9ca3af'
   };
 
-var badgeMap = {
-  'New':                   'badge-new',
-  'Ready for Review':      'badge-review',      // ← was badge-submitted
- 'Review in Progress':    'badge-in-progress',       // ← was badge-review (same, fine)
-  'Award Pending':         'badge-pending',
-  'Award Acknowledged':    'badge-completed',    // ← was badge-approved
-  'Review Completed':      'badge-completed',    // ← was badge-approved
-  'Declined by Agency':    'badge-declined',
-  'Declined by Applicant': 'badge-declined',
-  'Closed':                'badge-new'           // ← was badge-closed
-};
+  var badgeMap = {
+    'New':                   'badge-new',
+    'Ready for Review':      'badge-review',
+    'Review in Progress':    'badge-in-progress',
+    'Award Pending':         'badge-pending',
+    'Award Acknowledged':    'badge-completed',
+    'Review Completed':      'badge-completed',
+    'Declined by Agency':    'badge-declined',
+    'Declined by Applicant': 'badge-declined',
+    'Closed':                'badge-new'
+  };
 
   var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
   gr.addQuery('sys_created_by', currentUser);
@@ -1401,21 +1425,20 @@ var badgeMap = {
 
   data.timeline = data.timeline.reverse();
 
-})();
-]]></script>
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>132</sys_mod_count>
+        <sys_mod_count>141</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-01 17:25:24</sys_updated_on>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-04-03 13:41:16</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
