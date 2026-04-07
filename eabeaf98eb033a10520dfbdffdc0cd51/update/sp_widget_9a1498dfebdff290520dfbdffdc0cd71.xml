@@ -5,77 +5,7 @@
 
   var c = this;
 
-  // ── Dropdown Choices ────────────────────────────────────────────────────
-  c.choices = {
-  gender: [
-    { value: 'female', label: 'Female' },
-    { value: 'male',   label: 'Male' },
-    { value: 'other',  label: 'Other' }
-  ],
-  marital_status: [
-    { value: 'single',   label: 'Single' },
-    { value: 'married',  label: 'Married' },
-    { value: 'divorced', label: 'Divorced' },
-    { value: 'widowed',  label: 'Widowed' }
-  ],
-  race: [
-    { value: 'american_indian_or_alaska_native', label: 'American Indian or Alaska Native' },
-    { value: 'asian', label: 'Asian' },
-    { value: 'black_or_african_american', label: 'Black or African American' },
-    { value: 'native_hawaiian_or_other_pacific_islander', label: 'Native Hawaiian or Other Pacific Islander' },
-    { value: 'white', label: 'White' },
-    { value: 'not_provided', label: 'I do not wish to provide this information' }
-  ],
-  ethnicity: [
-    { value: 'hispanic_or_latino', label: 'Hispanic or Latino' },
-    { value: 'not_hispanic_or_latino', label: 'Not Hispanic or Latino' },
-    { value: 'not_provided', label: 'I do not wish to provide this information' }
-  ],
-  education_level: [
-    { value: 'associate_degree', label: 'Associate degree' },
-    { value: 'bachelors_degree', label: "Bachelor's degree" },
-    { value: 'doctorate', label: 'Doctorate' },
-    { value: 'high_school', label: 'High school or equivalent' },
-    { value: 'masters_degree', label: "Master's degree" },
-    { value: 'professional', label: 'Professional' },
-    { value: 'some_college', label: 'Some college coursework completed' },
-    { value: 'technical_certificate', label: 'Technical or occupational certificate' },
-    { value: 'other', label: 'Other' }
-  ],
-  military_status: [
-    { value: 'active_duty', label: 'Active duty' },
-    { value: 'veteran', label: 'Veteran' },
-    { value: 'none', label: 'No military duty' },
-    { value: 'not_provided', label: 'I do not wish to provide this information' }
-  ],
-  disability_status: [
-    { value: 'yes', label: 'Yes, I have a disability' },
-    { value: 'no', label: 'No, I do not have a disability' },
-    { value: 'not_provided', label: 'I do not wish to provide this information' }
-  ],
-  citizenship_status: [
-    { value: 'citizen', label: 'Citizen' },
-    { value: 'non_immigrant', label: 'Non-Immigrant' },
-    { value: 'permanent_resident', label: 'Permanent Resident' },
-    { value: 'undocumented', label: 'Undocumented' }
-  ],
-  tribal_affiliation: [
-    { value: 'yes', label: 'Yes' },
-    { value: 'no',  label: 'No' }
-  ],
-  applicant_type: [
-    { value: 'government', label: 'Government' },
-    { value: 'individual', label: 'Individual' },
-    { value: 'organization', label: 'Organization' }
-  ],
-  identity_type: [
-    { value: 'drivers_license', label: "Driver's License Number" },
-    { value: 'medicare', label: 'Medicare Number' },
-    { value: 'ssn', label: 'Social Security Number' },
-    { value: 'state_id', label: 'State Identification Number' }
-  ]
-};
-  // ── Stats bar counter (used by mya-stats-bar) ───────────────────────────
+  // ── Stats counter ─────────────────────────────────────────────────────────
   c.countByBadge = function(badgeClass) {
     if (!c.data || !c.data.applications) return 0;
     return c.data.applications.filter(function(a) {
@@ -83,7 +13,7 @@
     }).length;
   };
 
-  // ── View Modal ──────────────────────────────────────────────────────────
+  // ── View Modal ────────────────────────────────────────────────────────────
   c.modalOpen = false;
   c.selected  = {};
   c.activeTab = 'personal';
@@ -97,20 +27,13 @@
 
   c.closeModal = function() {
     c.modalOpen = false;
-    if (!c.editOpen) c.selected = {};
+    c.selected  = {};
     document.body.style.overflow = '';
   };
 
   c.setTab = function(tab) { c.activeTab = tab; };
 
-  // Opens edit from View modal footer — capture app ref before closing
-  c.openEditFromView = function(app) {
-    var target  = app;
-    c.modalOpen = false;
-    c.openEdit(target);
-  };
-
-  // ── Utilities ───────────────────────────────────────────────────────────
+  // ── Utilities ─────────────────────────────────────────────────────────────
   c.formatBytes = function(bytes) {
     if (!bytes || bytes == 0) return '0 B';
     var b = parseInt(bytes);
@@ -128,12 +51,12 @@
     return 'fa-file-o';
   };
 
-  // ── Navigation ──────────────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
   c.goBack = function() {
-    $location.url("/applicant?id=applicant_dashboard");
+    $location.url('/applicant?id=applicant_dashboard');
   };
 
-  // ── Per-row Timeline Toggle ─────────────────────────────────────────────
+  // ── Timeline Toggle ───────────────────────────────────────────────────────
   c.expandedApp = null;
   c.appTimeline = [];
 
@@ -144,291 +67,13 @@
       return;
     }
     c.expandedApp = app.sys_id;
-    c.appTimeline = (c.data.timeline || []).filter(function(item) {
-      return item.app_num === app.number;
-    });
+    c.appTimeline = (c.data.timelines && c.data.timelines[app.sys_id]) || [];
   };
 
-  // ── Edit Modal State ────────────────────────────────────────────────────
-  c.editOpen    = false;
-  c.editData    = {};
-  c.editTab     = 'personal';
-  c.editSaving  = false;
-  c.editLoading = false;
-  c.editSuccess = false;
-  c.editError   = '';
-
-  // ── Upload State ────────────────────────────────────────────────────────
-  c.uploadingFiles = [];
-  c.uploadError    = '';
-  c.isDragging     = false;
-
-  // ── Open Edit ───────────────────────────────────────────────────────────
-  c.openEdit = function(app) {
-    c.selected       = app;
-    c.editData       = { sys_id: app.sys_id, number: app.number };
-    c.editTab        = 'personal';
-    c.editSuccess    = false;
-    c.editError      = '';
-    c.editSaving     = false;
-    c.editLoading    = true;
-    c.uploadingFiles = [];
-    c.uploadError    = '';
-    c.editOpen       = true;
-    document.body.style.overflow = 'hidden';
-
-    $scope.server.get({
-      action: 'getApplication',
-      sys_id:  app.sys_id
-    }).then(function(r) {
-      c.editLoading = false;
-
-      if (r.data.error) {
-        c.editError = r.data.error;
-        return;
-      }
-
-      var d      = r.data.application;
-      c.selected = d;
-
-      // ── FIXED: all keys now match exactly what the server returns ──
-      c.editData = {
-        sys_id:               d.sys_id,
-        number:               d.number,
-        first_name:           d.first_name,
-        middle_name:          d.middle_name,
-        last_name:            d.last_name,
-        birthdate:            d.birthdate,
-        phone:                d.phone,
-        email:                d.email,
-        gender:               d.gender,
-        marital_status:       d.marital_status,
-        race:                 d.race,
-        ethnicity:            d.ethnicity,
-        education_level:      d.education_level,
-        military_status:      d.military_status,
-        street:               d.street,
-        city:                 d.city,
-        country:              d.country,
-        zip:                  d.zip,
-        applicant_type:       d.applicant_type,
-        citizenship_status:   d.citizenship_status,
-        identity_type:        d.identity_type,
-        tribal_affiliation:   d.tribal_affiliation,
-        disability_status:    d.disability_status,
-        ssn:                  d.ssn,
-        tin_ein:              d.tin_ein,
-        uei:                  d.uei,
-        organization:         d.organization,
-        start_date:           d.start_date,           // FIXED: was d.project_start_date
-        end_date:             d.end_date,             // FIXED: was d.project_end_date
-        submission_date:      d.submission_date,
-        requested_budget:     d.requested_budget,
-        short_description:    d.short_description,
-        proposal_description: d.proposal_description,
-        project_goals:        d.project_goals,        // FIXED: was d.project_goals_and_objectives
-        project_activities:   d.project_activities    // FIXED: was d.project_activities_methodology
-      };
-    });
-  };
-
-  // ── Save Edit ───────────────────────────────────────────────────────────
-  c.saveEdit = function() {
-    if (c.editSaving) return;
-    c.editSaving  = true;
-    c.editError   = '';
-    c.editSuccess = false;
-
-    $scope.server.get({
-      action:               'updateApplication',
-      sys_id:               c.editData.sys_id,
-      first_name:           c.editData.first_name,
-      middle_name:          c.editData.middle_name,
-      last_name:            c.editData.last_name,
-      birthdate:            c.editData.birthdate,
-      phone:                c.editData.phone,
-      email:                c.editData.email,
-      gender:               c.editData.gender,
-      marital_status:       c.editData.marital_status,
-      race:                 c.editData.race,
-      ethnicity:            c.editData.ethnicity,
-      education_level:      c.editData.education_level,
-      military_status:      c.editData.military_status,
-      street:               c.editData.street,
-      city:                 c.editData.city,
-      country:              c.editData.country,
-      zip:                  c.editData.zip,
-      applicant_type:       c.editData.applicant_type,
-      citizenship_status:   c.editData.citizenship_status,
-      identity_type:        c.editData.identity_type,
-      tribal_affiliation:   c.editData.tribal_affiliation,
-      disability_status:    c.editData.disability_status,
-      ssn:                  c.editData.ssn,
-      tin_ein:              c.editData.tin_ein,
-      uei:                  c.editData.uei,
-      organization:         c.editData.organization,
-      start_date:           c.editData.start_date,           // FIXED: was c.editData.project_start_date
-      end_date:             c.editData.end_date,             // FIXED: was c.editData.project_end_date
-      submission_date:      c.editData.submission_date,
-      requested_budget:     c.editData.requested_budget,
-      short_description:    c.editData.short_description,
-      proposal_description: c.editData.proposal_description,
-      project_goals:        c.editData.project_goals,        // FIXED: was c.editData.project_goals_and_objectives
-      project_activities:   c.editData.project_activities    // FIXED: was c.editData project_activities_methodology (also had missing dot)
-    }).then(function(r) {
-      c.editSaving = false;
-      if (r.data.success) {
-        c.editSuccess = true;
-        // Update table row in memory without page reload
-        for (var i = 0; i < c.data.applications.length; i++) {
-          if (c.data.applications[i].sys_id === c.editData.sys_id) {
-            angular.extend(c.data.applications[i], c.editData);
-            break;
-          }
-        }
-        setTimeout(function() {
-          $scope.$apply(function() { c.closeEdit(); });
-        }, 1500);
-      } else {
-        c.editError = r.data.error || 'Failed to save. Please try again.';
-      }
-    });
-  };
-
-  // ── Close Edit ──────────────────────────────────────────────────────────
-  c.closeEdit = function() {
-    c.editOpen       = false;
-    c.editData       = {};
-    c.editLoading    = false;
-    c.editSaving     = false;
-    c.uploadingFiles = [];
-    c.uploadError    = '';
-    c.isDragging     = false;
-    if (!c.modalOpen) c.selected = {};
-    document.body.style.overflow = '';
-  };
-
-  c.setEditTab = function(tab) { c.editTab = tab; };
-
-  // ── File Input Trigger ──────────────────────────────────────────────────
-  c.triggerFileInput = function() {
-    document.getElementById('ma-file-input').click();
-  };
-
-  // ── Drag & Drop ─────────────────────────────────────────────────────────
-  c.onDragOver = function($event) {
-    if ($event && $event.preventDefault) $event.preventDefault();
-    c.isDragging = true;
-  };
-
-  c.onDragLeave = function($event) {
-    c.isDragging = false;
-  };
-
-  c.onDrop = function($event) {
-    if ($event && $event.preventDefault) $event.preventDefault();
-    c.isDragging = false;
-    var files = $event && $event.dataTransfer ? $event.dataTransfer.files : null;
-    if (files && files.length > 0) {
-      c.uploadFiles(files);
-    }
-  };
-
-  // ── File Select (input[type=file]) ──────────────────────────────────────
-  c.onFileSelect = function(input) {
-    if (input.files && input.files.length > 0) {
-      c.uploadFiles(input.files);
-      input.value = ''; // reset so same file can be re-uploaded
-    }
-  };
-
-  // ── Upload Files ────────────────────────────────────────────────────────
-  c.uploadFiles = function(files) {
-    c.uploadError = '';
-    for (var i = 0; i < files.length; i++) {
-      c.uploadSingleFile(files[i]);
-    }
-  };
-
-  c.uploadSingleFile = function(file) {
-    var progressEntry = { name: file.name, progress: 0 };
-    c.uploadingFiles.push(progressEntry);
-
-    var reader    = new FileReader();
-    reader.onload = function(e) {
-      progressEntry.progress = 60;
-      $scope.$apply();
-
-      var base64 = e.target.result.split(',')[1];
-
-      $scope.server.get({
-        action:       'uploadAttachment',
-        sys_id:       c.editData.sys_id,
-        file_name:    file.name,
-        content_type: file.type || 'application/octet-stream',
-        file_data:    base64
-      }).then(function(r) {
-        // Remove from progress list
-        var idx = c.uploadingFiles.indexOf(progressEntry);
-        if (idx > -1) c.uploadingFiles.splice(idx, 1);
-
-        if (r.data.attachment) {
-          if (!c.selected.attachments) c.selected.attachments = [];
-          c.selected.attachments.push(r.data.attachment);
-          // Sync count badge on table row
-          for (var i = 0; i < c.data.applications.length; i++) {
-            if (c.data.applications[i].sys_id === c.editData.sys_id) {
-              c.data.applications[i].attachments = c.selected.attachments;
-              break;
-            }
-          }
-        } else {
-          c.uploadError = r.data.error || 'Upload failed for: ' + file.name;
-        }
-      });
-    };
-
-    reader.onerror = function() {
-      var idx = c.uploadingFiles.indexOf(progressEntry);
-      if (idx > -1) c.uploadingFiles.splice(idx, 1);
-      $scope.$apply(function() {
-        c.uploadError = 'Failed to read file: ' + file.name;
-      });
-    };
-
-    reader.readAsDataURL(file);
-  };
-
-  // ── Delete Attachment ───────────────────────────────────────────────────
-  c.deleteAttachment = function(att) {
-    if (!confirm('Delete "' + att.name + '"?')) return;
-    c.uploadError = '';
-
-    $scope.server.get({
-      action:     'deleteAttachment',
-      att_sys_id: att.sys_id
-    }).then(function(r) {
-      if (r.data.success) {
-        var idx = c.selected.attachments.indexOf(att);
-        if (idx > -1) c.selected.attachments.splice(idx, 1);
-        // Sync table row
-        for (var i = 0; i < c.data.applications.length; i++) {
-          if (c.data.applications[i].sys_id === c.editData.sys_id) {
-            c.data.applications[i].attachments = c.selected.attachments;
-            break;
-          }
-        }
-      } else {
-        c.uploadError = r.data.error || 'Failed to delete attachment.';
-      }
-    });
-  };
-
-  // ── Escape key closes modals ────────────────────────────────────────────
+  // ── Escape closes modal ───────────────────────────────────────────────────
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       $scope.$apply(function() {
-        if (c.editOpen)  c.closeEdit();
         if (c.modalOpen) c.closeModal();
       });
     }
@@ -436,575 +81,652 @@
 
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>
-/* ═══════════════════════════════════════
-   LAYOUT — sidebar + main content
-═══════════════════════════════════════ */
-.gn-layout {
-  /* Bleed out of ServiceNow portal's 15px side padding */
-  margin-left: -15px;
-  margin-right: -15px;
-  margin-top: 35px;
-
-  display: flex;
-  align-items: stretch;
-  min-height: 100vh;
-  background: #f0f2f5;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  position: relative;
-  
-   min-height: 100vh;
-}
-.gn-layout *,
-.gn-layout *::before,
-.gn-layout *::after {
-  box-sizing: border-box;
-}
-
-/* ═══════════════════════════════════════
-   SIDEBAR
-═══════════════════════════════════════ */
-.sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: #fff;
-  border-right: 1px solid #e5e7eb;
-
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  align-self: flex-start;
-
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  z-index: 10;
-
-  scrollbar-width: none;
-}
-.sidebar::-webkit-scrollbar { display: none; }
-
-/* ═══════════════════════════════════════
-   MAIN WRAP
-═══════════════════════════════════════ */
-.mya-wrap {
-  flex: 1;
-  min-width: 0;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  background: #f0f2f5;
-  padding: 28px 32px 56px;
-  box-sizing: border-box;
- min-height: 100vh;
-}
-/* ═══════════════════════════════════════
-   PAGE HEADER
-═══════════════════════════════════════ */
-.mya-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-.mya-page-hd-left { display: flex; align-items: center; gap: 14px; }
-.mya-page-hd-icon {
-  width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 20px;
-  box-shadow: 0 4px 14px rgba(79,70,229,0.35);
-}
-.mya-page-title { font-size: 24px; font-weight: 900; color: #0f172a; margin: 0; line-height: 1.2; }
-.mya-page-sub   { font-size: 13px; color: #64748b; margin: 4px 0 0; }
-
-.mya-btn-back {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 18px; border-radius: 10px;
-  background: #fff; border: 1px solid #e2e8f0;
-  font-size: 13px; font-weight: 700; color: #374151;
-  cursor: pointer; transition: all .18s;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.mya-btn-back:hover { background: #f8fafc; box-shadow: 0 3px 10px rgba(0,0,0,0.09); }
-
-/* ═══════════════════════════════════════
-   BREADCRUMB
-═══════════════════════════════════════ */
-.mya-breadcrumb {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12px; margin-bottom: 20px;
-}
-.mya-bc-link { color: #6366f1; font-weight: 600; text-decoration: none; }
-.mya-bc-link:hover { text-decoration: underline; }
-.mya-bc-sep  { color: #cbd5e1; font-size: 10px; }
-.mya-bc-cur  { color: #64748b; font-weight: 600; }
-.mya-stat--purple {
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
-  border: 1px solid #c4b5fd;
-}
-.mya-stat--purple i,
-.mya-stat--purple .mya-stat-val { color: #7c3aed; }
-/* ═══════════════════════════════════════
-   STATS BAR
-═══════════════════════════════════════ */
-.mya-stats-bar {
-  display: grid;                                         
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 22px;
-}
-.mya-stat {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 18px; border-radius: 14px;
-  transition: transform .16s, box-shadow .16s;
-}
-.mya-stat:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.09); }
-.mya-stat i       { font-size: 20px; opacity: .7; }
-.mya-stat-val     { font-size: 22px; font-weight: 900; line-height: 1; }
-.mya-stat-lbl     { font-size: 10px; font-weight: 600; color: #6b7280; margin-top: 2px; white-space: nowrap; }
-.mya-stat--blue   { background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; }
-.mya-stat--blue i, .mya-stat--blue .mya-stat-val { color: #2563eb; }
-.mya-stat--green  { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #86efac; }
-.mya-stat--green i, .mya-stat--green .mya-stat-val { color: #16a34a; }
-.mya-stat--amber  { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; }
-.mya-stat--amber i, .mya-stat--amber .mya-stat-val { color: #d97706; }
-.mya-stat--red    { background: linear-gradient(135deg, #fff5f5, #fee2e2); border: 1px solid #fecaca; }
-.mya-stat--red i, .mya-stat--red .mya-stat-val { color: #dc2626; }
-
-/* ═══════════════════════════════════════
-   APPLICATION CARD LIST
-═══════════════════════════════════════ */
-.mya-list { display: flex; flex-direction: column; }
-
-.mya-app-card {
-  display: flex; align-items: stretch;
-  background: #fff;
-  border: 1px solid #e8edf5;
-  overflow: hidden;
-  transition: box-shadow .18s, transform .18s;
-  cursor: pointer;
-  border-radius: 0;
-  margin-bottom: 0;
-}
-.mya-app-card:first-child                               { border-radius: 16px 16px 0 0; }
-.mya-app-card:last-of-type                              { border-radius: 0 0 16px 16px; }
-.mya-app-card:only-child                                { border-radius: 16px; }
-.mya-app-card + .mya-app-card                           { border-top: none; }
-.mya-app-card:hover  {
-  box-shadow: 0 4px 20px rgba(0,0,0,0.09);
-  transform: translateY(-1px);
-  z-index: 1; position: relative;
-}
-.mya-app-card--expanded {
-  box-shadow: 0 0 0 2px #6366f1 inset;
-  z-index: 2; position: relative;
-}
-
-/* Left accent bar */
-.mya-card-accent              { width: 5px; flex-shrink: 0; }
-.mya-card-accent.badge-completed { background: linear-gradient(180deg, #16a34a, #4ade80); }
-.mya-card-accent.badge-review    { background: linear-gradient(180deg, #0ea5e9, #38bdf8); }
-.mya-card-accent.badge-new       { background: linear-gradient(180deg, #94a3b8, #cbd5e1); }
-.mya-card-accent.badge-declined  { background: linear-gradient(180deg, #dc2626, #f87171); }
-.mya-card-accent.badge-pending   { background: linear-gradient(180deg, #d97706, #fbbf24); }
-
-/* Card body row */
-.mya-card-body {
-  flex: 1; display: flex; align-items: center;
-  padding: 16px 20px; min-width: 0; gap: 0;
-}
-
-/* Columns */
-.mya-col           { padding: 0 16px; }
-.mya-col-app       { display: flex; align-items: center; gap: 12px; flex: 0 0 260px; min-width: 0; padding-left: 4px; }
-.mya-col-prog      { flex: 0 0 180px; min-width: 0; }
-.mya-col-status    { flex: 0 0 170px; }
-.mya-col-date      { flex: 1; min-width: 120px; }
-.mya-col-actions   { flex: 0 0 auto; padding-right: 4px; }
-
-/* App avatar */
-.mya-app-av {
-  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: #fff;
-}
-.mya-app-av.badge-completed { background: linear-gradient(135deg, #16a34a, #4ade80); }
-.mya-app-av.badge-review    { background: linear-gradient(135deg, #0284c7, #38bdf8); }
-.mya-app-av.badge-new       { background: linear-gradient(135deg, #64748b, #94a3b8); }
-.mya-app-av.badge-declined  { background: linear-gradient(135deg, #dc2626, #f87171); }
-.mya-app-av.badge-pending   { background: linear-gradient(135deg, #d97706, #fbbf24); }
-
-.mya-app-num  { font-size: 14px; font-weight: 800; color: #1e293b; white-space: nowrap; }
-.mya-app-date { font-size: 11px; color: #94a3b8; margin-top: 2px; white-space: nowrap; }
-
-.mya-prog-label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
-.mya-prog-name  { font-size: 12px; font-weight: 700; color: #1e293b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mya-prog-none  { font-size: 11px; color: #cbd5e1; margin-top: 2px; }
-.mya-prog-num   { font-size: 10px; color: #94a3b8; margin-top: 1px; }
-
-/* ═══════════════════════════════════════
-   BADGES  (keep old + add new)
-═══════════════════════════════════════ */
-.mya-badge,
-.ma-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700; padding: 5px 12px;
-  border-radius: 99px; white-space: nowrap;
-}
-.mya-badge i, .ma-badge i { font-size: 10px; }
-
-/* Shared badge colours — works for both .mya-badge and .ma-badge */
-.badge-completed { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.badge-review    { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
-.badge-new       { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.badge-declined  { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-.badge-pending   { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-/* keep old ones too for safety */
-.badge-submitted { background: #eff6ff; color: #3b82f6; border: 1px solid #bfdbfe; }
-.badge-approved  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-.badge-closed    { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-.badge-in-progress {
-  background: #f0f9ff;
-  color: #0369a1;
-  border: 1px solid #7dd3fc;
-}
-/* Date col */
-.mya-date-label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
-.mya-date-val   { font-size: 12px; font-weight: 600; color: #475569; margin-top: 2px; white-space: nowrap; }
-.mya-date-val i { font-size: 10px; color: #94a3b8; }
-
-/* Action buttons */
-.mya-col-actions { display: flex; align-items: center; gap: 6px; }
-.mya-act-btn {
-  width: 34px; height: 34px; border-radius: 9px; border: none;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; cursor: pointer; transition: all .16s;
-}
-.mya-act-btn--tl   { background: #f1f5f9; color: #64748b; }
-.mya-act-btn--tl:hover   { background: #e0e7ff; color: #4f46e5; }
-.mya-act-btn--view { background: #f0fdf4; color: #16a34a; }
-.mya-act-btn--view:hover { background: #dcfce7; }
-.mya-act-btn--edit { background: #fff7ed; color: #ea580c; }
-.mya-act-btn--edit:hover { background: #ffedd5; }
-
-/* ═══════════════════════════════════════
-   TIMELINE PANEL
-═══════════════════════════════════════ */
-.mya-tl-panel {
-  background: #fafbff;
-  border: 1px solid #e8edf5;
-  border-top: none;
-  border-radius: 0 0 16px 16px;
-  overflow: hidden;
-  animation: myaSlideIn .22s ease-out;
-  margin-bottom: 10px;
-}
-@keyframes myaSlideIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.mya-tl-inner   { padding: 20px 28px 24px; }
-.mya-tl-header  {
-  font-size: 12px; font-weight: 800; color: #475569;
-  text-transform: uppercase; letter-spacing: .7px;
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 18px;
-}
-.mya-tl-appnum  {
-  font-size: 11px; font-weight: 700; color: #6366f1;
-  background: #eef2ff; padding: 2px 8px; border-radius: 5px;
-}
-.mya-tl-items   { display: flex; flex-direction: column; gap: 0; }
-.mya-tl-item    { display: flex; gap: 14px; }
-.mya-tl-item-left {
-  display: flex; flex-direction: column;
-  align-items: center; flex-shrink: 0; width: 14px;
-}
-.mya-tl-dot {
-  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
-  border: 2px solid #fff; margin-top: 2px;
-}
-.mya-tl-connector {
-  flex: 1; width: 2px; background: #e2e8f0;
-  margin: 4px 0; min-height: 20px;
-}
-.mya-tl-item-body    { padding-bottom: 18px; }
-.mya-tl-item-label   { font-size: 13px; font-weight: 700; color: #1e293b; }
-.mya-tl-item-date    { font-size: 11px; color: #94a3b8; margin-top: 3px; }
-.mya-tl-empty {
-  text-align: center; padding: 20px 0; color: #94a3b8; font-size: 13px;
-}
-.mya-tl-empty i { font-size: 24px; display: block; margin-bottom: 8px; }
-
-/* ═══════════════════════════════════════
-   EMPTY STATE
-═══════════════════════════════════════ */
-.mya-empty-state { text-align: center; padding: 64px 20px; }
-.mya-empty-ico {
-  width: 64px; height: 64px; border-radius: 18px;
-  background: #f1f5f9; display: flex; align-items: center;
-  justify-content: center; font-size: 26px;
-  color: #94a3b8; margin: 0 auto 16px;
-}
-.mya-empty-state h3 { font-size: 16px; font-weight: 800; color: #1e293b; margin: 0 0 6px; }
-.mya-empty-state p  { font-size: 13px; color: #64748b; margin: 0; }
-
-/* ═══════════════════════════════════════
-   MODAL OVERLAY &amp; CONTAINER
-═══════════════════════════════════════ */
-.mya-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(15,23,42,0.55);
-  backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-  animation: myaFadeIn .18s ease;
-}
-@keyframes myaFadeIn { from { opacity: 0; } to { opacity: 1; } }
-.mya-modal {
-  background: #fff; border-radius: 20px;
-  width: 100%; max-width: 720px;
-  max-height: 90vh; overflow: hidden;
-  display: flex; flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
-  animation: myaModalIn .22s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes myaModalIn {
-  from { opacity: 0; transform: scale(.95) translateY(16px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-/* Modal header */
-.mya-mhdr {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 22px 16px; border-bottom: 1px solid #f1f5f9;
-  background: linear-gradient(135deg, #f8faff, #fff);
-  flex-shrink: 0;
-}
-.mya-mhdr--edit { background: linear-gradient(135deg, #fff7f0, #fff); }
-.mya-mhdr-left  { display: flex; align-items: center; gap: 12px; }
-.mya-mhdr-av {
-  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 18px;
-  box-shadow: 0 3px 10px rgba(99,102,241,0.3);
-}
-.mya-mhdr-av--edit {
-  background: linear-gradient(135deg, #f97316, #fb923c);
-  box-shadow: 0 3px 10px rgba(249,115,22,0.3);
-}
-.mya-mhdr-title { font-size: 16px; font-weight: 800; color: #1e293b; }
-.mya-mhdr-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-.mya-mhdr-close {
-  width: 32px; height: 32px; border-radius: 8px;
-  border: none; background: #f1f5f9; color: #64748b;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 13px; transition: background .15s;
-}
-.mya-mhdr-close:hover { background: #fee2e2; color: #dc2626; }
-
-/* Modal banner */
-.mya-mbanner {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 22px; background: #f8fafc;
-  border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
-}
-.mya-mbanner-date { font-size: 11px; color: #94a3b8; }
-
-/* Modal tabs */
-.mya-mtabs {
-  display: flex; gap: 2px; padding: 0 22px;
-  border-bottom: 1px solid #f1f5f9; background: #fff;
-  overflow-x: auto; flex-shrink: 0;
-}
-.mya-mtab {
-  padding: 12px 16px; border: none; background: transparent;
-  font-size: 12px; font-weight: 700; color: #64748b;
-  cursor: pointer; border-bottom: 2px solid transparent;
-  margin-bottom: -1px; white-space: nowrap;
-  transition: color .15s, border-color .15s;
-  display: flex; align-items: center; gap: 5px;
-}
-.mya-mtab:hover  { color: #4f46e5; }
-.mya-mtab.active { color: #5443AD; border-bottom-color: #5443AD; }
-.mya-mtab-badge  {
-  background: #5443AD; color: #fff;
-  font-size: 9px; font-weight: 800;
-  width: 16px; height: 16px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-
-/* Modal body */
-.mya-mbody { flex: 1; overflow-y: auto; padding: 20px 22px; }
-
-/* Section title */
-.mya-sec-title {
-  font-size: 11px; font-weight: 800; color: #94a3b8;
-  text-transform: uppercase; letter-spacing: .8px;
-  margin-bottom: 14px;
-}
-.mya-divider { height: 1px; background: #f1f5f9; margin: 20px 0; }
-
-/* View grid */
-.mya-view-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 4px; }
-.mya-vfield    { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 14px; }
-.mya-vflabel   { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
-.mya-vfvalue   { font-size: 13px; font-weight: 600; color: #1e293b; margin-top: 3px; }
-
-/* Prose */
-.mya-prose-field { margin-bottom: 14px; }
-.mya-prose-val   {
-  font-size: 13px; color: #374151; line-height: 1.6;
-  background: #f8fafc; border: 1px solid #f1f5f9;
-  border-radius: 10px; padding: 12px 14px; margin-top: 4px;
-  white-space: pre-wrap;
-}
-
-/* Edit grid */
-.mya-edit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.mya-efield    { display: flex; flex-direction: column; gap: 5px; }
-.mya-efield--full { grid-column: 1 / -1; }
-.mya-elabel    { font-size: 11px; font-weight: 700; color: #374151; }
-.mya-einput,
-.mya-eselect,
-.mya-etextarea {
-  padding: 9px 12px; border: 1.5px solid #e2e8f0;
-  border-radius: 9px; font-size: 13px; color: #1e293b;
-  background: #fff; width: 100%;
-  transition: border-color .15s, box-shadow .15s;
-  font-family: inherit; box-sizing: border-box;
-}
-.mya-einput:focus,
-.mya-eselect:focus,
-.mya-etextarea:focus {
-  outline: none; border-color: #5443AD;
-  box-shadow: 0 0 0 3px rgba(84,67,173,0.1);
-}
-.mya-etextarea { resize: vertical; min-height: 80px; }
-.mya-sel-wrap  { position: relative; }
-.mya-eselect   { appearance: none; padding-right: 32px; }
-.mya-sel-arr   {
-  position: absolute; right: 12px; top: 50%;
-  transform: translateY(-50%); pointer-events: none;
-  font-size: 10px; color: #94a3b8;
-}
-
-/* Alerts */
-.mya-alert {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 14px; border-radius: 10px;
-  font-size: 13px; font-weight: 600; margin-bottom: 14px;
-}
-.mya-alert--success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.mya-alert--error   { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-
-/* Loading */
-.mya-loading {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 60px 20px; gap: 12px;
-  font-size: 13px; color: #94a3b8;
-}
-.mya-loading i { font-size: 28px; color: #5443AD; }
-
-/* Upload zone */
-.mya-upload-zone {
-  border: 2px dashed #e2e8f0; border-radius: 14px;
-  padding: 28px 20px; text-align: center;
-  cursor: pointer; transition: border-color .18s, background .18s;
-  margin-bottom: 14px; background: #fafafa; user-select: none;
-}
-.mya-upload-zone:hover,
-.mya-upload-zone--drag { border-color: #5443AD; background: #f5f3ff; }
-.mya-upload-ico  { font-size: 28px; color: #9ca3af; margin-bottom: 8px; display: block; }
-.mya-upload-zone:hover .mya-upload-ico { color: #5443AD; }
-.mya-upload-txt  { font-size: 13px; font-weight: 700; color: #374151; }
-.mya-upload-sub  { font-size: 11px; color: #9ca3af; margin-top: 4px; }
-.mya-upload-queue     { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.mya-upload-qitem     { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #374151; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; }
-.mya-upload-qitem i   { color: #5443AD; }
-.mya-upload-qbar      { flex: 1; height: 4px; background: #e5e7eb; border-radius: 99px; overflow: hidden; }
-.mya-upload-qfill     { height: 100%; background: #5443AD; border-radius: 99px; transition: width .3s; }
-
-/* Attachments */
-.mya-no-attach { text-align: center; padding: 24px; color: #94a3b8; }
-.mya-no-attach i { font-size: 24px; display: block; margin-bottom: 8px; }
-.mya-no-attach p { font-size: 13px; font-weight: 600; margin: 0; }
-.mya-attach-list { display: flex; flex-direction: column; gap: 8px; }
-.mya-attach-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; background: #f8fafc;
-  border: 1px solid #f1f5f9; border-radius: 10px;
-  transition: background .1s;
-}
-.mya-attach-item:hover { background: #f1f5f9; }
-.mya-attach-ico  {
-  width: 36px; height: 36px; border-radius: 9px;
-  background: #eff6ff; border: 1px solid #e2e8f0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px; color: #5443AD; flex-shrink: 0;
-}
-.mya-attach-info  { flex: 1; min-width: 0; }
-.mya-attach-name  { font-size: 12px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mya-attach-size  { font-size: 10px; color: #94a3b8; margin-top: 2px; }
-.mya-attach-acts  { display: flex; gap: 6px; flex-shrink: 0; }
-.mya-attach-dl,
-.mya-attach-del   {
-  width: 30px; height: 30px; border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; cursor: pointer; transition: all .15s; border: none;
-}
-.mya-attach-dl    { background: #EEEDFB; color: #5443AD; text-decoration: none; }
-.mya-attach-dl:hover  { background: #ddd9f7; }
-.mya-attach-del   { background: #fee2e2; color: #dc2626; }
-.mya-attach-del:hover { background: #fca5a5; }
-
-/* Modal footer */
-.mya-mfooter {
-  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-  padding: 14px 22px; border-top: 1px solid #f1f5f9;
-  background: #f8fafc; flex-shrink: 0;
-}
-.mya-mfoot-close {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; border-radius: 9px;
-  background: #fff; border: 1.5px solid #e2e8f0;
-  font-size: 13px; font-weight: 700; color: #374151;
-  cursor: pointer; transition: all .15s;
-}
-.mya-mfoot-close:hover    { background: #f1f5f9; }
-.mya-mfoot-close:disabled { opacity: .55; cursor: not-allowed; }
-.mya-mfoot-edit {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 20px; border-radius: 9px;
-  background: linear-gradient(135deg, #5443AD, #7c3aed);
-  border: none; font-size: 13px; font-weight: 700; color: #fff;
-  cursor: pointer; transition: all .15s;
-  box-shadow: 0 3px 10px rgba(84,67,173,0.35);
-}
-.mya-mfoot-edit:hover    { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(84,67,173,0.4); }
-.mya-mfoot-edit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-
-/* ═══════════════════════════════════════
-   RESPONSIVE
-═══════════════════════════════════════ */
-@media (max-width: 860px) {
-  .mya-stats-bar { grid-template-columns: repeat(3, 1fr); }
-  .mya-col-prog  { display: none; }
-  .mya-col-app   { flex: 1; }
-  .mya-view-grid,
-  .mya-edit-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 768px) {
-  .sidebar { display: none; }
-  .mya-wrap { padding: 16px; }
-}
-@media (max-width: 580px) {
-  .mya-stats-bar { grid-template-columns: repeat(2, 1fr); }
-  .mya-col-date  { display: none; }
-  .mya-page-title { font-size: 18px; }
+        <css>/* ═══════════════════════════════════════&#13;
+   LAYOUT — sidebar + main content&#13;
+═══════════════════════════════════════ */&#13;
+.gn-layout {&#13;
+  margin-left: -15px;&#13;
+  margin-right: -15px;&#13;
+  margin-top: 35px;&#13;
+  display: flex;&#13;
+  align-items: stretch;&#13;
+  min-height: 100vh;&#13;
+  background: #f0f2f5;&#13;
+  font-family: 'Inter', 'Segoe UI', sans-serif;&#13;
+  position: relative;&#13;
+}&#13;
+.gn-layout *,&#13;
+.gn-layout *::before,&#13;
+.gn-layout *::after {&#13;
+  box-sizing: border-box;&#13;
+}&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   SIDEBAR&#13;
+═══════════════════════════════════════ */&#13;
+.sidebar {&#13;
+  width: 220px;&#13;
+  flex-shrink: 0;&#13;
+  background: #fff;&#13;
+  border-right: 1px solid #e5e7eb;&#13;
+  position: sticky;&#13;
+  top: 0;&#13;
+  height: 100vh;&#13;
+  align-self: flex-start;&#13;
+  overflow-y: auto;&#13;
+  overflow-x: hidden;&#13;
+  overscroll-behavior: contain;&#13;
+  z-index: 10;&#13;
+  scrollbar-width: none;&#13;
+}&#13;
+.sidebar::-webkit-scrollbar { display: none; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   MAIN WRAP&#13;
+═══════════════════════════════════════ */&#13;
+.mya-wrap {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  font-family: 'Inter', 'Segoe UI', sans-serif;&#13;
+  background: #f0f2f5;&#13;
+  padding: 28px 32px 56px;&#13;
+  box-sizing: border-box;&#13;
+  min-height: 100vh;&#13;
+}&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   PAGE HEADER&#13;
+═══════════════════════════════════════ */&#13;
+.mya-page-header {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 14px;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+.mya-page-hd-left { display: flex; align-items: center; gap: 14px; }&#13;
+.mya-page-hd-icon {&#13;
+  width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;&#13;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  color: #fff; font-size: 20px;&#13;
+  box-shadow: 0 4px 14px rgba(79,70,229,0.35);&#13;
+}&#13;
+.mya-page-title { font-size: 24px; font-weight: 900; color: #0f172a; margin: 0; line-height: 1.2; }&#13;
+.mya-page-sub   { font-size: 13px; color: #64748b; margin: 4px 0 0; }&#13;
+&#13;
+.mya-btn-back {&#13;
+  display: inline-flex; align-items: center; gap: 8px;&#13;
+  padding: 9px 18px; border-radius: 10px;&#13;
+  background: #fff; border: 1px solid #e2e8f0;&#13;
+  font-size: 13px; font-weight: 700; color: #374151;&#13;
+  cursor: pointer; transition: all .18s;&#13;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);&#13;
+}&#13;
+.mya-btn-back:hover { background: #f8fafc; box-shadow: 0 3px 10px rgba(0,0,0,0.09); }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   BREADCRUMB&#13;
+═══════════════════════════════════════ */&#13;
+.mya-breadcrumb {&#13;
+  display: flex; align-items: center; gap: 6px;&#13;
+  font-size: 12px; margin-bottom: 20px;&#13;
+}&#13;
+.mya-bc-link { color: #6366f1; font-weight: 600; text-decoration: none; }&#13;
+.mya-bc-link:hover { text-decoration: underline; }&#13;
+.mya-bc-sep  { color: #cbd5e1; font-size: 10px; }&#13;
+.mya-bc-cur  { color: #64748b; font-weight: 600; }&#13;
+&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   TIMELINE PANEL&#13;
+═══════════════════════════════════════ */&#13;
+.mya-tl-panel {&#13;
+  background: #fff;&#13;
+  border: 1px solid #e8edf5;&#13;
+  border-top: none;&#13;
+  border-radius: 0 0 16px 16px;&#13;
+  overflow: hidden;&#13;
+  animation: myaSlideIn .22s ease-out;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+@keyframes myaSlideIn {&#13;
+  from { opacity: 0; transform: translateY(-8px); }&#13;
+  to   { opacity: 1; transform: translateY(0); }&#13;
+}&#13;
+.mya-tl-inner { padding: 24px 28px 28px; }&#13;
+&#13;
+.mya-tl-header {&#13;
+  font-size: 11px; font-weight: 800; color: #475569;&#13;
+  text-transform: uppercase; letter-spacing: .7px;&#13;
+  display: flex; align-items: center; gap: 8px;&#13;
+  margin-bottom: 28px;&#13;
+}&#13;
+.mya-tl-appnum {&#13;
+  font-size: 11px; font-weight: 700; color: #6366f1;&#13;
+  background: #eef2ff; padding: 2px 8px; border-radius: 5px;&#13;
+}&#13;
+&#13;
+.mya-tl-empty {&#13;
+  text-align: center; padding: 20px 0; color: #94a3b8; font-size: 13px;&#13;
+}&#13;
+.mya-tl-empty i { font-size: 24px; display: block; margin-bottom: 8px; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   HORIZONTAL STEPPER&#13;
+═══════════════════════════════════════ */&#13;
+.mya-stepper { width: 100%; overflow-x: auto; padding-bottom: 4px; }&#13;
+&#13;
+.mya-stepper-track {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  min-width: 600px;&#13;
+  position: relative;&#13;
+}&#13;
+&#13;
+/* Each step */&#13;
+.mya-step {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: center;&#13;
+  flex: 1;&#13;
+  position: relative;&#13;
+  text-align: center;&#13;
+  min-width: 80px;&#13;
+}&#13;
+&#13;
+/* Connector line between steps */&#13;
+.mya-step-conn {&#13;
+  position: absolute;&#13;
+  top: 18px;&#13;
+  right: calc(50% + 20px);&#13;
+  left: calc(-50% + 20px);&#13;
+  height: 3px;&#13;
+  background: #e2e8f0;&#13;
+  z-index: 0;&#13;
+}&#13;
+.mya-step-conn-fill {&#13;
+  height: 100%;&#13;
+  width: 0%;&#13;
+  background: #6366f1;&#13;
+  transition: width .4s ease;&#13;
+}&#13;
+.mya-step-conn-fill--done { width: 100%; }&#13;
+&#13;
+/* Circle */&#13;
+.mya-step-circle {&#13;
+  width: 38px; height: 38px;&#13;
+  border-radius: 50%;&#13;
+  border: 2.5px solid #e2e8f0;&#13;
+  background: #f8fafc;&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  font-size: 14px;&#13;
+  color: #fff;&#13;
+  z-index: 1;&#13;
+  position: relative;&#13;
+  transition: all .25s;&#13;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);&#13;
+}&#13;
+&#13;
+.mya-step--pending .mya-step-circle {&#13;
+  background: #f1f5f9;&#13;
+  border-color: #e2e8f0;&#13;
+  color: #cbd5e1;&#13;
+  font-size: 12px;&#13;
+}&#13;
+&#13;
+.mya-step--done .mya-step-circle {&#13;
+  color: #fff;&#13;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.12);&#13;
+}&#13;
+&#13;
+.mya-step--active .mya-step-circle {&#13;
+  color: #fff;&#13;
+  box-shadow: 0 0 0 5px rgba(99,102,241,0.15);&#13;
+  animation: stepPulse 2s infinite;&#13;
+}&#13;
+&#13;
+.mya-step--decline .mya-step-circle {&#13;
+  box-shadow: 0 0 0 5px rgba(239,68,68,0.15);&#13;
+  animation: stepPulseRed 2s infinite;&#13;
+}&#13;
+&#13;
+@keyframes stepPulse {&#13;
+  0%, 100% { box-shadow: 0 0 0 5px rgba(99,102,241,0.15); }&#13;
+  50%       { box-shadow: 0 0 0 9px rgba(99,102,241,0.06); }&#13;
+}&#13;
+@keyframes stepPulseRed {&#13;
+  0%, 100% { box-shadow: 0 0 0 5px rgba(239,68,68,0.15); }&#13;
+  50%       { box-shadow: 0 0 0 9px rgba(239,68,68,0.06); }&#13;
+}&#13;
+&#13;
+/* Label */&#13;
+.mya-step-label {&#13;
+  font-size: 11px;&#13;
+  font-weight: 700;&#13;
+  color: #1e293b;&#13;
+  margin-top: 10px;&#13;
+  line-height: 1.3;&#13;
+  max-width: 90px;&#13;
+}&#13;
+.mya-step--pending .mya-step-label { color: #94a3b8; font-weight: 600; }&#13;
+.mya-step--decline .mya-step-label { color: #ef4444; }&#13;
+&#13;
+/* Date */&#13;
+.mya-step-date {&#13;
+  font-size: 10px;&#13;
+  color: #64748b;&#13;
+  margin-top: 4px;&#13;
+  line-height: 1.4;&#13;
+}&#13;
+.mya-step-date i { color: #94a3b8; }&#13;
+.mya-step-date--pending {&#13;
+  color: #cbd5e1;&#13;
+  font-style: italic;&#13;
+  font-size: 10px;&#13;
+  margin-top: 4px;&#13;
+}&#13;
+&#13;
+/* Responsive: stack vertically on small screens */&#13;
+@media (max-width: 640px) {&#13;
+  .mya-stepper-track {&#13;
+    flex-direction: column;&#13;
+    align-items: flex-start;&#13;
+    min-width: unset;&#13;
+    gap: 0;&#13;
+    padding-left: 18px;&#13;
+  }&#13;
+  .mya-step {&#13;
+    flex-direction: row;&#13;
+    align-items: flex-start;&#13;
+    text-align: left;&#13;
+    gap: 14px;&#13;
+    padding-bottom: 24px;&#13;
+    flex: unset;&#13;
+    width: 100%;&#13;
+  }&#13;
+  .mya-step-conn {&#13;
+    top: 38px;&#13;
+    left: 17px;&#13;
+    right: unset;&#13;
+    width: 3px;&#13;
+    height: 100%;&#13;
+  }&#13;
+  .mya-step-label { max-width: unset; margin-top: 6px; }&#13;
+  .mya-step-date  { margin-top: 2px; }&#13;
+  .mya-step-circle { flex-shrink: 0; }&#13;
+}&#13;
+/* ═══════════════════════════════════════&#13;
+   STATS BAR&#13;
+═══════════════════════════════════════ */&#13;
+.mya-stats-bar {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(5, minmax(0, 1fr));&#13;
+  gap: 10px;&#13;
+  margin-bottom: 22px;&#13;
+}&#13;
+.mya-stat {&#13;
+  display: flex; align-items: center; gap: 12px;&#13;
+  padding: 14px 18px; border-radius: 14px;&#13;
+  transition: transform .16s, box-shadow .16s;&#13;
+}&#13;
+.mya-stat:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.09); }&#13;
+.mya-stat i       { font-size: 20px; opacity: .7; }&#13;
+.mya-stat-val     { font-size: 22px; font-weight: 900; line-height: 1; }&#13;
+.mya-stat-lbl     { font-size: 10px; font-weight: 600; color: #6b7280; margin-top: 2px; white-space: nowrap; }&#13;
+.mya-stat--blue   { background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; }&#13;
+.mya-stat--blue i, .mya-stat--blue .mya-stat-val { color: #2563eb; }&#13;
+.mya-stat--green  { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #86efac; }&#13;
+.mya-stat--green i, .mya-stat--green .mya-stat-val { color: #16a34a; }&#13;
+.mya-stat--amber  { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; }&#13;
+.mya-stat--amber i, .mya-stat--amber .mya-stat-val { color: #d97706; }&#13;
+.mya-stat--red    { background: linear-gradient(135deg, #fff5f5, #fee2e2); border: 1px solid #fecaca; }&#13;
+.mya-stat--red i, .mya-stat--red .mya-stat-val { color: #dc2626; }&#13;
+.mya-stat--purple { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #c4b5fd; }&#13;
+.mya-stat--purple i,&#13;
+.mya-stat--purple .mya-stat-val { color: #7c3aed; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   APPLICATION CARD LIST&#13;
+═══════════════════════════════════════ */&#13;
+.mya-list { display: flex; flex-direction: column; }&#13;
+&#13;
+.mya-app-card {&#13;
+  display: flex; align-items: stretch;&#13;
+  background: #fff;&#13;
+  border: 1px solid #e8edf5;&#13;
+  overflow: hidden;&#13;
+  transition: box-shadow .18s, transform .18s;&#13;
+  cursor: pointer;&#13;
+  border-radius: 0;&#13;
+  margin-bottom: 0;&#13;
+}&#13;
+.mya-app-card:first-child  { border-radius: 16px 16px 0 0; }&#13;
+.mya-app-card:last-of-type { border-radius: 0 0 16px 16px; }&#13;
+.mya-app-card:only-child   { border-radius: 16px; }&#13;
+.mya-app-card + .mya-app-card { border-top: none; }&#13;
+.mya-app-card:hover {&#13;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.09);&#13;
+  transform: translateY(-1px);&#13;
+  z-index: 1; position: relative;&#13;
+}&#13;
+.mya-app-card--expanded {&#13;
+  box-shadow: 0 0 0 2px #6366f1 inset;&#13;
+  z-index: 2; position: relative;&#13;
+}&#13;
+&#13;
+/* Left accent bar */&#13;
+.mya-card-accent                 { width: 5px; flex-shrink: 0; }&#13;
+.mya-card-accent.badge-completed { background: linear-gradient(180deg, #16a34a, #4ade80); }&#13;
+.mya-card-accent.badge-review    { background: linear-gradient(180deg, #0ea5e9, #38bdf8); }&#13;
+.mya-card-accent.badge-new       { background: linear-gradient(180deg, #94a3b8, #cbd5e1); }&#13;
+.mya-card-accent.badge-declined  { background: linear-gradient(180deg, #dc2626, #f87171); }&#13;
+.mya-card-accent.badge-pending   { background: linear-gradient(180deg, #d97706, #fbbf24); }&#13;
+&#13;
+/* Card body row */&#13;
+.mya-card-body {&#13;
+  flex: 1; display: flex; align-items: center;&#13;
+  padding: 16px 20px; min-width: 0; gap: 0;&#13;
+}&#13;
+&#13;
+/* Columns */&#13;
+.mya-col        { padding: 0 16px; }&#13;
+.mya-col-app    { display: flex; align-items: center; gap: 12px; flex: 0 0 260px; min-width: 0; padding-left: 4px; }&#13;
+.mya-col-prog   { flex: 0 0 180px; min-width: 0; }&#13;
+.mya-col-status { flex: 0 0 170px; }&#13;
+.mya-col-date   { flex: 1; min-width: 120px; }&#13;
+.mya-col-actions { flex: 0 0 auto; padding-right: 4px; }&#13;
+&#13;
+/* App avatar */&#13;
+.mya-app-av {&#13;
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  font-size: 16px; color: #fff;&#13;
+}&#13;
+.mya-app-av.badge-completed { background: linear-gradient(135deg, #16a34a, #4ade80); }&#13;
+.mya-app-av.badge-review    { background: linear-gradient(135deg, #0284c7, #38bdf8); }&#13;
+.mya-app-av.badge-new       { background: linear-gradient(135deg, #64748b, #94a3b8); }&#13;
+.mya-app-av.badge-declined  { background: linear-gradient(135deg, #dc2626, #f87171); }&#13;
+.mya-app-av.badge-pending   { background: linear-gradient(135deg, #d97706, #fbbf24); }&#13;
+&#13;
+.mya-app-num  { font-size: 14px; font-weight: 800; color: #1e293b; white-space: nowrap; }&#13;
+.mya-app-date { font-size: 11px; color: #94a3b8; margin-top: 2px; white-space: nowrap; }&#13;
+&#13;
+.mya-prog-label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }&#13;
+.mya-prog-name  { font-size: 12px; font-weight: 700; color: #1e293b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }&#13;
+.mya-prog-none  { font-size: 11px; color: #cbd5e1; margin-top: 2px; }&#13;
+.mya-prog-num   { font-size: 10px; color: #94a3b8; margin-top: 1px; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   BADGES&#13;
+═══════════════════════════════════════ */&#13;
+.mya-badge,&#13;
+.ma-badge {&#13;
+  display: inline-flex; align-items: center; gap: 6px;&#13;
+  font-size: 11px; font-weight: 700; padding: 5px 12px;&#13;
+  border-radius: 99px; white-space: nowrap;&#13;
+}&#13;
+.mya-badge i, .ma-badge i { font-size: 10px; }&#13;
+&#13;
+.badge-completed   { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }&#13;
+.badge-review      { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }&#13;
+.badge-new         { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }&#13;
+.badge-declined    { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }&#13;
+.badge-pending     { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }&#13;
+.badge-submitted   { background: #eff6ff; color: #3b82f6; border: 1px solid #bfdbfe; }&#13;
+.badge-approved    { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }&#13;
+.badge-closed      { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }&#13;
+.badge-in-progress { background: #f0f9ff; color: #0369a1; border: 1px solid #7dd3fc; }&#13;
+&#13;
+/* Date col */&#13;
+.mya-date-label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }&#13;
+.mya-date-val   { font-size: 12px; font-weight: 600; color: #475569; margin-top: 2px; white-space: nowrap; }&#13;
+.mya-date-val i { font-size: 10px; color: #94a3b8; }&#13;
+&#13;
+/* Action buttons */&#13;
+.mya-col-actions { display: flex; align-items: center; gap: 6px; }&#13;
+.mya-act-btn {&#13;
+  width: 34px; height: 34px; border-radius: 9px; border: none;&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  font-size: 13px; cursor: pointer; transition: all .16s;&#13;
+}&#13;
+.mya-act-btn--tl       { background: #f1f5f9; color: #64748b; }&#13;
+.mya-act-btn--tl:hover { background: #e0e7ff; color: #4f46e5; }&#13;
+.mya-act-btn--view       { background: #f0fdf4; color: #16a34a; }&#13;
+.mya-act-btn--view:hover { background: #dcfce7; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   TIMELINE PANEL&#13;
+═══════════════════════════════════════ */&#13;
+.mya-tl-panel {&#13;
+  background: #fafbff;&#13;
+  border: 1px solid #e8edf5;&#13;
+  border-top: none;&#13;
+  border-radius: 0 0 16px 16px;&#13;
+  overflow: hidden;&#13;
+  animation: myaSlideIn .22s ease-out;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+@keyframes myaSlideIn {&#13;
+  from { opacity: 0; transform: translateY(-8px); }&#13;
+  to   { opacity: 1; transform: translateY(0); }&#13;
+}&#13;
+.mya-tl-inner  { padding: 20px 28px 24px; }&#13;
+.mya-tl-header {&#13;
+  font-size: 12px; font-weight: 800; color: #475569;&#13;
+  text-transform: uppercase; letter-spacing: .7px;&#13;
+  display: flex; align-items: center; gap: 8px;&#13;
+  margin-bottom: 18px;&#13;
+}&#13;
+.mya-tl-appnum {&#13;
+  font-size: 11px; font-weight: 700; color: #6366f1;&#13;
+  background: #eef2ff; padding: 2px 8px; border-radius: 5px;&#13;
+}&#13;
+.mya-tl-items { display: flex; flex-direction: column; gap: 0; }&#13;
+.mya-tl-item  { display: flex; gap: 14px; }&#13;
+.mya-tl-item-left {&#13;
+  display: flex; flex-direction: column;&#13;
+  align-items: center; flex-shrink: 0; width: 14px;&#13;
+}&#13;
+.mya-tl-dot {&#13;
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;&#13;
+  border: 2px solid #fff; margin-top: 2px;&#13;
+}&#13;
+.mya-tl-connector {&#13;
+  flex: 1; width: 2px; background: #e2e8f0;&#13;
+  margin: 4px 0; min-height: 20px;&#13;
+}&#13;
+.mya-tl-item-body  { padding-bottom: 18px; }&#13;
+.mya-tl-item-label { font-size: 13px; font-weight: 700; color: #1e293b; }&#13;
+.mya-tl-item-date  { font-size: 11px; color: #94a3b8; margin-top: 3px; }&#13;
+.mya-tl-empty {&#13;
+  text-align: center; padding: 20px 0; color: #94a3b8; font-size: 13px;&#13;
+}&#13;
+.mya-tl-empty i { font-size: 24px; display: block; margin-bottom: 8px; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   EMPTY STATE&#13;
+═══════════════════════════════════════ */&#13;
+.mya-empty-state { text-align: center; padding: 64px 20px; }&#13;
+.mya-empty-ico {&#13;
+  width: 64px; height: 64px; border-radius: 18px;&#13;
+  background: #f1f5f9; display: flex; align-items: center;&#13;
+  justify-content: center; font-size: 26px;&#13;
+  color: #94a3b8; margin: 0 auto 16px;&#13;
+}&#13;
+.mya-empty-state h3 { font-size: 16px; font-weight: 800; color: #1e293b; margin: 0 0 6px; }&#13;
+.mya-empty-state p  { font-size: 13px; color: #64748b; margin: 0; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   MODAL OVERLAY &amp; CONTAINER&#13;
+═══════════════════════════════════════ */&#13;
+.mya-overlay {&#13;
+  position: fixed; inset: 0; z-index: 9000;&#13;
+  background: rgba(15,23,42,0.55);&#13;
+  backdrop-filter: blur(4px);&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  padding: 20px;&#13;
+  animation: myaFadeIn .18s ease;&#13;
+}&#13;
+@keyframes myaFadeIn { from { opacity: 0; } to { opacity: 1; } }&#13;
+.mya-modal {&#13;
+  background: #fff; border-radius: 20px;&#13;
+  width: 100%; max-width: 720px;&#13;
+  max-height: 90vh; overflow: hidden;&#13;
+  display: flex; flex-direction: column;&#13;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.22);&#13;
+  animation: myaModalIn .22s cubic-bezier(.34,1.56,.64,1);&#13;
+}&#13;
+@keyframes myaModalIn {&#13;
+  from { opacity: 0; transform: scale(.95) translateY(16px); }&#13;
+  to   { opacity: 1; transform: scale(1) translateY(0); }&#13;
+}&#13;
+&#13;
+/* Modal header */&#13;
+.mya-mhdr {&#13;
+  display: flex; align-items: center; justify-content: space-between;&#13;
+  padding: 18px 22px 16px; border-bottom: 1px solid #f1f5f9;&#13;
+  background: linear-gradient(135deg, #f8faff, #fff);&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+.mya-mhdr-left { display: flex; align-items: center; gap: 12px; }&#13;
+.mya-mhdr-av {&#13;
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;&#13;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  color: #fff; font-size: 18px;&#13;
+  box-shadow: 0 3px 10px rgba(99,102,241,0.3);&#13;
+}&#13;
+.mya-mhdr-title { font-size: 16px; font-weight: 800; color: #1e293b; }&#13;
+.mya-mhdr-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }&#13;
+.mya-mhdr-close {&#13;
+  width: 32px; height: 32px; border-radius: 8px;&#13;
+  border: none; background: #f1f5f9; color: #64748b;&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  cursor: pointer; font-size: 13px; transition: background .15s;&#13;
+}&#13;
+.mya-mhdr-close:hover { background: #fee2e2; color: #dc2626; }&#13;
+&#13;
+/* Modal banner */&#13;
+.mya-mbanner {&#13;
+  display: flex; align-items: center; justify-content: space-between;&#13;
+  padding: 10px 22px; background: #f8fafc;&#13;
+  border-bottom: 1px solid #f1f5f9; flex-shrink: 0;&#13;
+}&#13;
+.mya-mbanner-date { font-size: 11px; color: #94a3b8; }&#13;
+&#13;
+/* Modal tabs */&#13;
+.mya-mtabs {&#13;
+  display: flex; gap: 2px; padding: 0 22px;&#13;
+  border-bottom: 1px solid #f1f5f9; background: #fff;&#13;
+  overflow-x: auto; flex-shrink: 0;&#13;
+}&#13;
+.mya-mtab {&#13;
+  padding: 12px 16px; border: none; background: transparent;&#13;
+  font-size: 12px; font-weight: 700; color: #64748b;&#13;
+  cursor: pointer; border-bottom: 2px solid transparent;&#13;
+  margin-bottom: -1px; white-space: nowrap;&#13;
+  transition: color .15s, border-color .15s;&#13;
+  display: flex; align-items: center; gap: 5px;&#13;
+}&#13;
+.mya-mtab:hover  { color: #4f46e5; }&#13;
+.mya-mtab.active { color: #5443AD; border-bottom-color: #5443AD; }&#13;
+.mya-mtab-badge  {&#13;
+  background: #5443AD; color: #fff;&#13;
+  font-size: 9px; font-weight: 800;&#13;
+  width: 16px; height: 16px; border-radius: 50%;&#13;
+  display: inline-flex; align-items: center; justify-content: center;&#13;
+}&#13;
+&#13;
+/* Modal body */&#13;
+.mya-mbody { flex: 1; overflow-y: auto; padding: 20px 22px; }&#13;
+&#13;
+/* Section title */&#13;
+.mya-sec-title {&#13;
+  font-size: 11px; font-weight: 800; color: #94a3b8;&#13;
+  text-transform: uppercase; letter-spacing: .8px;&#13;
+  margin-bottom: 14px;&#13;
+}&#13;
+.mya-divider { height: 1px; background: #f1f5f9; margin: 20px 0; }&#13;
+&#13;
+/* View grid */&#13;
+.mya-view-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 4px; }&#13;
+.mya-vfield    { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 14px; }&#13;
+.mya-vflabel   { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }&#13;
+.mya-vfvalue   { font-size: 13px; font-weight: 600; color: #1e293b; margin-top: 3px; }&#13;
+&#13;
+/* Prose */&#13;
+.mya-prose-field { margin-bottom: 14px; }&#13;
+.mya-prose-val   {&#13;
+  font-size: 13px; color: #374151; line-height: 1.6;&#13;
+  background: #f8fafc; border: 1px solid #f1f5f9;&#13;
+  border-radius: 10px; padding: 12px 14px; margin-top: 4px;&#13;
+  white-space: pre-wrap;&#13;
+}&#13;
+&#13;
+/* Attachments */&#13;
+.mya-no-attach { text-align: center; padding: 24px; color: #94a3b8; }&#13;
+.mya-no-attach i { font-size: 24px; display: block; margin-bottom: 8px; }&#13;
+.mya-no-attach p { font-size: 13px; font-weight: 600; margin: 0; }&#13;
+.mya-attach-list { display: flex; flex-direction: column; gap: 8px; }&#13;
+.mya-attach-item {&#13;
+  display: flex; align-items: center; gap: 12px;&#13;
+  padding: 10px 14px; background: #f8fafc;&#13;
+  border: 1px solid #f1f5f9; border-radius: 10px;&#13;
+  transition: background .1s;&#13;
+}&#13;
+.mya-attach-item:hover { background: #f1f5f9; }&#13;
+.mya-attach-ico  {&#13;
+  width: 36px; height: 36px; border-radius: 9px;&#13;
+  background: #eff6ff; border: 1px solid #e2e8f0;&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  font-size: 15px; color: #5443AD; flex-shrink: 0;&#13;
+}&#13;
+.mya-attach-info { flex: 1; min-width: 0; }&#13;
+.mya-attach-name { font-size: 12px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }&#13;
+.mya-attach-size { font-size: 10px; color: #94a3b8; margin-top: 2px; }&#13;
+.mya-attach-dl {&#13;
+  width: 30px; height: 30px; border-radius: 7px;&#13;
+  display: flex; align-items: center; justify-content: center;&#13;
+  font-size: 12px; cursor: pointer; transition: all .15s; border: none;&#13;
+  background: #EEEDFB; color: #5443AD; text-decoration: none;&#13;
+}&#13;
+.mya-attach-dl:hover { background: #ddd9f7; }&#13;
+&#13;
+/* Modal footer */&#13;
+.mya-mfooter {&#13;
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;&#13;
+  padding: 14px 22px; border-top: 1px solid #f1f5f9;&#13;
+  background: #f8fafc; flex-shrink: 0;&#13;
+}&#13;
+.mya-mfoot-close {&#13;
+  display: inline-flex; align-items: center; gap: 7px;&#13;
+  padding: 9px 18px; border-radius: 9px;&#13;
+  background: #fff; border: 1.5px solid #e2e8f0;&#13;
+  font-size: 13px; font-weight: 700; color: #374151;&#13;
+  cursor: pointer; transition: all .15s;&#13;
+}&#13;
+.mya-mfoot-close:hover { background: #f1f5f9; }&#13;
+&#13;
+/* ═══════════════════════════════════════&#13;
+   RESPONSIVE&#13;
+═══════════════════════════════════════ */&#13;
+@media (max-width: 860px) {&#13;
+  .mya-stats-bar { grid-template-columns: repeat(3, 1fr); }&#13;
+  .mya-col-prog  { display: none; }&#13;
+  .mya-col-app   { flex: 1; }&#13;
+  .mya-view-grid { grid-template-columns: 1fr; }&#13;
+}&#13;
+@media (max-width: 768px) {&#13;
+  .sidebar   { display: none; }&#13;
+  .mya-wrap  { padding: 16px; }&#13;
+}&#13;
+@media (max-width: 580px) {&#13;
+  .mya-stats-bar  { grid-template-columns: repeat(2, 1fr); }&#13;
+  .mya-col-date   { display: none; }&#13;
+  .mya-page-title { font-size: 18px; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -1025,327 +747,129 @@
 
   data.sideBar      = $sp.getWidget('sidebar_dashboard');
   data.applications = [];
-  data.timeline     = [];
+  data.timelines    = {};
 
-  var currentUser = gs.getUserName();
+  var applicantTable = 'x_enno_gatenow_service_applicants';
+  var currentUser    = gs.getUserName();
   if (!currentUser) return;
 
-  // ══════════════════════════════════════════════════════════════
-  // ACTION: GET SINGLE APPLICATION
-  // ══════════════════════════════════════════════════════════════
-  if (input && input.action === 'getApplication') {
-  data.application = null;
-  data.error       = '';
+  var formatDate = function(d) {
+    if (!d || d === '' || d === 'null') return '';
+    return String(d).split(' ')[0] || '';
+  };
 
-  try {
-    var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-
-    if (!gr.get(input.sys_id)) {
-      data.error = 'Record not found.';
-      return;
-    }
-
-    if (gr.getValue('sys_created_by') !== currentUser) {
-      data.error = 'Unauthorized.';
-      return;
-    }
-
-    // ✅ FIX: Date formatter (ServiceNow-safe)
-    var formatDate = function(d) {
-      if (!d) return '';
-      return d.split(' ')[0];
+  function buildAppObject(gr) {
+    return {
+      sys_id:                 gr.getUniqueValue(),
+      number:                 gr.getValue('number')                         || '',
+      first_name:             gr.getValue('first_name')                     || '',
+      middle_name:            gr.getValue('middle_name')                    || '',
+      last_name:              gr.getValue('last_name')                      || '',
+      birthdate:              formatDate(gr.getValue('birthdate')),
+      phone:                  gr.getValue('phone_number')                   || '',
+      email:                  gr.getValue('email')                          || '',
+      gender_display:         gr.getDisplayValue('gender')                  || '',
+      marital_display:        gr.getDisplayValue('marital_status')          || '',
+      race_display:           gr.getDisplayValue('race')                    || '',
+      ethnicity_display:      gr.getDisplayValue('ethnicity')               || '',
+      education_display:      gr.getDisplayValue('education_level')         || '',
+      military_display:       gr.getDisplayValue('military_status')         || '',
+      street:                 gr.getValue('street')                         || '',
+      city:                   gr.getValue('city')                           || '',
+      country:                gr.getValue('country')                        || '',
+      zip:                    gr.getValue('zip_postal_code')                || '',
+      applicant_type_display: gr.getDisplayValue('applicant_type')          || '',
+      citizenship_display:    gr.getDisplayValue('citizenship_status')      || '',
+      identity_display:       gr.getDisplayValue('identity_type')           || '',
+      tribal_display:         gr.getDisplayValue('tribal_affiliation')      || '',
+      disability_display:     gr.getDisplayValue('disability_status')       || '',
+      ssn:                    gr.getValue('ssn')                            || '',
+      tin_ein:                gr.getValue('tin_ein')                        || '',
+      uei:                    gr.getValue('uei')                            || '',
+      organization:           gr.getValue('organization')                   || '',
+      start_date:             formatDate(gr.getValue('project_start_date')),
+      end_date:               formatDate(gr.getValue('project_end_date')),
+      submission_date:        formatDate(gr.getValue('submission_date')),
+      requested_budget:       gr.getValue('requested_budget')               || '',
+      short_description:      gr.getValue('short_description')              || '',
+      proposal_description:   gr.getValue('proposal_description')           || '',
+      project_goals:          gr.getValue('project_goals_and_objectives')   || '',
+      project_activities:     gr.getValue('project_activities_methodology') || '',
+      state_display:          gr.getDisplayValue('state')                   || 'New',
+      updated_on:             gr.getDisplayValue('sys_updated_on')          || ''
     };
-
-    var attachments = [];
-    var attGR = new GlideRecordSecure('sys_attachment');
-    attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
-    attGR.addQuery('table_sys_id', input.sys_id);
-    attGR.query();
-    while (attGR.next()) {
-      attachments.push({
-        sys_id:       attGR.getUniqueValue(),
-        name:         attGR.getValue('file_name')    || '',
-        size:         attGR.getValue('size_bytes')   || '0',
-        content_type: attGR.getValue('content_type') || ''
-      });
-    }
-
-    data.application = {
-			
-			
-      sys_id:               gr.getUniqueValue(),
-      number:               gr.getValue('number') || '',
-      first_name:           gr.getValue('first_name') || '',
-      middle_name:          gr.getValue('middle_name') || '',
-      last_name:            gr.getValue('last_name') || '',
-
-      // ✅ FIXED DATE
-      birthdate:            formatDate(gr.getValue('birthdate')),
-
-      phone:                gr.getValue('phone_number') || '',
-      email:                gr.getValue('email') || '',
-
-      // ✅ FIXED DROPDOWNS (use getValue)
-			
-			gender:               gr.getDisplayValue('gender') || '',
-marital_status:       gr.getDisplayValue('marital_status') || '',
-race:                 gr.getValue('Race') || '',
-ethnicity:            gr.getValue('ethnicity') || '',
-education_level:      gr.getDisplayValue('education_level') || '',
-military_status:      gr.getDisplayValue('military_status') || '',
-
-      street:               gr.getValue('street') || '',
-      city:                 gr.getValue('city') || '',
-      country:              gr.getValue('country') || '',
-      zip:                  gr.getValue('zip_postal_code') || '',
-
-      applicant_type:       gr.getValue('applicant_type') || '',
-      citizenship_status:   gr.getValue('citizenship_status') || '',
-      identity_type:        gr.getValue('identity_type') || '',
-      tribal_affiliation:   gr.getValue('tribal_affiliation') || '',
-      disability_status:    gr.getValue('disability_status') || '',
-
-      ssn:                  gr.getValue('ssn') || '',
-      tin_ein:              gr.getValue('tin_ein') || '',
-      uei:                  gr.getValue('uei') || '',
-      organization:         gr.getValue('organization') || '',
-
-      // ✅ FIXED DATES
-      start_date:           formatDate(gr.getValue('project_start_date')),
-      end_date:             formatDate(gr.getValue('project_end_date')),
-      submission_date:      formatDate(gr.getValue('submission_date')),
-
-      requested_budget:     gr.getValue('requested_budget') || '',
-      short_description:    gr.getValue('short_description') || '',
-      proposal_description: gr.getValue('proposal_description') || '',
-      project_goals:        gr.getValue('project_goals_objectives') || '',
-      project_activities:   gr.getValue('project_activities_methodology') || '',
-
-      attachments:          attachments
-    };
-
-  } catch(e) {
-    data.error = e.message;
   }
 
-  return;
-}
-
-  // ══════════════════════════════════════════════════════════════
-  // ACTION: UPDATE APPLICATION
-  // ══════════════════════════════════════════════════════════════
-  if (input && input.action === 'updateApplication') {
-    data.success = false;
-    data.error   = '';
-
-    try {
-      // FIXED: use GlideRecord instead of GlideRecordSecure
-      // We do our own ownership check below, so this is safe
-      var upd = new GlideRecord('x_enno_gatenow_service_applicants');
-
-      if (!upd.get(input.sys_id)) {
-        data.error = 'Record not found.';
-        return;
-      }
-
-      if (upd.getValue('sys_created_by') !== currentUser) {
-        data.error = 'Unauthorized.';
-        return;
-      }
-
-      // FIXED: fallback to raw value in case getDisplayValue returns empty
-      var stateVal = upd.getDisplayValue('state') || upd.getValue('state');
-      if (stateVal !== 'New') {
-        data.error = 'Record is no longer editable.';
-        return;
-      }
-
-      upd.setValue('first_name',                     input.first_name           || '');
-      upd.setValue('middle_name',                    input.middle_name          || '');
-      upd.setValue('last_name',                      input.last_name            || '');
-      upd.setValue('birthdate',                      input.birthdate            || '');
-      upd.setValue('phone_number',                   input.phone                || '');
-      upd.setValue('email',                          input.email                || '');
-      upd.setValue('gender',                         input.gender               || '');
-      upd.setValue('marital_status',                 input.marital_status       || '');
-      upd.setValue('race',                           input.race                 || '');
-      upd.setValue('ethnicity',                      input.ethnicity            || '');
-      upd.setValue('education_level',                input.education_level      || '');
-      upd.setValue('military_status',                input.military_status      || '');
-      upd.setValue('street',                         input.street               || '');
-      upd.setValue('city',                           input.city                 || '');
-      upd.setValue('country',                        input.country              || '');
-      upd.setValue('zip_postal_code',                input.zip                  || '');
-      upd.setValue('applicant_type',                 input.applicant_type       || '');
-      upd.setValue('citizenship_status',             input.citizenship_status   || '');
-      upd.setValue('identity_type',                  input.identity_type        || '');
-      upd.setValue('tribal_affiliation',             input.tribal_affiliation   || '');
-      upd.setValue('disability_status',              input.disability_status    || '');
-      upd.setValue('ssn',                            input.ssn                  || '');
-      upd.setValue('tin_ein',                        input.tin_ein              || '');
-      upd.setValue('uei',                            input.uei                  || '');
-      upd.setValue('organization',                   input.organization         || '');
-      upd.setValue('project_start_date',             input.start_date           || '');
-      upd.setValue('project_end_date',               input.end_date             || '');
-      upd.setValue('submission_date',                input.submission_date      || '');
-      upd.setValue('requested_budget',               input.requested_budget     || '');
-      upd.setValue('short_description',              input.short_description    || '');
-      upd.setValue('proposal_description',           input.proposal_description || '');
-      upd.setValue('project_goals_objectives',       input.project_goals        || '');
-      upd.setValue('project_activities_methodology', input.project_activities   || '');
-
-      // FIXED: check update() return value instead of blindly setting success
-      var updateResult = upd.update();
-      if (updateResult) {
-        data.success = true;
-      } else {
-        data.error = 'Update failed. Check field-level ACLs or business rules.';
-      }
-
-    } catch(e) {
-      data.error = e.message;
-    }
-
-    return;
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // ACTION: UPLOAD ATTACHMENT
-  // ══════════════════════════════════════════════════════════════
-  if (input && input.action === 'uploadAttachment') {
-    data.attachment = null;
-    data.error      = '';
-
-    try {
-      var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-
-      if (!gr.get(input.sys_id)) {
-        data.error = 'Record not found.';
-        return;
-      }
-
-      if (gr.getValue('sys_created_by') !== currentUser) {
-        data.error = 'Unauthorized.';
-        return;
-      }
-
-      var attachmentMgr = new GlideSysAttachment();
-      var attSysId      = attachmentMgr.write(
-        gr,
-        input.file_name,
-        input.content_type,
-        input.file_data
-      );
-
-      if (attSysId) {
-        var attGR = new GlideRecordSecure('sys_attachment');
-        if (attGR.get(attSysId)) {
-          data.attachment = {
-            sys_id:       attSysId,
-            name:         attGR.getValue('file_name')    || input.file_name,
-            size:         attGR.getValue('size_bytes')   || '0',
-            content_type: attGR.getValue('content_type') || input.content_type
-          };
-        } else {
-          data.error = 'Attachment record not found.';
-        }
-      } else {
-        data.error = 'Failed to save attachment.';
-      }
-
-    } catch(e) {
-      data.error = e.message;
-    }
-
-    return;
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // ACTION: DELETE ATTACHMENT
-  // ══════════════════════════════════════════════════════════════
-  if (input && input.action === 'deleteAttachment') {
-    data.success = false;
-    data.error   = '';
-
-    try {
-      var attGR = new GlideRecordSecure('sys_attachment');
-
-      if (!attGR.get(input.att_sys_id)) {
-        data.error = 'Attachment not found.';
-        return;
-      }
-
-      var tableSysId = attGR.getValue('table_sys_id');
-      var appGR      = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-
-      if (!appGR.get(tableSysId) || appGR.getValue('sys_created_by') !== currentUser) {
-        data.error = 'Unauthorized.';
-        return;
-      }
-
-      var sysAtt = new GlideSysAttachment();
-      sysAtt.deleteAttachment(input.att_sys_id);
-      data.success = true;
-
-    } catch(e) {
-      data.error = e.message;
-    }
-
-    return;
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // DEFAULT: PAGE LOAD
-  // ══════════════════════════════════════════════════════════════
+  // ── Maps ──────────────────────────────────────────────────────────────────
   var labelMap = {
-    'New':                   'Application created',
-    'Ready for Review':      'Application submitted for review',
-    'Review in Progress':    'Review in progress',
-    'Award Pending':         'Award decision pending',
-    'Award Acknowledged':    'Award acknowledged',
-    'Review Completed':      'Reviewer feedback received',
-    'Declined by Agency':    'Declined by agency',
-    'Declined by Applicant': 'Declined by applicant',
-    'Closed':                'Application closed'
+    'new':                   'Application Created',
+    'ready_for_review':      'Ready for Review',
+    'review_in_progress':    'Review in Progress',
+    'review_completed':      'Review Completed',
+    'award_pending':         'Award Pending',
+    'award_acknowledged':    'Award Acknowledged',
+    'project_in_progress':   'Project in Progress',
+    'project_completed':     'Project Completed',
+    'closed':                'Closed',
+    'declined_by_agency':    'Declined by Agency',
+    'declined_by_applicant': 'Declined by Applicant'
   };
 
   var colorMap = {
-    'New':                   '#9ca3af',
-    'Ready for Review':      '#3b82f6',
-    'Review in Progress':    '#f59e0b',
-    'Award Pending':         '#f59e0b',
-    'Award Acknowledged':    '#22c55e',
-    'Review Completed':      '#22c55e',
-    'Declined by Agency':    '#ef4444',
-    'Declined by Applicant': '#ef4444',
-    'Closed':                '#9ca3af'
+    'new':                   '#9ca3af',
+    'ready_for_review':      '#3b82f6',
+    'review_in_progress':    '#f59e0b',
+    'review_completed':      '#8b5cf6',
+    'award_pending':         '#f97316',
+    'award_acknowledged':    '#22c55e',
+    'project_in_progress':   '#6366f1',
+    'project_completed':     '#0ea5e9',
+    'closed':                '#64748b',
+    'declined_by_agency':    '#ef4444',
+    'declined_by_applicant': '#ef4444'
   };
 
   var badgeMap = {
-    'New':                   'badge-new',
-    'Ready for Review':      'badge-review',
-    'Review in Progress':    'badge-in-progress',
-    'Award Pending':         'badge-pending',
-    'Award Acknowledged':    'badge-completed',
-    'Review Completed':      'badge-completed',
-    'Declined by Agency':    'badge-declined',
-    'Declined by Applicant': 'badge-declined',
-    'Closed':                'badge-new'
+    'new':                   'badge-new',
+    'ready_for_review':      'badge-review',
+    'review_in_progress':    'badge-in-progress',
+    'review_completed':      'badge-completed',
+    'award_pending':         'badge-pending',
+    'award_acknowledged':    'badge-completed',
+    'project_in_progress':   'badge-in-progress',
+    'project_completed':     'badge-completed',
+    'closed':                'badge-closed',
+    'declined_by_agency':    'badge-declined',
+    'declined_by_applicant': 'badge-declined'
   };
 
-  var gr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+  var normalStates = [
+    'new',
+    'ready_for_review',
+    'review_in_progress',
+    'review_completed',
+    'award_pending',
+    'award_acknowledged',
+    'project_in_progress',
+    'project_completed',
+    'closed'
+  ];
+
+  // ── Query applications ─────────────────────────────────────────────────────
+  var gr = new GlideRecordSecure(applicantTable);
   gr.addQuery('sys_created_by', currentUser);
   gr.orderByDesc('sys_updated_on');
   gr.query();
 
   while (gr.next()) {
-    var stateDisplay = gr.getDisplayValue('state') || 'New';
-    var appNum       = gr.getValue('number')        || '';
-    var sysId        = gr.getUniqueValue();
+    var sysId     = gr.getUniqueValue();
+    var stateVal  = gr.getValue('state') || 'new';
+    var createdOn = gr.getDisplayValue('sys_created_on') || '';
 
+    // ── Attachments ────────────────────────────────────────────────────────
     var attachments = [];
     var attGR = new GlideRecordSecure('sys_attachment');
-    attGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
+    attGR.addQuery('table_name',   applicantTable);
     attGR.addQuery('table_sys_id', sysId);
     attGR.query();
     while (attGR.next()) {
@@ -1357,73 +881,60 @@ military_status:      gr.getDisplayValue('military_status') || '',
       });
     }
 
-    data.applications.push({
-      sys_id:                 sysId,
-      number:                 appNum,
-      first_name:             gr.getValue('first_name')                      || '',
-      middle_name:            gr.getValue('middle_name')                     || '',
-      last_name:              gr.getValue('last_name')                       || '',
-      birthdate:              gr.getValue('birthdate')                       || '',
-      phone:                  gr.getValue('phone_number')                    || '',
-      email:                  gr.getValue('email')                           || '',
-      gender:                 gr.getValue('gender')                          || '',
-      gender_display:         gr.getDisplayValue('gender')                   || '',
-      marital_status:         gr.getValue('marital_status')                  || '',
-      marital_display:        gr.getDisplayValue('marital_status')           || '',
-      race:                   gr.getValue('race')                            || '',
-      race_display:           gr.getDisplayValue('race')                     || '',
-      ethnicity:              gr.getValue('ethnicity')                       || '',
-      ethnicity_display:      gr.getDisplayValue('ethnicity')                || '',
-      education_level:        gr.getValue('education_level')                 || '',
-      education_display:      gr.getDisplayValue('education_level')          || '',
-      military_status:        gr.getValue('military_status')                 || '',
-      military_display:       gr.getDisplayValue('military_status')          || '',
-      street:                 gr.getValue('street')                          || '',
-      city:                   gr.getValue('city')                            || '',
-      country:                gr.getValue('country')                         || '',
-      zip:                    gr.getValue('zip_postal_code')                 || '',
-      applicant_type:         gr.getValue('applicant_type')                  || '',
-      applicant_type_display: gr.getDisplayValue('applicant_type')           || '',
-      citizenship_status:     gr.getValue('citizenship_status')              || '',
-      citizenship_display:    gr.getDisplayValue('citizenship_status')       || '',
-      identity_type:          gr.getValue('identity_type')                   || '',
-      identity_display:       gr.getDisplayValue('identity_type')            || '',
-      tribal_affiliation:     gr.getValue('tribal_affiliation')              || '',
-      tribal_display:         gr.getDisplayValue('tribal_affiliation')       || '',
-      disability_status:      gr.getValue('disability_status')               || '',
-      disability_display:     gr.getDisplayValue('disability_status')        || '',
-      ssn:                    gr.getValue('ssn')                             || '',
-      tin_ein:                gr.getValue('tin_ein')                         || '',
-      uei:                    gr.getValue('uei')                             || '',
-      program_name:           gr.getDisplayValue('program')                  || 'N/A',
-      program_num:            gr.getDisplayValue('program.number')           || '',
-      program_category:       gr.getDisplayValue('program_category')         || '',
-      organization:           gr.getValue('organization')                    || '',
-      start_date:             gr.getValue('project_start_date')              || '',
-      end_date:               gr.getValue('project_end_date')                || '',
-      submission_date:        gr.getValue('submission_date')                 || '',
-      requested_budget:       gr.getValue('requested_budget')                || '',
-      short_description:      gr.getValue('short_description')               || '',
-      proposal_description:   gr.getValue('proposal_description')            || '',
-      project_goals:          gr.getValue('project_goals_objectives')        || '',
-      project_activities:     gr.getValue('project_activities_methodology')  || '',
-      state_display:          stateDisplay,
-      badge_class:            badgeMap[stateDisplay]                         || 'badge-new',
-      created_on:             gr.getDisplayValue('sys_created_on')           || '',
-      updated_on:             gr.getDisplayValue('sys_updated_on')           || '',
-      can_edit:               (stateDisplay === 'New'),
-      attachments:            attachments
-    });
+    var appObj              = buildAppObject(gr);
+    appObj.program_name     = gr.getDisplayValue('program')          || 'N/A';
+    appObj.program_num      = gr.getDisplayValue('program.number')   || '';
+    appObj.program_category = gr.getDisplayValue('program_category') || '';
+    appObj.badge_class      = badgeMap[stateVal]                     || 'badge-new';
+    appObj.created_on       = createdOn;
+    appObj.attachments      = attachments;
+    appObj.state_value      = stateVal;
 
-    data.timeline.push({
-      label:   labelMap[stateDisplay] || stateDisplay,
-      color:   colorMap[stateDisplay] || '#9ca3af',
-      date:    gr.getDisplayValue('sys_updated_on') || '',
-      app_num: appNum
-    });
+    data.applications.push(appObj);
+
+    // ── Build stepper steps (NO sys_audit — only current state value) ──────
+    var isDeclined  = (stateVal === 'declined_by_agency' || stateVal === 'declined_by_applicant');
+    var currentIdx  = normalStates.indexOf(stateVal);
+    var timelineSteps = [];
+
+    if (isDeclined) {
+
+      // For declined: show all normal steps as completed, then append decline as current
+      normalStates.forEach(function(s) {
+        timelineSteps.push({
+          state:  s,
+          label:  labelMap[s],
+          color:  colorMap[s],
+          status: 'completed'
+        });
+      });
+
+      timelineSteps.push({
+        state:  stateVal,
+        label:  labelMap[stateVal] || stateVal,
+        color:  colorMap[stateVal] || '#ef4444',
+        status: 'current'
+      });
+
+    } else {
+
+      // For normal flow: mark steps before current as completed,
+      // current as current, rest as pending
+      normalStates.forEach(function(s, idx) {
+        timelineSteps.push({
+          state:  s,
+          label:  labelMap[s],
+          color:  colorMap[s],
+          status: idx < currentIdx  ? 'completed'
+                : idx === currentIdx ? 'current'
+                :                     'pending'
+        });
+      });
+
+    }
+
+    data.timelines[sysId] = timelineSteps;
   }
-
-  data.timeline = data.timeline.reverse();
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -1431,14 +942,14 @@ military_status:      gr.getDisplayValue('military_status') || '',
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>141</sys_mod_count>
+        <sys_mod_count>163</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-04-03 13:41:16</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-04-07 09:21:13</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -1471,43 +982,45 @@ military_status:      gr.getDisplayValue('military_status') || '',
       <span class="mya-bc-cur">My Applications</span>
     </nav>
 
-  <div class="mya-stats-bar" ng-if="c.data.applications && c.data.applications.length">
-  <div class="mya-stat mya-stat--blue">
-    <i class="fa fa-layer-group"></i>
-    <div>
-      <span class="mya-stat-val">{{c.data.applications.length}}</span>
-      <div class="mya-stat-lbl">Total</div>
+    <!-- ══ STATS BAR ══ -->
+    <div class="mya-stats-bar" ng-if="c.data.applications && c.data.applications.length">
+      <div class="mya-stat mya-stat--blue">
+        <i class="fa fa-th-list"></i>
+        <div>
+          <span class="mya-stat-val">{{c.data.applications.length}}</span>
+          <div class="mya-stat-lbl">Total</div>
+        </div>
+      </div>
+      <div class="mya-stat mya-stat--amber">
+        <i class="fa fa-clock-o"></i>
+        <div>
+          <span class="mya-stat-val">{{c.countByBadge('badge-review')}}</span>
+          <div class="mya-stat-lbl">Ready for Review</div>
+        </div>
+      </div>
+      <div class="mya-stat mya-stat--purple">
+        <i class="fa fa-spinner"></i>
+        <div>
+          <span class="mya-stat-val">{{c.countByBadge('badge-in-progress')}}</span>
+          <div class="mya-stat-lbl">In Progress</div>
+        </div>
+      </div>
+      <div class="mya-stat mya-stat--green">
+        <i class="fa fa-trophy"></i>
+        <div>
+          <span class="mya-stat-val">{{c.countByBadge('badge-completed')}}</span>
+          <div class="mya-stat-lbl">Awarded / Completed</div>
+        </div>
+      </div>
+      <div class="mya-stat mya-stat--red">
+        <i class="fa fa-times-circle"></i>
+        <div>
+          <span class="mya-stat-val">{{c.countByBadge('badge-declined')}}</span>
+          <div class="mya-stat-lbl">Declined</div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="mya-stat mya-stat--amber">
-    <i class="fa fa-clock-o"></i>
-    <div>
-      <span class="mya-stat-val">{{c.countByBadge('badge-review')}}</span>
-      <div class="mya-stat-lbl">Ready for Review</div>
-    </div>
-  </div>
-  <div class="mya-stat mya-stat--purple">
-    <i class="fa fa-spinner"></i>
-    <div>
-      <span class="mya-stat-val">{{c.countByBadge('badge-in-progress')}}</span>
-      <div class="mya-stat-lbl">In Progress</div>
-    </div>
-  </div>
-  <div class="mya-stat mya-stat--green">
-    <i class="fa fa-trophy"></i>
-    <div>
-      <span class="mya-stat-val">{{c.countByBadge('badge-completed')}}</span>
-      <div class="mya-stat-lbl">Review Completed</div>
-    </div>
-  </div>
-  <div class="mya-stat mya-stat--red">
-    <i class="fa fa-times-circle"></i>
-    <div>
-      <span class="mya-stat-val">{{c.countByBadge('badge-declined')}}</span>
-      <div class="mya-stat-lbl">Declined</div>
-    </div>
-  </div>
-</div>
+
     <!-- ══ APPLICATION CARDS ══ -->
     <div class="mya-list" ng-if="c.data.applications && c.data.applications.length">
 
@@ -1515,10 +1028,8 @@ military_status:      gr.getDisplayValue('military_status') || '',
            ng-repeat-start="app in c.data.applications track by app.sys_id"
            ng-class="{'mya-app-card--expanded': c.expandedApp === app.sys_id}">
 
-        <!-- Left accent bar (color by status) -->
         <div class="mya-card-accent {{app.badge_class}}"></div>
 
-        <!-- Card body -->
         <div class="mya-card-body" ng-click="c.toggleTimeline(app)">
 
           <!-- Col 1: App number + date -->
@@ -1556,6 +1067,7 @@ military_status:      gr.getDisplayValue('military_status') || '',
                    'fa-times-circle':       app.badge_class==='badge-declined',
                    'fa-hourglass-half':     app.badge_class==='badge-new',
                    'fa-exclamation-circle': app.badge_class==='badge-pending',
+                   'fa-spinner':            app.badge_class==='badge-in-progress',
                    'fa-circle-o':           !app.badge_class
                  }">
               </i>
@@ -1575,7 +1087,7 @@ military_status:      gr.getDisplayValue('military_status') || '',
           <div class="mya-col mya-col-actions" ng-click="$event.stopPropagation()">
             <button class="mya-act-btn mya-act-btn--tl"
                     ng-click="c.toggleTimeline(app)"
-                    title="Review Timeline">
+                    title="Application Progress">
               <i class="fa"
                  ng-class="c.expandedApp === app.sys_id ? 'fa-chevron-up' : 'fa-history'"></i>
             </button>
@@ -1584,45 +1096,76 @@ military_status:      gr.getDisplayValue('military_status') || '',
                     title="View Details">
               <i class="fa fa-eye"></i>
             </button>
-            <button ng-if="app.can_edit"
-                    class="mya-act-btn mya-act-btn--edit"
-                    ng-click="c.openEdit(app)"
-                    title="Edit Application">
-              <i class="fa fa-pencil"></i>
-            </button>
           </div>
 
-        </div><!-- /mya-card-body -->
-      </div><!-- /mya-app-card -->
+        </div>
+      </div>
 
-      <!-- ══ INLINE TIMELINE ══ -->
+      <!-- ══ INLINE TIMELINE STEPPER ══ -->
       <div ng-repeat-end
            class="mya-tl-panel"
            ng-if="c.expandedApp === app.sys_id">
         <div class="mya-tl-inner">
 
           <div class="mya-tl-header">
-            <i class="fa fa-history"></i> Review Timeline
+            <i class="fa fa-history"></i> Application Progress
             <span class="mya-tl-appnum">{{app.number}}</span>
           </div>
 
-          <!-- Timeline items -->
-          <div class="mya-tl-items" ng-if="c.appTimeline && c.appTimeline.length > 0">
-            <div class="mya-tl-item" ng-repeat="item in c.appTimeline track by $index">
-              <div class="mya-tl-item-left">
-                <div class="mya-tl-dot" ng-style="{background: item.color}"></div>
-                <div class="mya-tl-connector" ng-if="!$last"></div>
-              </div>
-              <div class="mya-tl-item-body">
-                <div class="mya-tl-item-label">{{item.label}}</div>
-                <div class="mya-tl-item-date">
-                  <i class="fa fa-clock-o"></i> {{item.date}}
+          <!-- Horizontal Stepper -->
+          <div class="mya-stepper" ng-if="c.appTimeline && c.appTimeline.length > 0">
+            <div class="mya-stepper-track">
+
+              <div class="mya-step"
+                   ng-repeat="step in c.appTimeline track by $index"
+                   ng-class="{
+                     'mya-step--done':    step.status === 'completed',
+                     'mya-step--active':  step.status === 'current',
+                     'mya-step--pending': step.status === 'pending',
+                     'mya-step--decline': step.status === 'current' && (step.state === 'declined_by_agency' || step.state === 'declined_by_applicant')
+                   }">
+
+                <!-- Connector line -->
+                <div class="mya-step-conn" ng-if="!$first">
+                  <div class="mya-step-conn-fill"
+                       ng-class="{'mya-step-conn-fill--done': step.status === 'completed' || step.status === 'current'}">
+                  </div>
                 </div>
+
+                <!-- Circle icon -->
+                <div class="mya-step-circle"
+                     ng-style="(step.status === 'completed' || step.status === 'current') && {background: step.color, borderColor: step.color}">
+                  <i class="fa fa-check" ng-if="step.status === 'completed'"></i>
+                  <i class="fa"
+                     ng-if="step.status === 'current'"
+                     ng-class="{
+                       'fa-times':           step.state === 'declined_by_agency' || step.state === 'declined_by_applicant',
+                       'fa-file-text':       step.state === 'new',
+                       'fa-paper-plane':     step.state === 'ready_for_review',
+                       'fa-search':          step.state === 'review_in_progress',
+                       'fa-check-square-o':  step.state === 'review_completed',
+                       'fa-hourglass-half':  step.state === 'award_pending',
+                       'fa-star':            step.state === 'award_acknowledged',
+                       'fa-rocket':          step.state === 'project_in_progress',
+                       'fa-flag-checkered':  step.state === 'project_completed',
+                       'fa-lock':            step.state === 'closed'
+                     }"></i>
+                  <i class="fa fa-circle-o" ng-if="step.status === 'pending'"></i>
+                </div>
+
+                <!-- Label + date -->
+                <div class="mya-step-label">{{step.label}}</div>
+                <div class="mya-step-date" ng-if="step.date && step.status !== 'pending'">
+                  <i class="fa fa-calendar-o"></i> {{step.date}}
+                </div>
+                <div class="mya-step-date mya-step-date--pending" ng-if="step.status === 'pending'">
+                  Upcoming
+                </div>
+
               </div>
             </div>
           </div>
 
-          <!-- Empty timeline -->
           <div class="mya-tl-empty" ng-if="!c.appTimeline || c.appTimeline.length === 0">
             <i class="fa fa-hourglass-o"></i>
             <p>No timeline activity yet</p>
@@ -1631,7 +1174,7 @@ military_status:      gr.getDisplayValue('military_status') || '',
         </div>
       </div>
 
-    </div><!-- /mya-list -->
+    </div>
 
     <!-- ══ EMPTY STATE ══ -->
     <div class="mya-empty-state" ng-if="!c.data.applications || !c.data.applications.length">
@@ -1639,7 +1182,6 @@ military_status:      gr.getDisplayValue('military_status') || '',
       <h3>No Applications Yet</h3>
       <p>Applications you submit will appear here for tracking.</p>
     </div>
-
 
     <!-- ════════════════════════════════════════
          VIEW MODAL
@@ -1713,7 +1255,7 @@ military_status:      gr.getDisplayValue('military_status') || '',
 
           <!-- Identity -->
           <div ng-if="c.activeTab==='identity'">
-            <div class="mya-sec-title">Identity & Classification</div>
+            <div class="mya-sec-title">Identity &amp; Classification</div>
             <div class="mya-view-grid">
               <div class="mya-vfield"><div class="mya-vflabel">Applicant Type</div><div class="mya-vfvalue">{{c.selected.applicant_type_display||'—'}}</div></div>
               <div class="mya-vfield"><div class="mya-vflabel">Citizenship Status</div><div class="mya-vfvalue">{{c.selected.citizenship_display||'—'}}</div></div>
@@ -1728,7 +1270,7 @@ military_status:      gr.getDisplayValue('military_status') || '',
 
           <!-- Program -->
           <div ng-if="c.activeTab==='program'">
-            <div class="mya-sec-title">Program & Project</div>
+            <div class="mya-sec-title">Program &amp; Project</div>
             <div class="mya-view-grid">
               <div class="mya-vfield"><div class="mya-vflabel">Program Name</div><div class="mya-vfvalue">{{c.selected.program_name||'—'}}</div></div>
               <div class="mya-vfield"><div class="mya-vflabel">Program Number</div><div class="mya-vfvalue">{{c.selected.program_num||'—'}}</div></div>
@@ -1776,180 +1318,6 @@ military_status:      gr.getDisplayValue('military_status') || '',
         <div class="mya-mfooter">
           <button class="mya-mfoot-close" ng-click="c.closeModal()">
             <i class="fa fa-times"></i> Close
-          </button>
-          <button class="mya-mfoot-edit" ng-if="c.selected.can_edit" ng-click="c.openEditFromView(c.selected)">
-            <i class="fa fa-pencil"></i> Edit Application
-          </button>
-        </div>
-
-      </div>
-    </div>
-
-
-    <!-- ════════════════════════════════════════
-         EDIT MODAL
-    ════════════════════════════════════════ -->
-    <div class="mya-overlay" ng-if="c.editOpen" ng-click="c.closeEdit()">
-      <div class="mya-modal" ng-click="$event.stopPropagation()">
-
-        <div class="mya-mhdr mya-mhdr--edit">
-          <div class="mya-mhdr-left">
-            <div class="mya-mhdr-av mya-mhdr-av--edit">
-              <i class="fa fa-pencil"></i>
-            </div>
-            <div>
-              <div class="mya-mhdr-title">Edit Application</div>
-              <div class="mya-mhdr-sub">{{c.editData.number}}</div>
-            </div>
-          </div>
-          <button class="mya-mhdr-close" ng-click="c.closeEdit()">
-            <i class="fa fa-times"></i>
-          </button>
-        </div>
-
-        <div class="mya-mtabs">
-          <button class="mya-mtab" ng-class="{active: c.editTab==='personal'}"    ng-click="c.setEditTab('personal')">Personal</button>
-          <button class="mya-mtab" ng-class="{active: c.editTab==='identity'}"    ng-click="c.setEditTab('identity')">Identity</button>
-          <button class="mya-mtab" ng-class="{active: c.editTab==='program'}"     ng-click="c.setEditTab('program')">Program</button>
-          <button class="mya-mtab" ng-class="{active: c.editTab==='proposal'}"    ng-click="c.setEditTab('proposal')">Proposal</button>
-          <button class="mya-mtab" ng-class="{active: c.editTab==='attachments'}" ng-click="c.setEditTab('attachments')">
-            Attachments
-            <span class="mya-mtab-badge" ng-if="c.selected.attachments && c.selected.attachments.length">
-              {{c.selected.attachments.length}}
-            </span>
-          </button>
-        </div>
-
-        <div class="mya-mbody">
-
-          <div class="mya-loading" ng-if="c.editLoading">
-            <i class="fa fa-spinner fa-spin"></i> Loading application data...
-          </div>
-
-          <div ng-if="!c.editLoading">
-
-            <div class="mya-alert mya-alert--success" ng-if="c.editSuccess">
-              <i class="fa fa-check-circle"></i> Saved successfully!
-            </div>
-            <div class="mya-alert mya-alert--error" ng-if="c.editError">
-              <i class="fa fa-exclamation-circle"></i> {{c.editError}}
-            </div>
-
-            <!-- Personal -->
-            <div ng-if="c.editTab==='personal'">
-              <div class="mya-sec-title">Personal Information</div>
-              <div class="mya-edit-grid">
-                <div class="mya-efield"><label class="mya-elabel">First Name</label><input class="mya-einput" type="text" ng-model="c.editData.first_name" placeholder="First name"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Middle Name</label><input class="mya-einput" type="text" ng-model="c.editData.middle_name" placeholder="Middle name"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Last Name</label><input class="mya-einput" type="text" ng-model="c.editData.last_name" placeholder="Last name"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Birthdate</label><input class="mya-einput" type="date" ng-model="c.editData.birthdate"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Phone Number</label><input class="mya-einput" type="text" ng-model="c.editData.phone" placeholder="Phone"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Email</label><input class="mya-einput" type="email" ng-model="c.editData.email" placeholder="Email"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Gender</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.gender"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.gender" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Marital Status</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.marital_status"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.marital_status" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Race</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.race"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.race" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Ethnicity</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.ethnicity"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.ethnicity" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Education Level</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.education_level"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.education_level" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Military Status</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.military_status"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.military_status" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-              </div>
-              <div class="mya-divider"></div>
-              <div class="mya-sec-title">Address</div>
-              <div class="mya-edit-grid">
-                <div class="mya-efield"><label class="mya-elabel">Street</label><input class="mya-einput" type="text" ng-model="c.editData.street" placeholder="Street"/></div>
-                <div class="mya-efield"><label class="mya-elabel">City</label><input class="mya-einput" type="text" ng-model="c.editData.city" placeholder="City"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Country</label><input class="mya-einput" type="text" ng-model="c.editData.country" placeholder="Country"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Zip / Postal Code</label><input class="mya-einput" type="text" ng-model="c.editData.zip" placeholder="Zip"/></div>
-              </div>
-            </div>
-
-            <!-- Identity -->
-            <div ng-if="c.editTab==='identity'">
-              <div class="mya-sec-title">Identity & Classification</div>
-              <div class="mya-edit-grid">
-                <div class="mya-efield"><label class="mya-elabel">Applicant Type</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.applicant_type"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.applicant_type" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Citizenship Status</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.citizenship_status"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.citizenship_status" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Identity Type</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.identity_type"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.identity_type" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Tribal Affiliation</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.tribal_affiliation"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.tribal_affiliation" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">Disability Status</label><div class="mya-sel-wrap"><select class="mya-eselect" ng-model="c.editData.disability_status"><option value="">-- Select --</option><option ng-repeat="opt in c.choices.disability_status" value="{{opt.value}}">{{opt.label}}</option></select><i class="fa fa-chevron-down mya-sel-arr"></i></div></div>
-                <div class="mya-efield"><label class="mya-elabel">UEI</label><input class="mya-einput" type="text" ng-model="c.editData.uei" placeholder="UEI"/></div>
-                <div class="mya-efield"><label class="mya-elabel">SSN</label><input class="mya-einput" type="text" ng-model="c.editData.ssn" placeholder="SSN"/></div>
-                <div class="mya-efield"><label class="mya-elabel">TIN / EIN</label><input class="mya-einput" type="text" ng-model="c.editData.tin_ein" placeholder="TIN / EIN"/></div>
-              </div>
-            </div>
-
-            <!-- Program -->
-            <div ng-if="c.editTab==='program'">
-              <div class="mya-sec-title">Program & Project</div>
-              <div class="mya-edit-grid">
-                <div class="mya-efield"><label class="mya-elabel">Organization</label><input class="mya-einput" type="text" ng-model="c.editData.organization" placeholder="Organization"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Requested Budget</label><input class="mya-einput" type="text" ng-model="c.editData.requested_budget" placeholder="e.g. 50000"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Project Start Date</label><input class="mya-einput" type="date" ng-model="c.editData.start_date"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Project End Date</label><input class="mya-einput" type="date" ng-model="c.editData.end_date"/></div>
-                <div class="mya-efield"><label class="mya-elabel">Submission Date</label><input class="mya-einput" type="date" ng-model="c.editData.submission_date"/></div>
-              </div>
-            </div>
-
-            <!-- Proposal -->
-            <div ng-if="c.editTab==='proposal'">
-              <div class="mya-sec-title">Proposal Details</div>
-              <div class="mya-efield mya-efield--full"><label class="mya-elabel">Short Description</label><textarea class="mya-etextarea" ng-model="c.editData.short_description" rows="2" placeholder="Short description"></textarea></div>
-              <div class="mya-efield mya-efield--full"><label class="mya-elabel">Proposal Description</label><textarea class="mya-etextarea" ng-model="c.editData.proposal_description" rows="3" placeholder="Proposal description"></textarea></div>
-              <div class="mya-efield mya-efield--full"><label class="mya-elabel">Project Goals and Objectives</label><textarea class="mya-etextarea" ng-model="c.editData.project_goals" rows="3" placeholder="Goals and objectives"></textarea></div>
-              <div class="mya-efield mya-efield--full"><label class="mya-elabel">Project Activities / Methodology</label><textarea class="mya-etextarea" ng-model="c.editData.project_activities" rows="3" placeholder="Activities and methodology"></textarea></div>
-            </div>
-
-            <!-- Attachments Edit -->
-            <div ng-if="c.editTab==='attachments'">
-              <div class="mya-sec-title">Attachments</div>
-              <div class="mya-upload-zone"
-                   ng-class="{'mya-upload-zone--drag': c.isDragging}"
-                   ng-dragover="c.onDragOver($event)"
-                   ng-dragleave="c.onDragLeave($event)"
-                   ng-drop="c.onDrop($event)"
-                   ng-click="c.triggerFileInput()">
-                <i class="fa fa-cloud-upload mya-upload-ico"></i>
-                <div class="mya-upload-txt">Click to upload or drag &amp; drop</div>
-                <div class="mya-upload-sub">Any file type accepted</div>
-                <input id="ma-file-input" type="file" multiple style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)"/>
-              </div>
-              <div class="mya-upload-queue" ng-if="c.uploadingFiles && c.uploadingFiles.length">
-                <div class="mya-upload-qitem" ng-repeat="uf in c.uploadingFiles track by $index">
-                  <i class="fa fa-spinner fa-spin"></i>
-                  <span>{{uf.name}}</span>
-                  <div class="mya-upload-qbar"><div class="mya-upload-qfill" ng-style="{width: uf.progress+'%'}"></div></div>
-                </div>
-              </div>
-              <div class="mya-alert mya-alert--error" ng-if="c.uploadError">
-                <i class="fa fa-exclamation-circle"></i> {{c.uploadError}}
-              </div>
-              <div class="mya-no-attach" ng-if="!c.selected.attachments || !c.selected.attachments.length">
-                <i class="fa fa-paperclip"></i><p>No attachments yet</p>
-              </div>
-              <div class="mya-attach-list" ng-if="c.selected.attachments && c.selected.attachments.length">
-                <div class="mya-attach-item" ng-repeat="att in c.selected.attachments track by att.sys_id">
-                  <div class="mya-attach-ico"><i class="fa {{c.getFileIcon(att.content_type)}}"></i></div>
-                  <div class="mya-attach-info">
-                    <div class="mya-attach-name">{{att.name}}</div>
-                    <div class="mya-attach-size">{{c.formatBytes(att.size)}}</div>
-                  </div>
-                  <div class="mya-attach-acts">
-                    <a class="mya-attach-dl" ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" target="_blank" ng-click="$event.stopPropagation()"><i class="fa fa-download"></i></a>
-                    <button class="mya-attach-del" ng-click="c.deleteAttachment(att)" title="Delete"><i class="fa fa-trash"></i></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        <div class="mya-mfooter">
-          <button class="mya-mfoot-close" ng-click="c.closeEdit()" ng-disabled="c.editSaving">
-            <i class="fa fa-times"></i> Cancel
-          </button>
-          <button class="mya-mfoot-edit" ng-click="c.saveEdit()" ng-disabled="c.editSaving || c.editLoading">
-            <i class="fa" ng-class="c.editSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-            {{c.editSaving ? 'Saving...' : 'Save Changes'}}
           </button>
         </div>
 

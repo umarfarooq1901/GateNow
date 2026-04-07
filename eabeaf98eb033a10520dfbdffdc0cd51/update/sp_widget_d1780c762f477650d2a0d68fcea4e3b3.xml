@@ -643,8 +643,8 @@ $gap-xxxl: 64px;
             close_date: gr.getDisplayValue('proposal_close_date'),
             award_type: gr.getDisplayValue('award_type'),
             program_budget: parseFloat(gr.getValue('program_budget')) || 0,
-             program_manager: gr.getDisplayValue('program_manager'),
-           
+            program_manager: gr.getDisplayValue('program_manager'),
+            category: gr.getDisplayValue('category') || '' 
 						
 				};
     } else {
@@ -660,14 +660,14 @@ $gap-xxxl: 64px;
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 09:50:32</sys_created_on>
         <sys_id>d1780c762f477650d2a0d68fcea4e3b3</sys_id>
-        <sys_mod_count>12</sys_mod_count>
+        <sys_mod_count>14</sys_mod_count>
         <sys_name>Program Detail Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_d1780c762f477650d2a0d68fcea4e3b3</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-04-03 12:34:26</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-04-04 07:45:03</sys_updated_on>
         <template><![CDATA[<div ng-if="!data.error && data.program.sys_id" class="grant-detail-page-premium">
   
   <!-- Hero Banner with Image -->
@@ -675,7 +675,9 @@ $gap-xxxl: 64px;
     <div class="hero-overlay"></div>
     <div class="hero-content-wrapper">
       <div class="hero-inner-container">
-        <span class="program-category-tag">Grant Program</span>
+<span class="program-category-tag">
+  {{data.program.category || 'Grant Program'}}
+</span>
         <h1 class="hero-program-title">{{data.program.title || "Program Title"}}</h1>
       </div>
     </div>
@@ -837,6 +839,15 @@ $gap-xxxl: 64px;
               <h3 class="card-heading">Award Information</h3>
             </div>
             <div class="info-card-body">
+               <div class="info-detail-row" ng-if="data.program.category">
+      <span class="detail-icon">
+        <i class="fa fa-tag"></i>
+      </span>
+      <div class="detail-text-group">
+        <span class="detail-label">Category</span>
+        <span class="detail-value">{{data.program.category}}</span>
+      </div>
+    </div>
               <div class="info-detail-row">
                 <span class="detail-icon">
                   <i class="fa fa-bookmark"></i>

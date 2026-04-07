@@ -7,13 +7,12 @@
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ════════════════════════════════════════
-   SIDEBAR — FIXED &amp; REFINED
+   SIDEBAR
 ════════════════════════════════════════ */
 .dm-sidebar {
   width: 100%;
   height: 100vh;
   background: linear-gradient(160deg, #2d2669 0%, #4a3fa0 50%, #6b5fd4 100%);
-  border-right: none;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -22,10 +21,8 @@
   top: 0;
   box-sizing: border-box;
   overflow: hidden;
-  /* ✅ removed margin-top: 13% — was the main spacing bug */
 }
 
-/* subtle inner shadow on right edge */
 .dm-sidebar::after {
   content: '';
   position: absolute; top: 0; right: 0;
@@ -35,69 +32,59 @@
 }
 
 /* ════════════════════════════════════════
-   LOGO / BRAND SECTION
+   USER BLOCK — top
 ════════════════════════════════════════ */
-.dm-logo {
+.dm-user-block {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 22px 20px 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  cursor: pointer;
-  text-decoration: none;
-  flex-shrink: 0;
+  padding: 30px 16px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
 }
 
-.dm-logo-icon {
-  width: 36px; height: 36px;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #fff;
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px;
+.dm-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-}
-
-.dm-logo-text { min-width: 0; }
-
-.dm-title {
-  display: block;
-  font-weight: 700;
+  color: rgba(255,255,255,0.80);
   font-size: 13px;
-  color: #ffffff;
-  letter-spacing: -.1px;
+}
+
+.dm-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dm-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.90);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.dm-sub {
-  display: block;
+.dm-user-role {
   font-size: 10px;
-  color: rgba(255,255,255,0.55);
-  margin-top: 1px;
-  letter-spacing: .2px;
+  color: rgba(255,255,255,0.38);
+  letter-spacing: 0.1px;
 }
 
 /* ════════════════════════════════════════
-   NAV SECTION LABEL
-════════════════════════════════════════ */
-.dm-nav-label {
-  font-size: 9px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.4);
-  text-transform: uppercase;
-  letter-spacing: .8px;
-  padding: 18px 20px 8px;
-}
-
-/* ════════════════════════════════════════
-   MENU LIST
+   MENU
 ════════════════════════════════════════ */
 .dm-menu {
   list-style: none;
-  padding: 8px 12px;
+  padding: 12px 12px;
   margin: 0;
   flex: 1;
   overflow-y: auto;
@@ -105,14 +92,12 @@
   overscroll-behavior: contain;
 }
 
-/* hide scrollbar but keep scroll */
 .dm-menu::-webkit-scrollbar { width: 0; }
 
 .dm-menu li {
   margin-bottom: 2px;
 }
 
-/* ── Base link ── */
 .dm-menu a {
   display: flex;
   align-items: center;
@@ -122,27 +107,24 @@
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255,255,255,0.75);
-  position: relative;
+  color: rgba(255,255,255,0.70);
   transition:
     background .18s ease,
     color .18s ease,
     padding-left .18s ease;
 }
 
-/* ── Icon ── */
 .dm-menu a i {
   width: 20px;
   text-align: center;
   font-size: 14px;
-  color: rgba(255,255,255,0.6);
+  color: rgba(255,255,255,0.55);
   flex-shrink: 0;
   transition: color .18s ease, transform .18s ease;
 }
 
-/* ── Hover ── */
 .dm-menu li:not(.active) a:hover {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.10);
   color: #ffffff;
   padding-left: 15px;
 }
@@ -151,33 +133,15 @@
   transform: scale(1.1);
 }
 
-/* ── Active state — white pill + left accent bar ── */
 .dm-menu li.active a {
   background: rgba(255,255,255,0.18);
   color: #ffffff;
-  font-weight: 700;
+  font-weight: 600;
   padding-left: 15px;
-  box-shadow: inset 3px 0 0 #ffffff;  /* ← left accent bar */
+  box-shadow: inset 3px 0 0 rgba(255,255,255,0.90);
 }
 .dm-menu li.active a i {
   color: #ffffff;
-}
-
-/* ════════════════════════════════════════
-   FOOTER
-════════════════════════════════════════ */
-.dm-footer {
-  flex-shrink: 0;
-  padding: 14px 20px 18px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  font-size: 10px;
-  color: rgba(255,255,255,0.4);
-  letter-spacing: .1px;
-}
-.dm-version {
-  margin-top: 2px;
-  font-size: 9px;
-  color: rgba(255,255,255,0.3);
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -204,29 +168,25 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-10 07:31:36</sys_created_on>
         <sys_id>3af1b39deb67b610520dfbdffdc0cde4</sys_id>
-        <sys_mod_count>39</sys_mod_count>
+        <sys_mod_count>55</sys_mod_count>
         <sys_name>Sidebar Dashboard</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_3af1b39deb67b610520dfbdffdc0cde4</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-04-02 07:18:56</sys_updated_on>
+        <sys_updated_on>2026-04-04 10:33:07</sys_updated_on>
         <template><![CDATA[<div class="dm-sidebar">
 
-  <!-- Brand -->
-  <a class="dm-logo" href="/applicant?id=applicant_dashboard">
-    <div class="dm-logo-icon">
-      <i class="fa fa-bolt"></i>
+  <!-- User block — TOP -->
+  <div class="dm-user-block">
+    <div class="dm-user-avatar">
+      <i class="fa fa-user"></i>
     </div>
-    <div class="dm-logo-text">
-      <span class="dm-title">GateNow</span>
-      <span class="dm-sub">Applicant Portal</span>
+    <div class="dm-user-info">
+      <span class="dm-user-name">Welcome back</span>
     </div>
-  </a>
-
-  <!-- Nav label -->
-  <div class="dm-nav-label">Navigation</div>
+  </div>
 
   <!-- Menu -->
   <ul class="dm-menu">
@@ -260,12 +220,6 @@
     </li>
 
   </ul>
-
-  <!-- Footer -->
-  <div class="dm-footer">
-    GateNow &copy; 2026
-    <div class="dm-version">v2.0.0</div>
-  </div>
 
 </div>]]></template>
     </sp_widget>

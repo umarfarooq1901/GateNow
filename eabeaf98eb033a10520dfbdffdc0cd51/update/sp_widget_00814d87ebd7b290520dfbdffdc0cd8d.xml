@@ -1,24 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window, $timeout, spUtil) {
+        <client_script><![CDATA[api.controller = function($scope, $timeout) {
   var c = this;
 
   // ── Colour palette ──────────────────────────────────
   c.statusColors = ['#5443AD','#10b981','#f59e0b','#ef4444','#06b6d4','#8b5cf6','#f43f5e'];
 
-  // ══════════════════════════════════════════════════════
-  // NAVIGATION
-  // ══════════════════════════════════════════════════════
-c.goTo = function(pageId) {
-    var allowedPages = ['home', 'dashboard', 'profile', 'applications'];
-
-    if (!pageId || allowedPages.indexOf(pageId) === -1) {
-      return;
-    }
-
-    spUtil.navigateTo(pageId);
-  };
   // ══════════════════════════════════════════════════════
   // SHARED HELPERS
   // ══════════════════════════════════════════════════════
@@ -43,7 +31,6 @@ c.goTo = function(pageId) {
     }).length;
   };
 
-  // ── Average completion % ──────────────────────────────
   c.avgCompletion = function() {
     if (!c.data.projectProgress || !c.data.projectProgress.length) return 0;
     var sum = c.data.projectProgress.reduce(function(a, p) {
@@ -52,7 +39,6 @@ c.goTo = function(pageId) {
     return Math.round(sum / c.data.projectProgress.length);
   };
 
-  // ── Worst (most red) dimension label ─────────────────  ← ADD HERE
   c.psWorstDimension = function() {
     if (!c.data.projectStatusData || !c.data.projectStatusData.dimensions.length)
       return '—';
@@ -62,7 +48,6 @@ c.goTo = function(pageId) {
     return (worst.red || 0) > 0 ? worst.label : '—';
   };
 
-  // ── Best (most green) dimension label ─────────────────
   c.psBestDimension = function() {
     if (!c.data.projectStatusData || !c.data.projectStatusData.dimensions.length)
       return '—';
@@ -72,19 +57,16 @@ c.goTo = function(pageId) {
     return (best.green || 0) > 0 ? best.label : '—';
   };
 
-  // ── SVG arc stroke-dasharray for header ring ─────────
   c.avgDashArray = function() {
     var avg = c.avgCompletion();
     return avg + ' ' + (100 - avg);
   };
 
-  // ── SVG arc for individual project cards ─────────────
   c.projDashArray = function(pct) {
     var p = Math.max(0, Math.min(100, pct || 0));
     return (p / 100 * 188.5) + ' ' + (188.5 - p / 100 * 188.5);
   };
 
-  // ── Count apps by state key ───────────────────────────
   c.countAppStatus = function(stateKey) {
     if (!c.data.appStatusChart || !c.data.appStatusChart.labels) return 0;
     var total = 0;
@@ -98,7 +80,6 @@ c.goTo = function(pageId) {
     return total;
   };
 
-  // ── Status report helpers ─────────────────────────────
   c.srTotal = function() {
     if (!c.data.statusReports) return 0;
     return c.data.statusReports.reduce(function(a, r) { return a + r.count; }, 0);
@@ -126,7 +107,6 @@ c.goTo = function(pageId) {
     return map[state.toLowerCase()] || 'badge-draft';
   };
 
-  // ── Capitalize filter ─────────────────────────────────
   try {
     angular.module('sn.cs.widget').filter('capitalize', function() {
       return function(input) {
@@ -149,12 +129,7 @@ c.goTo = function(pageId) {
     }
 
     var COLORS = ['#5443AD','#10b981','#f59e0b','#ef4444','#06b6d4','#8b5cf6','#f43f5e'];
-    var PURPLE = '#5443AD';
-    var GREEN  = '#10b981';
-    var AMBER  = '#f59e0b';
-    var RED    = '#ef4444';
     var ROSE   = '#f43f5e';
-    var TEAL   = '#06b6d4';
     var GRID   = 'rgba(0,0,0,0.05)';
     var TEXT   = '#6b7280';
     var DARK   = '#1e1e2e';
@@ -174,14 +149,11 @@ c.goTo = function(pageId) {
       bodyFont:  { family: font.family, size: 12 }
     };
 
-    // ══════════════════════════════════════════════════
-    // CHART 1 — APPLICATION PIPELINE
-    // ══════════════════════════════════════════════════
+    // ── CHART 1 — APPLICATION PIPELINE ──
     var appCtx = document.getElementById('appStatusChart');
     if (appCtx && c.data.appStatusChart && c.data.appStatusChart.labels.length) {
       var d        = c.data.appStatusChart;
       var total_ap = d.counts.reduce(function(a, b) { return a + b; }, 0);
-
       new Chart(appCtx, {
         type: 'doughnut',
         data: {
@@ -227,14 +199,11 @@ c.goTo = function(pageId) {
       });
     }
 
-    // ══════════════════════════════════════════════════
-    // CHART 2 — REIMBURSEMENTS
-    // ══════════════════════════════════════════════════
+    // ── CHART 2 — REIMBURSEMENTS ──
     var rCtx = document.getElementById('reimbursementChart');
     if (rCtx && c.data.reimbursementStats && c.data.reimbursementStats.total) {
       var ri      = c.data.reimbursementStats;
       var total_r = ri.total;
-
       new Chart(rCtx, {
         type: 'doughnut',
         data: {
@@ -277,9 +246,7 @@ c.goTo = function(pageId) {
       });
     }
 
-    // ══════════════════════════════════════════════════
-    // CHART 3 — STATUS REPORT TIMELINE
-    // ══════════════════════════════════════════════════
+    // ── CHART 3 — STATUS REPORT TIMELINE ──
     var srCtx = document.getElementById('statusReportChart');
     if (srCtx && c.data.statusReports && c.data.statusReports.length) {
       var sr     = c.data.statusReports;
@@ -288,7 +255,6 @@ c.goTo = function(pageId) {
       srGrad.addColorStop(0,   ROSE + '60');
       srGrad.addColorStop(0.5, ROSE + '25');
       srGrad.addColorStop(1,   ROSE + '00');
-
       new Chart(srCtx, {
         type: 'line',
         data: {
@@ -341,14 +307,11 @@ c.goTo = function(pageId) {
       });
     }
 
-    // ══════════════════════════════════════════════════
-    // CHART 4 — PROJECT STATUS RADAR
-    // ══════════════════════════════════════════════════
+    // ── CHART 4 — PROJECT STATUS RADAR ──
     var radarCtx = document.getElementById('projectStatusRadar');
     if (radarCtx && c.data.projectStatusData && c.data.projectStatusData.dimensions.length) {
       var dims    = c.data.projectStatusData.dimensions;
       var rLabels = dims.map(function(d) { return d.label; });
-
       new Chart(radarCtx, {
         type: 'radar',
         data: {
@@ -401,13 +364,10 @@ c.goTo = function(pageId) {
       });
     }
 
-    // ══════════════════════════════════════════════════
-    // CHART 5 — PROJECT STATUS GROUPED BAR
-    // ══════════════════════════════════════════════════
+    // ── CHART 5 — PROJECT STATUS GROUPED BAR ──
     var gbCtx = document.getElementById('projectStatusGroupedBar');
     if (gbCtx && c.data.projectStatusData && c.data.projectStatusData.dimensions.length) {
       var gbDims = c.data.projectStatusData.dimensions;
-
       new Chart(gbCtx, {
         type: 'bar',
         data: {
@@ -452,15 +412,12 @@ c.goTo = function(pageId) {
       });
     }
 
-    // ══════════════════════════════════════════════════
-    // CHART 6a — CHANGE REQUESTS: Priority Doughnut
-    // ══════════════════════════════════════════════════
+    // ── CHART 6a — CHANGE REQUESTS: Priority Doughnut ──
     var crCtx = document.getElementById('changeRequestChart');
     if (crCtx && c.data.changeRequestStats && c.data.changeRequestStats.total) {
       var cri      = c.data.changeRequestStats;
       var pri      = cri.byPriority;
       var total_cr = cri.total;
-
       new Chart(crCtx, {
         type: 'doughnut',
         data: {
@@ -503,15 +460,12 @@ c.goTo = function(pageId) {
       });
     }
 
-    // ══════════════════════════════════════════════════
-    // CHART 6b — CHANGE REQUESTS: Category Horizontal Bar
-    // ══════════════════════════════════════════════════
+    // ── CHART 6b — CHANGE REQUESTS: Category Horizontal Bar ──
     var crCatCtx = document.getElementById('changeRequestCategoryChart');
     if (crCatCtx && c.data.changeRequestStats &&
         c.data.changeRequestStats.byCategory &&
         c.data.changeRequestStats.byCategory.length) {
       var cats = c.data.changeRequestStats.byCategory;
-
       new Chart(crCatCtx, {
         type: 'bar',
         data: {
@@ -565,83 +519,63 @@ c.goTo = function(pageId) {
         }]
       });
     }
-// ══ PROJECT COMPLETION v19 ══
-(function () {
-  if (!c.data.projectProgress || !c.data.projectProgress.length) return;
 
-  var projects = c.data.projectProgress;
-
-  var PALETTE = [
-    '#6366f1','#10b981','#f59e0b','#ef4444',
-    '#8b5cf6','#06b6d4','#f43f5e','#84cc16'
-  ];
-
-  c.pcdColor = function (idx) {
-    return PALETTE[idx % PALETTE.length];
-  };
-
-  var el = document.getElementById('pcdPie');
-  if (!el) return;
-
-  var labels  = projects.map(function (p) { return p.name; });
-  var vals    = projects.map(function (p) { return Math.max(p.percent || 0, 3); });
-  var bgAlpha = projects.map(function (_, i) { return PALETTE[i % PALETTE.length] + 'cc'; });
-  var bgFull  = projects.map(function (_, i) { return PALETTE[i % PALETTE.length]; });
-
-  new Chart(el.getContext('2d'), {
-    type: 'pie',
-    data: {
-      labels: labels,
-      datasets: [{
-        data:                 vals,
-        backgroundColor:      bgAlpha,
-        hoverBackgroundColor: bgFull,
-        borderColor:          '#f8fafc',
-        borderWidth:          5,
-        hoverOffset:          18,
-        borderRadius:         6
-      }]
-    },
-    options: {
-      responsive:          false,
-      maintainAspectRatio: false,
-      animation: {
-        animateRotate: true,
-        animateScale:  true,
-        duration:      1600,
-        easing:        'easeOutBack'
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor:'rgba(15,23,42,0.93)',
-          titleFont:{ size:12, weight:'800', family:'Inter,sans-serif' },
-          bodyFont: { size:11, family:'Inter,sans-serif' },
-          padding:12, cornerRadius:10,
-          displayColors:true, boxWidth:9, boxHeight:9, boxPadding:4,
-          callbacks: {
-            title: function (items) { return projects[items[0].dataIndex].name; },
-            label: function (ctx) {
-              var p = projects[ctx.dataIndex];
-              var s = p.percent>=75?'✅ On Track':p.percent>=40?'⏳ In Progress':p.percent>0?']]>🔴<![CDATA[ At Risk':'⬜ Not Started';
-              return [
-                '  Completion : '+(p.percent||0)+'%',
-                '  Phase      : '+(p.phase||'—'),
-                '  Status     : '+s
-              ];
+    // ── CHART 7 — PROJECT COMPLETION PIE ──
+    (function() {
+      if (!c.data.projectProgress || !c.data.projectProgress.length) return;
+      var projects = c.data.projectProgress;
+      var PALETTE  = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f43f5e','#84cc16'];
+      c.pcdColor   = function(idx) { return PALETTE[idx % PALETTE.length]; };
+      var el = document.getElementById('pcdPie');
+      if (!el) return;
+      new Chart(el.getContext('2d'), {
+        type: 'pie',
+        data: {
+          labels: projects.map(function(p) { return p.name; }),
+          datasets: [{
+            data:                 projects.map(function(p) { return Math.max(p.percent || 0, 3); }),
+            backgroundColor:      projects.map(function(_, i) { return PALETTE[i % PALETTE.length] + 'cc'; }),
+            hoverBackgroundColor: projects.map(function(_, i) { return PALETTE[i % PALETTE.length]; }),
+            borderColor:          '#f8fafc',
+            borderWidth:          5,
+            hoverOffset:          18,
+            borderRadius:         6
+          }]
+        },
+        options: {
+          responsive: false, maintainAspectRatio: false,
+          animation: { animateRotate: true, animateScale: true, duration: 1600, easing: 'easeOutBack' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(15,23,42,0.93)',
+              titleFont: { size: 12, weight: '800', family: 'Inter,sans-serif' },
+              bodyFont:  { size: 11, family: 'Inter,sans-serif' },
+              padding: 12, cornerRadius: 10,
+              displayColors: true, boxWidth: 9, boxHeight: 9, boxPadding: 4,
+              callbacks: {
+                title: function(items) { return projects[items[0].dataIndex].name; },
+                label: function(ctx) {
+                  var p = projects[ctx.dataIndex];
+                  var s = p.percent >= 75 ? '✅ On Track' : p.percent >= 40 ? '⏳ In Progress' : p.percent > 0 ? ']]>🔴<![CDATA[ At Risk' : '⬜ Not Started';
+                  return [
+                    '  Completion : ' + (p.percent || 0) + '%',
+                    '  Phase      : ' + (p.phase || '—'),
+                    '  Status     : ' + s
+                  ];
+                }
+              }
             }
           }
-        }
-      }
-    },
-    plugins: [] // ← centre text plugin removed
-  });
-})();
+        },
+        plugins: []
+      });
+    })();
+
   } // end drawCharts()
 
   $timeout(drawCharts, 500);
-};
-]]></client_script>
+};]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ════════════════════════════════════════
    RESET &amp; LAYOUT
@@ -2085,14 +2019,14 @@ try {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-02 18:54:14</sys_created_on>
         <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
-        <sys_mod_count>258</sys_mod_count>
+        <sys_mod_count>263</sys_mod_count>
         <sys_name>Applicant Dashboard Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-04-02 07:17:43</sys_updated_on>
+        <sys_updated_on>2026-04-07 10:04:11</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -2106,14 +2040,14 @@ try {
         <h2>Hi, {{c.data.user.name}}</h2>
         <p>Here's your grant portfolio overview — track applications, projects, and financial activity.</p>
       </div>
-      <div class="gn-banner-btns">
-        <a ng-click="c.goTo('opportunities_programs')" class="btn-primary" style="cursor:pointer;">
-          <i class="fa fa-search"></i> Explore Programs
-        </a>
-        <a ng-click="c.goTo('my_application_page')" class="btn-outline" style="cursor:pointer;">
-          <i class="fa fa-list"></i> View Applications
-        </a>
-      </div>
+ <div class="gn-banner-btns">
+  <a href="/applicant?id=opportunities_programs" class="btn-primary">
+    <i class="fa fa-search"></i> Explore Programs
+  </a>
+  <a href="/applicant?id=my_application_page" class="btn-outline">
+    <i class="fa fa-list"></i> View Applications
+  </a>
+</div>
     </div>
 
     <!-- KPI Cards -->

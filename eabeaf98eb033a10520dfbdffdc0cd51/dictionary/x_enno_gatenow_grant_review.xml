@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
     <element audit="true" db_object_id="2947b55febc37a10520dfbdffdc0cd68" extends="task" label="Grant Review" max_length="40" name="x_enno_gatenow_grant_review" type="collection">
-        <element label="Review Deadline" max_length="40" name="review_deadline" type="glide_date"/>
+        <element label="Review Deadline" mandatory="true" max_length="40" name="review_deadline" type="glide_date"/>
         <element choice="1" label="Status " max_length="40" name="status" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Escalated" sequence="2" value="Escalated"/>
@@ -17,11 +17,12 @@
                 <element inactive_on_update="false" label="Awarded" sequence="0" value="Awarded"/>
             </choice>
         </element>
-        <element label="Review group" max_length="40" name="review_group" type="string"/>
+        <element label="Review group" max_length="40" name="review_group" read_only="true" reference="sys_user_group" type="reference"/>
         <element label="Reviewer" max_length="4000" name="reviewer" reference="sys_user_group" type="glide_list"/>
         <element label="Proposal" max_length="40" name="proposal" type="string"/>
         <element label="Score" max_length="40" name="score" read_only="true" type="integer"/>
         <element label="Current Index" max_length="40" name="current_index" type="integer"/>
+        <element label="Review Start Date" mandatory="true" max_length="255" name="review_start_date" type="glide_date_time"/>
         <element label="Program" max_length="40" name="program" read_only="true" reference="x_enno_gatenow_grant_program" type="reference"/>
     </element>
 </database>

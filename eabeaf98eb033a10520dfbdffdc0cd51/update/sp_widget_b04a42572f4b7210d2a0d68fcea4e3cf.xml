@@ -1,206 +1,296 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, spUtil) {
-  var c = this;
+        <client_script><![CDATA[api.controller = function ($scope, $timeout) {
+  $timeout(function () {
 
-  c.goToPrograms = function() {
-    spUtil.navigateTo('grant_programs');
-  };
+    var canvas = document.getElementById('gn-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
 
-  c.goToApplication = function() {
-    spUtil.navigateTo('applicant_form');
-  };
+    var W, H, particles = [], mouse = { x: -9999, y: -9999 };
+
+    /* Fresh indigo/blue/cyan palette — works on light background */
+    var COLORS = [
+      'rgba(99,102,241,',
+      'rgba(59,130,246,',
+      'rgba(6,182,212,',
+      'rgba(139,92,246,',
+      'rgba(79,70,229,'
+    ];
+    var COUNT = 90;
+
+    function resize() {
+      W = canvas.width  = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+    }
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function Particle() { this.reset(); }
+    Particle.prototype.reset = function () {
+      this.x     = rand(0, W);
+      this.y     = rand(0, H);
+      this.vx    = rand(-0.25, 0.25);
+      this.vy    = rand(-0.18, 0.18);
+      this.r     = rand(1.5, 3.0);
+      this.color = choice(COLORS);
+      this.alpha = rand(0.25, 0.55);   /* lighter — suits white bg */
+      this.life  = rand(0.3, 1);
+      this.speed = rand(0.004, 0.010);
+    };
+
+    Particle.prototype.update = function () {
+      this.life += this.speed;
+      this.x    += this.vx;
+      this.y    += this.vy;
+      var dx   = this.x - mouse.x;
+      var dy   = this.y - mouse.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 100 && dist > 0) {
+        var force = (100 - dist) / 100 * 0.5;
+        this.x += (dx / dist) * force;
+        this.y += (dy / dist) * force;
+      }
+      if (this.x < -10)    this.x = W + 10;
+      if (this.x > W + 10) this.x = -10;
+      if (this.y < -10)    this.y = H + 10;
+      if (this.y > H + 10) this.y = -10;
+    };
+
+    function init() {
+      particles = [];
+      for (var i = 0; i < COUNT; i++) particles.push(new Particle());
+    }
+
+    function drawLine(a, b, dist) {
+      var maxDist = 130;
+      var opacity = (1 - dist / maxDist) * 0.12;   /* subtle on light bg */
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(99,102,241,' + opacity + ')';
+      ctx.lineWidth   = 0.7;
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      for (var i = 0; i < particles.length; i++) {
+        for (var j = i + 1; j < particles.length; j++) {
+          var dx = particles[i].x - particles[j].x;
+          var dy = particles[i].y - particles[j].y;
+          var d  = Math.sqrt(dx * dx + dy * dy);
+          if (d < 130) drawLine(particles[i], particles[j], d);
+        }
+      }
+
+      for (var k = 0; k < particles.length; k++) {
+        var p     = particles[k];
+        p.update();
+        var pulse = 0.55 + Math.sin(p.life * Math.PI * 2) * 0.35;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle   = p.color + (p.alpha * pulse).toFixed(3) + ')';
+        ctx.globalAlpha = 1;
+        ctx.fill();
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    document.addEventListener('mousemove', function (e) {
+      var rect = canvas.getBoundingClientRect();
+      mouse.x  = e.clientX - rect.left;
+      mouse.y  = e.clientY - rect.top;
+    });
+    document.addEventListener('mouseleave', function () {
+      mouse.x = -9999;
+      mouse.y = -9999;
+    });
+
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () { resize(); init(); })
+        .observe(canvas.parentElement);
+    } else {
+      window.addEventListener('resize', function () { resize(); init(); });
+    }
+
+    resize(); init(); draw();
+
+  }, 100);
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ─── Reset ───────────────────────────────────────────── */
-.gatenow-hero-wrapper *,
-.gatenow-hero-wrapper *::before,
-.gatenow-hero-wrapper *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+        <css>*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ─── Wrapper ─────────────────────────────────────────── */
 .gatenow-hero-wrapper {
-  font-family: 'Inter', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
   margin-left: -15px;
   margin-right: -15px;
   width: calc(100% + 30px);
 }
 
-/* ─── Hero Section ────────────────────────────────────── */
+/* ── Hero ── */
 .gn-hero {
   position: relative;
   width: 100%;
-  min-height: 620px;
-  height: auto;
-  background: linear-gradient(114.089deg, rgb(84, 60, 168) 17.665%, rgb(88, 107, 199) 114.38%);
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  padding: 80px 0;
-}
-
-/* ─── Inner Layout ────────────────────────────────────── */
-.gn-hero-inner {
-  position: relative;
-  z-index: 3;
-  width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 80px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 40px;
-}
-
-/* ─── Hero Content (Left) ─────────────────────────────── */
-.gn-hero-content {
-  position: relative;
-  z-index: 3;
-  flex: 0 0 auto;
-  max-width: 520px;
+  min-height: 580px;
+  background: linear-gradient(160deg, #f0f4ff 0%, #e8eeff 40%, #eef6ff 100%);
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  animation: gnFadeUp 0.7s ease both;
-}
-
-/* ─── Dot Grid Container ──────────────────────────────── */
-.gn-dots-container {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
-  pointer-events: none;
-}
-
-.gn-dot-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(5, 1fr);
-  gap: 28px;
   align-items: center;
-  justify-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 100px 24px 80px;
 }
 
-/* ─── Individual Dots ─────────────────────────────────── */
-.gn-dot {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: block;
-  background: rgba(255, 255, 255, var(--o, 0.5));
-  animation: gnDotFloat 4s ease-in-out infinite;
-  animation-delay: var(--d, 0s);
-  will-change: transform;
-  flex-shrink: 0;
+/* ── Canvas ── */
+#gn-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
-/* ─── Badge ───────────────────────────────────────────── */
+/* ── Radial fade ── */
+.gn-radial-fade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 75% 65% at 50% 40%,
+    transparent 0%,
+    rgba(240,244,255,0.85) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Content ── */
+.gn-content {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 720px;
+}
+
+/* ── Badge ── */
 .gn-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.30);
-  color: rgba(255, 255, 255, 0.92);
+  gap: 7px;
+  background: rgba(99,102,241,0.09);
+  border: 1px solid rgba(99,102,241,0.22);
+  color: rgba(79,70,229,0.90);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 6px 14px;
+  padding: 5px 14px;
   border-radius: 100px;
-  margin-bottom: 22px;
-  backdrop-filter: blur(6px);
-  animation: gnFadeUp 0.5s ease both;
+  margin-bottom: 28px;
+  animation: gnFadeUp 0.4s ease both;
 }
 
 .gn-badge-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #7dd3fc;
-  box-shadow: 0 0 8px rgba(125, 211, 252, 0.8);
-  flex-shrink: 0;
+  background: #6366f1;
+  box-shadow: 0 0 8px rgba(99,102,241,0.70);
   animation: gnPulse 2.2s ease-in-out infinite;
 }
 
-/* ─── Heading ─────────────────────────────────────────── */
+/* ── Heading ── */
 .gn-heading {
-  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  font-size: clamp(20px, 2.2vw, 30px);
-  font-weight: 700;
-  line-height: 1.18;
-  color: #ffffff;
-  margin-bottom: 18px;
-  letter-spacing: -0.02em;
-  animation: gnFadeUp 0.65s ease both;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: clamp(36px, 5.5vw, 68px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: #1e1b4b;
+  margin-bottom: 20px;
+  animation: gnFadeUp 0.5s ease 0.05s both;
 }
 
-/* ─── Subheading ──────────────────────────────────────── */
-.gn-subheading {
-  font-size: clamp(13px, 1.1vw, 15px);
+.gn-heading em {
+  font-style: normal;
+  background: linear-gradient(90deg, #6366f1 0%, #3b82f6 60%, #06b6d4 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gnShimmerText 6s linear infinite;
+}
+
+/* ── Sub ── */
+.gn-sub {
+  font-size: clamp(15px, 1.6vw, 18px);
   font-weight: 400;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.72);
-  max-width: 430px;
-  margin-bottom: 36px;
-  animation: gnFadeUp 0.75s ease both;
+  line-height: 1.72;
+  color: rgba(30,27,75,0.52);
+  max-width: 540px;
+  margin-bottom: 40px;
+  animation: gnFadeUp 0.5s ease 0.10s both;
 }
 
-/* ─── CTA Buttons ─────────────────────────────────────── */
+/* ── Buttons ── */
 .gn-btn-group {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
-  animation: gnFadeUp 0.85s ease both;
+  justify-content: center;
+  animation: gnFadeUp 0.5s ease 0.16s both;
 }
 
 .gn-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 11px 22px;
-  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 13px 26px;
+  border-radius: 10px;
   text-decoration: none !important;
   cursor: pointer;
-  transition: all 0.22s ease;
+  transition: all 0.18s ease;
   white-space: nowrap;
-  letter-spacing: 0.01em;
   line-height: 1;
-}
-
-.gn-btn-solid-white {
-  background: #ffffff;
   border: none;
-  color: #313131;
-}
-.gn-btn-solid-white:hover {
-  background: #f1f5f9;
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  color: #313131;
-}
-.gn-btn-solid-white:hover .gn-btn-icon {
-  transform: translateX(3px);
+  font-family: 'Inter', sans-serif;
 }
 
-.gn-btn-outline {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  color: #ffffff;
-  backdrop-filter: blur(6px);
+.gn-btn-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.35),
+              inset 0 1px 0 rgba(255,255,255,0.15);
 }
-.gn-btn-outline:hover {
-  background: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
-  color: #ffffff;
+.gn-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(99,102,241,0.50);
+  color: #fff;
+}
+.gn-btn-primary:hover .gn-btn-icon {
+  transform: translateX(4px);
+}
+
+.gn-btn-secondary {
+  background: rgba(99,102,241,0.07);
+  border: 1px solid rgba(99,102,241,0.20) !important;
+  color: rgba(79,70,229,0.80);
+}
+.gn-btn-secondary:hover {
+  background: rgba(99,102,241,0.12);
+  border-color: rgba(99,102,241,0.35) !important;
+  color: #4f46e5;
+  transform: translateY(-2px);
 }
 
 .gn-btn-icon {
@@ -208,68 +298,28 @@
   flex-shrink: 0;
 }
 
-/* ─── Keyframes ───────────────────────────────────────── */
-@keyframes gnDotFloat {
-  0%   { transform: translate(0px, 0px); }
-  25%  { transform: translate(var(--fx, -5px), var(--fy, -6px)) scale(1.04); }
-  55%  { transform: translate(calc(var(--fx, -5px) * -0.6), calc(var(--fy, -6px) * -0.7)) scale(0.97); }
-  80%  { transform: translate(calc(var(--fx, -5px) * 0.3), calc(var(--fy, -6px) * 0.4)); }
-  100% { transform: translate(0px, 0px); }
-}
-
+/* ── Keyframes ── */
 @keyframes gnFadeUp {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes gnPulse {
-  0%, 100% { transform: scale(1);    opacity: 1; }
-  50%       { transform: scale(1.6); opacity: 0.5; }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.7); opacity: 0.4; }
 }
 
-/* ─── Responsive ──────────────────────────────────────── */
-@media (min-width: 1400px) {
-  .gn-hero-inner { padding: 0 100px; }
-  .gn-dot-grid   { gap: 32px; }
-  .gn-dot        { width: 42px; height: 42px; }
+@keyframes gnShimmerText {
+  from { background-position: 0% center; }
+  to   { background-position: 200% center; }
 }
 
-@media (max-width: 1200px) {
-  .gn-hero-inner { padding: 0 60px; }
-  .gn-dot-grid   { gap: 22px; }
-  .gn-dot        { width: 30px; height: 30px; }
-}
-
-@media (max-width: 1024px) {
-  .gn-hero-inner { padding: 0 40px; }
-  .gn-dot-grid   { gap: 18px; }
-  .gn-dot        { width: 26px; height: 26px; }
-}
-
-@media (max-width: 820px) {
-  .gn-hero { padding: 80px 0 60px; }
-  .gn-hero-inner {
-    padding: 0 32px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 48px;
-  }
-  .gn-hero-content        { max-width: 100%; }
-  .gn-dots-container      { align-self: center; opacity: 0.7; }
-  .gn-dot-grid            { gap: 14px; }
-  .gn-dot                 { width: 22px; height: 22px; }
-}
-
-@media (max-width: 520px) {
-  .gn-hero       { padding: 72px 0 48px; }
-  .gn-hero-inner { padding: 0 24px; }
-  .gn-dots-container { display: none; }
-  .gn-heading    { font-size: 20px; }
-  .gn-subheading { font-size: 13px; }
-  .gn-badge      { font-size: 10px; padding: 5px 12px; }
-  .gn-btn        { font-size: 12px; padding: 10px 18px; }
-}
-</css>
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .gn-hero    { padding: 80px 20px 60px; min-height: 480px; }
+  .gn-heading { font-size: 34px; }
+  .gn-sub     { font-size: 15px; }
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -305,85 +355,56 @@
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-19 08:35:12</sys_created_on>
         <sys_id>b04a42572f4b7210d2a0d68fcea4e3cf</sys_id>
-        <sys_mod_count>25</sys_mod_count>
+        <sys_mod_count>38</sys_mod_count>
         <sys_name>Hero Section Applicant</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b04a42572f4b7210d2a0d68fcea4e3cf</sys_update_name>
-        <sys_updated_by>sharik.mir</sys_updated_by>
-        <sys_updated_on>2026-04-01 15:09:36</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-04-04 10:02:03</sys_updated_on>
         <template><![CDATA[<div class="gatenow-hero-wrapper">
   <section class="gn-hero">
 
-    <div class="gn-hero-inner">
+    <canvas id="gn-canvas"></canvas>
+    <div class="gn-radial-fade"></div>
 
-      <!-- LEFT: Hero Content -->
-      <div class="gn-hero-content">
-        <div class="gn-badge">
-          <span class="gn-badge-dot"></span>
-          Federal Grant Management Platform
-        </div>
-        <h1 class="gn-heading">
-          Unlock Federal Funding for<br>America's Future
-        </h1>
-        <p class="gn-subheading">
-          GateNow simplifies every step — discover open grants, confirm
-          eligibility, and submit compliant federal applications all in one
-          secure, guided platform.
-        </p>
-        <div class="gn-btn-group">
-          <a href="?id=opportunities_programs" class="gn-btn gn-btn-solid-white">
-            Explore Programs
-            <svg class="gn-btn-icon" xmlns="http://www.w3.org/2000/svg"
-                 width="15" height="15" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
-            </svg>
-          </a>
-          <a href="?id=applicant_dashboard" class="gn-btn gn-btn-outline">
-            My Dashboard
-          </a>
-        </div>
+    <div class="gn-content">
+
+      <div class="gn-badge">
+        <span class="gn-badge-dot"></span>
+        Grant Approval &amp; Tracking Engine
       </div>
 
-      <!-- RIGHT: Dot Grid -->
-      <div class="gn-dots-container" aria-hidden="true">
-        <div class="gn-dot-grid">
-          <!-- Row 1 -->
-          <span class="gn-dot" style="--o:0.18;--d:0.00s;--fx:-3px;--fy:-4px"></span>
-          <span class="gn-dot" style="--o:0.35;--d:0.15s;--fx:4px;--fy:-5px"></span>
-          <span class="gn-dot" style="--o:0.60;--d:0.30s;--fx:-4px;--fy:3px"></span>
-          <span class="gn-dot" style="--o:0.85;--d:0.45s;--fx:5px;--fy:-3px"></span>
-          <!-- Row 2 -->
-          <span class="gn-dot" style="--o:0.18;--d:0.10s;--fx:4px;--fy:3px"></span>
-          <span class="gn-dot" style="--o:0.35;--d:0.25s;--fx:-3px;--fy:-5px"></span>
-          <span class="gn-dot" style="--o:0.60;--d:0.40s;--fx:3px;--fy:4px"></span>
-          <span class="gn-dot" style="--o:0.85;--d:0.55s;--fx:-5px;--fy:-3px"></span>
-          <!-- Row 3 -->
-          <span class="gn-dot" style="--o:0.18;--d:0.20s;--fx:-4px;--fy:5px"></span>
-          <span class="gn-dot" style="--o:0.35;--d:0.35s;--fx:5px;--fy:-3px"></span>
-          <span class="gn-dot" style="--o:0.60;--d:0.50s;--fx:-3px;--fy:-4px"></span>
-          <span class="gn-dot" style="--o:0.85;--d:0.65s;--fx:4px;--fy:5px"></span>
-          <!-- Row 4 -->
-          <span class="gn-dot" style="--o:0.18;--d:0.30s;--fx:3px;--fy:-3px"></span>
-          <span class="gn-dot" style="--o:0.35;--d:0.45s;--fx:-5px;--fy:4px"></span>
-          <span class="gn-dot" style="--o:0.60;--d:0.60s;--fx:4px;--fy:-5px"></span>
-          <span class="gn-dot" style="--o:0.85;--d:0.75s;--fx:-3px;--fy:3px"></span>
-          <!-- Row 5 -->
-          <span class="gn-dot" style="--o:0.18;--d:0.40s;--fx:-5px;--fy:3px"></span>
-          <span class="gn-dot" style="--o:0.35;--d:0.55s;--fx:3px;--fy:-4px"></span>
-          <span class="gn-dot" style="--o:0.60;--d:0.70s;--fx:-4px;--fy:5px"></span>
-          <span class="gn-dot" style="--o:0.85;--d:0.85s;--fx:5px;--fy:-4px"></span>
-        </div>
+      <h1 class="gn-heading">
+        Grants managed.<br><em>Funding secured.</em>
+      </h1>
+
+      <p class="gn-sub">
+        GateNow is the complete grant lifecycle platform — discover
+        opportunities, apply with confidence, and track every milestone
+        through to award closeout.
+      </p>
+
+      <div class="gn-btn-group">
+        <a href="?id=opportunities_programs" class="gn-btn gn-btn-primary">
+          Explore Programs
+          <svg class="gn-btn-icon" viewBox="0 0 20 20" fill="none"
+               stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round"
+               width="15" height="15">
+            <line x1="4" y1="10" x2="16" y2="10"/>
+            <polyline points="10 4 16 10 10 16"/>
+          </svg>
+        </a>
+        <a href="?id=applicant_dashboard" class="gn-btn gn-btn-secondary">
+          My Dashboard
+        </a>
       </div>
 
     </div>
 
   </section>
-</div>
-]]></template>
+</div>]]></template>
     </sp_widget>
 </record_update>
