@@ -168,7 +168,7 @@ c.statusPctNum = function(key) {
   c.topGroup = function() {
     var grpMap = {};
     (c.data.reviews || []).forEach(function(r) {
-      var g = r.assignment_group || 'Unassigned';
+      var g = r.review_group || 'Unassigned';
       if (!grpMap[g]) grpMap[g] = 0;
       if (r.status === 'Review completed') grpMap[g]++;
     });
@@ -491,7 +491,7 @@ dc('rvdDonutChart', {
     // ════════════════════════════════════════════════
     var grpMap = {};
     reviews.forEach(function(r){
-      var grp = r.assignment_group || 'Unassigned';
+      var grp = r.review_group || 'Unassigned';
       if (!grpMap[grp]) grpMap[grp]={prog:0,done:0,esc:0,dec:0,pend:0};
       if      (r.status==='Review in progress')   grpMap[grp].prog++;
       else if (r.status==='Review completed')     grpMap[grp].done++;
@@ -2625,16 +2625,17 @@ justify-content: center;   /* ADD THIS */
    COMPLETED TABLE
 ═══════════════════════════════════════════════════ */
 .rvd-completed-table-wrap {
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-  overflow: hidden;
+   background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    overflow-x: auto; 
 }
 
 .rvd-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13.5px;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    min-width: 820px;
 }
 
 .rvd-table thead th {
@@ -2647,6 +2648,14 @@ justify-content: center;   /* ADD THIS */
   color: #9ca3af;
   background: #fafafa;
   border-bottom: 1px solid #f3f4f6;
+}
+
+/* Add this to your existing CSS */
+.rvd-table thead th:last-child,
+.rvd-table-row td:last-child {
+    width: 110px;
+    min-width: 110px;
+    text-align: center;
 }
 
 .rvd-table-row td {
@@ -2860,7 +2869,7 @@ justify-content: center;   /* ADD THIS */
 
   // ── Query reviews ────────────────────────────────────────
   var gr = new GlideRecordSecure('x_enno_gatenow_grant_review');
-  var qc = gr.addQuery('assignment_group', 'IN', groups.join(','));
+  var qc = gr.addQuery('review_group', 'IN', groups.join(','));
   for (var i = 0; i < groups.length; i++) {
     var orCond = qc.addOrCondition('status', 'Review completed');
     orCond.addCondition('reviewer', 'CONTAINS', groups[i]);
@@ -2929,7 +2938,7 @@ justify-content: center;   /* ADD THIS */
       sys_id:           gr.getUniqueValue(),
       number:           gr.getValue('number')                  || '',
       status:           status,
-      assignment_group: gr.getDisplayValue('assignment_group') || '',
+      review_group: gr.getDisplayValue('review_group') || '',
       reviewer:         reviewerDisplay,
       score:            gr.getValue('score')                   || '',
       applicant:        applicantName,
@@ -2951,7 +2960,7 @@ justify-content: center;   /* ADD THIS */
     var form     = input.form || {};
     var grUpdate = new GlideRecordSecure('x_enno_gatenow_grant_review');
     if (grUpdate.get(reviewId)) {
-      if (groups.indexOf(grUpdate.getValue('assignment_group')) === -1) {
+      if (groups.indexOf(grUpdate.getValue('review_group')) === -1) {
         data.success = false; data.error = 'Not allowed.'; return;
       }
       if (form.decision_type)         grUpdate.setValue('decision_type',  form.decision_type);
@@ -2971,14 +2980,14 @@ justify-content: center;   /* ADD THIS */
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>71</sys_mod_count>
+        <sys_mod_count>76</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-01 18:14:44</sys_updated_on>
+        <sys_updated_by>umar.lone</sys_updated_by>
+        <sys_updated_on>2026-04-14 16:55:16</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
   <!-- SIDEBAR -->
@@ -3643,7 +3652,7 @@ justify-content: center;   /* ADD THIS */
                   </span>
                 </div>
                 <div class="rvd-qi-prog">
-                  {{rev.program || 'No program'}} · <span class="rvd-qi-group">{{rev.assignment_group}}</span>
+                  {{rev.program || 'No program'}} · <span class="rvd-qi-group">{{rev.review_group}}</span>
                 </div>
               </div>
               <span class="rvd-qi-arrow"><i class="fa fa-chevron-right"></i></span>
@@ -3790,7 +3799,7 @@ justify-content: center;   /* ADD THIS */
             <span class="rvd-deadline-badge {{c.deadlineClass(rev)}}" ng-if="rev.review_deadline">
               <i class="fa fa-clock-o"></i> {{rev.review_deadline}}
             </span>
-            <span class="rvd-group-tag"><i class="fa fa-users"></i> {{rev.assignment_group}}</span>
+            <span class="rvd-group-tag"><i class="fa fa-users"></i> {{rev.review_group}}</span>
             <span class="rvd-open-link">Open Review <i class="fa fa-arrow-right"></i></span>
           </div>
 
@@ -3867,7 +3876,7 @@ justify-content: center;   /* ADD THIS */
               <th>Category</th>
               <th>Score</th>
               <th>Decision</th>
-              <th></th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>

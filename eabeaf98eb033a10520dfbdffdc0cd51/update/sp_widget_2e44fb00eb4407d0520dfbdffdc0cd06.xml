@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $sce, spUtil, $location) {
+        <client_script><![CDATA[api.controller = function($scope, $sce, spUtil, $location, $timeout) {
     var c = this;
 
     c.detailTab = 'overview';
 
-    /* Initialize specific fields when the data loads */
     if (c.data.selectedAward) {
         c.data.selectedAward.award_letter = $sce.trustAsHtml(
             c.data.selectedAward.award_letter || '<p>No award letter content found.</p>'
@@ -18,17 +17,11 @@
 
     c.setDetailTab = function(tab) { c.detailTab = tab; };
 
-    /* Navigate back to the List widget dynamically */
     c.backToList = function() { 
-        $location.search({
-            id: c.data.list_page || 'my_award_list' // Defined in Server Script
-        });
+        $location.search({ id: c.data.list_page || 'my_award_list' });
     };
 
-    /* Fills the progress bar. (Defaults to 100% since we only loaded one award) */
-    c.amountPercent = function(award) {
-        return 100; 
-    };
+    c.amountPercent = function(award) { return 100; };
 
     c.formatSize = function(bytes) {
         if (!bytes) return '—';
@@ -48,24 +41,35 @@
         return 'fa-file-o';
     };
 
-    c.updateChoice = function(award, statusValue) {
-        c.data.action             = 'update_award_choice';
-        c.data.target_id          = award.sys_id;
-        c.data.new_status         = statusValue;
-        c.data.comment_submission = award.work_notes;
-        
-        c.server.update().then(function() {
-            // Update UI immediately without needing a full page reload
-            award.applicant_response = statusValue.toLowerCase();
-            award.applicant_response_display = (statusValue === 'acknowledged') ? 'Acknowledged' : 'Declined';
-            award.work_notes = '';
-            
-            spUtil.addInfoMessage('Your response has been recorded.');
-            
-            // Navigate back to the list page automatically (Optional)
-            // c.backToList();
-        });
-    };
+   c.updateChoice = function(award, statusValue) {
+    if (!award.work_notes || award.work_notes.trim().length < 10) {
+        spUtil.addErrorMessage('Comments are required (minimum 10 characters).');
+        return;
+    }
+
+   
+    c.submitting = true;
+
+    c.data.action             = 'update_award_choice';
+    c.data.target_id          = award.sys_id;
+    c.data.new_status         = statusValue;
+    c.data.comment_submission = award.work_notes;
+
+    c.server.update().then(function() {
+        award.applicant_response         = statusValue;
+        award.applicant_response_display = (statusValue === 'Acknowledged') ? 'Acknowledged' : 'Rejected';
+        award.work_notes                 = '';
+
+        var msg = statusValue === 'Acknowledged'? 'Award accepted successfully! Thank you for your response.' : ' Award declined. Your response has been recorded.';
+
+        spUtil.addInfoMessage(msg);
+
+        $timeout(function() {
+            c.submitting = false;
+            c.detailTab  = 'overview';
+        }, 1500);
+    });
+};
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ══ RESET &amp; VARS ══════════════════════════════════════════ */
@@ -535,7 +539,7 @@
         <name>My Award Details</name>
         <option_schema/>
         <public>false</public>
-        <roles>x_enno_gatenow.grant_awards_user</roles>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function() {
 	data.sideBar = $sp.getWidget('sidebar_dashboard');
     // Allows instance-independent dynamic linking (set 'list_page_id' in Widget Options)
@@ -577,7 +581,7 @@
         gr.query();
 
         if (gr.next()) {
-            var rawResponse = String(gr.getValue('applicant_response') || '').toLowerCase();
+            var rawResponse = String(gr.getValue('applicant_response') || '');
 
             /* --- Fetch attachments for this specific record --- */
             var attachments = [];
@@ -614,7 +618,7 @@
                 unique_entity_id:           gr.getDisplayValue('unique_entity_id'),
                 tin:                        gr.getDisplayValue('tin'),
                 funding_opportunity_number: gr.getDisplayValue('funding_opportunity_number'),
-                procurement_request_number: gr.getDisplayValue('procurement_request_number'),
+                
                 attachments:                attachments,
                 work_notes:                 '' // Initializes the textarea
             };
@@ -626,14 +630,14 @@
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-31 07:00:33</sys_created_on>
         <sys_id>2e44fb00eb4407d0520dfbdffdc0cd06</sys_id>
-        <sys_mod_count>7</sys_mod_count>
+        <sys_mod_count>28</sys_mod_count>
         <sys_name>My Award Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_2e44fb00eb4407d0520dfbdffdc0cd06</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-01 16:38:31</sys_updated_on>
+        <sys_updated_by>umar.lone</sys_updated_by>
+        <sys_updated_on>2026-04-15 16:29:07</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -652,22 +656,22 @@
       </div>
       <div class="dt-topbar-badge"
            ng-class="{
-             'dt-badge--green': data.selectedAward.applicant_response === 'acknowledged',
-             'dt-badge--amber': data.selectedAward.applicant_response === 'pending',
-             'dt-badge--red':   data.selectedAward.applicant_response === 'rejected'
+             'dt-badge--green': data.selectedAward.applicant_response === 'Acknowledged',
+             'dt-badge--amber': data.selectedAward.applicant_response === 'Pending',
+             'dt-badge--red':   data.selectedAward.applicant_response === 'Rejected'
            }">
-        <i class="fa fa-check-circle" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
-        <i class="fa fa-clock-o"      ng-if="data.selectedAward.applicant_response === 'pending'"></i>
-        <i class="fa fa-times-circle" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
+        <i class="fa fa-check-circle" ng-if="data.selectedAward.applicant_response === 'Acknowledged'"></i>
+        <i class="fa fa-clock-o"      ng-if="data.selectedAward.applicant_response === 'Pending'"></i>
+        <i class="fa fa-times-circle" ng-if="data.selectedAward.applicant_response === 'Rejected'"></i>
         {{data.selectedAward.applicant_response_display}}
       </div>
     </div>
 
     <div class="dt-hero"
          ng-class="{
-           'dt-hero--green': data.selectedAward.applicant_response === 'acknowledged',
-           'dt-hero--amber': data.selectedAward.applicant_response === 'pending',
-           'dt-hero--red':   data.selectedAward.applicant_response === 'rejected'
+           'dt-hero--green': data.selectedAward.applicant_response === 'Acknowledged',
+           'dt-hero--amber': data.selectedAward.applicant_response === 'Pending',
+           'dt-hero--red':   data.selectedAward.applicant_response === 'Rejected'
          }">
       <div class="dt-hero-glow"></div>
       <div class="dt-hero-inner">
@@ -767,7 +771,7 @@
         </span>
       </button>
       <button class="dt-tab dt-tab--amber"
-              ng-if="data.selectedAward.applicant_response === 'pending'"
+              
               ng-class="{'dt-tab--active': c.detailTab === 'respond'}"
               ng-click="c.setDetailTab('respond')">
         <i class="fa fa-pencil-square-o"></i> Respond
@@ -836,10 +840,6 @@
               <span class="dt-comp-lbl"><i class="fa fa-id-card-o"></i> TIN</span>
               <span class="dt-comp-val">{{data.selectedAward.tin || '—'}}</span>
             </div>
-            <div class="dt-comp-tile" ng-if="data.selectedAward.procurement_request_number">
-              <span class="dt-comp-lbl"><i class="fa fa-shopping-cart"></i> Procurement Req #</span>
-              <span class="dt-comp-val">{{data.selectedAward.procurement_request_number}}</span>
-            </div>
           </div>
         </div>
       </div>
@@ -875,9 +875,9 @@
           <div class="dt-fin-bar-track">
             <div class="dt-fin-bar-fill"
                  ng-class="{
-                   'dt-fill--green': data.selectedAward.applicant_response === 'acknowledged',
-                   'dt-fill--amber': data.selectedAward.applicant_response === 'pending',
-                   'dt-fill--red':   data.selectedAward.applicant_response === 'rejected'
+                   'dt-fill--green': data.selectedAward.applicant_response === 'Acknowledged',
+                   'dt-fill--amber': data.selectedAward.applicant_response === 'Pending',
+                   'dt-fill--red':   data.selectedAward.applicant_response === 'Rejected'
                  }"
                  ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
           </div>
@@ -1006,24 +1006,31 @@
       </div>
     </div>
 
-    <div class="dt-panel" ng-if="c.detailTab === 'respond'">
+   <div class="dt-panel" ng-if="c.detailTab === 'respond'">
 
-      <div class="dt-responded" ng-if="data.selectedAward.applicant_response !== 'pending'">
+      <div class="dt-responded" ng-if="data.selectedAward.applicant_response !== 'Pending'">
         <div class="dt-responded-icon"
              ng-class="{
-               'dt-ri--green': data.selectedAward.applicant_response === 'acknowledged',
-               'dt-ri--red':   data.selectedAward.applicant_response === 'rejected'
+               'dt-ri--green': data.selectedAward.applicant_response === 'Acknowledged',
+               'dt-ri--red':   data.selectedAward.applicant_response === 'Rejected'
              }">
-          <i class="fa fa-check" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
-          <i class="fa fa-times" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
+          <i class="fa fa-check" ng-if="data.selectedAward.applicant_response === 'Acknowledged'"></i>
+          <i class="fa fa-times" ng-if="data.selectedAward.applicant_response === 'Rejected'"></i>
         </div>
-        <h3 class="dt-responded-title">Response Already Submitted</h3>
-        <p class="dt-responded-sub">
-          You have <strong>{{data.selectedAward.applicant_response_display}}</strong> this award.
+        
+        <h3 class="dt-responded-title">
+          {{data.selectedAward.applicant_response === 'Acknowledged' ? 'Award Acknowledged' : 'Award Rejected'}}
+        </h3>
+        
+        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'Acknowledged'">
+          Thank you. You have successfully <strong>accepted</strong> the terms of this award.
+        </p>
+        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'Rejected'">
+          You have <strong>declined</strong> this award. The program office has been notified of your decision.
         </p>
       </div>
 
-      <div class="dt-respond-wrap" ng-if="data.selectedAward.applicant_response === 'pending'">
+      <div class="dt-respond-wrap" ng-if="data.selectedAward.applicant_response === 'Pending'">
 
         <div class="dt-resp-alert">
           <div class="dt-resp-alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
@@ -1065,20 +1072,27 @@
           <textarea class="dt-resp-ta" rows="6"
                     ng-model="data.selectedAward.work_notes"
                     placeholder="Describe your decision clearly (minimum 10 characters)…"></textarea>
-          <p class="dt-resp-hint">
+          
+          <div ng-if="(data.selectedAward.work_notes||'').length < 10" style="color: #d9534f; margin-top: 8px; font-weight: bold; font-size: 13px;">
+            <i class="fa fa-info-circle"></i> Please enter at least 10 characters to enable response buttons.
+          </div>
+
+          <p class="dt-resp-hint" style="margin-top: 10px;">
             <i class="fa fa-lock"></i> Your response is confidential and sent directly to the program office.
           </p>
         </div>
 
         <div class="dt-resp-actions">
           <button class="dt-btn-accept"
-            ng-click="c.updateChoice(data.selectedAward, 'acknowledged')">
+            ng-disabled="(data.selectedAward.work_notes||'').length < 10"
+            ng-click="c.updateChoice(data.selectedAward, 'Acknowledged')">
             <i class="fa fa-check"></i>
             Accept Award
           </button>
 
           <button class="dt-btn-decline"
-            ng-click="c.updateChoice(data.selectedAward, 'declined')">
+            ng-disabled="(data.selectedAward.work_notes||'').length < 10"
+            ng-click="c.updateChoice(data.selectedAward, 'Rejected')">
             <i class="fa fa-times"></i>
             Decline Award
           </button>

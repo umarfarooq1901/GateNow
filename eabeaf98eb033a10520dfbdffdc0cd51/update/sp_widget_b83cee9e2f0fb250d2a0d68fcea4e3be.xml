@@ -393,6 +393,102 @@
       min-width: auto;
     }
   }
+  // Documents Tab
+.no-docs {
+  text-align: center;
+  padding: 48px 20px;
+  color: #9ca3af;
+
+  i {
+    font-size: 3em;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  p {
+    font-size: 1em;
+    margin: 0;
+  }
+}
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  transition: all 0.2s;
+
+  &amp;:hover {
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+    border-color: #d1d5db;
+  }
+
+  .doc-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3em;
+    flex-shrink: 0;
+  }
+
+  .doc-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+
+    .doc-name {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 0.97em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .doc-meta {
+      font-size: 0.82em;
+      color: #9ca3af;
+    }
+  }
+
+  .doc-download {
+    padding: 8px 18px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1.5px solid #3b82f6;
+    color: #3b82f6;
+    font-size: 0.88em;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+
+    &amp;:hover {
+      background: #3b82f6;
+      color: #fff;
+    }
+  }
+}
 }
 </css>
         <data_table>sp_instance</data_table>
@@ -447,7 +543,7 @@
     proposal_close:        gr.getDisplayValue('proposal_close_date'),
     priority:              gr.getDisplayValue('priority'),
     budget:                gr.getDisplayValue('program_budget'),
-    currency:              '$',
+    currency:              '',
     disbursement_schedule: gr.getDisplayValue('disbursement_schedule'),
     disbursement_type:     gr.getDisplayValue('disbursement_type'),
     category:              gr.getDisplayValue('category'),
@@ -455,11 +551,34 @@
     description:           gr.getValue('description'),
     image:                 gr.getDisplayValue('image'),
     synopsis:              gr.getValue('synopsis'),
+		assistance_listing_number: gr.getDisplayValue('assistance_listing_number'),
+funding_opportunity_number: gr.getDisplayValue('funding_opportunity_number'),
     summary_statement:     gr.getValue('summary_statement'),
     eligibility_summary:   gr.getValue('eligibility_summary'),
     terms:                 gr.getValue('terms_and_conditions')
   };
-
+// Fetch attachments
+var attachments = [];
+var attGr = new GlideRecordSecure('sys_attachment');
+attGr.addQuery('table_name', 'x_enno_gatenow_grant_program');
+attGr.addQuery('table_sys_id', gr.getUniqueValue());
+attGr.orderBy('file_name');
+attGr.query();
+while (attGr.next()) {
+    var bytes = parseInt(attGr.getValue('size_bytes')) || 0;
+    var sizeFmt = bytes < 1024 ? bytes + ' B'
+                : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB'
+                : (bytes / 1048576).toFixed(1) + ' MB';
+    attachments.push({
+        sys_id:          attGr.getUniqueValue(),
+        name:            attGr.getValue('file_name'),
+        type:            attGr.getValue('content_type') || 'application/octet-stream',
+        size_bytes:      bytes,
+        size_formatted:  sizeFmt,
+        url:             '/sys_attachment.do?sys_id=' + attGr.getUniqueValue()
+    });
+}
+data.program.attachments = attachments;
   data.loaded = true;
 
 })();]]></script>
@@ -468,14 +587,14 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-16 08:29:06</sys_created_on>
         <sys_id>b83cee9e2f0fb250d2a0d68fcea4e3be</sys_id>
-        <sys_mod_count>14</sys_mod_count>
+        <sys_mod_count>22</sys_mod_count>
         <sys_name>Published Program Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-02 09:53:15</sys_updated_on>
+        <sys_updated_by>umar.lone</sys_updated_by>
+        <sys_updated_on>2026-04-15 16:25:35</sys_updated_on>
         <template><![CDATA[<div class="grant-detail-page" ng-if="data.loaded && data.program">
   
   <!-- Hero Section with Clean Image (NO TEXT OVERLAY) -->
@@ -545,6 +664,9 @@
       <button class="tab-btn" ng-class="{active: c.tab==='eligibility'}" ng-click="c.tab='eligibility'">
         <i class="fa fa-users"></i> Eligibility
       </button>
+      <button class="tab-btn" ng-class="{active: c.tab==='documents'}" ng-click="c.tab='documents'">
+        <i class="fa fa-paperclip"></i> Program Documents
+      </button>
     </div>
 
     <!-- Tab Content -->
@@ -555,7 +677,6 @@
         <div class="content-section">
           <h2 class="section-title"><i class="fa fa-file-text-o"></i> Program Overview</h2>
           <div class="field-group">
-            <!-- ADDED: Program Name -->
             <div class="field-row">
               <span class="field-label">Program Name:</span>
               <span class="field-value">{{data.program.name || '-'}}</span>
@@ -576,6 +697,14 @@
               <span class="field-label">Program Manager:</span>
               <span class="field-value">{{data.program.manager || '-'}}</span>
             </div>
+            <div class="field-row">
+  <span class="field-label">Assistance Listing Number:</span>
+  <span class="field-value">{{data.program.assistance_listing_number || '-'}}</span>
+</div>
+<div class="field-row">
+  <span class="field-label">Funding Opportunity Number:</span>
+  <span class="field-value">{{data.program.funding_opportunity_number || '-'}}</span>
+</div>
           </div>
         </div>
 
@@ -602,7 +731,7 @@
           <div class="field-group">
             <div class="field-row">
               <span class="field-label">Total Budget:</span>
-              <span class="field-value highlight">{{data.program.currency}}{{data.program.budget || '0.00'}}</span>
+              <span class="field-value highlight">{{data.program.budget || '0.00'}}</span>
             </div>
             <div class="field-row">
               <span class="field-label">Disbursement Type:</span>
@@ -637,6 +766,43 @@
         </div>
       </div>
 
+      <!-- DOCUMENTS TAB -->
+      <div ng-if="c.tab==='documents'" class="tab-panel">
+        <div class="content-section">
+          <h2 class="section-title"><i class="fa fa-paperclip"></i> Attachments</h2>
+
+          <!-- No attachments -->
+          <div ng-if="!data.program.attachments || data.program.attachments.length === 0" class="no-docs">
+            <i class="fa fa-folder-open-o"></i>
+            <p>No documents attached to this program.</p>
+          </div>
+
+          <!-- Attachments list -->
+          <div ng-if="data.program.attachments && data.program.attachments.length > 0" class="doc-list">
+            <div class="doc-item" ng-repeat="att in data.program.attachments">
+              <div class="doc-icon">
+                <i class="fa" ng-class="{
+                  'fa-file-pdf-o':   att.type.indexOf('pdf') > -1,
+                  'fa-file-image-o': att.type.indexOf('image') > -1,
+                  'fa-file-excel-o': att.type.indexOf('excel') > -1 || att.type.indexOf('spreadsheet') > -1,
+                  'fa-file-word-o':  att.type.indexOf('word') > -1,
+                  'fa-file-text-o':  att.type.indexOf('text') > -1,
+                  'fa-file-o':       true
+                }"></i>
+              </div>
+              <div class="doc-info">
+                <span class="doc-name">{{att.name}}</span>
+                <span class="doc-meta">{{att.size_formatted}} &bull; {{att.type}}</span>
+              </div>
+              <a class="doc-download" ng-href="{{att.url}}" target="_blank">
+                <i class="fa fa-download"></i> Download
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
     <!-- Back Button ONLY -->
@@ -662,7 +828,6 @@
   <button class="back-btn" ng-click="c.goBack()">
     <i class="fa fa-arrow-left"></i> Back to Grants
   </button>
-</div>
-]]></template>
+</div>]]></template>
     </sp_widget>
 </record_update>

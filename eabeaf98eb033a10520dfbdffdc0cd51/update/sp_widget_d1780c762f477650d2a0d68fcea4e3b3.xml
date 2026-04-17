@@ -592,6 +592,97 @@ $gap-xxxl: 64px;
       box-shadow: $shadow-md;
     }
   }
+  // ===========================
+// STATS BAR — 5-column wrap
+// ===========================
+.program-stats-bar {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+}
+
+// ===========================
+// ATTACHMENTS
+// ===========================
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: $gap-sm;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: $gap-md;
+  padding: $gap-sm $gap-md;
+  background: $light-gray;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  text-decoration: none;
+  transition: all 0.2s ease;
+
+  &amp;:hover {
+    background: $accent-blue;
+    border-color: $accent-blue-dark;
+    transform: translateX(3px);
+
+    .attachment-dl-icon {
+      color: $accent-blue-dark;
+    }
+  }
+}
+
+.attachment-icon-wrap {
+  width: 36px;
+  height: 36px;
+  background: $white;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: $shadow-xs;
+
+  i {
+    font-size: 16px;
+    color: $accent-blue-dark;
+  }
+}
+
+.attachment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-dark;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-size {
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.attachment-dl-icon {
+  font-size: 14px;
+  color: $text-muted;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.no-attachments-text {
+  font-size: 14px;
+  color: $text-muted;
+  margin: 0;
+  text-align: center;
+  padding: $gap-md 0;
+}
 }
 </css>
         <data_table>sp_instance</data_table>
@@ -611,7 +702,7 @@ $gap-xxxl: 64px;
         <roles/>
         <script><![CDATA[(function() {
 	
-	  // 1) Read the program parameter for the intake page and expose to client/prefill
+  // 1) Read the program parameter for the intake page and expose to client/prefill
   var programParam = $sp.getParameter('program') || '';
   data.program_param = programParam;
 
@@ -620,54 +711,74 @@ $gap-xxxl: 64px;
   if (programParam && !data.prefill.grant_program) {
     data.prefill.grant_program = programParam;
   }
-    data.program = {};
-    data.error = "";
 
-    var sysId = $sp.getParameter('sys_id');
-    if (!sysId) {
-        data.error = "Missing sys_id parameter.";
-        return;
+  data.program = {};
+  data.error = "";
+
+  var sysId = $sp.getParameter('sys_id');
+  if (!sysId) {
+    data.error = "Missing sys_id parameter.";
+    return;
+  }
+
+  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+  if (gr.get(sysId)) {
+
+    // ✅ Program object
+    data.program = {
+      sys_id: gr.getUniqueValue(),
+      title: gr.getValue('program_name'),
+      description: gr.getValue('description'),
+      synopsis: gr.getValue('synopsis'),
+      eligibility_summary: gr.getValue('eligibility_summary'),
+      terms_conditions: gr.getDisplayValue('terms_and_conditions'),
+      image: gr.getDisplayValue('image'),
+      open_date: gr.getDisplayValue('proposal_open_date'),
+      close_date: gr.getDisplayValue('proposal_close_date'),
+      award_type: gr.getDisplayValue('award_type'),
+      funding_opportunity_number: gr.getValue('funding_opportunity_number') || '',
+      assistance_listing_number: gr.getValue('assistance_listing_number') || '',
+      program_budget: parseFloat(gr.getValue('program_budget')) || 0,
+      program_manager: gr.getDisplayValue('program_manager'),
+      category: gr.getDisplayValue('category') || ''
+    };
+
+    // ✅ Attachments (moved OUTSIDE object)
+    data.attachments = [];
+
+    var attachGr = new GlideRecordSecure('sys_attachment');
+    attachGr.addQuery('table_name', 'x_enno_gatenow_grant_program'); // <-- fix table name too
+    attachGr.addQuery('table_sys_id', sysId);
+    attachGr.query();
+
+    while (attachGr.next()) {
+      data.attachments.push({
+        sys_id: attachGr.getUniqueValue(),
+        file_name: attachGr.getValue('file_name'),
+        size_bytes: attachGr.getValue('size_bytes'),
+        content_type: attachGr.getValue('content_type')
+				
+      });
     }
 
-      var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-    if (gr.get(sysId)) {
-        data.program = {
-            sys_id: gr.getUniqueValue(),
-            title: gr.getValue('program_name'),
-            description: gr.getValue('description'),
-            synopsis: gr.getValue('synopsis'),
-            eligibility_summary: gr.getValue('eligibility_summary'),
-            terms_conditions: gr.getDisplayValue('terms_and_conditions'),
-            image: gr.getDisplayValue('image'),
-					  open_date: gr.getDisplayValue('proposal_open_date'),
-            close_date: gr.getDisplayValue('proposal_close_date'),
-            award_type: gr.getDisplayValue('award_type'),
-            program_budget: parseFloat(gr.getValue('program_budget')) || 0,
-            program_manager: gr.getDisplayValue('program_manager'),
-            category: gr.getDisplayValue('category') || '' 
-						
-				};
-    } else {
-        data.error = "No grant program found for sys_id: " + sysId;
-    }
-	  
+  } else {
+    data.error = "No grant program found for sys_id: " + sysId;
+  }
 
-
-})();
-]]></script>
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 09:50:32</sys_created_on>
         <sys_id>d1780c762f477650d2a0d68fcea4e3b3</sys_id>
-        <sys_mod_count>14</sys_mod_count>
+        <sys_mod_count>17</sys_mod_count>
         <sys_name>Program Detail Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_d1780c762f477650d2a0d68fcea4e3b3</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-04-04 07:45:03</sys_updated_on>
+        <sys_updated_by>umar.lone</sys_updated_by>
+        <sys_updated_on>2026-04-15 16:21:05</sys_updated_on>
         <template><![CDATA[<div ng-if="!data.error && data.program.sys_id" class="grant-detail-page-premium">
   
   <!-- Hero Banner with Image -->
@@ -675,9 +786,9 @@ $gap-xxxl: 64px;
     <div class="hero-overlay"></div>
     <div class="hero-content-wrapper">
       <div class="hero-inner-container">
-<span class="program-category-tag">
-  {{data.program.category || 'Grant Program'}}
-</span>
+        <span class="program-category-tag">
+          {{data.program.category || 'Grant Program'}}
+        </span>
         <h1 class="hero-program-title">{{data.program.title || "Program Title"}}</h1>
       </div>
     </div>
@@ -686,7 +797,7 @@ $gap-xxxl: 64px;
   <!-- Main Content Section -->
   <div class="program-detail-main-container">
     
-    <!-- Breadcrumb (Optional) -->
+    <!-- Breadcrumb -->
     <nav class="detail-breadcrumb">
       <a href="/applicant" class="breadcrumb-link">Home</a>
       <i class="fa fa-angle-right breadcrumb-sep"></i>
@@ -730,6 +841,26 @@ $gap-xxxl: 64px;
             <div class="stat-content">
               <span class="stat-label">Budget</span>
               <span class="stat-value">{{data.program.program_budget | currency:"$":0}}</span>
+            </div>
+          </div>
+
+          <div class="stat-item">
+            <div class="stat-icon-wrapper">
+              <i class="fa fa-hashtag"></i>
+            </div>
+            <div class="stat-content">
+              <span class="stat-label">Funding Opportunity #</span>
+              <span class="stat-value">{{data.program.funding_opportunity_number || "N/A"}}</span>
+            </div>
+          </div>
+
+          <div class="stat-item">
+            <div class="stat-icon-wrapper">
+              <i class="fa fa-list-alt"></i>
+            </div>
+            <div class="stat-content">
+              <span class="stat-label">Assistance Listing #</span>
+              <span class="stat-value">{{data.program.assistance_listing_number || "N/A"}}</span>
             </div>
           </div>
         </div>
@@ -839,15 +970,16 @@ $gap-xxxl: 64px;
               <h3 class="card-heading">Award Information</h3>
             </div>
             <div class="info-card-body">
-               <div class="info-detail-row" ng-if="data.program.category">
-      <span class="detail-icon">
-        <i class="fa fa-tag"></i>
-      </span>
-      <div class="detail-text-group">
-        <span class="detail-label">Category</span>
-        <span class="detail-value">{{data.program.category}}</span>
-      </div>
-    </div>
+              <div class="info-detail-row" ng-if="data.program.category">
+                <span class="detail-icon">
+                  <i class="fa fa-tag"></i>
+                </span>
+                <div class="detail-text-group">
+                  <span class="detail-label">Category</span>
+                  <span class="detail-value">{{data.program.category}}</span>
+                </div>
+              </div>
+
               <div class="info-detail-row">
                 <span class="detail-icon">
                   <i class="fa fa-bookmark"></i>
@@ -864,9 +996,46 @@ $gap-xxxl: 64px;
                 </span>
                 <div class="detail-text-group">
                   <span class="detail-label">Total Budget</span>
-                  <span class="stat-value">{{data.program.program_budget | currency:"$":0}}</span>
+                  <span class="detail-value">{{data.program.program_budget | currency:"$":0}}</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Attachments Card — has attachments -->
+          <div class="sidebar-info-card" ng-if="data.attachments && data.attachments.length > 0">
+            <div class="info-card-header">
+              <i class="fa fa-paperclip card-icon"></i>
+              <h3 class="card-heading">Documents</h3>
+            </div>
+            <div class="info-card-body">
+              <div class="attachment-list">
+               <a ng-repeat="att in data.attachments"
+   ng-href="/sys_attachment.do?sys_id={{att.sys_id}}"
+   target="_blank"
+   download
+   class="attachment-item">
+                  <span class="attachment-icon-wrap">
+                    <i class="fa fa-file-o"></i>
+                  </span>
+                  <div class="attachment-meta">
+                    <span class="attachment-name">{{att.file_name}}</span>
+                    <span class="attachment-size">{{(att.size_bytes / 1024) | number:1}} KB</span>
+                  </div>
+                  <i class="fa fa-download attachment-dl-icon"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Attachments Card — no attachments -->
+          <div class="sidebar-info-card" ng-if="!data.attachments || data.attachments.length === 0">
+            <div class="info-card-header">
+              <i class="fa fa-paperclip card-icon"></i>
+              <h3 class="card-heading">Documents</h3>
+            </div>
+            <div class="info-card-body">
+              <p class="no-attachments-text">No documents attached to this program.</p>
             </div>
           </div>
           
@@ -886,8 +1055,6 @@ $gap-xxxl: 64px;
                   <span class="detail-value">{{data.program.program_manager || "Not assigned"}}</span>
                 </div>
               </div>
-              
-            
             </div>
           </div>
           
@@ -910,7 +1077,6 @@ $gap-xxxl: 64px;
       <i class="fa fa-arrow-left"></i> Back to Programs
     </a>
   </div>
-</div>
-]]></template>
+</div>]]></template>
     </sp_widget>
 </record_update>
