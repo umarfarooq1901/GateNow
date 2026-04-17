@@ -14,6 +14,9 @@
 	c.issues = []; // Add this near c.risks = [];
 	c.uploading = false;
     c.progress = 0;
+	c.baselineFile = null;
+	c.statusFile = null;
+	c.changeFile = null;
     
     // REIMBURSEMENT: Initialize object for auto-calculations
     c.reimbursement = {
@@ -208,6 +211,20 @@
         });
     };
 
+   // 1. Capture the file when selected
+    c.onStatusFileSelect = function(inputElement) {
+        if (inputElement.files && inputElement.files.length > 0) {
+            c.statusFile = inputElement.files[0];
+            $scope.$applyAsync();
+        }
+    };
+
+    // 2. Remove the file if user clicks trash icon
+    c.removeStatusFile = function() {
+        c.statusFile = null;
+    };
+
+    // 3. Submit the report and upload the file
     c.submitStatusReport = function() {
         c.submitting = true;
         c.server.get({
@@ -215,20 +232,67 @@
             report: c.statusReport,
             sys_id: c.project.sys_id
         }).then(function(r) {
-            c.submitting = false;
             if (r.data.success) {
-                c.activeTab = 'reports';
-                if (r.data.submittedReports) {
-                    c.submittedReports = r.data.submittedReports;
+                var newRecordSysId = r.data.new_status_id; // Returned from Server Script
+
+                // If a file is staged, upload it
+                if (c.statusFile && newRecordSysId) {
+                    var formData = new FormData();
+                    formData.append('table_name', 'project_status');
+                    formData.append('table_sys_id', newRecordSysId);
+                    formData.append('file', c.statusFile);
+
+                    $http({
+                        method: 'POST',
+                        url: '/api/now/attachment/upload',
+                        headers: { 'Content-Type': undefined },
+                        data: formData,
+                        transformRequest: angular.identity
+                    }).then(function() {
+                        c.finishStatusSuccess(r.data);
+                    }, function() {
+                        spUtil.addErrorMessage("Report saved, but attachment failed.");
+                        c.finishStatusSuccess(r.data);
+                    });
                 } else {
-                    c.loadData();
+                    c.finishStatusSuccess(r.data);
                 }
-                c.statusReport = { report_status: 'monthly_report' };
-                spUtil.addInfoMessage("Monthly status report submitted.");
+            } else {
+                c.submitting = false;
+                spUtil.addErrorMessage("Error submitting the report.");
             }
         });
     };
 
+    // 4. Helper to refresh UI after submission
+   // 4. Helper to refresh UI after submission
+    c.finishStatusSuccess = function() {
+        c.submitting = false;
+        c.statusFile = null; // Clear the staged file
+        c.statusReport = { report_status: 'monthly_report' }; // Reset the form
+        
+        
+
+        // THE FIX: Switch to the reports tab, wait 1.5 seconds, then load fresh data
+        $timeout(function() {
+            c.activeTab = 'reports'; 
+            c.loadData(); // This pulls the latest records AND their new attachments
+        }, 1500);
+    };
+    // 1. Capture the file when selected
+    c.onChangeFileSelect = function(inputElement) {
+        if (inputElement.files && inputElement.files.length > 0) {
+            c.changeFile = inputElement.files[0];
+            $scope.$applyAsync();
+        }
+    };
+
+    // 2. Remove the file if user clicks trash icon
+    c.removeChangeFile = function() {
+        c.changeFile = null;
+    };
+
+    // 3. Submit the change request and upload the file
     c.submitChangeRequest = function() {
         c.submitting = true;
         c.server.get({
@@ -236,17 +300,52 @@
             change: c.changeRequest,
             sys_id: c.project.sys_id
         }).then(function(r) {
-            c.submitting = false;
             if (r.data.success) {
-                if(r.data.changeRequests) {
-                    c.changeRequests = r.data.changeRequests;
+                var newRecordSysId = r.data.new_change_id; // Returned from Server Script
+
+                // If a file is staged, upload it to the NEW project_change_request record
+                if (c.changeFile && newRecordSysId) {
+                    var formData = new FormData();
+                    formData.append('table_name', 'project_change_request'); // <-- Target table
+                    formData.append('table_sys_id', newRecordSysId);
+                    formData.append('file', c.changeFile);
+
+                    $http({
+                        method: 'POST',
+                        url: '/api/now/attachment/upload',
+                        headers: { 'Content-Type': undefined },
+                        data: formData,
+                        transformRequest: angular.identity
+                    }).then(function() {
+                        c.finishChangeSuccess(r.data);
+                    }, function() {
+                        spUtil.addErrorMessage("Change Request created, but attachment failed.");
+                        c.finishChangeSuccess(r.data);
+                    });
                 } else {
-                    c.loadData();
+                    c.finishChangeSuccess(r.data);
                 }
-                c.changeRequest = {}; 
-                spUtil.addInfoMessage("Change request created.");
+            } else {
+                c.submitting = false;
+                spUtil.addErrorMessage("Error submitting the change request.");
             }
         });
+    };
+
+    // 4. Helper to clean up the UI
+   // 4. Helper to clean up the UI and refresh with the new attachment
+    c.finishChangeSuccess = function() {
+        c.submitting = false;
+        c.changeFile = null; // Clear the staged file from memory
+        c.changeRequest = {}; // Reset the form fields
+        
+        spUtil.addInfoMessage("Change request and documents submitted successfully.");
+
+        // THE FIX: Wait 1.5 seconds for the attachment record to fully commit, 
+        // then force a fresh data load so the modal shows the download button.
+        $timeout(function() {
+            c.loadData();
+        }, 1500);
     };
     
     // ==========================================
@@ -293,6 +392,9 @@
             reimbursementData: c.reimbursement,
             project_id: c.project.sys_id 
         };
+			
+			
+			
 
         // 1. Create the record in ServiceNow
         c.server.get(requestPayload).then(function(response) {
@@ -405,6 +507,91 @@ c.submitReimbursement = function() {
             c.activeTab = 'reimbursement_history'; 
         }, 3000);
     };
+	
+	
+	
+	
+	
+	
+	
+	
+	// 1. Capture the file when selected
+c.onBaselineFileSelect = function(inputElement) {
+    if (inputElement.files && inputElement.files.length > 0) {
+        c.baselineFile = inputElement.files[0];
+        $scope.$applyAsync();
+    }
+};
+
+// 2. Remove the file if user clicks trash icon
+c.removeBaselineFile = function() {
+    c.baselineFile = null;
+};
+
+// 3. Update the submit function to handle the upload
+c.submitBaselineReport = function() {
+    if (!c.baselineReport.as_on || !c.baselineReport.percent_complete) {
+        spUtil.addErrorMessage("Please fill in all required fields.");
+        return;
+    }
+
+    c.submitting = true;
+    c.server.get({
+        action: 'submitBaselineReport',
+        report: c.baselineReport,
+        sys_id: c.project.sys_id
+    }).then(function(r) {
+        if (r.data.success) {
+            var newRecordSysId = r.data.new_baseline_id; // Returned from Server Script
+
+            // If a file is staged, upload it to the NEW project_status record
+            if (c.baselineFile && newRecordSysId) {
+                var formData = new FormData();
+                formData.append('table_name', 'project_status');
+                formData.append('table_sys_id', newRecordSysId);
+                formData.append('file', c.baselineFile);
+
+                $http({
+                    method: 'POST',
+                    url: '/api/now/attachment/upload',
+                    headers: { 'Content-Type': undefined },
+                    data: formData,
+                    transformRequest: angular.identity
+                }).then(function() {
+                    c.finishBaselineSuccess();
+                }, function() {
+                    spUtil.addErrorMessage("Report saved, but attachment failed.");
+                    c.finishBaselineSuccess();
+                });
+            } else {
+                c.finishBaselineSuccess();
+            }
+        }
+    });
+};
+
+// Helper to refresh UI
+c.finishBaselineSuccess = function() {
+    c.submitting = false;
+    c.baselineFile = null;
+    c.baselineSubmitted = true;
+    spUtil.addInfoMessage("Baseline report and documents submitted.");
+    c.loadData(); // Refresh the list and read-only state
+};
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
     /* --- 5. MODAL VIEWERS --- */
     c.viewReport = function(report) {
@@ -460,10 +647,12 @@ c.submitReimbursement = function() {
 c.downloadAttachment = function(attachment) {
   if (attachment && attachment.sys_id) {
       var safeSysId = String(attachment.sys_id).replace(/[^a-f0-9]/gi, '');
-      spUtil.navigateTo('?id=attachment&sys_id=' + safeSysId);
+      
+      // Use the native ServiceNow download URL and open it in a new tab
+      var downloadUrl = '/sys_attachment.do?sys_id=' + safeSysId;
+      window.open(downloadUrl, '_blank');
   }
-};
-    
+}; 
     c.onFileSelect = function(inputElement) {
         var files = inputElement.files;
         if (!files || files.length === 0) return;
@@ -3050,25 +3239,31 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             }
         }
 
-        if (input.action === 'submitBaselineReport') {
+      if (input.action === 'submitBaselineReport') {
             var percents = input.report.percent_complete;
             var baseline = new GlideRecordSecure('project_status');
             baseline.initialize();
             baseline.project = projectId;
-            baseline.x_enno_gatenow_report_status = input.report.report_status;
+            baseline.x_enno_gatenow_report_status = 'baseline_report'; 
             baseline.as_on = input.report.as_on;
             baseline.x_enno_gatenow_percent_complete = percents;
             baseline.executive_summary = input.report.executive_summary;
             baseline.comments = input.report.comments;
             baseline.overall_health = 'green';
-            if (baseline.insert()) {
+            
+            // ]]>👇<![CDATA[ THE FIX: Perform the insert and save it to the variable 'newId'
+            var newId = baseline.insert(); 
+            
+            // ]]>👇<![CDATA[ Check if newId was successfully created
+            if (newId) {
                 data.success = true;
+                data.new_baseline_id = newId.toString(); // Now newId exists, so this won't crash!
                 grProject.percent_complete = percents;
                 grProject.update();
             }
         }
 
-        if (input.action === 'submitStatusReport') {
+      if (input.action === 'submitStatusReport') {
             var percent = input.report.percent_complete;
             var monthly = new GlideRecordSecure('project_status');
             monthly.initialize();
@@ -3087,13 +3282,22 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             monthly.scope = input.report.scope;
             monthly.scope_comments = input.report.scope_comments;
             monthly.comments = input.report.comments;
-					monthly.resources = input.report.resources;
+            monthly.resources = input.report.resources;
             monthly.resources_comments = input.report.resources_comments;
 
-            if (monthly.insert()) {
+            // ]]>👇<![CDATA[ THE FIX: Capture the ID so we can send it back for the attachment
+            var newIdis = monthly.insert();
+            
+            if (newIdis) {
                 data.success = true;
-                grProject.percent_complete = percent;
-                grProject.update();
+                data.new_status_id = newIdis.toString(); // <--- This passes the ID to your Client Script
+                
+                // Update the main project completion percentage
+                var grProjectUpdate = new GlideRecordSecure('pm_project');
+                if (grProjectUpdate.get(projectId)) {
+                    grProjectUpdate.percent_complete = percent;
+                    grProjectUpdate.update();
+                }
             }
         }
 			
@@ -3135,7 +3339,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 			
 			
 
-        if (input.action === 'submitChangeRequest') {
+       if (input.action === 'submitChangeRequest') {
             var cr = new GlideRecordSecure('project_change_request');
             cr.initialize();
             cr.parent = projectId;
@@ -3146,9 +3350,16 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             cr.business_justification = input.change.business_justification;
             cr.description = input.change.description;
             cr.work_notes = "Proposed Change: " + input.change.proposed_change;
-            if (cr.insert()) data.success = true;
+            
+            // ]]>👇<![CDATA[ THE FIX: Capture the ID so we can send it back for the attachment
+            var newIdiss = cr.insert();
+            
+            if (newIdiss) {
+                data.success = true;
+                data.new_change_id = newIdiss.toString(); // <--- This passes the ID to your Client Script
+            }
         }
-
+			
         if (input.action === 'submit_reimbursement_form') {
             var formData = input.reimbursementData;
             var grReimbursement = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
@@ -3345,12 +3556,16 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     grSR.orderByDesc('as_on');
     grSR.query();
     
-    while (grSR.next()) {
+   while (grSR.next()) {
         var sr = {};
-       $sp.getRecordDisplayValues(sr, grSR, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments,resources,resources_comments');
+        
+        // 1. WE MUST GRAB THE SYS_ID SO WE CAN FIND ITS ATTACHMENTS
+        sr.sys_id = grSR.getUniqueValue(); 
+        
+        $sp.getRecordDisplayValues(sr, grSR, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments,resources,resources_comments');
         
         sr.health_label = grSR.getDisplayValue('overall_health');
-        sr.health_color = grSR.getValue('overall_health').toUpperCase(); 
+        sr.health_color = grSR.getValue('overall_health') ? grSR.getValue('overall_health').toUpperCase() : 'GREEN'; 
         sr.schedule_label = grSR.getDisplayValue('schedule');
         sr.schedule_color = grSR.getValue('schedule'); 
         sr.cost_label = grSR.getDisplayValue('cost');
@@ -3358,6 +3573,20 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         sr.scope_label = grSR.getDisplayValue('scope');
         sr.scope_color = grSR.getValue('scope');
         sr.percent_complete = grSR.getValue('x_enno_gatenow_percent_complete') || 0;
+
+        // 2. ]]>🟢<![CDATA[ THE MISSING PART: FETCH ATTACHMENTS FOR THIS REPORT ]]>🟢
+<![CDATA[        sr.attachments = [];
+        var grAttSR = new GlideRecordSecure('sys_attachment');
+        grAttSR.addQuery('table_name', 'project_status');
+        grAttSR.addQuery('table_sys_id', sr.sys_id);
+        grAttSR.query();
+        while (grAttSR.next()) {
+            sr.attachments.push({
+                sys_id: grAttSR.getUniqueValue(),
+                file_name: grAttSR.getValue('file_name'),
+                size_bytes: grAttSR.getValue('size_bytes')
+            });
+        }
 
         if (grSR.x_enno_gatenow_report_status == 'baseline_report') {
             data.baselineSubmitted = true;
@@ -3367,6 +3596,9 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             data.baselineReport.percent_complete = parseInt(grSR.getValue('x_enno_gatenow_percent_complete'));
             data.baselineReport.executive_summary = grSR.getValue('executive_summary');
             data.baselineReport.comments = grSR.getValue('comments');
+            
+            // 3. ]]>🟢<![CDATA[ BIND THE ATTACHMENTS TO THE REPORT OBJECT SO THE MODAL CAN SEE THEM ]]>🟢
+<![CDATA[            data.baselineReport.attachments = sr.attachments; 
         } else {
             data.submittedReports.push(sr);
         }
@@ -3491,6 +3723,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     }
     
     // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST FETCH WITH SYS_ID ]]>🟢
+<![CDATA[   // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST FETCH WITH ATTACHMENTS ]]>🟢
 <![CDATA[    var grCR = new GlideRecordSecure('project_change_request');
     grCR.addQuery('parent', projectId);
     grCR.orderByDesc('sys_created_on');
@@ -3498,10 +3731,23 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     while (grCR.next()) {
         var change = {};
         
-        // THIS WAS MISSING: Must grab sys_id so client script can send it back!
         change.sys_id = grCR.getUniqueValue(); 
         
         $sp.getRecordDisplayValues(change, grCR, 'short_description,work_notes,business_justification,proposed_change,category,priority,impact,state,sys_created_on,reason,description');
+        
+        // ]]>👇<![CDATA[ NEW: Fetch Attachments specifically for this Change Request ]]>👇
+<![CDATA[        change.attachments = [];
+        var grAttCR = new GlideRecordSecure('sys_attachment');
+        grAttCR.addQuery('table_name', 'project_change_request');
+        grAttCR.addQuery('table_sys_id', change.sys_id);
+        grAttCR.query();
+        while (grAttCR.next()) {
+            change.attachments.push({
+                sys_id: grAttCR.getUniqueValue(),
+                file_name: grAttCR.getValue('file_name'),
+                size_bytes: grAttCR.getValue('size_bytes')
+            });
+        }
         
         // Fetch historical activities for Change Requests
         change.activities = [];
@@ -3557,14 +3803,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>423</sys_mod_count>
+        <sys_mod_count>439</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
         <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-17 12:13:08</sys_updated_on>
+        <sys_updated_on>2026-04-17 15:58:40</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -3979,6 +4225,63 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
           <textarea class="form-control" rows="4" ng-model="c.baselineReport.executive_summary" ng-readonly="c.baselineSubmitted" required></textarea>
         </div>
 
+        
+        
+        
+        <div class="form-group m-t-md">
+          <label><strong>Supporting Documents</strong></label>
+          
+          <div ng-if="!c.baselineSubmitted">
+            <div class="upload-dropzone" style="padding: 20px; border: 2px dashed #ccc; border-radius: 8px;">
+              <label class="upload-label" style="padding: 15px; margin: 0; cursor: pointer; display: block; text-align: center;">
+                <div class="upload-content">
+                  <i class="fa fa-cloud-upload" style="font-size: 24px; color: #3b82f6;"></i>
+                  <span class="upload-text" style="display: block;"><strong>Select a file</strong> to attach to this baseline report</span>
+                </div>
+                <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onBaselineFileSelect(this)">
+              </label>
+            </div>
+
+            <div ng-if="c.baselineFile" class="file-card m-t-sm" style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+              <div class="d-flex align-items-center">
+                <i class="fa fa-check-circle text-success m-r-sm"></i>
+                <div>
+                  <span class="file-name text-success"><strong>{{c.baselineFile.name}}</strong></span>
+                  <small class="text-muted" style="display: block;">File will be uploaded upon submission</small>
+                </div>
+              </div>
+              <button type="button" class="btn btn-link text-danger" ng-click="c.removeBaselineFile()" title="Remove">
+                <i class="fa fa-trash"></i>
+              </button>
+            </div>
+          </div>
+
+          <div ng-if="c.baselineSubmitted">
+            <div ng-if="!c.baselineReport.attachments || c.baselineReport.attachments.length === 0" style="padding: 15px; background: #f8f9fa; border-radius: 6px; color: #6c757d; font-style: italic;">
+              No documents were attached to this report.
+            </div>
+            
+            <div class="attachment-list" ng-if="c.baselineReport.attachments && c.baselineReport.attachments.length > 0">
+              <div ng-repeat="att in c.baselineReport.attachments" class="file-card m-b-sm" style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+                <div class="d-flex align-items-center">
+                  <i class="fa fa-file-text-o text-primary" style="font-size: 24px; margin-right: 15px;"></i>
+                  <div>
+                    <span class="file-name" style="font-weight: 600; color: #333; display: block;">{{att.file_name}}</span>
+                    <small class="text-muted">{{c.formatFileSize(att.size_bytes)}}</small>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
+                  <i class="fa fa-download"></i> Download
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        
+        
+        
+        
         <div class="form-actions" ng-if="!c.baselineSubmitted">
           <button type="submit" class="btn btn-primary btn-lg" ng-disabled="baselineForm.$invalid || c.submitting">
             <i class="fa fa-paper-plane"></i> Submit Baseline Report
@@ -4216,6 +4519,33 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
           <textarea class="form-control" rows="4" ng-model="c.statusReport.comments" placeholder="Any other information or updates"></textarea>
         </div>
         
+        <div class="form-group m-t-md">
+  <label><strong>Supporting Documents</strong></label>
+  <div class="upload-dropzone" style="padding: 20px; border: 2px dashed #ccc; border-radius: 8px;">
+    <label class="upload-label" style="padding: 15px; margin: 0; cursor: pointer; display: block; text-align: center;">
+      <div class="upload-content">
+        <i class="fa fa-cloud-upload" style="font-size: 24px; color: #3b82f6;"></i>
+        <span class="upload-text" style="display: block;"><strong>Select a file</strong> to attach to this status report</span>
+      </div>
+      <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onStatusFileSelect(this)">
+    </label>
+  </div>
+
+  <div ng-if="c.statusFile" class="file-card m-t-sm" style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+    <div class="d-flex align-items-center">
+      <i class="fa fa-check-circle text-success m-r-sm"></i>
+      <div>
+        <span class="file-name text-success"><strong>{{c.statusFile.name}}</strong></span>
+        <small class="text-muted" style="display: block;">File will be uploaded upon submission</small>
+      </div>
+    </div>
+    <button type="button" class="btn btn-link text-danger" ng-click="c.removeStatusFile()" title="Remove">
+      <i class="fa fa-trash"></i>
+    </button>
+  </div>
+</div>
+        
+        
         <div class="form-actions">
           <button type="submit" class="btn btn-primary btn-lg" ng-disabled="statusForm.$invalid || c.submitting">
             <i class="fa fa-check-circle"></i> 
@@ -4303,6 +4633,31 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                     <div class="form-group"><label>Reason for Change <span class="required">*</span></label><textarea class="form-control" rows="4" ng-model="c.changeRequest.business_justification" placeholder="Explain why this change is necessary" required></textarea></div>
                     <div class="form-group"><label>Proposed Change <span class="required">*</span></label><textarea class="form-control" rows="4" ng-model="c.changeRequest.description" placeholder="Describe the proposed change in detail" required></textarea></div>
                     <div class="form-group"><label>General Description</label><textarea class="form-control" rows="3" ng-model="c.changeRequest.proposed_change" placeholder="Additional details or context"></textarea></div>
+                    <div class="form-group m-t-md">
+  <label><strong>Supporting Documents</strong></label>
+  <div class="upload-dropzone" style="padding: 20px; border: 2px dashed #ccc; border-radius: 8px;">
+    <label class="upload-label" style="padding: 15px; margin: 0; cursor: pointer; display: block; text-align: center;">
+      <div class="upload-content">
+        <i class="fa fa-cloud-upload" style="font-size: 24px; color: #3b82f6;"></i>
+        <span class="upload-text" style="display: block;"><strong>Select a file</strong> to attach to this change request</span>
+      </div>
+      <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onChangeFileSelect(this)">
+    </label>
+  </div>
+
+  <div ng-if="c.changeFile" class="file-card m-t-sm" style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+    <div class="d-flex align-items-center">
+      <i class="fa fa-check-circle text-success m-r-sm"></i>
+      <div>
+        <span class="file-name text-success"><strong>{{c.changeFile.name}}</strong></span>
+        <small class="text-muted" style="display: block;">File will be uploaded upon submission</small>
+      </div>
+    </div>
+    <button type="button" class="btn btn-link text-danger" ng-click="c.removeChangeFile()" title="Remove">
+      <i class="fa fa-trash"></i>
+    </button>
+  </div>
+</div>
                     <div class="form-actions">
                       <button type="submit" class="btn btn-primary btn-lg" ng-disabled="changeForm.$invalid || c.submitting">
                         <i class="fa fa-paper-plane"></i> <span ng-if="!c.submitting">Submit Change Request</span><span ng-if="c.submitting">Submitting...</span>
@@ -5220,7 +5575,27 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             <div class="comment-item"><label>Scope Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.scope_comments || 'No comments.'"></div></div>
           </div>
         </div>
-      </div>
+        
+        <div class="content-section full-width border-none" style="margin-top: 20px;" ng-if="c.selectedReport.attachments && c.selectedReport.attachments.length > 0">
+          <h4><i class="fa fa-paperclip"></i> Attached Documents</h4>
+          
+          <div class="attachment-list" style="margin-top: 10px;">
+            <div ng-repeat="att in c.selectedReport.attachments" class="file-card m-b-sm" style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+              <div class="d-flex align-items-center">
+                <i class="fa fa-file-text-o text-primary" style="font-size: 24px; margin-right: 15px;"></i>
+                <div>
+                  <span class="file-name" style="font-weight: 600; color: #333; display: block;">{{att.file_name}}</span>
+                  <small class="text-muted">{{c.formatFileSize(att.size_bytes)}}</small>
+                </div>
+              </div>
+              
+              <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
+                <i class="fa fa-download"></i> Download
+              </button>
+            </div>
+          </div>
+        </div>
+        </div>
       <div class="modal-footer-modern"><button type="button" class="btn-modern-secondary" data-dismiss="modal">Close Report</button></div>
     </div>
   </div>
@@ -5228,8 +5603,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
       
       
       
-      
-      <div class="modal fade modern-report-modal" id="baselineModal" tabindex="-1" role="dialog">
+     <div class="modal fade modern-report-modal" id="baselineModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content" ng-if="c.selectedBaseline">
       
@@ -5272,7 +5646,26 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
           </div>
         </div>
 
-      </div>
+        <div class="content-section full-width border-none" style="margin-top: 20px;" ng-if="c.selectedBaseline.attachments && c.selectedBaseline.attachments.length > 0">
+          <h4><i class="fa fa-paperclip"></i> Attached Documents</h4>
+          
+          <div class="attachment-list" style="margin-top: 10px;">
+            <div ng-repeat="att in c.selectedBaseline.attachments" class="file-card m-b-sm" style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+              <div class="d-flex align-items-center">
+                <i class="fa fa-file-text-o text-primary" style="font-size: 24px; margin-right: 15px;"></i>
+                <div>
+                  <span class="file-name" style="font-weight: 600; color: #333; display: block;">{{att.file_name}}</span>
+                  <small class="text-muted">{{c.formatFileSize(att.size_bytes)}}</small>
+                </div>
+              </div>
+              
+              <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
+                <i class="fa fa-download"></i> Download
+              </button>
+            </div>
+          </div>
+        </div>
+        </div>
 
       <div class="modal-footer-modern">
         <button type="button" class="btn-modern-secondary" data-dismiss="modal">Close Report</button>
@@ -5497,7 +5890,26 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
           </div>
 
         </div>
-
+<h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px; margin-top: 30px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
+          <i class="fa fa-paperclip" style="color: #6366f1; margin-right: 8px;"></i> Attached Documents
+        </h4>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 10px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
+          <div class="attachment-list">
+            <div ng-repeat="att in c.selectedReimbursement.attachments" style="background: #fff; border: 1px solid #cbd5e1; padding: 12px 16px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+              <div style="display: flex; align-items: center;">
+                <i class="fa fa-file-text-o" style="color: #4f46e5; font-size: 24px; margin-right: 15px;"></i>
+                <div>
+                  <span style="font-weight: 600; color: #1e293b; display: block;">{{att.file_name}}</span>
+                  <span style="font-size: 12px; color: #64748b;">{{c.formatFileSize(att.size_bytes)}}</span>
+                </div>
+              </div>
+              <button type="button" style="background: transparent; border: 1px solid #4f46e5; color: #4f46e5; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#4f46e5'; this.style.color='#fff';" onmouseout="this.style.background='transparent'; this.style.color='#4f46e5';" ng-click="c.downloadAttachment(att)" title="Download File">
+                <i class="fa fa-download"></i> Download
+              </button>
+            </div>
+          </div>
+        </div>
+        
       </div>
 
       <div style="background: #ffffff; padding: 20px 30px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end;">
@@ -5762,11 +6174,30 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         <div class="report-content-grid">
           
-          <div class="content-section full-width">
+     <div class="content-section full-width">
             <h4><i class="fa fa-question-circle"></i> Reason for Change</h4>
             <div class="narrative-box" ng-bind="c.selectedChange.business_justification"></div>
           </div>
 
+          <div class="content-section full-width border-none" style="margin-top: 20px;" ng-if="c.selectedChange.attachments && c.selectedChange.attachments.length > 0">
+            <h4><i class="fa fa-paperclip"></i> Attached Documents</h4>
+            
+            <div class="attachment-list" style="margin-top: 10px;">
+              <div ng-repeat="att in c.selectedChange.attachments" class="file-card m-b-sm" style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+                <div class="d-flex align-items-center">
+                  <i class="fa fa-file-text-o text-primary" style="font-size: 24px; margin-right: 15px;"></i>
+                  <div>
+                    <span class="file-name" style="font-weight: 600; color: #333; display: block;">{{att.file_name}}</span>
+                    <small class="text-muted">{{c.formatFileSize(att.size_bytes)}}</small>
+                  </div>
+                </div>
+                
+                <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
+                  <i class="fa fa-download"></i> Download
+                </button>
+              </div>
+            </div>
+          </div>
           <style>
             .modern-work-notes {
               margin-top: 30px;
