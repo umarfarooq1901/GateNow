@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $location, $timeout, spUtil, $sce, $http) {
+        <client_script><![CDATA[api.controller = function($scope, $location, $timeout, spUtil, $sce, $http, $window) {
     var c = this;
 
     /* --- 1. INITIAL STATE --- */
@@ -644,15 +644,7 @@ c.finishBaselineSuccess = function() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-c.downloadAttachment = function(attachment) {
-  if (attachment && attachment.sys_id) {
-      var safeSysId = String(attachment.sys_id).replace(/[^a-f0-9]/gi, '');
-      
-      // Use the native ServiceNow download URL and open it in a new tab
-      var downloadUrl = '/sys_attachment.do?sys_id=' + safeSysId;
-      window.open(downloadUrl, '_blank');
-  }
-}; 
+
     c.onFileSelect = function(inputElement) {
         var files = inputElement.files;
         if (!files || files.length === 0) return;
@@ -3803,14 +3795,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>439</sys_mod_count>
+        <sys_mod_count>442</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-17 15:58:40</sys_updated_on>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-04-17 17:35:11</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -4270,9 +4262,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                     <small class="text-muted">{{c.formatFileSize(att.size_bytes)}}</small>
                   </div>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
-                  <i class="fa fa-download"></i> Download
-                </button>
+             <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+   target="_blank"
+   rel="noopener noreferrer"
+   ng-click="$event.stopPropagation()"
+   class="btn btn-outline-primary btn-sm"
+   title="Download File">
+  <i class="fa fa-download"></i> Download
+</a>
               </div>
             </div>
           </div>
@@ -5589,9 +5586,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 </div>
               </div>
               
-              <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
-                <i class="fa fa-download"></i> Download
-              </button>
+            <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+   target="_blank"
+   rel="noopener noreferrer"
+   ng-click="$event.stopPropagation()"
+   class="btn btn-outline-primary btn-sm"
+   title="Download File">
+  <i class="fa fa-download"></i> Download
+</a>
             </div>
           </div>
         </div>
@@ -5659,9 +5661,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 </div>
               </div>
               
-              <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
-                <i class="fa fa-download"></i> Download
-              </button>
+            <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+   target="_blank"
+   rel="noopener noreferrer"
+   ng-click="$event.stopPropagation()"
+   class="btn btn-outline-primary btn-sm"
+   title="Download File">
+  <i class="fa fa-download"></i> Download
+</a>
             </div>
           </div>
         </div>
@@ -6192,9 +6199,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                   </div>
                 </div>
                 
-                <button type="button" class="btn btn-outline-primary btn-sm" ng-click="c.downloadAttachment(att)" title="Download File">
-                  <i class="fa fa-download"></i> Download
-                </button>
+               <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+   target="_blank"
+   rel="noopener noreferrer"
+   ng-click="$event.stopPropagation()"
+   class="btn btn-outline-primary btn-sm"
+   title="Download File">
+  <i class="fa fa-download"></i> Download
+</a>
               </div>
             </div>
           </div>
