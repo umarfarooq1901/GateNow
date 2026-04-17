@@ -1,24 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
     <element db_object_id="11ac8464eb073a10520dfbdffdc0cd65" extends="task" label="Grant Program" max_length="40" name="x_enno_gatenow_grant_program" type="collection">
-        <element label="Funding Opportunity Number" max_length="40" name="funding_opportunity_number" type="string"/>
-        <element label="Assistance Listing Number" max_length="40" name="assistance_listing_number" type="string"/>
-        <element label="Image" mandatory="true" max_length="40" name="image" type="user_image"/>
+        <element label="Summary Statement" max_length="4000" name="summary_statement" type="string"/>
         <element choice="1" label="Award Type" mandatory="true" max_length="40" name="award_type" type="choice">
             <choice>
-                <element inactive_on_update="false" label="Multiple Award" sequence="1" value="multiple_award"/>
                 <element inactive_on_update="false" label="Single Award" sequence="0" value="Single Award"/>
-            </choice>
-        </element>
-        <element label="Category" max_length="40" name="category" type="string"/>
-        <element label="Announcement" max_length="32" name="announcement" type="string"/>
-        <element choice="1" label="Status" max_length="40" name="status" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Draft " sequence="0" value="draft"/>
-                <element inactive_on_update="false" label="Accepting Proposals" sequence="3" value="accepting_proposals"/>
-                <element inactive_on_update="false" label="Rejected" sequence="5" value="rejected"/>
-                <element inactive_on_update="false" label="Pending Approval" sequence="1" value="pending_approval"/>
-                <element inactive_on_update="false" label="Program Closed" sequence="4" value="program_closed"/>
-                <element inactive_on_update="false" label="Published" sequence="2" value="published"/>
+                <element inactive_on_update="false" label="Multiple Award" sequence="1" value="multiple_award"/>
             </choice>
         </element>
         <element choice="1" label="Disbursement Type" mandatory="true" max_length="40" name="disbursement_type" type="choice">
@@ -26,25 +12,39 @@
                 <element inactive_on_update="false" label="Riembursement" sequence="0" value="Riembursement"/>
             </choice>
         </element>
-        <element label="End Date" mandatory="true" max_length="40" name="end_date" type="glide_date"/>
+        <element label="Program Budget" max_length="40" name="program_budget" type="currency"/>
         <element choice="1" label="Disbursement Schedule" mandatory="true" max_length="40" name="disbursement_schedule" type="choice">
             <choice>
-                <element inactive_on_update="false" label="Monthly" sequence="1" value="monthly"/>
-                <element inactive_on_update="false" label="Anually" sequence="3" value="anually"/>
                 <element inactive_on_update="false" label="Quarterly" sequence="2" value="quarterly"/>
                 <element inactive_on_update="false" label="Weekly" sequence="0" value="weekly"/>
+                <element inactive_on_update="false" label="Monthly" sequence="1" value="monthly"/>
+                <element inactive_on_update="false" label="Anually" sequence="3" value="anually"/>
             </choice>
         </element>
-        <element label="Eligibility Summary" mandatory="true" max_length="4000" name="eligibility_summary" type="string"/>
-        <element label="Start Date" mandatory="true" max_length="40" name="start_date" type="glide_date"/>
-        <element label="Synopsis" mandatory="true" max_length="4000" name="synopsis" type="string"/>
-        <element label="Summary Statement" max_length="4000" name="summary_statement" type="string"/>
+        <element label="Assistance Listing Number" max_length="40" name="assistance_listing_number" type="string"/>
+        <element label="Funding Opportunity Number" max_length="40" name="funding_opportunity_number" type="string"/>
+        <element choice="1" label="Status" max_length="40" name="status" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="Draft " sequence="0" value="draft"/>
+                <element inactive_on_update="false" label="Program Closed" sequence="4" value="program_closed"/>
+                <element inactive_on_update="false" label="Published" sequence="2" value="published"/>
+                <element inactive_on_update="false" label="Rejected" sequence="5" value="rejected"/>
+                <element inactive_on_update="false" label="Accepting Proposals" sequence="3" value="accepting_proposals"/>
+                <element inactive_on_update="false" label="Pending Approval" sequence="1" value="pending_approval"/>
+            </choice>
+        </element>
         <element label="Terms and Conditions" mandatory="true" max_length="4000" name="terms_and_conditions" type="string"/>
-        <element default="javascript:gs.getUserID()" dynamic_default_value="2fd8e97bef3221002841f7f775c0fbc1" label="Program User" max_length="40" name="program_lead" read_only="true" reference="sys_user" type="reference" use_dynamic_default="true"/>
-        <element label="Program Budget" max_length="40" name="program_budget" type="currency"/>
         <element label="Program Name" mandatory="true" max_length="100" name="program_name" type="string"/>
-        <element label="Proposal Open Date" mandatory="true" max_length="40" name="proposal_open_date" type="glide_date"/>
-        <element label="Program Manager" mandatory="true" max_length="40" name="program_manager" reference="sys_user" type="reference"/>
         <element label="Proposal Close Date" mandatory="true" max_length="40" name="proposal_close_date" type="glide_date"/>
+        <element label="Proposal Open Date" mandatory="true" max_length="40" name="proposal_open_date" type="glide_date"/>
+        <element label="Category" max_length="40" name="category" type="string"/>
+        <element label="Synopsis" mandatory="true" max_length="4000" name="synopsis" type="string"/>
+        <element default="javascript:gs.getUserID()" dynamic_default_value="2fd8e97bef3221002841f7f775c0fbc1" label="Program User" max_length="40" name="program_lead" read_only="true" reference="sys_user" type="reference" use_dynamic_default="true"/>
+        <element label="Eligibility Summary" mandatory="true" max_length="4000" name="eligibility_summary" type="string"/>
+        <element label="Program Manager" mandatory="true" max_length="40" name="program_manager" reference="sys_user" type="reference"/>
+        <element label="End Date" mandatory="true" max_length="40" name="end_date" type="glide_date"/>
+        <element label="Start Date" mandatory="true" max_length="40" name="start_date" type="glide_date"/>
+        <element label="Image" mandatory="true" max_length="40" name="image" type="user_image"/>
+        <element label="Announcement" max_length="32" name="announcement" type="string"/>
     </element>
 </database>

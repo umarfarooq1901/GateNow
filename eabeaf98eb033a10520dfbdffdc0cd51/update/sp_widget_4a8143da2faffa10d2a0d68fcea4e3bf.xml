@@ -3308,7 +3308,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     /* --- 3. DATA RETRIEVAL --- */
     data.comments = getComments(projectId);
     
-    $sp.getRecordDisplayValues(data.projectData, grProject, 'number,short_description,phase,description,work_start,work_end,percent_complete,state');
+    $sp.getRecordDisplayValues(data.projectData, grProject, 'number,short_description,phase,description,work_start,work_end,start_date,end_date,percent_complete,state');
     data.projectData.sys_id = projectId;
     data.projectData.name = grProject.getDisplayValue('short_description');
     data.projectData.x_enno_gatenow_award = grProject.getDisplayValue('x_enno_gatenow_award');
@@ -3387,7 +3387,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         // 1. We must grab the sys_id to find its attachments!
         reimb.sys_id = grReimb.getUniqueValue(); 
         
-        $sp.getRecordDisplayValues(reimb, grReimb, 'number,sys_created_on,state,advance,reimbursement,cash,accrual,federal_grant_or_other_identifying_number_assigned_by_federal_agency,employer_identification_number,from,to,name,street1,street2,city,stat0,zip_postal_code,country,nam0,cit0,stat1,zip_postal_cod0,countr0,total_program_outlays_to_date,less_cumulative_program_income,net_program_outlays,estimated_net_cash_outlays_for_advance_period,total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period,non_federal_share_of_amount_on_total,federal_share_of_amount_on_totals,federal_payments_previously_requested,federal_share_now_requested_federal_share_of_amount_federals_payments_previously,first_name,last_name,middle_name,suffix,prefix,title,telephone,certifying_official_signature,date_request_submitted'); 
+        $sp.getRecordDisplayValues(reimb, grReimb, 'number,status,sys_created_on,state,advance,reimbursement,cash,accrual,federal_grant_or_other_identifying_number_assigned_by_federal_agency,employer_identification_number,from,to,name,street1,street2,city,stat0,zip_postal_code,country,nam0,cit0,stat1,zip_postal_cod0,countr0,total_program_outlays_to_date,less_cumulative_program_income,net_program_outlays,estimated_net_cash_outlays_for_advance_period,total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period,non_federal_share_of_amount_on_total,federal_share_of_amount_on_totals,federal_payments_previously_requested,federal_share_now_requested_federal_share_of_amount_federals_payments_previously,first_name,last_name,middle_name,suffix,prefix,title,telephone,certifying_official_signature,date_request_submitted'); 
         
         if (grReimb.getValue('advance') == '1' || grReimb.getValue('advance') == 'true') {
             reimb.payment_type_label = 'Advance';
@@ -3557,14 +3557,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>418</sys_mod_count>
+        <sys_mod_count>423</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>umar.lone</sys_updated_by>
-        <sys_updated_on>2026-04-15 16:38:12</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-17 12:13:08</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -3788,7 +3788,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
       <span class="ov-tl-dot ov-tl-dot--green"></span>
       <div>
         <span class="ov-tl-label">Start Date</span>
-        <strong class="ov-tl-val">{{c.project.project_start_date || '—'}}</strong>
+        <strong class="ov-tl-val">{{c.project.work_start || '—'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3803,16 +3803,16 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     <div class="ov-tl-item">
       <span class="ov-tl-dot ov-tl-dot--indigo"></span>
       <div>
-        <span class="ov-tl-label">Effective</span>
-        <strong class="ov-tl-val">{{c.project.effective_date_of_award || '—'}}</strong>
+        <span class="ov-tl-label">Planned start date</span>
+        <strong class="ov-tl-val">{{c.project.start_date || '—'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
     <div class="ov-tl-item">
       <span class="ov-tl-dot ov-tl-dot--red"></span>
       <div>
-        <span class="ov-tl-label">End Date</span>
-        <strong class="ov-tl-val">{{c.project.project_end_date || '—'}}</strong>
+        <span class="ov-tl-label">Planned end date</span>
+        <strong class="ov-tl-val">{{c.project.end_date || '—'}}</strong>
       </div>
     </div>
   </div>
@@ -5305,9 +5305,10 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
       <div class="modal-body modern-body" style="background: #ffffff; padding: 30px;">
         
         <div style="display: flex; justify-content: space-between; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px; background: #fff;">
-          <div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
+          
+<div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">STATUS</label>
-            <span style="background-color: #f8fafc; color: #334155; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">{{c.selectedReimbursement.state || 'Submitted'}}</span>
+            <span style="background-color: #f8fafc; color: #334155; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">{{c.selectedReimbursement.status}}</span>
           </div>
           <div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">PAYMENT TYPE</label>
