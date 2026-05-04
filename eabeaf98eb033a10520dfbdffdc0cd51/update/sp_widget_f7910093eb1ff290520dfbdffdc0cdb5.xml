@@ -1252,74 +1252,75 @@ min-height: 100vh;
 
     /* --- 1. HANDLE STATUS UPDATE --- */
     if (input && input.action === 'update_award_choice') {
-        var upGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        if (upGr.get(input.target_id)) {
-            upGr.setValue('applicant_response', input.new_status);
+        var awardUpdateGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+        if (awardUpdateGR.get(input.target_id)) {
+            awardUpdateGR.setValue('applicant_response', input.new_status);
             if (input.comment_submission) {
-                upGr.work_notes = input.comment_submission;
+                awardUpdateGR.work_notes = input.comment_submission;
             }
-            upGr.update();
+            awardUpdateGR.update();
         }
     }
 
     /* --- 2. IDENTIFY THE APPLICANT --- */
     var applicantIds = [];
-    var applGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-    applGR.addQuery('user', currentUser);
-    applGR.query();
-    while (applGR.next()) {
-        applicantIds.push(applGR.getUniqueValue());
+    var applicantLookupGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    applicantLookupGR.addQuery('user', currentUser);
+    applicantLookupGR.query();
+    while (applicantLookupGR.next()) {
+        applicantIds.push(applicantLookupGR.getUniqueValue());
     }
 
     /* --- 3. FETCH AWARD DATA --- */
     if (applicantIds.length > 0) {
-        var gr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        gr.addQuery('applicant', 'IN', applicantIds.join(','));
-        gr.orderByDesc('sys_created_on');
-        gr.query();
+        var awardListGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+        awardListGR.addQuery('applicant', 'IN', applicantIds.join(','));
+        awardListGR.orderByDesc('sys_created_on');
+        awardListGR.query();
 
-        while (gr.next()) {
-            var sysId = gr.getUniqueValue();
-            var rawResponse = String(gr.getValue('applicant_response') || '').toLowerCase();
+        while (awardListGR.next()) {
+            var currentAwardId = awardListGR.getUniqueValue();
+            var rawResponse = String(awardListGR.getValue('applicant_response') || '').toLowerCase();
 
             /* --- Fetch attachments for this record --- */
             var attachments = [];
-            var attGR = new GlideRecordSecure('sys_attachment');
-            attGR.addQuery('table_name', 'x_enno_gatenow_grant_awards');
-            attGR.addQuery('table_sys_id', sysId);
-            attGR.query();
-            while (attGR.next()) {
+            var attachmentGR = new GlideRecordSecure('sys_attachment');
+            attachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_awards');
+            attachmentGR.addQuery('table_sys_id', currentAwardId);
+            attachmentGR.query();
+            
+            while (attachmentGR.next()) {
                 attachments.push({
-                    sys_id:        attGR.getUniqueValue(),
-                    file_name:     attGR.getDisplayValue('file_name'),
-                    content_type:  attGR.getDisplayValue('content_type'),
-                    size_bytes:    parseInt(attGR.getValue('size_bytes') || 0),
-                    download_link: '/sys_attachment.do?sys_id=' + attGR.getUniqueValue()
+                    sys_id:        attachmentGR.getUniqueValue(),
+                    file_name:     attachmentGR.getDisplayValue('file_name'),
+                    content_type:  attachmentGR.getDisplayValue('content_type'),
+                    size_bytes:    parseInt(attachmentGR.getValue('size_bytes') || 0),
+                    download_link: '/sys_attachment.do?sys_id=' + attachmentGR.getUniqueValue()
                 });
             }
 
             data.awards.push({
-                sys_id:                     sysId,
-                number:                     gr.getDisplayValue('number'),
-                program_name:               gr.getDisplayValue('program_name'),
-                proposal_number:            gr.getDisplayValue('applicant'),
-                effective_date_of_award:    gr.getDisplayValue('effective_date_of_award'),
-                award_start_date:           gr.getDisplayValue('award_start_date'),
-                award_end_date:             gr.getDisplayValue('award_end_date'),
-                award_amount:               parseFloat(gr.getValue('build_grant_amount') || 0),
+                sys_id:                     currentAwardId,
+                number:                     awardListGR.getDisplayValue('number'),
+                program_name:               awardListGR.getDisplayValue('program_name'),
+                proposal_number:            awardListGR.getDisplayValue('applicant'),
+                effective_date_of_award:    awardListGR.getDisplayValue('effective_date_of_award'),
+                award_start_date:           awardListGR.getDisplayValue('award_start_date'),
+                award_end_date:             awardListGR.getDisplayValue('award_end_date'),
+                award_amount:               parseFloat(awardListGR.getValue('build_grant_amount') || 0),
                 applicant_response:         rawResponse,
-                applicant_response_display: gr.getDisplayValue('applicant_response'),
-                grant_program_id:           gr.getDisplayValue('grant_program'),
-                decision_reason:            gr.getDisplayValue('decision_reason'),
-                award_letter:               gr.getValue('award_letter'),
-                fain:                       gr.getDisplayValue('fain'),
-                assistance_listing:         gr.getDisplayValue('assistance_listing'),
-                unique_entity_id:           gr.getDisplayValue('unique_entity_id'),
-                tin:                        gr.getDisplayValue('tin'),
-                funding_opportunity_number: gr.getDisplayValue('funding_opportunity_number'),
-                procurement_request_number: gr.getDisplayValue('procurement_request_number'),
+                applicant_response_display: awardListGR.getDisplayValue('applicant_response'),
+                grant_program_id:           awardListGR.getDisplayValue('grant_program'),
+                decision_reason:            awardListGR.getDisplayValue('decision_reason'),
+                award_letter:               awardListGR.getValue('award_letter'),
+                fain:                       awardListGR.getDisplayValue('fain'),
+                assistance_listing:         awardListGR.getDisplayValue('assistance_listing'),
+                unique_entity_id:           awardListGR.getDisplayValue('unique_entity_id'),
+                tin:                        awardListGR.getDisplayValue('tin'),
+                funding_opportunity_number: awardListGR.getDisplayValue('funding_opportunity_number'),
+                procurement_request_number: awardListGR.getDisplayValue('procurement_request_number'),
                 attachments:                attachments,
-                work_notes: ''
+                work_notes:                 ''
             });
         }
     }
@@ -1331,14 +1332,14 @@ min-height: 100vh;
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-03 08:54:13</sys_created_on>
         <sys_id>f7910093eb1ff290520dfbdffdc0cdb5</sys_id>
-        <sys_mod_count>152</sys_mod_count>
+        <sys_mod_count>156</sys_mod_count>
         <sys_name>My Awards</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f7910093eb1ff290520dfbdffdc0cdb5</sys_update_name>
-        <sys_updated_by>umar.lone</sys_updated_by>
-        <sys_updated_on>2026-04-15 16:34:36</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 11:45:18</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

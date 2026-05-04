@@ -41,7 +41,7 @@
     education_level: '', marital_status: '',
     military_status: '', disability_status: '',
     citizenship_status: '', tribal_affiliation: '',
-    grant_program:      c.data.program_param || '',
+    grant_program: '', // Left blank initially to prevent overwrite bugs
     proposal_title: '', short_description: '',
     proposal_description: '',
     project_goals_and_objectives: '',
@@ -58,40 +58,51 @@
     c.draftResumed = true;
   }
 
-  // ─── program_category: prefill safety (draft resume) ───────
-  c.form.program_category = '';
-
-  if (c.data.prefill && c.data.prefill.program_category) {
-    c.form.program_category = c.data.prefill.program_category;
-  } else if (c.form.grant_program && c.data.programs && c.data.programs.length) {
-    for (var pi = 0; pi < c.data.programs.length; pi++) {
-      if (c.data.programs[pi].sys_id === c.form.grant_program) {
-        c.form.program_category = c.data.programs[pi].category || '';
-        break;
-      }
-    }
+  // ─── Safely Autopopulate Grant Program ─────────────────────
+  // 1. Get the target program (Draft takes priority over URL)
+  var targetProgram = '';
+  if (c.data.prefill && c.data.prefill.grant_program) {
+      targetProgram = c.data.prefill.grant_program;
+  } else if (c.data.program_param) {
+      targetProgram = c.data.program_param;
   }
 
-  // ─── program_category: live watch when user changes program ─
+  // 2. Wait for the DOM to render the dropdown options, then assign
+  $timeout(function() {
+      if (targetProgram) {
+          c.form.grant_program = String(targetProgram).trim();
+      }
+  });
+
+  // ─── program_category: live watch ──────────────────────────
   $scope.$watch(function() { return c.form.grant_program; }, function(newVal) {
-    if (!newVal) { c.form.program_category = ''; return; }
+    if (!newVal) { 
+        c.form.program_category = ''; 
+        return; 
+    }
+    
+    // Look up category in the array
     for (var i = 0; i < c.data.programs.length; i++) {
       if (c.data.programs[i].sys_id === newVal) {
         c.form.program_category = c.data.programs[i].category || '';
         return;
       }
     }
-    c.form.program_category = '';
+    
+    // Fallback if array lookup fails but draft had it saved
+    if (c.data.prefill && c.data.prefill.program_category) {
+        c.form.program_category = c.data.prefill.program_category;
+    } else {
+        c.form.program_category = '';
+    }
   });
 
   // ─── Redirect helper ───────────────────────────────────────
-  // ✅ spUtil.navigate() — ServiceNow native portal navigation
-  // Keeps routing fully internal, eliminates open redirect risk
-function goToDashboard(delayMs) {
-  $timeout(function() {
-    $location.url('/applicant?id=applicant_dashboard');
-  }, delayMs || 4000);
-}
+  function goToDashboard(delayMs) {
+    $timeout(function() {
+      $location.url('/applicant?id=applicant_dashboard');
+    }, delayMs || 4000);
+  }
 
   function startCountdown(from) {
     c.countdown = from || 4;
@@ -362,16 +373,16 @@ function goToDashboard(delayMs) {
   };
 
   // ─── Cancel ────────────────────────────────────────────────
-c.cancel = function() {
-  spModal.open({
-    title:   'Cancel Application?',
-    message: 'Are you sure you want to cancel? All unsaved progress will be lost.',
-    buttons: [{ label: 'No, Continue', cancel: true }, { label: 'Yes, Cancel', primary: true }]
-  }).then(function() {
-    $location.url('/applicant?id=applicant_dashboard');
-  });
-  removeModalTooltip();
-};
+  c.cancel = function() {
+    spModal.open({
+      title:   'Cancel Application?',
+      message: 'Are you sure you want to cancel? All unsaved progress will be lost.',
+      buttons: [{ label: 'No, Continue', cancel: true }, { label: 'Yes, Cancel', primary: true }]
+    }).then(function() {
+      $location.url('/applicant?id=applicant_dashboard');
+    });
+    removeModalTooltip();
+  };
 
 };]]></client_script>
         <controller_as>c</controller_as>
@@ -1299,40 +1310,40 @@ margin: 0 auto;
   // ============================================================
   // FIELD MAPPER — maps input to GlideRecordSecure fields
   // ============================================================
-  function mapFields(gr) {
+  function mapFields(applicantRecord) {
 
     // ── Personal Information ──────────────────────────────────
-    gr.setValue('first_name',                     getParam(input, 'first_name', ''));
-    gr.setValue('middle_name',                    getParam(input, 'middle_name', ''));
-    gr.setValue('last_name',                      getParam(input, 'last_name', ''));
-    gr.setValue('email',                          getParam(input, 'email', ''));
-    gr.setValue('phone_number',                   getParam(input, 'phone_number', ''));
-    gr.setValue('street',                         getParam(input, 'street', ''));
-    gr.setValue('city',                           getParam(input, 'city', ''));
-    gr.setValue('zip_postal_code',                getParam(input, 'zip_postal_code', ''));
-    gr.setValue('country',                        getParam(input, 'country', ''));
+    applicantRecord.setValue('first_name',                     getParam(input, 'first_name', ''));
+    applicantRecord.setValue('middle_name',                    getParam(input, 'middle_name', ''));
+    applicantRecord.setValue('last_name',                      getParam(input, 'last_name', ''));
+    applicantRecord.setValue('email',                          getParam(input, 'email', ''));
+    applicantRecord.setValue('phone_number',                   getParam(input, 'phone_number', ''));
+    applicantRecord.setValue('street',                         getParam(input, 'street', ''));
+    applicantRecord.setValue('city',                           getParam(input, 'city', ''));
+    applicantRecord.setValue('zip_postal_code',                getParam(input, 'zip_postal_code', ''));
+    applicantRecord.setValue('country',                        getParam(input, 'country', ''));
 
     var bd = cleanDate(getParam(input, 'birthdate', ''));
-    if (bd) gr.setValue('birthdate', bd);
+    if (bd) applicantRecord.setValue('birthdate', bd);
 
     // ── Demographics ──────────────────────────────────────────
-    gr.setValue('ssn',                            getParam(input, 'ssn', ''));
-    gr.setValue('gender',                         getParam(input, 'gender', ''));
-    gr.setValue('race',                           getParam(input, 'race', ''));
-    gr.setValue('ethnicity',                      getParam(input, 'ethnicity', ''));
-    gr.setValue('education_level',                getParam(input, 'education_level', ''));
-    gr.setValue('marital_status',                 getParam(input, 'marital_status', ''));
-    gr.setValue('military_status',                getParam(input, 'military_status', ''));
-    gr.setValue('disability_status',              getParam(input, 'disability_status', ''));
-    gr.setValue('citizenship_status',             getParam(input, 'citizenship_status', ''));
-    gr.setValue('tribal_affiliation',             getParam(input, 'tribal_affiliation', ''));
+    applicantRecord.setValue('ssn',                            getParam(input, 'ssn', ''));
+    applicantRecord.setValue('gender',                         getParam(input, 'gender', ''));
+    applicantRecord.setValue('race',                           getParam(input, 'race', ''));
+    applicantRecord.setValue('ethnicity',                      getParam(input, 'ethnicity', ''));
+    applicantRecord.setValue('education_level',                getParam(input, 'education_level', ''));
+    applicantRecord.setValue('marital_status',                 getParam(input, 'marital_status', ''));
+    applicantRecord.setValue('military_status',                getParam(input, 'military_status', ''));
+    applicantRecord.setValue('disability_status',              getParam(input, 'disability_status', ''));
+    applicantRecord.setValue('citizenship_status',             getParam(input, 'citizenship_status', ''));
+    applicantRecord.setValue('tribal_affiliation',             getParam(input, 'tribal_affiliation', ''));
 
     // ── Organization & Identity ───────────────────────────────
-    gr.setValue('applicant_type',                 getParam(input, 'applicant_type', ''));
-    gr.setValue('identity_type',                  getParam(input, 'identity_type', ''));
-    gr.setValue('uei',                            getParam(input, 'uei', ''));
-    gr.setValue('tin_ein',                        getParam(input, 'tin_ein', ''));
-    gr.setValue('organization',                   getParam(input, 'organization', ''));
+    applicantRecord.setValue('applicant_type',                 getParam(input, 'applicant_type', ''));
+    applicantRecord.setValue('identity_type',                  getParam(input, 'identity_type', ''));
+    applicantRecord.setValue('uei',                            getParam(input, 'uei', ''));
+    applicantRecord.setValue('tin_ein',                        getParam(input, 'tin_ein', ''));
+    applicantRecord.setValue('organization',                   getParam(input, 'organization', ''));
 
     // ── Program + auto-resolve category ──────────────────────
     var gpRef = String(
@@ -1341,35 +1352,35 @@ margin: 0 auto;
     );
 
     if (gpRef) {
-      gr.setValue('program', gpRef);
+      applicantRecord.setValue('program', gpRef);
 
       // ← Read 'category' from grant program table
       //   Write into 'program_category' on applicant table
       var resolvedCategory = resolveProgramCategory(gpRef);
-      gr.setValue('program_category', resolvedCategory);
+      applicantRecord.setValue('program_category', resolvedCategory);
     }
 
     // ── Proposal Details ──────────────────────────────────────
-    gr.setValue('proposal_title',                 getParam(input, 'proposal_title', ''));
-    gr.setValue('short_description',              getParam(input, 'short_description', ''));
-    gr.setValue('proposal_description',           getParam(input, 'proposal_description', ''));
-    gr.setValue('project_goals_and_objectives',   getParam(input, 'project_goals_and_objectives', ''));
-    gr.setValue('project_activities_methodology', getParam(input, 'project_activities_methodology', ''));
+    applicantRecord.setValue('proposal_title',                 getParam(input, 'proposal_title', ''));
+    applicantRecord.setValue('short_description',              getParam(input, 'short_description', ''));
+    applicantRecord.setValue('proposal_description',           getParam(input, 'proposal_description', ''));
+    applicantRecord.setValue('project_goals_and_objectives',   getParam(input, 'project_goals_and_objectives', ''));
+    applicantRecord.setValue('project_activities_methodology', getParam(input, 'project_activities_methodology', ''));
 
     // NOTE: program_category is set above from program lookup — NOT from user input
 
     var budget = getParam(input, 'requested_budget', '');
-    if (budget !== '') gr.setValue('requested_budget', budget);
+    if (budget !== '') applicantRecord.setValue('requested_budget', budget);
 
     var sd = cleanDate(getParam(input, 'project_start_date', ''));
-    if (sd) gr.setValue('project_start_date', sd);
+    if (sd) applicantRecord.setValue('project_start_date', sd);
 
     var ed = cleanDate(getParam(input, 'project_end_date', ''));
-    if (ed) gr.setValue('project_end_date', ed);
+    if (ed) applicantRecord.setValue('project_end_date', ed);
 
     // Always stamp the logged-in user
-    gr.setValue('submitted_by', currentUser);
-		gr.setValue('user', currentUser);
+    applicantRecord.setValue('submitted_by', currentUser);
+    applicantRecord.setValue('user', currentUser);
   }
 
   // ============================================================
@@ -1389,27 +1400,27 @@ margin: 0 auto;
         return;
       }
 
-      var gr       = new GlideRecordSecure(applicantTable);
+      var applicantGr = new GlideRecordSecure(applicantTable);
       var isUpdate = false;
       var targetId = getParam(input, 'applicant_sys_id', '');
 
-      if (targetId && gr.get(targetId)) {
+      if (targetId && applicantGr.get(targetId)) {
         isUpdate = true;
         gs.info('[Intake] Promoting draft to submission: ' + targetId);
       } else {
-        gr.initialize();
+        applicantGr.initialize();
         gs.info('[Intake] Creating new applicant record');
       }
 
-      mapFields(gr);
-      gr.setValue('state', 'new');
+      mapFields(applicantGr);
+      applicantGr.setValue('state', 'new');
 
       if (!isUpdate) {
         var gdt = new GlideDateTime();
-        gr.setValue('submission_date', gdt.getValue());
+        applicantGr.setValue('submission_date', gdt.getValue());
       }
 
-      var savedId = isUpdate ? gr.update() : gr.insert();
+      var savedId = isUpdate ? applicantGr.update() : applicantGr.insert();
       if (!savedId) {
         data.error = 'Failed to save applicant record';
         return;
@@ -1598,21 +1609,20 @@ margin: 0 auto;
   }
   gs.info('[Intake] Loaded ' + data.programs.length + ' programs');
 
-})();
-]]></script>
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-17 10:39:56</sys_created_on>
         <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
-        <sys_mod_count>43</sys_mod_count>
+        <sys_mod_count>62</sys_mod_count>
         <sys_name>Applicant_form</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
-        <sys_updated_by>umar.lone</sys_updated_by>
-        <sys_updated_on>2026-04-15 16:35:28</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 11:46:07</sys_updated_on>
         <template><![CDATA[<!-- ── Success Banner ── -->
 <div ng-if="c.successBanner"
      style="position: fixed; top: 0; left: 0; width: 100%; z-index: 99999;

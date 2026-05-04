@@ -743,7 +743,7 @@
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
+        <script><![CDATA[(function () {
 
   data.sideBar      = $sp.getWidget('sidebar_dashboard');
   data.applications = [];
@@ -753,50 +753,50 @@
   var currentUser    = gs.getUserName();
   if (!currentUser) return;
 
-  var formatDate = function(d) {
+  var formatDate = function (d) {
     if (!d || d === '' || d === 'null') return '';
     return String(d).split(' ')[0] || '';
   };
 
-  function buildAppObject(gr) {
+  function buildAppObject(applicantRec) {
     return {
-      sys_id:                 gr.getUniqueValue(),
-      number:                 gr.getValue('number')                         || '',
-      first_name:             gr.getValue('first_name')                     || '',
-      middle_name:            gr.getValue('middle_name')                    || '',
-      last_name:              gr.getValue('last_name')                      || '',
-      birthdate:              formatDate(gr.getValue('birthdate')),
-      phone:                  gr.getValue('phone_number')                   || '',
-      email:                  gr.getValue('email')                          || '',
-      gender_display:         gr.getDisplayValue('gender')                  || '',
-      marital_display:        gr.getDisplayValue('marital_status')          || '',
-      race_display:           gr.getDisplayValue('race')                    || '',
-      ethnicity_display:      gr.getDisplayValue('ethnicity')               || '',
-      education_display:      gr.getDisplayValue('education_level')         || '',
-      military_display:       gr.getDisplayValue('military_status')         || '',
-      street:                 gr.getValue('street')                         || '',
-      city:                   gr.getValue('city')                           || '',
-      country:                gr.getValue('country')                        || '',
-      zip:                    gr.getValue('zip_postal_code')                || '',
-      applicant_type_display: gr.getDisplayValue('applicant_type')          || '',
-      citizenship_display:    gr.getDisplayValue('citizenship_status')      || '',
-      identity_display:       gr.getDisplayValue('identity_type')           || '',
-      tribal_display:         gr.getDisplayValue('tribal_affiliation')      || '',
-      disability_display:     gr.getDisplayValue('disability_status')       || '',
-      ssn:                    gr.getValue('ssn')                            || '',
-      tin_ein:                gr.getValue('tin_ein')                        || '',
-      uei:                    gr.getValue('uei')                            || '',
-      organization:           gr.getValue('organization')                   || '',
-      start_date:             formatDate(gr.getValue('project_start_date')),
-      end_date:               formatDate(gr.getValue('project_end_date')),
-      submission_date:        formatDate(gr.getValue('submission_date')),
-      requested_budget:       gr.getValue('requested_budget')               || '',
-      short_description:      gr.getValue('short_description')              || '',
-      proposal_description:   gr.getValue('proposal_description')           || '',
-      project_goals:          gr.getValue('project_goals_and_objectives')   || '',
-      project_activities:     gr.getValue('project_activities_methodology') || '',
-      state_display:          gr.getDisplayValue('state')                   || 'New',
-      updated_on:             gr.getDisplayValue('sys_updated_on')          || ''
+      sys_id:                 applicantRec.getUniqueValue(),
+      number:                 applicantRec.getValue('number')                         || '',
+      first_name:             applicantRec.getValue('first_name')                     || '',
+      middle_name:            applicantRec.getValue('middle_name')                    || '',
+      last_name:              applicantRec.getValue('last_name')                      || '',
+      birthdate:              formatDate(applicantRec.getValue('birthdate')),
+      phone:                  applicantRec.getValue('phone_number')                   || '',
+      email:                  applicantRec.getValue('email')                          || '',
+      gender_display:         applicantRec.getDisplayValue('gender')                  || '',
+      marital_display:        applicantRec.getDisplayValue('marital_status')          || '',
+      race_display:           applicantRec.getDisplayValue('race')                    || '',
+      ethnicity_display:      applicantRec.getDisplayValue('ethnicity')               || '',
+      education_display:      applicantRec.getDisplayValue('education_level')         || '',
+      military_display:       applicantRec.getDisplayValue('military_status')         || '',
+      street:                 applicantRec.getValue('street')                         || '',
+      city:                   applicantRec.getValue('city')                           || '',
+      country:                applicantRec.getValue('country')                        || '',
+      zip:                    applicantRec.getValue('zip_postal_code')                || '',
+      applicant_type_display: applicantRec.getDisplayValue('applicant_type')          || '',
+      citizenship_display:    applicantRec.getDisplayValue('citizenship_status')      || '',
+      identity_display:       applicantRec.getDisplayValue('identity_type')           || '',
+      tribal_display:         applicantRec.getDisplayValue('tribal_affiliation')      || '',
+      disability_display:     applicantRec.getDisplayValue('disability_status')       || '',
+      ssn:                    applicantRec.getValue('ssn')                            || '',
+      tin_ein:                applicantRec.getValue('tin_ein')                        || '',
+      uei:                    applicantRec.getValue('uei')                            || '',
+      organization:           applicantRec.getValue('organization')                   || '',
+      start_date:             formatDate(applicantRec.getValue('project_start_date')),
+      end_date:               formatDate(applicantRec.getValue('project_end_date')),
+      submission_date:        formatDate(applicantRec.getValue('submission_date')),
+      requested_budget:       applicantRec.getValue('requested_budget')               || '',
+      short_description:      applicantRec.getValue('short_description')              || '',
+      proposal_description:   applicantRec.getValue('proposal_description')           || '',
+      project_goals:          applicantRec.getValue('project_goals_and_objectives')   || '',
+      project_activities:     applicantRec.getValue('project_activities_methodology') || '',
+      state_display:          applicantRec.getDisplayValue('state')                   || 'New',
+      updated_on:             applicantRec.getDisplayValue('sys_updated_on')          || ''
     };
   }
 
@@ -855,52 +855,53 @@
     'closed'
   ];
 
-  // ── Query applications ─────────────────────────────────────────────────────
-  var gr = new GlideRecordSecure(applicantTable);
-  gr.addQuery('sys_created_by', currentUser);
-  gr.orderByDesc('sys_updated_on');
-  gr.query();
+  // ── Query applications ────────────────────────────────────────────────────
+  var applicantQuery = new GlideRecordSecure(applicantTable);
+  applicantQuery.addQuery('sys_created_by', currentUser);
+  applicantQuery.orderByDesc('sys_updated_on');
+  applicantQuery.query();
 
-  while (gr.next()) {
-    var sysId     = gr.getUniqueValue();
-    var stateVal  = gr.getValue('state') || 'new';
-    var createdOn = gr.getDisplayValue('sys_created_on') || '';
+  while (applicantQuery.next()) {
+    var sysId     = applicantQuery.getUniqueValue();
+    var stateVal  = applicantQuery.getValue('state') || 'new';
+    var createdOn = applicantQuery.getDisplayValue('sys_created_on') || '';
 
-    // ── Attachments ────────────────────────────────────────────────────────
-    var attachments = [];
-    var attGR = new GlideRecordSecure('sys_attachment');
-    attGR.addQuery('table_name',   applicantTable);
-    attGR.addQuery('table_sys_id', sysId);
-    attGR.query();
-    while (attGR.next()) {
+    // ── Attachments ──────────────────────────────────────────────────────────
+    var attachments     = [];
+    var attachmentQuery = new GlideRecordSecure('sys_attachment');
+    attachmentQuery.addQuery('table_name',   applicantTable);
+    attachmentQuery.addQuery('table_sys_id', sysId);
+    attachmentQuery.query();
+
+    while (attachmentQuery.next()) {
       attachments.push({
-        sys_id:       attGR.getUniqueValue(),
-        name:         attGR.getValue('file_name')    || '',
-        size:         attGR.getValue('size_bytes')   || '0',
-        content_type: attGR.getValue('content_type') || ''
+        sys_id:       attachmentQuery.getUniqueValue(),
+        name:         attachmentQuery.getValue('file_name')    || '',
+        size:         attachmentQuery.getValue('size_bytes')   || '0',
+        content_type: attachmentQuery.getValue('content_type') || ''
       });
     }
 
-    var appObj              = buildAppObject(gr);
-    appObj.program_name     = gr.getDisplayValue('program')          || 'N/A';
-    appObj.program_num      = gr.getDisplayValue('program.number')   || '';
-    appObj.program_category = gr.getDisplayValue('program_category') || '';
-    appObj.badge_class      = badgeMap[stateVal]                     || 'badge-new';
+    var appObj              = buildAppObject(applicantQuery);
+    appObj.program_name     = applicantQuery.getDisplayValue('program')          || 'N/A';
+    appObj.program_num      = applicantQuery.getDisplayValue('program.number')   || '';
+    appObj.program_category = applicantQuery.getDisplayValue('program_category') || '';
+    appObj.badge_class      = badgeMap[stateVal]                                 || 'badge-new';
     appObj.created_on       = createdOn;
     appObj.attachments      = attachments;
     appObj.state_value      = stateVal;
 
     data.applications.push(appObj);
 
-    // ── Build stepper steps (NO sys_audit — only current state value) ──────
-    var isDeclined  = (stateVal === 'declined_by_agency' || stateVal === 'declined_by_applicant');
-    var currentIdx  = normalStates.indexOf(stateVal);
+    // ── Build stepper steps (NO sys_audit — only current state value) ────────
+    var isDeclined    = (stateVal === 'declined_by_agency' || stateVal === 'declined_by_applicant');
+    var currentIdx    = normalStates.indexOf(stateVal);
     var timelineSteps = [];
 
     if (isDeclined) {
 
       // For declined: show all normal steps as completed, then append decline as current
-      normalStates.forEach(function(s) {
+      normalStates.forEach(function (s) {
         timelineSteps.push({
           state:  s,
           label:  labelMap[s],
@@ -920,14 +921,14 @@
 
       // For normal flow: mark steps before current as completed,
       // current as current, rest as pending
-      normalStates.forEach(function(s, idx) {
+      normalStates.forEach(function (s, idx) {
         timelineSteps.push({
           state:  s,
           label:  labelMap[s],
           color:  colorMap[s],
-          status: idx < currentIdx  ? 'completed'
-                : idx === currentIdx ? 'current'
-                :                     'pending'
+          status: idx < currentIdx   ? 'completed'
+                : idx === currentIdx  ? 'current'
+                :                      'pending'
         });
       });
 
@@ -942,14 +943,14 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>163</sys_mod_count>
+        <sys_mod_count>167</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-04-07 09:21:13</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 11:47:07</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

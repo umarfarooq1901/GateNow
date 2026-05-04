@@ -1,0 +1,497 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ui_page">
+    <sys_ui_page action="INSERT_OR_UPDATE">
+        <category>general</category>
+        <client_script/>
+        <description>Privacy Policy Page for GateNow.</description>
+        <direct>true</direct>
+        <endpoint>x_enno_gatenow_Privacy Policy.do</endpoint>
+        <html><![CDATA[<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #eef0f8;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* Increased max-width slightly to accommodate the new sidebar */
+  .gn-wrapper {
+    max-width: 1200px;
+    margin: 48px auto;
+    padding: 0 24px 72px;
+  }
+
+  /* Header Styles */
+  .gn-header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .gn-header .gn-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #bfdbfe;
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #2563eb;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .gn-header .gn-badge .dot {
+    width: 7px;
+    height: 7px;
+    background: #2563eb;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .gn-header h1 {
+    font-size: 48px;
+    font-weight: 900;
+    color: #1a1a2e;
+    line-height: 1.2;
+    margin-bottom: 12px;
+    letter-spacing: -1px;
+  }
+
+  .gn-header h1 span { 
+    color: #2fb8e0;
+  }
+
+  .gn-header p {
+    font-size: 16px;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .gn-dots {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+    justify-content: center;
+  }
+
+  .gn-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #93c5fd;
+    display: inline-block;
+  }
+
+  .gn-dots span:nth-child(2) { background: #2fb8e0; opacity: 1; }
+  .gn-dots span:nth-child(3) { background: #93c5fd; opacity: 0.6; }
+
+  /* Two-Column Layout */
+  .gn-layout {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+  }
+
+  /* Left Table of Contents Sidebar */
+  .gn-toc-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 40px; /* Keeps it in view while scrolling */
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 30px;
+    border: 1px solid #e8e6f5;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
+  }
+
+  .gn-toc-sidebar h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f1f0fa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .gn-toc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .gn-toc-list a {
+    color: #64748b;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: color 0.2s ease;
+    display: block;
+  }
+
+  .gn-toc-list a:hover {
+    color: #2563eb;
+  }
+
+  /* Main Document Card */
+  .gn-card {
+    flex: 1;
+    min-width: 0;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 50px 60px;
+    border: 1px solid #e8e6f5;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
+    margin-bottom: 30px;
+  }
+
+  @media (max-width: 960px) {
+    .gn-layout { flex-direction: column; }
+    .gn-toc-sidebar { width: 100%; position: static; }
+    .gn-card { padding: 30px 20px; }
+  }
+
+  .gn-content h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2563eb;
+    margin-top: 40px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f0fa;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .gn-content h2:first-child { margin-top: 0; }
+
+  .gn-content p {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #334155;
+    margin-bottom: 16px;
+  }
+
+  .gn-content ul {
+    margin-bottom: 20px;
+    padding-left: 20px;
+    list-style: none;
+  }
+
+  .gn-content ul li {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #334155;
+    margin-bottom: 8px;
+    position: relative;
+  }
+
+  .gn-content ul li::before {
+    content: '•';
+    color: #2fb8e0;
+    font-weight: bold;
+    font-size: 18px;
+    position: absolute;
+    left: -16px;
+    top: -2px;
+  }
+
+  /* Modern Contact Section */
+  .gn-contact-section {
+    margin-top: 60px;
+    padding-top: 40px;
+    border-top: 2px solid #f1f0fa;
+  }
+
+  .gn-contact-section h3 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #1a1a2e;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .gn-contact-section p.subtitle {
+    text-align: center;
+    color: #64748b;
+    font-size: 15px;
+    margin-bottom: 32px;
+  }
+
+  .gn-contact-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .gn-contact-cards { grid-template-columns: 1fr; }
+  }
+
+  .gn-contact-card-modern {
+    background: #fcfcfd;
+    border: 1px solid #e8e6f5;
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+  }
+
+  .gn-contact-card-modern:hover {
+    background: #ffffff;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+    transform: translateY(-4px);
+    border-color: #bfdbfe;
+  }
+
+  .gn-contact-icon {
+    width: 54px;
+    height: 54px;
+    background: #eff6ff;
+    color: #2563eb;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin: 0 auto 20px;
+  }
+
+  .gn-contact-card-modern h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+
+  .gn-contact-card-modern a, 
+  .gn-contact-card-modern span {
+    font-size: 15px;
+    color: #2563eb;
+    font-weight: 700;
+    text-decoration: none;
+    display: block;
+  }
+
+  .gn-contact-card-modern a:hover {
+    color: #2fb8e0;
+  }
+
+  /* Footer */
+  .gn-footer {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 12.5px;
+    color: #94a3b8;
+    line-height: 2;
+  }
+
+  .gn-footer a {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .gn-footer a:hover { color: #2fb8e0; }
+
+</style>
+
+<div class="gn-wrapper">
+
+  <!-- Header -->
+  <div class="gn-header">
+    <div><span class="gn-badge"><span class="dot"></span> GateNow Privacy</span></div>
+    <!-- Non-breaking space added here -->
+    <h1>Privacy&#160;<span>Policy</span></h1>
+    <p>EnableNow GateNow &#8212; Grant Approval &#38; Tracking Engine</p>
+  </div>
+
+  <div class="gn-dots">
+    <span></span><span></span><span></span>
+  </div>
+
+  <!-- Content Layout with Sidebar -->
+  <div class="gn-layout">
+
+    <!-- Left Sidebar: Table of Contents -->
+    <div class="gn-toc-sidebar">
+      <h3>Contents</h3>
+      <ul class="gn-toc-list">
+        <li><a href="#intro">1. Introduction</a></li>
+        <li><a href="#scope">2. Scope</a></li>
+        <li><a href="#roles">3. Roles and Responsibilities</a></li>
+        <li><a href="#info">4. Information Processed</a></li>
+        <li><a href="#usage">5. How Information Is Used</a></li>
+        <li><a href="#storage">6. Storage and Processing</a></li>
+        <li><a href="#sharing">7. Sharing and Disclosure</a></li>
+        <li><a href="#security">8. Security</a></li>
+        <li><a href="#ownership">9. Data Ownership</a></li>
+        <li><a href="#retention">10. Data Retention</a></li>
+        <li><a href="#applicant">11. Applicant Privacy</a></li>
+        <li><a href="#compliance">12. Compliance</a></li>
+        <li><a href="#integrations">13. External Integrations</a></li>
+        <li><a href="#changes">14. Changes to Policy</a></li>
+        <li><a href="#contact">15. Support Contact</a></li>
+      </ul>
+    </div>
+
+    <!-- Right Side: Main Content Card -->
+    <div class="gn-card gn-content">
+      
+      <h2 id="intro">Introduction</h2>
+      <p>GateNow (Grant Approval &#38; Tracking Engine) is a grant lifecycle management application developed by EnableNow, Inc. and built natively on the ServiceNow Now Platform. GateNow enables organizations to manage the end-to-end grant lifecycle, including program setup, application intake, review and evaluation, award administration, project tracking, reporting, and reimbursement processing.</p>
+      <p>This Privacy Policy explains how information is handled when GateNow is deployed and used within a customer's ServiceNow environment. GateNow operates entirely within the Customer Organization's own ServiceNow instance and processes information solely on behalf of that organization.</p>
+      <p>GateNow does not independently determine the purposes or means of processing personal data submitted through the application. The Customer Organization remains responsible for its use of the application, including decisions regarding data collection, access, retention, disclosure, and compliance with applicable privacy and data protection laws.</p>
+
+      <h2 id="scope">Scope</h2>
+      <p>This Privacy Policy applies to information processed through GateNow in connection with:</p>
+      <ul>
+        <li>Customer Organizations that install, configure, and use GateNow</li>
+        <li>Applicants and other end users who submit information through GateNow portals or forms</li>
+        <li>Internal users such as administrators, program managers, reviewers, approvers, and other authorized personnel</li>
+      </ul>
+      <p>This Privacy Policy applies only to the GateNow application and its standard functionality. ServiceNow's platform-level privacy practices are governed by its own privacy and trust documentation.</p>
+
+      <h2 id="roles">Roles and Responsibilities</h2>
+      <p>For information processed through GateNow:</p>
+      <ul>
+        <li>The Customer Organization acts as the Data Controller and determines what information is collected, why it is collected, who may access it, and how long it is retained</li>
+        <li>GateNow operates as an application that enables processing within the Customer Organization's configured ServiceNow environment</li>
+        <li>Applicants, reviewers, and other individuals whose information is processed through GateNow are Data Subjects, where applicable under relevant law</li>
+      </ul>
+      <p>The Customer Organization is responsible for ensuring that its configuration and use of GateNow complies with applicable laws, contractual obligations, and internal governance requirements.</p>
+
+      <h2 id="info">Information Processed</h2>
+      <p>Depending on how the Customer Organization configures GateNow, the application may process information such as:</p>
+      <ul>
+        <li>Applicant names, contact details, organization details, and account information</li>
+        <li>Grant applications, proposals, and related submissions</li>
+        <li>Review comments, scoring data, recommendations, and decisions</li>
+        <li>Award information, agreements, and funding details</li>
+        <li>Project milestones, deliverables, and progress updates</li>
+        <li>Baseline, periodic, and final reports</li>
+        <li>Reimbursement requests, budget data, and related financial documentation</li>
+        <li>Attachments and supporting documents uploaded by users</li>
+        <li>User, role, and audit-related platform records generated through use of the application</li>
+      </ul>
+      <p>GateNow processes only information entered, uploaded, or generated by the Customer Organization through its use of the application and configured workflows.</p>
+
+      <h2 id="usage">How Information Is Used</h2>
+      <p>Information processed through GateNow may be used by the Customer Organization to:</p>
+      <ul>
+        <li>Administer grant programs and funding opportunities</li>
+        <li>Receive and manage applications and supporting materials</li>
+        <li>Conduct reviews, evaluations, and approval workflows</li>
+        <li>Manage awards, agreements, and post-award activities</li>
+        <li>Track project execution, reporting obligations, and compliance activities</li>
+        <li>Process reimbursement and financial review workflows</li>
+        <li>Generate notifications, dashboards, records, and audit history necessary for program administration</li>
+      </ul>
+      <p>GateNow is not designed to use customer data for advertising, unrelated profiling, or unrelated commercial exploitation of applicant information.</p>
+
+      <h2 id="storage">Storage and Processing Location</h2>
+      <p>GateNow operates within the Customer Organization's ServiceNow instance, where application information is stored. GateNow does not require a separate external application database as part of its standard architecture.</p>
+      <p>Any hosting, infrastructure, regional deployment, backup, resilience, and platform-level storage controls are governed by the Customer Organization's relationship with ServiceNow and the configuration of its ServiceNow environment.</p>
+
+      <h2 id="sharing">Sharing and Disclosure</h2>
+      <p>GateNow does not, as part of its standard functionality, sell, rent, or disclose customer information to third parties. Access to information processed through GateNow is limited to authorized users based on the Customer Organization's configured roles, permissions, and access controls.</p>
+      <p>Any external disclosure, export, regulatory submission, or sharing with third parties is determined and controlled by the Customer Organization. Information may also be disclosed where required by law, regulation, legal process, or valid governmental request, to the extent applicable to the Customer Organization or platform provider.</p>
+
+      <h2 id="security">Security</h2>
+      <p>GateNow relies on ServiceNow's security capabilities and supports secure application operation through standard platform controls, including role-based access controls, authentication and authorization mechanisms, encrypted transmission, and audit logging. The Customer Organization is responsible for configuring and maintaining appropriate administrative, technical, and organizational safeguards within its ServiceNow instance, including user provisioning, access policies, role assignments, authentication settings, and periodic access review.</p>
+
+      <h2 id="ownership">Data Ownership</h2>
+      <p>All information processed through GateNow remains the property and under the control of the Customer Organization. GateNow does not claim ownership of customer data, applicant submissions, supporting documents, or operational records created in connection with the application.</p>
+
+      <h2 id="retention">Data Retention</h2>
+      <p>Retention of information processed through GateNow is determined by the Customer Organization in accordance with applicable legal, regulatory, operational, and contractual requirements. GateNow does not impose independent retention periods unless specifically configured by the Customer Organization as part of its implementation. Customer Organizations should review retention obligations applicable to grant records, financial records, audit records, and personal data maintained within their Service Now environment.</p>
+
+      <h2 id="applicant">Applicant Privacy</h2>
+      <p>Applicants and other end users provide information directly to the Customer Organization through GateNow forms, portals, and workflows. The Customer Organization is responsible for providing any required privacy notices, obtaining consent where required, responding to data subject requests where applicable, and establishing a lawful basis for processing personal information under relevant privacy laws.</p>
+
+      <h2 id="compliance">Compliance</h2>
+      <p>GateNow is designed to operate within ServiceNow's governance and security framework. Compliance with laws and regulations such as GDPR, local privacy laws, records management rules, and grant-related obligations remains the responsibility of the Customer Organization in its use and configuration of the application.</p>
+
+      <h2 id="integrations">External Integrations</h2>
+      <p>The standard version of GateNow is intended to operate natively within the ServiceNow platform. If the Customer Organization enables external integrations, third-party services, APIs, outbound interfaces, or custom data exchanges, such capabilities may result in additional privacy, security, and compliance obligations beyond the standard scope of this Privacy Policy.</p>
+
+      <h2 id="changes">Changes to This Policy</h2>
+      <p>This Privacy Policy may be updated from time to time to reflect changes in the application, legal requirements, or information handling practices. The most current version should be made available through the appropriate customer communication or release documentation channel.</p>
+
+      <!-- Modern Support Contact Section -->
+      <div id="contact" class="gn-contact-section">
+        <h3>Support Contact</h3>
+        <p class="subtitle">For questions regarding this Privacy Policy or GateNow</p>
+        
+        <div class="gn-contact-cards">
+          
+          <!-- Phone Card -->
+          <div class="gn-contact-card-modern">
+            <div class="gn-contact-icon">&#128222;</div>
+            <h4>Phone</h4>
+            <span>(202) 800-6040 #2</span>
+          </div>
+
+          <!-- Email Card -->
+          <div class="gn-contact-card-modern">
+            <div class="gn-contact-icon">&#9993;</div>
+            <h4>Email</h4>
+            <a href="mailto:servicenow@enablenow.com">servicenow@enablenow.com</a>
+          </div>
+
+          <!-- Website Card -->
+          <div class="gn-contact-card-modern">
+            <div class="gn-contact-icon">&#127760;</div>
+            <h4>Website</h4>
+            <a href="https://www.enablenow.com" target="_blank" rel="noopener noreferrer">www.enablenow.com</a>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="gn-footer">
+    EnableNow, Inc. &#8212; 30 N Gould ST, STE R, Sheridan, Wyoming 82801<br/>
+    <a href="https://www.enablenow.com" target="_blank" rel="noopener noreferrer">www.enablenow.com</a>
+  </div>
+
+</div>
+
+</j:jelly>]]></html>
+        <name>Privacy Policy</name>
+        <processing_script/>
+        <sys_class_name>sys_ui_page</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-05-04 07:57:21</sys_created_on>
+        <sys_id>99c4470f93200710d444c9b877373c28</sys_id>
+        <sys_mod_count>13</sys_mod_count>
+        <sys_name>Privacy Policy</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ui_page_99c4470f93200710d444c9b877373c28</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-05-04 09:20:45</sys_updated_on>
+    </sys_ui_page>
+</record_update>

@@ -721,286 +721,278 @@ margin: 0;                /* ← remove auto centering */
         <public>false</public>
         <roles>x_enno_gatenow.grant_review_user</roles>
         <script><![CDATA[(function() {
-  data.found            = false;
-  data.success          = false;
-  data.error            = '';
-  data.submitted        = false;
-  data.last_reviewer    = false;
-  data.is_last_reviewer = false;
-
-  var userId = gs.getUserID();
-
-  // ── GET CURRENT USER'S GROUPS ──
-  var groups = [];
-  var grMem = new GlideRecordSecure('sys_user_grmember');
-  grMem.addQuery('user', userId);
-  grMem.query();
-  while (grMem.next()) {
-    groups.push(grMem.getValue('group'));
-  }
-
-  var sysId = $sp.getParameter('sys_id');
-  if (!sysId) return;
-
-  var gr = new GlideRecordSecure('x_enno_gatenow_grant_review');
-  if (!gr.get(sysId)) return;
-
-  // ── ACCESS GUARD (FIXED) ──
-  // Allow if: currently assigned group OR was part of reviewer list
-  var isCurrentlyAssigned = groups.indexOf(gr.getValue('review_group')) !== -1;
-
-  var reviewerRaw    = gr.getValue('reviewer') || '';
-  var isPartOfReview = false;
-  for (var g = 0; g < groups.length; g++) {
-    if (reviewerRaw.indexOf(groups[g]) !== -1) {
-      isPartOfReview = true;
-      break;
-    }
-  }
-
-  if (!isCurrentlyAssigned && !isPartOfReview) return;
-
-  // ── HANDLE ADD WORK NOTE ──
-  if (input && input.action === 'add_note' && input.form) {
-    if (input.form.comments) {
-      gr.work_notes = input.form.comments;
-      gr.update();
-    }
-    data.found   = true;
-    data.success = true;
-  }
-	// ── HANDLE REJECT ──
-if (input && input.action === 'reject_review') {
-  var currentStatus = (gr.getValue('status') || '').toString().trim();
-
-  if (currentStatus === 'Declined by Reviewer') {
-    data.found   = true;
+    data.found = false;
     data.success = false;
-    data.error   = 'This review has already been declined.';
-    return;
-  }
-  if (currentStatus === 'Review completed') {
-    data.found   = true;
-    data.success = false;
-    data.error   = 'Cannot decline a completed review.';
-    return;
-  }
+    data.error = '';
+    data.submitted = false;
+    data.last_reviewer = false;
+    data.is_last_reviewer = false;
 
-  gr.setValue('status', 'Declined by Reviewer');
-  gr.update();
-  data.found   = true;
-  data.success = true;
-  return;
-}
+    var userId = gs.getUserID();
 
-  // ── HANDLE SUBMIT ──
-  if (input && input.action === 'submit_review' && input.form) {
-    var f = input.form;
+    // ── GET CURRENT USER'S GROUPS ──
+    var userGroups = [];
+    var groupMemberGR = new GlideRecordSecure('sys_user_grmember');
+    groupMemberGR.addQuery('user', userId);
+    groupMemberGR.query();
+    while (groupMemberGR.next()) {
+        userGroups.push(groupMemberGR.getValue('group'));
+    }
 
-    // ── STEP 1: READ FULL GROUP LIST ──
-    var groupListRaw = gr.getValue('reviewer') || '';
-    var groupArray = groupListRaw.split(',').map(function(s) {
-      return s.trim();
+    var sysId = $sp.getParameter('sys_id');
+    if (!sysId) return;
+
+    var reviewRecordGR = new GlideRecordSecure('x_enno_gatenow_grant_review');
+    if (!reviewRecordGR.get(sysId)) return;
+
+    // ── ACCESS GUARD ──
+    var isCurrentlyAssigned = userGroups.indexOf(reviewRecordGR.getValue('review_group')) !== -1;
+    var reviewerRaw = reviewRecordGR.getValue('reviewer') || '';
+    var isPartOfReview = false;
+    
+    for (var g = 0; g < userGroups.length; g++) {
+        if (reviewerRaw.indexOf(userGroups[g]) !== -1) {
+            isPartOfReview = true;
+            break;
+        }
+    }
+
+    if (!isCurrentlyAssigned && !isPartOfReview) return;
+
+    // ── HANDLE ADD WORK NOTE ──
+    if (input && input.action === 'add_note' && input.form) {
+        if (input.form.comments) {
+            reviewRecordGR.work_notes = input.form.comments;
+            reviewRecordGR.update();
+        }
+        data.found = true;
+        data.success = true;
+    }
+
+    // ── HANDLE REJECT ──
+    if (input && input.action === 'reject_review') {
+        var currentStatus = (reviewRecordGR.getValue('status') || '').toString().trim();
+
+        if (currentStatus === 'Declined by Reviewer') {
+            data.found = true;
+            data.success = false;
+            data.error = 'This review has already been declined.';
+            return;
+        }
+        if (currentStatus === 'Review completed') {
+            data.found = true;
+            data.success = false;
+            data.error = 'Cannot decline a completed review.';
+            return;
+        }
+
+        reviewRecordGR.setValue('status', 'Declined by Reviewer');
+        reviewRecordGR.update();
+        data.found = true;
+        data.success = true;
+        return;
+    }
+
+    // ── HANDLE SUBMIT ──
+    if (input && input.action === 'submit_review' && input.form) {
+        var form = input.form;
+        var groupListRaw = reviewRecordGR.getValue('reviewer') || '';
+        var groupArray = groupListRaw.split(',').map(function(s) {
+            return s.trim();
+        }).filter(function(s) { return s !== ''; });
+
+        var currentGroupSysId = reviewRecordGR.getValue('review_group');
+        var currentIndex = groupArray.indexOf(currentGroupSysId);
+        var nextIndex = currentIndex + 1;
+
+        if (form.comments) reviewRecordGR.work_notes = form.comments;
+
+        if (currentIndex === -1 || nextIndex >= groupArray.length) {
+            // LAST GROUP
+            if (form.score) reviewRecordGR.setValue('score', parseInt(form.score, 10));
+            reviewRecordGR.setValue('status', 'Review completed');
+            reviewRecordGR.update();
+
+            data.found = true;
+            data.success = true;
+            data.submitted = true;
+            data.last_reviewer = true;
+        } else {
+            // NOT LAST — pass to next group
+            var nextGroupSysId = groupArray[nextIndex];
+            var nextGroupName = '';
+            var nextGroupLookupGR = new GlideRecordSecure('sys_user_group');
+            if (nextGroupLookupGR.get(nextGroupSysId)) {
+                nextGroupName = nextGroupLookupGR.getDisplayValue('name');
+            }
+
+            reviewRecordGR.setValue('review_group', nextGroupSysId);
+            reviewRecordGR.setValue('status', 'Review in progress');
+            reviewRecordGR.update();
+
+            data.found = true;
+            data.success = true;
+            data.submitted = true;
+            data.last_reviewer = false;
+            data.next_group = nextGroupName;
+        }
+    }
+
+    // ── CHECK STATUS ──
+    var currentReviewGroup = reviewRecordGR.getValue('review_group');
+    var currentReviewStatus = (reviewRecordGR.getValue('status') || '').toString().trim();
+
+    if (currentReviewStatus === 'Review completed' || userGroups.indexOf(currentReviewGroup) === -1) {
+        data.submitted = true;
+    }
+
+    // ── VISIBILITY CHECK ──
+    var fullReviewerListRaw = reviewRecordGR.getValue('reviewer') || '';
+    var fullReviewerArray = fullReviewerListRaw.split(',').map(function(s) {
+        return s.trim();
     }).filter(function(s) { return s !== ''; });
 
-    // ── STEP 2: FIND CURRENT INDEX ──
-    var currentGroupSysId = gr.getValue('review_group');
-    var currentIndex      = groupArray.indexOf(currentGroupSysId);
-    var nextIndex         = currentIndex + 1;
+    var lastGroupInList = fullReviewerArray.length > 0 ? fullReviewerArray[fullReviewerArray.length - 1] : '';
+    data.is_last_reviewer = (reviewRecordGR.getValue('review_group') === lastGroupInList) && 
+                            (userGroups.indexOf(reviewRecordGR.getValue('review_group')) !== -1);
 
-    // ── STEP 3: SAVE WORK NOTES (always); score only for last group ──
-    if (f.comments) gr.work_notes = f.comments;
+    // ── LOAD APPLICANT INFO ──
+    var applicantId = reviewRecordGR.getValue('applicant');
+    var applicantData = {};
+    if (applicantId) {
+        var applicantGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+        if (applicantGR.get(applicantId)) {
+            applicantData.number = applicantGR.getValue('number') || '';
+            applicantData.first_name = applicantGR.getValue('first_name') || '';
+            applicantData.middle_name = applicantGR.getValue('middle_name') || '';
+            applicantData.last_name = applicantGR.getValue('last_name') || '';
+            applicantData.email = applicantGR.getValue('email') || '';
+            applicantData.phone = applicantGR.getValue('phone_number') || '';
+            applicantData.gender = applicantGR.getDisplayValue('gender') || '';
+            applicantData.dob = applicantGR.getDisplayValue('birthdate') || '';
+            applicantData.marital_status = applicantGR.getDisplayValue('marital_status') || '';
+            applicantData.race = applicantGR.getDisplayValue('race') || '';
+            applicantData.ethnicity = applicantGR.getDisplayValue('ethnicity') || '';
+            applicantData.education = applicantGR.getDisplayValue('education_level') || '';
+            applicantData.military_status = applicantGR.getDisplayValue('military_status') || '';
+            applicantData.applicant_type = applicantGR.getDisplayValue('applicant_type') || '';
+            applicantData.tribal = applicantGR.getDisplayValue('tribal_affiliation') || '';
+            applicantData.citizenship = applicantGR.getDisplayValue('citizenship_status') || '';
+            applicantData.identity_type = applicantGR.getDisplayValue('identity_type') || '';
+            applicantData.disability = applicantGR.getDisplayValue('disability_status') || '';
+            applicantData.ssn = applicantGR.getValue('ssn') || '';
+            applicantData.tin = applicantGR.getValue('tin_ein') || '';
+            applicantData.uei = applicantGR.getValue('uei') || '';
+            applicantData.street = applicantGR.getValue('street') || '';
+            applicantData.city = applicantGR.getValue('city') || '';
+            applicantData.country = applicantGR.getValue('country') || '';
+            applicantData.zip = applicantGR.getValue('zip_postal_code') || '';
+            applicantData.organization = applicantGR.getValue('organization') || '';
+            applicantData.program_category = applicantGR.getDisplayValue('program_category') || '';
+            applicantData.requested_budget = applicantGR.getDisplayValue('requested_budget') || '';
+            applicantData.short_desc = applicantGR.getValue('short_description') || '';
+            applicantData.proposal_desc = applicantGR.getValue('proposal_description') || '';
+            applicantData.goals = applicantGR.getValue('project_goals_and_objectives') || '';
+            applicantData.methodology = applicantGR.getValue('project_activities_methodology') || '';
+            applicantData.project_start = applicantGR.getDisplayValue('project_start_date') || '';
+            applicantData.project_end = applicantGR.getDisplayValue('project_end_date') || '';
+            applicantData.submission_date = applicantGR.getDisplayValue('submission_date') || '';
+            applicantData.state = applicantGR.getDisplayValue('state') || '';
 
-    if (currentIndex === -1 || nextIndex >= groupArray.length) {
-      // ── LAST GROUP — save score + complete ──
-      if (f.score) gr.setValue('score', parseInt(f.score, 10));
-      gr.setValue('status', 'Review completed');
-      gr.update();
-
-      data.found         = true;
-      data.success       = true;
-      data.submitted     = true;
-      data.last_reviewer = true;
-
-    } else {
-      // ── NOT LAST — pass to next group ──
-      var nextGroupSysId = groupArray[nextIndex];
-      var nextGroupName  = '';
-      var grpGr = new GlideRecordSecure('sys_user_group');
-      if (grpGr.get(nextGroupSysId)) {
-        nextGroupName = grpGr.getDisplayValue('name');
-      }
-
-      gr.setValue('review_group', nextGroupSysId);
-      gr.setValue('status', 'Review in progress');
-      gr.update();
-
-      data.found         = true;
-      data.success       = true;
-      data.submitted     = true;
-      data.last_reviewer = false;
-      data.next_group    = nextGroupName;
+            var appDocs = [];
+            var appAttachmentGR = new GlideRecordSecure('sys_attachment');
+            appAttachmentGR.addQuery('table_name', 'x_enno_gatenow_service_applicants');
+            appAttachmentGR.addQuery('table_sys_id', applicantGR.getUniqueValue());
+            appAttachmentGR.query();
+            while (appAttachmentGR.next()) {
+                appDocs.push({
+                    name: appAttachmentGR.getValue('file_name'),
+                    size: appAttachmentGR.getValue('size_bytes'),
+                    sys_id: appAttachmentGR.getValue('sys_id'),
+                    url: '/sys_attachment.do?sys_id=' + appAttachmentGR.getValue('sys_id')
+                });
+            }
+            applicantData.documents = appDocs;
+        }
     }
-  }
 
-  // ── CHECK STATUS ──
-  var currentReviewGroup = gr.getValue('review_group');
-  var currentStatus = (gr.getValue('status') || '').toString().trim();
+    // ── LOAD PROGRAM INFO ──
+    var programId = reviewRecordGR.getValue('program');
+    var programData = {};
+    if (programId) {
+        var programGR = new GlideRecordSecure('x_enno_gatenow_grant_program');
+        if (programGR.get(programId)) {
+            programData.name = programGR.getDisplayValue('program_name') || '';
+            programData.number = programGR.getValue('number') || '';
+            programData.start_date = programGR.getDisplayValue('start_date') || '';
+            programData.category = programGR.getDisplayValue('category') || '';
+            programData.end_date = programGR.getDisplayValue('end_date') || '';
+            programData.status = programGR.getDisplayValue('status') || '';
+            programData.budget = programGR.getDisplayValue('program_budget') || '';
+            programData.description = programGR.getValue('program_description') || '';
+            programData.synopsis = programGR.getValue('synopsis') || '';
+            programData.terms = programGR.getValue('terms_and_conditions') || '';
+            programData.eligibility = programGR.getValue('eligibility_summary') || '';
+            programData.summary_statement = programGR.getValue('summary_statement') || '';
 
-  if (currentStatus === 'Review completed') {
-    data.submitted = true;
-  } else if (groups.indexOf(currentReviewGroup) === -1) {
-    data.submitted = true;
-  }
+            var progDocs = [];
+            var progAttachmentGR = new GlideRecordSecure('sys_attachment');
+            progAttachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_program');
+            progAttachmentGR.addQuery('table_sys_id', programGR.getUniqueValue());
+            progAttachmentGR.query();
+            while (progAttachmentGR.next()) {
+                progDocs.push({
+                    name: progAttachmentGR.getValue('file_name'),
+                    size: progAttachmentGR.getValue('size_bytes'),
+                    sys_id: progAttachmentGR.getValue('sys_id'),
+                    url: '/sys_attachment.do?sys_id=' + progAttachmentGR.getValue('sys_id')
+                });
+            }
+            programData.documents = progDocs;
+        }
+    }
 
-  // ── VISIBILITY: IS CURRENT USER THE LAST REVIEWER? ──
-  var reviewerListRaw = gr.getValue('reviewer') || '';
-  var reviewerArray   = reviewerListRaw.split(',').map(function(s) {
-    return s.trim();
-  }).filter(function(s) { return s !== ''; });
-
-  var lastGroupSysId    = reviewerArray.length > 0 ? reviewerArray[reviewerArray.length - 1] : '';
-  data.is_last_reviewer = (gr.getValue('review_group') === lastGroupSysId)
-                        && (groups.indexOf(gr.getValue('review_group')) !== -1);
-
-  // ── LOAD APPLICANT INFO ──
-  var applicantSysId = gr.getValue('applicant');
-  var applicant = {};
-  if (applicantSysId) {
-    var appGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-    if (appGr.get(applicantSysId)) {
-      applicant.number           = appGr.getValue('number')                         || '';
-      applicant.first_name       = appGr.getValue('first_name')                     || '';
-      applicant.middle_name      = appGr.getValue('middle_name')                    || '';
-      applicant.last_name        = appGr.getValue('last_name')                      || '';
-      applicant.email            = appGr.getValue('email')                          || '';
-      applicant.phone            = appGr.getValue('phone_number')                   || '';
-      applicant.gender           = appGr.getDisplayValue('gender')                  || '';
-      applicant.dob              = appGr.getDisplayValue('birthdate')               || '';
-      applicant.marital_status   = appGr.getDisplayValue('marital_status')          || '';
-      applicant.race             = appGr.getDisplayValue('race')                    || '';
-      applicant.ethnicity        = appGr.getDisplayValue('ethnicity')               || '';
-      applicant.education        = appGr.getDisplayValue('education_level')         || '';
-      applicant.military_status  = appGr.getDisplayValue('military_status')         || '';
-      applicant.applicant_type   = appGr.getDisplayValue('applicant_type')          || '';
-      applicant.tribal           = appGr.getDisplayValue('tribal_affiliation')      || '';
-      applicant.citizenship      = appGr.getDisplayValue('citizenship_status')      || '';
-      applicant.identity_type    = appGr.getDisplayValue('identity_type')           || '';
-      applicant.disability       = appGr.getDisplayValue('disability_status')       || '';
-      applicant.ssn              = appGr.getValue('ssn')                            || '';
-      applicant.tin              = appGr.getValue('tin_ein')                        || '';
-      applicant.uei              = appGr.getValue('uei')                            || '';
-      applicant.street           = appGr.getValue('street')                         || '';
-      applicant.city             = appGr.getValue('city')                           || '';
-      applicant.country          = appGr.getValue('country')                        || '';
-      applicant.zip              = appGr.getValue('zip_postal_code')                || '';
-      applicant.organization     = appGr.getValue('organization')                   || '';
-      applicant.program_category = appGr.getDisplayValue('program_category')        || '';
-      applicant.requested_budget = appGr.getDisplayValue('requested_budget')        || '';
-      applicant.short_desc       = appGr.getValue('short_description')              || '';
-      applicant.proposal_desc    = appGr.getValue('proposal_description')           || '';
-      applicant.goals            = appGr.getValue('project_goals_and_objectives')   || '';
-      applicant.methodology      = appGr.getValue('project_activities_methodology') || '';
-      applicant.project_start    = appGr.getDisplayValue('project_start_date')      || '';
-      applicant.project_end      = appGr.getDisplayValue('project_end_date')        || '';
-      applicant.submission_date  = appGr.getDisplayValue('submission_date')         || '';
-      applicant.state            = appGr.getDisplayValue('state')                   || '';
-
-      var appDocs  = [];
-      var appAttGr = new GlideRecordSecure('sys_attachment');
-      appAttGr.addQuery('table_name', 'x_enno_gatenow_service_applicants');
-      appAttGr.addQuery('table_sys_id', appGr.getUniqueValue());
-      appAttGr.query();
-      while (appAttGr.next()) {
-        appDocs.push({
-          name:   appAttGr.getValue('file_name'),
-          size:   appAttGr.getValue('size_bytes'),
-          sys_id: appAttGr.getValue('sys_id'),
-          url:    '/sys_attachment.do?sys_id=' + appAttGr.getValue('sys_id')
+    // ── LOAD WORK NOTES (Journal) ──
+    var workNotesHistory = [];
+    var journalGR = new GlideRecordSecure('sys_journal_field');
+    journalGR.addQuery('name', 'x_enno_gatenow_grant_review');
+    journalGR.addQuery('element', 'work_notes');
+    journalGR.addQuery('element_id', reviewRecordGR.getUniqueValue());
+    journalGR.orderByDesc('sys_created_on');
+    journalGR.query();
+    while (journalGR.next()) {
+        workNotesHistory.push({
+            value: journalGR.getValue('value'),
+            created: journalGR.getDisplayValue('sys_created_on'),
+            user: journalGR.getDisplayValue('sys_created_by')
         });
-      }
-      applicant.documents = appDocs;
     }
-  }
 
-  // ── LOAD PROGRAM INFO ──
-  var programSysId = gr.getValue('program');
-  var program = {};
-  if (programSysId) {
-    var progGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-    if (progGr.get(programSysId)) {
-      program.name              = progGr.getDisplayValue('program_name')   || '';
-      program.number            = progGr.getValue('number')                || '';
-      program.start_date        = progGr.getDisplayValue('start_date')     || '';
-      program.category          = progGr.getDisplayValue('category')       || '';
-      program.end_date          = progGr.getDisplayValue('end_date')       || '';
-      program.status            = progGr.getDisplayValue('status')         || '';
-      program.budget            = progGr.getDisplayValue('program_budget') || '';
-      program.description       = progGr.getValue('program_description')   || '';
-      program.synopsis          = progGr.getValue('synopsis')              || '';
-      program.terms             = progGr.getValue('terms_and_conditions')  || '';
-      program.eligibility       = progGr.getValue('eligibility_summary')   || '';
-      program.summary_statement = progGr.getValue('summary_statement')     || '';
-
-      var progDocs  = [];
-      var progAttGr = new GlideRecordSecure('sys_attachment');
-      progAttGr.addQuery('table_name', 'x_enno_gatenow_grant_program');
-      progAttGr.addQuery('table_sys_id', progGr.getUniqueValue());
-      progAttGr.query();
-      while (progAttGr.next()) {
-        progDocs.push({
-          name:   progAttGr.getValue('file_name'),
-          size:   progAttGr.getValue('size_bytes'),
-          sys_id: progAttGr.getValue('sys_id'),
-          url:    '/sys_attachment.do?sys_id=' + progAttGr.getValue('sys_id')
-        });
-      }
-      program.documents = progDocs;
-    }
-  }
-
-  // ── LOAD WORK NOTES ──
-  var workNotesList = [];
-  var jrnlGr = new GlideRecordSecure('sys_journal_field');
-  jrnlGr.addQuery('name', 'x_enno_gatenow_grant_review');
-  jrnlGr.addQuery('element', 'work_notes');
-  jrnlGr.addQuery('element_id', gr.getUniqueValue());
-  jrnlGr.orderByDesc('sys_created_on');
-  jrnlGr.query();
-  while (jrnlGr.next()) {
-    workNotesList.push({
-      value:   jrnlGr.getValue('value'),
-      created: jrnlGr.getDisplayValue('sys_created_on'),
-      user:    jrnlGr.getDisplayValue('sys_created_by')
-    });
-  }
-
-  // ── FINAL DATA ──
-  data.found            = true;
-  data.sys_id           = gr.getUniqueValue();
-  data.number           = gr.getValue('number');
-  data.review_group = gr.getDisplayValue('review_group');
-  data.status           = gr.getDisplayValue('status');
-  data.score            = gr.getValue('score');
-  data.work_notes       = gr.getValue('work_notes') || '';
-  data.work_notes_list  = workNotesList;
-  data.applicant        = applicant;
-  data.program          = program;
-})();
-]]></script>
+    // ── FINAL DATA ASSIGNMENT ──
+    data.found = true;
+    data.sys_id = reviewRecordGR.getUniqueValue();
+    data.number = reviewRecordGR.getValue('number');
+    data.review_group = reviewRecordGR.getDisplayValue('review_group');
+    data.status = reviewRecordGR.getDisplayValue('status');
+    data.score = reviewRecordGR.getValue('score');
+    data.work_notes = reviewRecordGR.getValue('work_notes') || '';
+    data.work_notes_list = workNotesHistory;
+    data.applicant = applicantData;
+    data.program = programData;
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 10:17:06</sys_created_on>
         <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
-        <sys_mod_count>96</sys_mod_count>
+        <sys_mod_count>97</sys_mod_count>
         <sys_name>Review Proposal Detail</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-04-15 10:30:33</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-30 07:35:54</sys_updated_on>
         <template><![CDATA[<!-- ACCESS DENIED -->
 <div class="rp-denied" ng-if="!data.found">
   <div class="rp-denied__box">

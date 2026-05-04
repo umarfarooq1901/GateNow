@@ -864,58 +864,59 @@
         <name>Opportunities Widget</name>
         <option_schema/>
         <public>false</public>
-        <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
-  data.programs     = [];
-  data.categoryList = [];
-  data.activePrograms = 0;
-  data.totalPrograms  = 0;
-  data.categories     = 0;
+        <roles>x_enno_gatenow.service_applicant_user,snc_external</roles>
+        <script><![CDATA[(function () {
+    data.programs        = [];
+    data.categoryList    = [];
+    data.activePrograms  = 0;
+    data.totalPrograms   = 0;
+    data.categories      = 0;
 
-  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-  gr.addQuery('active', true);
-	gr.addQuery('status', 'accepting_proposals');
-  gr.orderByDesc('sys_created_on');
-  gr.query();
+    // Descriptive GlideRecord name – reflects the table being queried
+    var grantProgramGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+    grantProgramGr.addQuery('active', true);
+    grantProgramGr.addQuery('status', 'accepting_proposals');
+    grantProgramGr.orderByDesc('sys_created_on');
+    grantProgramGr.query();
 
-  var catSet = {};
+    var catSet = {};
 
-  while (gr.next()) {
-    var cat = gr.getDisplayValue('category') || ''; // ← confirm this exact field name in your table
+    while (grantProgramGr.next()) {
+        var cat = grantProgramGr.getDisplayValue('category') || ''; // ← confirm field name
 
-    data.programs.push({
-      sys_id:              gr.getUniqueValue(),
-      program_name:        gr.getDisplayValue('program_name'),
-      program_description: gr.getDisplayValue('program_description'),
-      program_category:    cat,                              // ← must match what filter compares
-      program_budget:      gr.getDisplayValue('program_budget'),
-      proposal_open_date:  gr.getDisplayValue('proposal_open_date'),
-      status:              gr.getDisplayValue('status')
-    });
+        data.programs.push({
+            sys_id:             grantProgramGr.getUniqueValue(),
+            program_name:       grantProgramGr.getDisplayValue('program_name'),
+            program_description: grantProgramGr.getDisplayValue('program_description'),
+            program_category:   cat,                                     // ← must match filter comparison
+            program_budget:     grantProgramGr.getDisplayValue('program_budget'),
+            proposal_open_date: grantProgramGr.getDisplayValue('proposal_open_date'),
+            status:             grantProgramGr.getDisplayValue('status')
+        });
 
-    if (cat) catSet[cat] = true;
-  }
+        if (cat) catSet[cat] = true;
+    }
 
-  data.totalPrograms  = data.programs.length;
-  data.activePrograms = data.programs.length;
-  data.categoryList   = Object.keys(catSet).sort();         // ← drives the filter tab buttons
-  data.categories     = data.categoryList.length;
-})();
-]]></script>
+    data.totalPrograms   = data.programs.length;
+    data.activePrograms  = data.programs.length;
+    data.categoryList    = Object.keys(catSet).sort(); // ← drives filter tab buttons
+    data.categories      = data.categoryList.length;
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 07:53:14</sys_created_on>
         <sys_id>4d6dabee2f437650d2a0d68fcea4e3d6</sys_id>
-        <sys_mod_count>55</sys_mod_count>
+        <sys_mod_count>62</sys_mod_count>
         <sys_name>Opportunities Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4d6dabee2f437650d2a0d68fcea4e3d6</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2026-04-17 11:26:29</sys_updated_on>
-        <template><![CDATA[<div class="gp-programs-wrapper">
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 11:57:37</sys_updated_on>
+        <template><![CDATA[
+<div class="gp-programs-wrapper">
 
   <!-- HERO -->
   <div class="gp-hero">

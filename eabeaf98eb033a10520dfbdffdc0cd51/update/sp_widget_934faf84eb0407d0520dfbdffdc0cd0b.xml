@@ -436,42 +436,42 @@
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
+        <script><![CDATA[(function () {
     // Allows instance-independent dynamic linking (set 'detail_page_id' in Widget Options)
-    data.detail_page = options.detail_page_id || 'my_award_detail'; 
-    data.sideBar = $sp.getWidget('sidebar_dashboard');
-    
+    data.detail_page = options.detail_page_id || 'my_award_detail';
+    data.sideBar     = $sp.getWidget('sidebar_dashboard');
+
     var currentUser = gs.getUserID();
     data.awards = [];
 
     /* --- 1. IDENTIFY THE APPLICANT --- */
     var applicantIds = [];
-    var applGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-    applGR.addQuery('user', currentUser);
-    applGR.query();
-    while (applGR.next()) {
-        applicantIds.push(applGR.getUniqueValue());
+    var applicantGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    applicantGr.addQuery('user', currentUser);
+    applicantGr.query();
+    while (applicantGr.next()) {
+        applicantIds.push(applicantGr.getUniqueValue());
     }
 
     /* --- 2. FETCH AWARD DATA (Lightweight for List View) --- */
     if (applicantIds.length > 0) {
-        var gr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-gr.addQuery('applicant_response', 'IN', 'Pending,Acknowledged,Rejected');
-        gr.addQuery('applicant', 'IN', applicantIds.join(','));
-        gr.orderByDesc('sys_created_on');
-        gr.query();
+        var awardGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+        awardGr.addQuery('applicant_response', 'IN', 'Pending,Acknowledged,Rejected');
+        awardGr.addQuery('applicant', 'IN', applicantIds.join(','));
+        awardGr.orderByDesc('sys_created_on');
+        awardGr.query();
 
-        while (gr.next()) {
+        while (awardGr.next()) {
             data.awards.push({
-                sys_id:                     gr.getUniqueValue(),
-                number:                     gr.getDisplayValue('number'),
-                program_name:               gr.getDisplayValue('program_name'),
-                award_start_date:           gr.getDisplayValue('award_start_date'),
-                award_end_date:             gr.getDisplayValue('award_end_date'),
-                award_amount:               parseFloat(gr.getValue('build_grant_amount') || 0),
-                applicant_response:         String(gr.getValue('applicant_response') || '').toLowerCase(),
-                applicant_response_display: gr.getDisplayValue('applicant_response'),
-                grant_program_id:           gr.getDisplayValue('grant_program')
+                sys_id:             awardGr.getUniqueValue(),
+                number:             awardGr.getDisplayValue('number'),
+                program_name:       awardGr.getDisplayValue('program_name'),
+                award_start_date:   awardGr.getDisplayValue('award_start_date'),
+                award_end_date:     awardGr.getDisplayValue('award_end_date'),
+                award_amount:       parseFloat(awardGr.getValue('build_grant_amount') || 0),
+                applicant_response: String(awardGr.getValue('applicant_response') || ''),
+                applicant_response_display: awardGr.getDisplayValue('applicant_response'),
+                grant_program_id:   awardGr.getDisplayValue('grant_program')
             });
         }
     }
@@ -481,14 +481,14 @@ gr.addQuery('applicant_response', 'IN', 'Pending,Acknowledged,Rejected');
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-31 06:38:43</sys_created_on>
         <sys_id>934faf84eb0407d0520dfbdffdc0cd0b</sys_id>
-        <sys_mod_count>18</sys_mod_count>
+        <sys_mod_count>23</sys_mod_count>
         <sys_name>My Award List</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_934faf84eb0407d0520dfbdffdc0cd0b</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-17 09:47:06</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 11:49:51</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>

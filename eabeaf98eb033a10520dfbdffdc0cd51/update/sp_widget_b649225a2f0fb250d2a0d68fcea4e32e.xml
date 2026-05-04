@@ -466,41 +466,43 @@
         <public>true</public>
         <roles/>
         <script><![CDATA[(function() {
-  data.programs = [];
-  data.error    = null;
+    data.programs = [];
+    data.error    = null;
 
-  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-  gr.addQuery('active', true);
-  gr.addQuery('status', 'Published');
-  gr.orderBy('proposal_open_date');
-  gr.setLimit(50);  
-  gr.query();
+    var publishedProgramsGR = new GlideRecordSecure('x_enno_gatenow_grant_program');
+    publishedProgramsGR.addQuery('active', true);
+    publishedProgramsGR.addQuery('status', 'Published');
+    publishedProgramsGR.orderBy('proposal_open_date');
+    
+    // Best practice: Limits are excellent for performance on list widgets
+    publishedProgramsGR.setLimit(50);  
+    publishedProgramsGR.query();
 
-  while (gr.next()) {
-    data.programs.push({
-      sys_id:      gr.getUniqueValue(),
-      program_name: gr.getDisplayValue('program_name'),
-      category:    gr.getDisplayValue('category'),
-      description: gr.getDisplayValue('description'),
-      open_date:   gr.getDisplayValue('proposal_open_date'),
-      budget:      gr.getDisplayValue('program_budget'),
-      status:      gr.getDisplayValue('status')
-    });
-  }
+    while (publishedProgramsGR.next()) {
+        data.programs.push({
+            sys_id:       publishedProgramsGR.getUniqueValue(),
+            program_name: publishedProgramsGR.getDisplayValue('program_name'),
+            category:     publishedProgramsGR.getDisplayValue('category'),
+            description:  publishedProgramsGR.getDisplayValue('description'),
+            open_date:    publishedProgramsGR.getDisplayValue('proposal_open_date'),
+            budget:       publishedProgramsGR.getDisplayValue('program_budget'),
+            status:       publishedProgramsGR.getDisplayValue('status')
+        });
+    }
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-16 08:17:01</sys_created_on>
         <sys_id>b649225a2f0fb250d2a0d68fcea4e32e</sys_id>
-        <sys_mod_count>23</sys_mod_count>
+        <sys_mod_count>25</sys_mod_count>
         <sys_name>Upcoming Published Programs</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b649225a2f0fb250d2a0d68fcea4e32e</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-04-04 10:47:52</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 10:53:54</sys_updated_on>
         <template><![CDATA[<section class="gp-section">
   <div class="gp-inner">
 

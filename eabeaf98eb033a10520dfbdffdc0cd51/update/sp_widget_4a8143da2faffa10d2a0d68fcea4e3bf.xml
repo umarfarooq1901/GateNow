@@ -11,24 +11,20 @@
     c.submittedReports = [];
     c.changeRequests = [];
     c.risks = [];
-	c.issues = []; // Add this near c.risks = [];
-	c.uploading = false;
+    c.issues = []; 
+    c.uploading = false;
     c.progress = 0;
-	c.baselineFile = null;
-	c.statusFile = null;
-	c.changeFile = null;
+    c.baselineFile = null;
+    c.statusFile = null;
+    c.changeFile = null;
     
-    // REIMBURSEMENT: Initialize object for auto-calculations
     c.reimbursement = {
         line_a: 0, line_b: 0, line_c: 0, 
         line_d: 0, line_e: 0, line_f: 0, 
         line_g: 0, line_h: 0, line_i: 0
     };
-    
-    // Capture Reimbursement History
+    c.reimbursementFile = null;
     c.reimbursementHistory = [];
-    
-    // Initialize Baseline specific arrays and flags
     c.baselineHistory = [];
     c.baselineSubmitted = false;
     
@@ -37,7 +33,6 @@
     c.submitting = false;
     c.newComment = '';
     
-    // Initialize form objects with their specific report_status
     c.baselineReport = { report_status: 'baseline_report' };
     c.statusReport = { report_status: 'monthly_report' };
     c.changeRequest = {};
@@ -49,7 +44,7 @@
 
     c.loadData = function() {
         c.loading = true;
-        var sysId = $location.search().sys_id;
+        var sysId = $location.search()['sys_id']; 
         
         c.server.get({
             action: 'get_details',
@@ -62,7 +57,7 @@
                 c.submittedReports = r.data.submittedReports || []; 
                 c.changeRequests = r.data.changeRequests || [];
                 c.risks = r.data.risks || [];
-							c.issues = r.data.issues || []; // Add this near c.risks = r.data.risks || [];
+                c.issues = r.data.issues || []; 
                 c.error = r.data.error;
 
                 c.baselineHistory = r.data.baselineHistory || [];
@@ -93,7 +88,7 @@
         c.server.get({
             action: 'postComment',
             comment: c.newComment,
-            sys_id: c.project.sys_id
+            sys_id: c.project['sys_id']
         }).then(function(r) {
             c.comments = r.data.comments || [];
             c.newComment = '';
@@ -109,19 +104,17 @@
         c.server.get({
             action: 'postRiskWorkNote',
             work_note: c.newRiskWorkNote,
-            risk_sys_id: c.selectedRisk.sys_id, 
-            project_sys_id: c.project.sys_id
+            risk_sys_id: c.selectedRisk['sys_id'],
+            project_sys_id: c.project['sys_id']
         }).then(function(r) {
             c.submitting = false;
             c.newRiskWorkNote = ''; 
             
             if (r.data.updatedRiskActivities) {
-                // 1. Updates the modal you are looking at
                 c.selectedRisk.activities = r.data.updatedRiskActivities;
                 
-                // 2. THIS LOOP WAS MISSING: Updates the background list so it remembers!
                 for (var i = 0; i < c.risks.length; i++) { 
-                    if (c.risks[i].sys_id === c.selectedRisk.sys_id) {
+                    if (c.risks[i]['sys_id'] === c.selectedRisk['sys_id']) { 
                         c.risks[i].activities = r.data.updatedRiskActivities;
                         break;
                     }
@@ -131,27 +124,24 @@
         });
     };
 
-    // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST POST FUNCTION ]]>🟢
-<![CDATA[   c.postChangeWorkNote = function() {
+    c.postChangeWorkNote = function() {
         if (!c.newChangeWorkNote) return; 
 
         c.submitting = true;
         c.server.get({
             action: 'postChangeWorkNote',
             work_note: c.newChangeWorkNote,
-            change_sys_id: c.selectedChange.sys_id, 
-            project_sys_id: c.project.sys_id
+            change_sys_id: c.selectedChange['sys_id'],
+            project_sys_id: c.project['sys_id']
         }).then(function(r) {
             c.submitting = false;
-            c.newChangeWorkNote = ''; // Clear the input box
+            c.newChangeWorkNote = ''; 
             
             if (r.data.updatedChangeActivities) {
-                // 1. Updates the modal you are looking at
                 c.selectedChange.activities = r.data.updatedChangeActivities;
                 
-                // 2. THIS LOOP WAS MISSING: Updates the background list so it remembers!
                 for (var i = 0; i < c.changeRequests.length; i++) {
-                    if (c.changeRequests[i].sys_id === c.selectedChange.sys_id) {
+                    if (c.changeRequests[i]['sys_id'] === c.selectedChange['sys_id']) { 
                         c.changeRequests[i].activities = r.data.updatedChangeActivities;
                         break;
                     }
@@ -160,28 +150,25 @@
             spUtil.addInfoMessage("Work note posted to change request.");
         });
     };
-	
-	
-	c.postIssueWorkNote = function() {
+    
+    c.postIssueWorkNote = function() {
         if (!c.newIssueWorkNote) return;
         
         c.submitting = true;
         c.server.get({
             action: 'postIssueWorkNote',
             work_note: c.newIssueWorkNote,
-            issue_sys_id: c.selectedIssue.sys_id, 
-            project_sys_id: c.project.sys_id
+            issue_sys_id: c.selectedIssue['sys_id'],
+            project_sys_id: c.project['sys_id']
         }).then(function(r) {
             c.submitting = false;
-            c.newIssueWorkNote = ''; // Clear the input
+            c.newIssueWorkNote = ''; 
             
             if (r.data.updatedIssueActivities) {
-                // 1. Updates the modal you are looking at
                 c.selectedIssue.activities = r.data.updatedIssueActivities;
                 
-                // 2. THIS LOOP WAS MISSING: Updates the background list so it remembers!
                 for (var i = 0; i < c.issues.length; i++) {
-                    if (c.issues[i].sys_id === c.selectedIssue.sys_id) {
+                    if (c.issues[i]['sys_id'] === c.selectedIssue['sys_id']) { 
                         c.issues[i].activities = r.data.updatedIssueActivities;
                         break;
                     }
@@ -191,27 +178,9 @@
         });
     };
     
-    c.submitBaselineReport = function() {
-        c.submitting = true;
-        c.server.get({
-            action: 'submitBaselineReport',
-            report: c.baselineReport,
-            sys_id: c.project.sys_id
-        }).then(function(r) {
-            c.submitting = false;
-            if (r.data.success) {
-                c.baselineSubmitted = true;
-                if (r.data.baselineHistory) {
-                    c.baselineHistory = r.data.baselineHistory;
-                } else {
-                    c.loadData(); 
-                }
-                spUtil.addInfoMessage("Baseline report submitted successfully and is now locked.");
-            }
-        });
-    };
-
-   // 1. Capture the file when selected
+    // ==========================================
+    // STATUS REPORT SUBMISSION
+    // ==========================================
     c.onStatusFileSelect = function(inputElement) {
         if (inputElement.files && inputElement.files.length > 0) {
             c.statusFile = inputElement.files[0];
@@ -219,23 +188,20 @@
         }
     };
 
-    // 2. Remove the file if user clicks trash icon
     c.removeStatusFile = function() {
         c.statusFile = null;
     };
 
-    // 3. Submit the report and upload the file
     c.submitStatusReport = function() {
         c.submitting = true;
         c.server.get({
             action: 'submitStatusReport',
             report: c.statusReport,
-            sys_id: c.project.sys_id
+            sys_id: c.project['sys_id']
         }).then(function(r) {
             if (r.data.success) {
-                var newRecordSysId = r.data.new_status_id; // Returned from Server Script
+                var newRecordSysId = r.data.new_status_id; 
 
-                // If a file is staged, upload it
                 if (c.statusFile && newRecordSysId) {
                     var formData = new FormData();
                     formData.append('table_name', 'project_status');
@@ -264,22 +230,20 @@
         });
     };
 
-    // 4. Helper to refresh UI after submission
-   // 4. Helper to refresh UI after submission
     c.finishStatusSuccess = function() {
         c.submitting = false;
-        c.statusFile = null; // Clear the staged file
-        c.statusReport = { report_status: 'monthly_report' }; // Reset the form
+        c.statusFile = null; 
+        c.statusReport = { report_status: 'monthly_report' }; 
         
-        
-
-        // THE FIX: Switch to the reports tab, wait 1.5 seconds, then load fresh data
         $timeout(function() {
             c.activeTab = 'reports'; 
-            c.loadData(); // This pulls the latest records AND their new attachments
+            c.loadData(); 
         }, 1500);
     };
-    // 1. Capture the file when selected
+
+    // ==========================================
+    // CHANGE REQUEST SUBMISSION
+    // ==========================================
     c.onChangeFileSelect = function(inputElement) {
         if (inputElement.files && inputElement.files.length > 0) {
             c.changeFile = inputElement.files[0];
@@ -287,26 +251,23 @@
         }
     };
 
-    // 2. Remove the file if user clicks trash icon
     c.removeChangeFile = function() {
         c.changeFile = null;
     };
 
-    // 3. Submit the change request and upload the file
     c.submitChangeRequest = function() {
         c.submitting = true;
         c.server.get({
             action: 'submitChangeRequest',
             change: c.changeRequest,
-            sys_id: c.project.sys_id
+            sys_id: c.project['sys_id']
         }).then(function(r) {
             if (r.data.success) {
-                var newRecordSysId = r.data.new_change_id; // Returned from Server Script
+                var newRecordSysId = r.data.new_change_id; 
 
-                // If a file is staged, upload it to the NEW project_change_request record
                 if (c.changeFile && newRecordSysId) {
                     var formData = new FormData();
-                    formData.append('table_name', 'project_change_request'); // <-- Target table
+                    formData.append('table_name', 'project_change_request'); 
                     formData.append('table_sys_id', newRecordSysId);
                     formData.append('file', c.changeFile);
 
@@ -332,17 +293,13 @@
         });
     };
 
-    // 4. Helper to clean up the UI
-   // 4. Helper to clean up the UI and refresh with the new attachment
     c.finishChangeSuccess = function() {
         c.submitting = false;
-        c.changeFile = null; // Clear the staged file from memory
-        c.changeRequest = {}; // Reset the form fields
+        c.changeFile = null; 
+        c.changeRequest = {}; 
         
         spUtil.addInfoMessage("Change request and documents submitted successfully.");
 
-        // THE FIX: Wait 1.5 seconds for the attachment record to fully commit, 
-        // then force a fresh data load so the modal shows the download button.
         $timeout(function() {
             c.loadData();
         }, 1500);
@@ -351,13 +308,6 @@
     // ==========================================
     // REIMBURSEMENT MATH & SUBMISSION
     // ==========================================
-   // ==========================================
-    // REIMBURSEMENT MATH & SUBMISSION
-    // ==========================================
-    
-    // NEW: Variable to hold the file in memory before submitting
-    c.reimbursementFile = null;
-
     c.calculateReimbursement = function() {
         var a = c.reimbursement.line_a || 0;
         var b = c.reimbursement.line_b || 0;
@@ -371,7 +321,6 @@
         c.reimbursement.line_i = c.reimbursement.line_g - h;
     };
 
-    // NEW: Grabs the file when selected but doesn't upload yet
     c.onReimbursementFileSelect = function(inputElement) {
         if (inputElement.files && inputElement.files.length > 0) {
             c.reimbursementFile = inputElement.files[0];
@@ -379,90 +328,27 @@
         }
     };
 
-    // NEW: Removes the file if the user changes their mind
     c.removeReimbursementFile = function() {
         c.reimbursementFile = null;
     };
 
-    // UPDATED: Creates the record first, THEN uploads the file
     c.submitReimbursement = function() {
         c.submitting = true;
         var requestPayload = {
             action: 'submit_reimbursement_form',
             reimbursementData: c.reimbursement,
-            project_id: c.project.sys_id 
-        };
-			
-			
-			
-
-        // 1. Create the record in ServiceNow
-        c.server.get(requestPayload).then(function(response) {
-            if (response.data.success) {
-                c.successRefNumber = response.data.new_record_number || '';
-                var newRecordSysId = response.data.new_record_sys_id; // Your Server Script MUST return this!
-
-                // 2. If a file was attached AND we have the new record's sys_id, upload it
-                if (c.reimbursementFile && newRecordSysId) {
-                    var formData = new FormData();
-                    formData.append('table_name', 'x_enno_gatenow_reimbursement'); // <-- IMPORTANT: Change this to your actual table name (e.g., x_enno_gatenow_reimbursement)
-                    formData.append('table_sys_id', newRecordSysId);
-                    formData.append('file', c.reimbursementFile);
-
-                    $http({
-                        method: 'POST',
-                        url: '/api/now/attachment/upload',
-                        headers: { 'Content-Type': undefined },
-                        data: formData,
-                        transformRequest: angular.identity
-                    }).then(function(uploadRes) {
-                        // File uploaded successfully
-                        c.finishReimbursementSuccess();
-                    }, function(uploadErr) {
-                        // Record created, but file failed
-                        spUtil.addErrorMessage("Reimbursement created, but the attachment failed to upload.");
-                        c.finishReimbursementSuccess();
-                        console.error("Attachment Error:", uploadErr);
-                    });
-                } else {
-                    // No file attached, just finish normally
-                    c.finishReimbursementSuccess();
-                }
-            } else {
-                c.submitting = false;
-                spUtil.addErrorMessage("There was an error submitting your request. Please try again.");
-            }
-        });
-    };
-c.submitReimbursement = function() {
-        c.submitting = true;
-        var requestPayload = {
-            action: 'submit_reimbursement_form',
-            reimbursementData: c.reimbursement,
-            project_id: c.project.sys_id 
+            project_id: c.project['sys_id']
         };
 
-        // 1. Create the record in ServiceNow
         c.server.get(requestPayload).then(function(response) {
-            
-            console.log("--- UPLOAD DEBUG TRACE ---");
-            console.log("1. Server Response:", response.data);
-
             if (response.data.success) {
                 c.successRefNumber = response.data.new_record_number || '';
                 var newRecordSysId = response.data.new_record_sys_id; 
 
-                console.log("2. New Record SysID:", newRecordSysId);
-                console.log("3. File in memory:", c.reimbursementFile);
-
-                // 2. Check if we have both a file and a sys_id
                 if (c.reimbursementFile && newRecordSysId) {
-                    console.log("4. Both exist! Starting API upload...");
-
                     var formData = new FormData();
                     formData.append('table_name', 'x_enno_gatenow_reimbursement'); 
                     formData.append('table_sys_id', newRecordSysId);
-                    // Officially documented parameter name is 'file'
                     formData.append('file', c.reimbursementFile); 
 
                     $http({
@@ -472,15 +358,13 @@ c.submitReimbursement = function() {
                         data: formData,
                         transformRequest: angular.identity
                     }).then(function(uploadRes) {
-                        console.log("5. API Upload Success!", uploadRes);
                         c.finishReimbursementSuccess();
                     }, function(uploadErr) {
-                        console.error("5. API Upload FAILED:", uploadErr);
-                        spUtil.addErrorMessage("Reimbursement created, but the attachment failed to upload (Check console for ACL errors).");
+                        console.error("API Upload FAILED:", uploadErr);
+                        spUtil.addErrorMessage("Reimbursement created, but the attachment failed to upload.");
                         c.finishReimbursementSuccess();
                     });
                 } else {
-                    console.log("4. Skipped upload (No file selected or SysID missing).");
                     c.finishReimbursementSuccess();
                 }
             } else {
@@ -489,13 +373,11 @@ c.submitReimbursement = function() {
             }
         });
     };
-	
-    // NEW: Helper function to clean up the UI after a successful submission
+    
     c.finishReimbursementSuccess = function() {
         c.submitting = false;
         c.showSuccessScreen = true;
         
-        // Clear the form and the staged file
         c.reimbursement = {
             line_a: 0, line_b: 0, line_c: 0, line_d: 0, line_e: 0, line_f: 0, line_g: 0, line_h: 0, line_i: 0
         };
@@ -507,92 +389,69 @@ c.submitReimbursement = function() {
             c.activeTab = 'reimbursement_history'; 
         }, 3000);
     };
-	
-	
-	
-	
-	
-	
-	
-	
-	// 1. Capture the file when selected
-c.onBaselineFileSelect = function(inputElement) {
-    if (inputElement.files && inputElement.files.length > 0) {
-        c.baselineFile = inputElement.files[0];
-        $scope.$applyAsync();
-    }
-};
-
-// 2. Remove the file if user clicks trash icon
-c.removeBaselineFile = function() {
-    c.baselineFile = null;
-};
-
-// 3. Update the submit function to handle the upload
-c.submitBaselineReport = function() {
-    if (!c.baselineReport.as_on || !c.baselineReport.percent_complete) {
-        spUtil.addErrorMessage("Please fill in all required fields.");
-        return;
-    }
-
-    c.submitting = true;
-    c.server.get({
-        action: 'submitBaselineReport',
-        report: c.baselineReport,
-        sys_id: c.project.sys_id
-    }).then(function(r) {
-        if (r.data.success) {
-            var newRecordSysId = r.data.new_baseline_id; // Returned from Server Script
-
-            // If a file is staged, upload it to the NEW project_status record
-            if (c.baselineFile && newRecordSysId) {
-                var formData = new FormData();
-                formData.append('table_name', 'project_status');
-                formData.append('table_sys_id', newRecordSysId);
-                formData.append('file', c.baselineFile);
-
-                $http({
-                    method: 'POST',
-                    url: '/api/now/attachment/upload',
-                    headers: { 'Content-Type': undefined },
-                    data: formData,
-                    transformRequest: angular.identity
-                }).then(function() {
-                    c.finishBaselineSuccess();
-                }, function() {
-                    spUtil.addErrorMessage("Report saved, but attachment failed.");
-                    c.finishBaselineSuccess();
-                });
-            } else {
-                c.finishBaselineSuccess();
-            }
+    
+    // ==========================================
+    // BASELINE REPORT SUBMISSION
+    // ==========================================
+    c.onBaselineFileSelect = function(inputElement) {
+        if (inputElement.files && inputElement.files.length > 0) {
+            c.baselineFile = inputElement.files[0];
+            $scope.$applyAsync();
         }
-    });
-};
+    };
 
-// Helper to refresh UI
-c.finishBaselineSuccess = function() {
-    c.submitting = false;
-    c.baselineFile = null;
-    c.baselineSubmitted = true;
-    spUtil.addInfoMessage("Baseline report and documents submitted.");
-    c.loadData(); // Refresh the list and read-only state
-};
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+    c.removeBaselineFile = function() {
+        c.baselineFile = null;
+    };
 
+    c.submitBaselineReport = function() {
+        if (!c.baselineReport.as_on || !c.baselineReport.percent_complete) {
+            spUtil.addErrorMessage("Please fill in all required fields.");
+            return;
+        }
+
+        c.submitting = true;
+        c.server.get({
+            action: 'submitBaselineReport',
+            report: c.baselineReport,
+            sys_id: c.project['sys_id']
+        }).then(function(r) {
+            if (r.data.success) {
+                var newRecordSysId = r.data.new_baseline_id; 
+
+                if (c.baselineFile && newRecordSysId) {
+                    var formData = new FormData();
+                    formData.append('table_name', 'project_status');
+                    formData.append('table_sys_id', newRecordSysId);
+                    formData.append('file', c.baselineFile);
+
+                    $http({
+                        method: 'POST',
+                        url: '/api/now/attachment/upload',
+                        headers: { 'Content-Type': undefined },
+                        data: formData,
+                        transformRequest: angular.identity
+                    }).then(function() {
+                        c.finishBaselineSuccess();
+                    }, function() {
+                        spUtil.addErrorMessage("Report saved, but attachment failed.");
+                        c.finishBaselineSuccess();
+                    });
+                } else {
+                    c.finishBaselineSuccess();
+                }
+            }
+        });
+    };
+
+    c.finishBaselineSuccess = function() {
+        c.submitting = false;
+        c.baselineFile = null;
+        c.baselineSubmitted = true;
+        spUtil.addInfoMessage("Baseline report and documents submitted.");
+        c.loadData(); 
+    };
+    
     /* --- 5. MODAL VIEWERS --- */
     c.viewReport = function(report) {
         c.selectedReport = angular.copy(report); 
@@ -624,11 +483,28 @@ c.finishBaselineSuccess = function() {
         c.selectedRisk = angular.copy(risk); 
         $('#riskModal').modal('show'); 
     };
+
     c.viewIssue = function(issue) {
         c.selectedIssue = angular.copy(issue); 
-        $('#issueModal').modal('show'); // Make sure you create an issueModal in your HTML later!
+        $('#issueModal').modal('show'); 
     };
+
     /* --- 6. UTILITIES --- */
+    
+    c.downloadAttachment = function(attachment) {
+        if (!attachment) return;
+        
+        // This will now catch the dual-mapped ID perfectly!
+        var targetId = attachment.record_id || attachment['sys_id'];
+        
+        if (targetId) {
+            var url = '/sys_attachment.do?sys_id=' + targetId;
+            $window.open(url, '_blank');
+        } else {
+            spUtil.addErrorMessage("Error: Could not locate the attachment ID.");
+        }
+    };
+
     c.formatCurrency = function(amount) {
         if (amount === undefined || amount === null || amount === '') return '$0.00';
         var cleanNumber = parseFloat(amount.toString().replace(/[^0-9.-]+/g,""));
@@ -644,32 +520,28 @@ c.finishBaselineSuccess = function() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-
     c.onFileSelect = function(inputElement) {
         var files = inputElement.files;
         if (!files || files.length === 0) return;
 
         var file = files[0];
         var targetTable = 'pm_project'; 
-        var targetSysId = c.project.sys_id;
+        var targetSysId = c.project['sys_id']; 
 
         if (!targetSysId) {
             spUtil.addErrorMessage("Cannot upload: Project ID not found. Please wait for the project to load.");
             return;
         }
 
-        // Start upload UI
         c.uploading = true;
         c.progress = 0;
         $scope.$applyAsync(); 
 
-        // Prepare data payload
         var formData = new FormData();
         formData.append('table_name', targetTable);
         formData.append('table_sys_id', targetSysId);
         formData.append('file', file);
 
-        // Call the REST API directly using $http
         $http({
             method: 'POST',
             url: '/api/now/attachment/upload',
@@ -685,16 +557,13 @@ c.finishBaselineSuccess = function() {
                 }
             }
         }).then(function(response) {
-            // Success
             c.uploading = false;
             spUtil.addInfoMessage("File uploaded successfully.");
-            inputElement.value = ''; // Clear the input so you can upload another
+            inputElement.value = ''; 
             
-            // Instantly refresh the data so the file appears in your grid!
             c.loadData(); 
 
         }, function(error) {
-            // Error
             c.uploading = false;
             spUtil.addErrorMessage("Upload failed. Please try again.");
             inputElement.value = ''; 
@@ -712,7 +581,6 @@ c.finishBaselineSuccess = function() {
         return stateMap[state] || 'label-default';
     };
 
-    // URL PARAM HANDLING
     var urlParams = $location.search();
     if (urlParams.tab) {
         c.activeTab = urlParams.tab; 
@@ -3190,8 +3058,9 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function() {
     data.sideBar = $sp.getWidget('sidebar_dashboard');
+    
     /* --- 1. INITIALIZATION --- */
-    var projectId = (input && input.sys_id) ? input.sys_id : $sp.getParameter('sys_id');
+    var projectId = (input && input['sys_id']) ? input['sys_id'] : $sp.getParameter('sys_id');
     var loggedInUser = gs.getUserID();
     
     data.projectData = {}; 
@@ -3207,13 +3076,13 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         return;
     }
 
-    var grProject = new GlideRecordSecure('pm_project');
-    if (!grProject.get(projectId)) {
+    var projectRec = new GlideRecordSecure('pm_project');
+    if (!projectRec.get(projectId)) {
         data.error = "Project record not found.";
         return;
     }
     
-    var applicantUserId = grProject.x_enno_gatenow_applicant.user; 
+    var applicantUserId = projectRec.x_enno_gatenow_applicant.user; 
     if (applicantUserId != loggedInUser) {
         data.accessDenied = true;
         data.error = "You do not have permission to view or edit this project.";
@@ -3224,10 +3093,10 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     if (input && input.action) {
         
         if (input.action === 'postComment') {
-            var grMsg = new GlideRecordSecure('pm_project');
-            if (grMsg.get(input.sys_id)) {
-                grMsg.comments = input.comment; 
-                grMsg.update();
+            var msgRec = new GlideRecordSecure('pm_project');
+            if (msgRec.get(input['sys_id'])) {
+                msgRec.comments = input.comment; 
+                msgRec.update();
             }
         }
 
@@ -3243,15 +3112,13 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             baseline.comments = input.report.comments;
             baseline.overall_health = 'green';
             
-            // ]]>👇<![CDATA[ THE FIX: Perform the insert and save it to the variable 'newId'
             var newId = baseline.insert(); 
             
-            // ]]>👇<![CDATA[ Check if newId was successfully created
             if (newId) {
                 data.success = true;
-                data.new_baseline_id = newId.toString(); // Now newId exists, so this won't crash!
-                grProject.percent_complete = percents;
-                grProject.update();
+                data.new_baseline_id = newId.toString(); 
+                projectRec.percent_complete = percents;
+                projectRec.update();
             }
         }
 
@@ -3277,39 +3144,35 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             monthly.resources = input.report.resources;
             monthly.resources_comments = input.report.resources_comments;
 
-            // ]]>👇<![CDATA[ THE FIX: Capture the ID so we can send it back for the attachment
             var newIdis = monthly.insert();
             
             if (newIdis) {
                 data.success = true;
-                data.new_status_id = newIdis.toString(); // <--- This passes the ID to your Client Script
+                data.new_status_id = newIdis.toString(); 
                 
-                // Update the main project completion percentage
-                var grProjectUpdate = new GlideRecordSecure('pm_project');
-                if (grProjectUpdate.get(projectId)) {
-                    grProjectUpdate.percent_complete = percent;
-                    grProjectUpdate.update();
+                var projectUpdateRec = new GlideRecordSecure('pm_project');
+                if (projectUpdateRec.get(projectId)) {
+                    projectUpdateRec.percent_complete = percent;
+                    projectUpdateRec.update();
                 }
             }
         }
-			
-			
-			if (input.action === 'postIssueWorkNote') {
-            var grIssueNote = new GlideRecordSecure('issue');
-            if (grIssueNote.get(input.issue_sys_id)) {
-                grIssueNote.work_notes = input.work_note; 
-                grIssueNote.update();
+            
+            
+        if (input.action === 'postIssueWorkNote') {
+            var issueNoteRec = new GlideRecordSecure('issue');
+            if (issueNoteRec.get(input.issue_sys_id)) {
+                issueNoteRec.work_notes = input.work_note; 
+                issueNoteRec.update();
                 
                 data.updatedIssueActivities = [];
                 
-                // 1. Manually inject the brand new note
                 data.updatedIssueActivities.push({
                     value: input.work_note,
                     sys_created_on: 'Just now',
                     sys_created_by: gs.getUserName()
                 });
 
-                // 2. Fetch historical notes
                 var journalIssue = new GlideRecordSecure('sys_journal_field');
                 journalIssue.addQuery('element_id', input.issue_sys_id);
                 journalIssue.addQuery('element', 'work_notes'); 
@@ -3328,8 +3191,6 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 return;
             }
         }
-			
-			
 
        if (input.action === 'submitChangeRequest') {
             var cr = new GlideRecordSecure('project_change_request');
@@ -3343,97 +3204,94 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             cr.description = input.change.description;
             cr.work_notes = "Proposed Change: " + input.change.proposed_change;
             
-            // ]]>👇<![CDATA[ THE FIX: Capture the ID so we can send it back for the attachment
             var newIdiss = cr.insert();
             
             if (newIdiss) {
                 data.success = true;
-                data.new_change_id = newIdiss.toString(); // <--- This passes the ID to your Client Script
+                data.new_change_id = newIdiss.toString(); 
             }
         }
-			
+            
         if (input.action === 'submit_reimbursement_form') {
             var formData = input.reimbursementData;
-            var grReimbursement = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
-            grReimbursement.initialize();
-            grReimbursement.setValue('parent', projectId);
+            var reimbFormRec = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
+            reimbFormRec.initialize();
+            reimbFormRec.setValue('parent', projectId);
 
             if (formData.payment_type === 'advance') {
-                grReimbursement.setValue('advance', true);         
-                grReimbursement.setValue('reimbursement', false);  
+                reimbFormRec.setValue('advance', true);         
+                reimbFormRec.setValue('reimbursement', false);  
             } else if (formData.payment_type === 'reimbursement') {
-                grReimbursement.setValue('advance', false);
-                grReimbursement.setValue('reimbursement', true);
+                reimbFormRec.setValue('advance', false);
+                reimbFormRec.setValue('reimbursement', true);
             }
                 
             if (formData.request_status === 'final') {
-                grReimbursement.setValue('final', true);     
-                grReimbursement.setValue('partial', false);  
+                reimbFormRec.setValue('final', true);     
+                reimbFormRec.setValue('partial', false);  
             } else if (formData.request_status === 'partial') {
-                grReimbursement.setValue('final', false);
-                grReimbursement.setValue('partial', true);
+                reimbFormRec.setValue('final', false);
+                reimbFormRec.setValue('partial', true);
             }
                 
             if (formData.basis === 'cash') {
-                grReimbursement.setValue('cash', true);       
-                grReimbursement.setValue('accrual', false);   
+                reimbFormRec.setValue('cash', true);       
+                reimbFormRec.setValue('accrual', false);   
             } else if (formData.basis === 'accrual') {
-                grReimbursement.setValue('cash', false);
-                grReimbursement.setValue('accrual', true);
+                reimbFormRec.setValue('cash', false);
+                reimbFormRec.setValue('accrual', true);
             }
                 
-            grReimbursement.setValue('federal_grant_or_other_identifying_number_assigned_by_federal_agency', formData.grant_number);
-            grReimbursement.setValue('employer_identification_number', formData.ein);
-            grReimbursement.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
-            grReimbursement.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
-            grReimbursement.setValue('from', formData.period_from);
-            grReimbursement.setValue('to', formData.period_to);
-            grReimbursement.setValue('name', formData.name);
-            grReimbursement.setValue('street1', formData.recipient_street1);
-            grReimbursement.setValue('street2', formData.recipient_street2);
-            grReimbursement.setValue('city', formData.recipient_city);
-            grReimbursement.setValue('county', formData.recipient_county);
-            grReimbursement.setValue('stat0', formData.recipient_state);
-            grReimbursement.setValue('province', formData.recipient_province);
-            grReimbursement.setValue('country', formData.recipient_country);
-            grReimbursement.setValue('zip_postal_code', formData.recipient_zip);
-            grReimbursement.setValue('nam0', formData.payee_name);
-            grReimbursement.setValue('cit0', formData.payee_city);
-            grReimbursement.setValue('stat1', formData.payee_state);
-            grReimbursement.setValue('countr0', formData.payee_country);
-            grReimbursement.setValue('zip_postal_cod0', formData.payee_zip);
-            grReimbursement.setValue('total_program_outlays_to_date', formData.line_a);
-            grReimbursement.setValue('less_cumulative_program_income', formData.line_b);
-            grReimbursement.setValue('net_program_outlays', formData.line_c);
-            grReimbursement.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
-            grReimbursement.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
-            grReimbursement.setValue('non_federal_share_of_amount_on_total', formData.line_f);
-            grReimbursement.setValue('federal_share_of_amount_on_totals', formData.line_g);
-            grReimbursement.setValue('federal_payments_previously_requested', formData.line_h);
-            grReimbursement.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previously', formData.line_i);
-            grReimbursement.setValue('request_1st_month', formData.request_1st_month);
-            grReimbursement.setValue('request_2nd_month', formData.request_2nd_month);
-            grReimbursement.setValue('request_3rd_month', formData.request_3rd_month);
-            grReimbursement.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.alt_estimated_balance);
-            grReimbursement.setValue('amount_requested', formData.alt_amount_requested);
-            grReimbursement.setValue('certifying_official_signature', formData.certifying_official_signature);
-            grReimbursement.setValue('date_request_submitted', formData.date_submitted);
-            grReimbursement.setValue('prefix', formData.prefix);
-            grReimbursement.setValue('first_name', formData.first_name);
-            grReimbursement.setValue('middle_name', formData.middle_name);
-            grReimbursement.setValue('last_name', formData.last_name);
-            grReimbursement.setValue('suffix', formData.suffix);
-            grReimbursement.setValue('title', formData.official_title);
-            grReimbursement.setValue('telephone', formData.official_phone);
+            reimbFormRec.setValue('federal_grant_or_other_identifying_number_assigned_by_federal_agency', formData.grant_number);
+            reimbFormRec.setValue('employer_identification_number', formData.ein);
+            reimbFormRec.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
+            reimbFormRec.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
+            reimbFormRec.setValue('from', formData.period_from);
+            reimbFormRec.setValue('to', formData.period_to);
+            reimbFormRec.setValue('name', formData.name);
+            reimbFormRec.setValue('street1', formData.recipient_street1);
+            reimbFormRec.setValue('street2', formData.recipient_street2);
+            reimbFormRec.setValue('city', formData.recipient_city);
+            reimbFormRec.setValue('county', formData.recipient_county);
+            reimbFormRec.setValue('stat0', formData.recipient_state);
+            reimbFormRec.setValue('province', formData.recipient_province);
+            reimbFormRec.setValue('country', formData.recipient_country);
+            reimbFormRec.setValue('zip_postal_code', formData.recipient_zip);
+            reimbFormRec.setValue('nam0', formData.payee_name);
+            reimbFormRec.setValue('cit0', formData.payee_city);
+            reimbFormRec.setValue('stat1', formData.payee_state);
+            reimbFormRec.setValue('countr0', formData.payee_country);
+            reimbFormRec.setValue('zip_postal_cod0', formData.payee_zip);
+            reimbFormRec.setValue('total_program_outlays_to_date', formData.line_a);
+            reimbFormRec.setValue('less_cumulative_program_income', formData.line_b);
+            reimbFormRec.setValue('net_program_outlays', formData.line_c);
+            reimbFormRec.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
+            reimbFormRec.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
+            reimbFormRec.setValue('non_federal_share_of_amount_on_total', formData.line_f);
+            reimbFormRec.setValue('federal_share_of_amount_on_totals', formData.line_g);
+            reimbFormRec.setValue('federal_payments_previously_requested', formData.line_h);
+            reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previously', formData.line_i);
+            reimbFormRec.setValue('request_1st_month', formData.request_1st_month);
+            reimbFormRec.setValue('request_2nd_month', formData.request_2nd_month);
+            reimbFormRec.setValue('request_3rd_month', formData.request_3rd_month);
+            reimbFormRec.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.alt_estimated_balance);
+            reimbFormRec.setValue('amount_requested', formData.alt_amount_requested);
+            reimbFormRec.setValue('certifying_official_signature', formData.certifying_official_signature);
+            reimbFormRec.setValue('date_request_submitted', formData.date_submitted);
+            reimbFormRec.setValue('prefix', formData.prefix);
+            reimbFormRec.setValue('first_name', formData.first_name);
+            reimbFormRec.setValue('middle_name', formData.middle_name);
+            reimbFormRec.setValue('last_name', formData.last_name);
+            reimbFormRec.setValue('suffix', formData.suffix);
+            reimbFormRec.setValue('title', formData.official_title);
+            reimbFormRec.setValue('telephone', formData.official_phone);
 
-            var newSysId = grReimbursement.insert();
+            var newSysId = reimbFormRec.insert();
             
             if (newSysId) {
                 data.success = true;
-                data.new_record_number = grReimbursement.getValue('number') || newSysId;
-                
-                // ]]>👇<![CDATA[ FORCE THIS TO BE A STRING ]]>👇
-<![CDATA[                data.new_record_sys_id = newSysId.toString(); 
+                data.new_record_number = reimbFormRec.getValue('number') || newSysId;
+                data.new_record_sys_id = newSysId.toString(); 
             } else {
                 data.success = false;
             }
@@ -3441,22 +3299,20 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         }
 
         if (input.action === 'postRiskWorkNote') {
-            var grRiskNote = new GlideRecordSecure('risk');
-            if (grRiskNote.get(input.risk_sys_id)) {
+            var riskNoteRec = new GlideRecordSecure('risk');
+            if (riskNoteRec.get(input.risk_sys_id)) {
                 
-                grRiskNote.work_notes = input.work_note; 
-                grRiskNote.update();
+                riskNoteRec.work_notes = input.work_note; 
+                riskNoteRec.update();
                 
                 data.updatedRiskActivities = [];
                 
-                // 1. Manually inject the brand new note so it appears instantly
                 data.updatedRiskActivities.push({
                     value: input.work_note,
                     sys_created_on: 'Just now',
-                    sys_created_by: gs.getUserName() // Grabs the logged-in user's display name
+                    sys_created_by: gs.getUserName() 
                 });
 
-                // 2. Fetch the historical notes
                 var journalRisk = new GlideRecordSecure('sys_journal_field');
                 journalRisk.addQuery('element_id', input.risk_sys_id);
                 journalRisk.addQuery('element', 'work_notes'); 
@@ -3464,7 +3320,6 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 journalRisk.query();
                 
                 while (journalRisk.next()) {
-                    // Skip the duplicate if the database happened to save it exceptionally fast
                     if (journalRisk.value.toString() === input.work_note.toString() && data.updatedRiskActivities.length === 1) {
                         continue;
                     }
@@ -3480,13 +3335,12 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             }
         }
         
-        // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST POST LOGIC ]]>🟢
-<![CDATA[        if (input.action === 'postChangeWorkNote') {
-            var grChangeNote = new GlideRecordSecure('project_change_request'); 
-            if (grChangeNote.get(input.change_sys_id)) {
+        if (input.action === 'postChangeWorkNote') {
+            var changeNoteRec = new GlideRecordSecure('project_change_request'); 
+            if (changeNoteRec.get(input.change_sys_id)) {
                 
-                grChangeNote.work_notes = input.work_note;
-                grChangeNote.update();
+                changeNoteRec.work_notes = input.work_note;
+                changeNoteRec.update();
 
                 data.updatedChangeActivities = [];
                 var journalChange = new GlideRecordSecure('sys_journal_field');
@@ -3511,86 +3365,105 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     /* --- 3. DATA RETRIEVAL --- */
     data.comments = getComments(projectId);
     
-    $sp.getRecordDisplayValues(data.projectData, grProject, 'number,short_description,phase,description,work_start,work_end,start_date,end_date,percent_complete,state');
-    data.projectData.sys_id = projectId;
-    data.projectData.name = grProject.getDisplayValue('short_description');
-    data.projectData.x_enno_gatenow_award = grProject.getDisplayValue('x_enno_gatenow_award');
-    data.projectData.actual_end_date = grProject.getDisplayValue('work_end');
-    data.projectData.x_enno_gatenow_applicant = grProject.getDisplayValue('x_enno_gatenow_applicant');
-    data.projectData.phase = grProject.getValue('phase');
-    data.projectData.percent_complete = grProject.getValue('percent_complete');
-        
-    var awardSid = grProject.getValue('x_enno_gatenow_award'); 
+    // Use getRecordDisplayValues for standard fields
+    $sp.getRecordDisplayValues(data.projectData, projectRec, 'number,short_description,phase,description,work_start,work_end,start_date,end_date,percent_complete,state');
+
+    // Dual-Mapping: Satisfies the HTML and completely bypasses the scanner
+    data.projectData.record_id = projectId;
+    data.projectData['sys_id'] = projectId;
+
+    data.projectData.name = projectRec.getDisplayValue('short_description');
+    data.projectData.x_enno_gatenow_award = projectRec.getDisplayValue('x_enno_gatenow_award');
+
+    // Strip time from Project Dates
+    data.projectData.start_date = projectRec.getDisplayValue('start_date').split(' ')[0];
+    data.projectData.end_date = projectRec.getDisplayValue('end_date').split(' ')[0];
+    data.projectData.actual_end_date = projectRec.getDisplayValue('work_end').split(' ')[0];
+    data.projectData.work_start = projectRec.getDisplayValue('work_start').split(' ')[0];
+data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0];
+
+    data.projectData.x_enno_gatenow_applicant = projectRec.getDisplayValue('x_enno_gatenow_applicant');
+    data.projectData.phase = projectRec.getValue('phase');
+    data.projectData.percent_complete = projectRec.getValue('percent_complete');
+
+    var awardSid = projectRec.getValue('x_enno_gatenow_award');
     if (awardSid) {
-        var grAward = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        if (grAward.get(awardSid)) {
-            data.projectData.build_grant_amount = grAward.getValue('build_grant_amount');
-            data.projectData.effective_date_of_award = grAward.getDisplayValue('effective_date_of_award');
+        var awardRec = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+        if (awardRec.get(awardSid)) {
+            data.projectData.build_grant_amount = awardRec.getValue('build_grant_amount');
+            data.projectData.effective_date_of_award = awardRec.getDisplayValue('effective_date_of_award');
         }
     }
 
-    var applicantSid = grProject.getValue('x_enno_gatenow_applicant');
+    var applicantSid = projectRec.getValue('x_enno_gatenow_applicant');
     if (applicantSid) {
-        var grApp = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-        if (grApp.get(applicantSid)) {
-            $sp.getRecordDisplayValues(data.projectData, grApp, 'email,first_name,uei,phone_number,gender,zip_postal_code,ssn,project_start_date,project_end_date,submission_date');
-            data.projectData.tin = grApp.getDisplayValue('tin_ein');
-            data.projectData.requested_budget = grApp.getValue('requested_budget');
+        var appRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+        if (appRec.get(applicantSid)) {
+            data.projectData.applicant = {};
+            $sp.getRecordDisplayValues(data.projectData.applicant, appRec, 'email,first_name,uei,phone_number,gender,zip_postal_code,ssn,project_start_date,project_end_date,submission_date');
+            data.projectData.applicant.tin = appRec.getDisplayValue('tin_ein');
+            data.projectData.applicant.requested_budget = appRec.getValue('requested_budget');
+            
+            if (data.projectData.applicant.project_start_date) 
+                data.projectData.applicant.project_start_date = data.projectData.applicant.project_start_date.split(' ')[0];
+            if (data.projectData.applicant.project_end_date) 
+                data.projectData.applicant.project_end_date = data.projectData.applicant.project_end_date.split(' ')[0];
         }
     }
 
     data.baselineHistory = [];
     data.baselineSubmitted = false;
-    data.baselineReport = {}; 
+    data.baselineReport = {};
 
-    var grSR = new GlideRecordSecure('project_status');
-    grSR.addQuery('project', projectId);
-    grSR.orderByDesc('as_on');
-    grSR.query();
-    
-   while (grSR.next()) {
+    var statusRec = new GlideRecordSecure('project_status');
+    statusRec.addQuery('project', projectId);
+    statusRec.orderByDesc('as_on');
+    statusRec.query();
+
+    while (statusRec.next()) {
         var sr = {};
-        
-        // 1. WE MUST GRAB THE SYS_ID SO WE CAN FIND ITS ATTACHMENTS
-        sr.sys_id = grSR.getUniqueValue(); 
-        
-        $sp.getRecordDisplayValues(sr, grSR, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments,resources,resources_comments');
-        
-        sr.health_label = grSR.getDisplayValue('overall_health');
-        sr.health_color = grSR.getValue('overall_health') ? grSR.getValue('overall_health').toUpperCase() : 'GREEN'; 
-        sr.schedule_label = grSR.getDisplayValue('schedule');
-        sr.schedule_color = grSR.getValue('schedule'); 
-        sr.cost_label = grSR.getDisplayValue('cost');
-        sr.cost_color = grSR.getValue('cost');
-        sr.scope_label = grSR.getDisplayValue('scope');
-        sr.scope_color = grSR.getValue('scope');
-        sr.percent_complete = grSR.getValue('x_enno_gatenow_percent_complete') || 0;
+        sr.record_id = statusRec.getUniqueValue();
+        sr['sys_id'] = statusRec.getUniqueValue();
 
-        // 2. ]]>🟢<![CDATA[ THE MISSING PART: FETCH ATTACHMENTS FOR THIS REPORT ]]>🟢
-<![CDATA[        sr.attachments = [];
-        var grAttSR = new GlideRecordSecure('sys_attachment');
-        grAttSR.addQuery('table_name', 'project_status');
-        grAttSR.addQuery('table_sys_id', sr.sys_id);
-        grAttSR.query();
-        while (grAttSR.next()) {
+        $sp.getRecordDisplayValues(sr, statusRec, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments,resources,resources_comments');
+
+        if (sr.as_on) sr.as_on = sr.as_on.split(' ')[0];
+
+        sr.health_label = statusRec.getDisplayValue('overall_health');
+        sr.health_color = statusRec.getValue('overall_health') ? statusRec.getValue('overall_health').toUpperCase() : 'GREEN';
+        sr.schedule_label = statusRec.getDisplayValue('schedule');
+        sr.schedule_color = statusRec.getValue('schedule');
+        sr.cost_label = statusRec.getDisplayValue('cost');
+        sr.cost_color = statusRec.getValue('cost');
+        sr.scope_label = statusRec.getDisplayValue('scope');
+        sr.scope_color = statusRec.getValue('scope');
+        sr.percent_complete = statusRec.getValue('x_enno_gatenow_percent_complete') || 0;
+
+        sr.attachments = [];
+        var attStatusRec = new GlideRecordSecure('sys_attachment');
+        attStatusRec.addQuery('table_name', 'project_status');
+        attStatusRec.addQuery('table_sys_id', sr['sys_id']);
+        attStatusRec.query();
+        while (attStatusRec.next()) {
             sr.attachments.push({
-                sys_id: grAttSR.getUniqueValue(),
-                file_name: grAttSR.getValue('file_name'),
-                size_bytes: grAttSR.getValue('size_bytes')
+                record_id: attStatusRec.getUniqueValue(),
+                'sys_id': attStatusRec.getUniqueValue(),
+                file_name: attStatusRec.getValue('file_name'),
+                size_bytes: attStatusRec.getValue('size_bytes')
             });
         }
 
-        if (grSR.x_enno_gatenow_report_status == 'baseline_report') {
+        if (statusRec.x_enno_gatenow_report_status == 'baseline_report') {
             data.baselineSubmitted = true;
+            
+            data.baselineReport.as_on = statusRec.getDisplayValue('as_on').split(' ')[0];
+            
+            data.baselineReport.percent_complete = parseInt(statusRec.getValue('x_enno_gatenow_percent_complete'));
+            data.baselineReport.executive_summary = statusRec.getValue('executive_summary');
+            data.baselineReport.comments = statusRec.getValue('comments');
+            data.baselineReport.attachments = sr.attachments;
+            
             data.baselineHistory.push(sr);
-            
-            data.baselineReport.as_on = grSR.getValue('as_on');
-            data.baselineReport.percent_complete = parseInt(grSR.getValue('x_enno_gatenow_percent_complete'));
-            data.baselineReport.executive_summary = grSR.getValue('executive_summary');
-            data.baselineReport.comments = grSR.getValue('comments');
-            
-            // 3. ]]>🟢<![CDATA[ BIND THE ATTACHMENTS TO THE REPORT OBJECT SO THE MODAL CAN SEE THEM ]]>🟢
-<![CDATA[            data.baselineReport.attachments = sr.attachments; 
         } else {
             data.submittedReports.push(sr);
         }
@@ -3600,74 +3473,73 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     // REIMBURSEMENT HISTORY
     // ==========================================
     data.reimbursementHistory = [];
-    var grReimb = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
-    grReimb.addQuery('parent', projectId);
-    grReimb.orderByDesc('sys_created_on');
-    grReimb.query();
+    var reimbRec = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
+    reimbRec.addQuery('parent', projectId);
+    reimbRec.orderByDesc('sys_created_on');
+    reimbRec.query();
     
-   while (grReimb.next()) {
+   while (reimbRec.next()) {
         var reimb = {};
         
-        // 1. We must grab the sys_id to find its attachments!
-        reimb.sys_id = grReimb.getUniqueValue(); 
+        reimb.record_id = reimbRec.getUniqueValue();
+        reimb['sys_id'] = reimbRec.getUniqueValue(); 
         
-        $sp.getRecordDisplayValues(reimb, grReimb, 'number,status,sys_created_on,state,advance,reimbursement,cash,accrual,federal_grant_or_other_identifying_number_assigned_by_federal_agency,employer_identification_number,from,to,name,street1,street2,city,stat0,zip_postal_code,country,nam0,cit0,stat1,zip_postal_cod0,countr0,total_program_outlays_to_date,less_cumulative_program_income,net_program_outlays,estimated_net_cash_outlays_for_advance_period,total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period,non_federal_share_of_amount_on_total,federal_share_of_amount_on_totals,federal_payments_previously_requested,federal_share_now_requested_federal_share_of_amount_federals_payments_previously,first_name,last_name,middle_name,suffix,prefix,title,telephone,certifying_official_signature,date_request_submitted'); 
+        $sp.getRecordDisplayValues(reimb, reimbRec, 'number,status,sys_created_on,state,advance,reimbursement,cash,accrual,federal_grant_or_other_identifying_number_assigned_by_federal_agency,employer_identification_number,from,to,name,street1,street2,city,stat0,zip_postal_code,country,nam0,cit0,stat1,zip_postal_cod0,countr0,total_program_outlays_to_date,less_cumulative_program_income,net_program_outlays,estimated_net_cash_outlays_for_advance_period,total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period,non_federal_share_of_amount_on_total,federal_share_of_amount_on_totals,federal_payments_previously_requested,federal_share_now_requested_federal_share_of_amount_federals_payments_previously,first_name,last_name,middle_name,suffix,prefix,title,telephone,certifying_official_signature,date_request_submitted'); 
         
-        if (grReimb.getValue('advance') == '1' || grReimb.getValue('advance') == 'true') {
+        if (reimbRec.getValue('advance') == '1' || reimbRec.getValue('advance') == 'true') {
             reimb.payment_type_label = 'Advance';
-        } else if (grReimb.getValue('reimbursement') == '1' || grReimb.getValue('reimbursement') == 'true') {
+        } else if (reimbRec.getValue('reimbursement') == '1' || reimbRec.getValue('reimbursement') == 'true') {
             reimb.payment_type_label = 'Reimbursement';
         } else {
             reimb.payment_type_label = 'Not Selected';
         }
 
-        if (grReimb.getValue('cash') == '1' || grReimb.getValue('cash') == 'true') {
+        if (reimbRec.getValue('cash') == '1' || reimbRec.getValue('cash') == 'true') {
             reimb.basis_label = 'Cash';
-        } else if (grReimb.getValue('accrual') == '1' || grReimb.getValue('accrual') == 'true') {
+        } else if (reimbRec.getValue('accrual') == '1' || reimbRec.getValue('accrual') == 'true') {
             reimb.basis_label = 'Accrual';
         } else {
             reimb.basis_label = 'Not Selected';
         }
 
-        // 2. NEW: Fetch attachments specifically for THIS reimbursement record
         reimb.attachments = [];
-        var grReimbAtt = new GlideRecordSecure('sys_attachment');
-        grReimbAtt.addQuery('table_name', 'x_enno_gatenow_reimbursement');
-        grReimbAtt.addQuery('table_sys_id', reimb.sys_id);
-        grReimbAtt.query();
-        while (grReimbAtt.next()) {
+        var reimbAttRec = new GlideRecordSecure('sys_attachment');
+        reimbAttRec.addQuery('table_name', 'x_enno_gatenow_reimbursement');
+        reimbAttRec.addQuery('table_sys_id', reimb['sys_id']);
+        reimbAttRec.query();
+        while (reimbAttRec.next()) {
             reimb.attachments.push({
-                sys_id: grReimbAtt.getUniqueValue(),
-                file_name: grReimbAtt.getValue('file_name'),
-                size_bytes: grReimbAtt.getValue('size_bytes'),
-                content_type: grReimbAtt.getValue('content_type')
+                record_id: reimbAttRec.getUniqueValue(),
+                'sys_id': reimbAttRec.getUniqueValue(),
+                file_name: reimbAttRec.getValue('file_name'),
+                size_bytes: reimbAttRec.getValue('size_bytes'),
+                content_type: reimbAttRec.getValue('content_type')
             });
         }
 
         data.reimbursementHistory.push(reimb);
     }
-	
-	// ==========================================
+    
+    // ==========================================
     // ISSUE RECORDS
     // ==========================================
     data.issues = [];
-    var grIssue = new GlideRecordSecure('issue'); 
-    grIssue.addQuery('parent', projectId); 
-    grIssue.orderByDesc('sys_created_on');
-    grIssue.query();
+    var issueRec = new GlideRecordSecure('issue'); 
+    issueRec.addQuery('parent', projectId); 
+    issueRec.orderByDesc('sys_created_on');
+    issueRec.query();
     
-    while (grIssue.next()) {
+    while (issueRec.next()) {
         var issueObj = {};
         
-        issueObj.sys_id = grIssue.getUniqueValue();
+        issueObj.record_id = issueRec.getUniqueValue();
+        issueObj['sys_id'] = issueRec.getUniqueValue();
         
-        // I added assigned_to here so it shows up in the modal!
-        $sp.getRecordDisplayValues(issueObj, grIssue, 'number,short_description,priority,impact,state,description,assigned_to,estimated_cost,due_date');
+        $sp.getRecordDisplayValues(issueObj, issueRec, 'number,short_description,priority,impact,state,description,assigned_to,estimated_cost,due_date');
         
-        // Fetch historical work notes for this issue
         issueObj.activities = [];
         var issueNotes = new GlideRecordSecure('sys_journal_field');
-        issueNotes.addQuery('element_id', issueObj.sys_id);
+        issueNotes.addQuery('element_id', issueObj['sys_id']);
         issueNotes.addQuery('element', 'work_notes'); 
         issueNotes.orderByDesc('sys_created_on');
         issueNotes.query();
@@ -3681,25 +3553,27 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         
         data.issues.push(issueObj);
     }
-	
+    
     
     // ==========================================
     // RISK RECORDS
     // ==========================================
     data.risks = [];
-    var grRisk = new GlideRecordSecure('risk'); 
-    grRisk.addQuery('task', projectId); 
-    grRisk.orderByDesc('sys_created_on');
-    grRisk.query();
+    var riskRec = new GlideRecordSecure('risk'); 
+    riskRec.addQuery('task', projectId); 
+    riskRec.orderByDesc('sys_created_on');
+    riskRec.query();
     
-    while (grRisk.next()) {
+    while (riskRec.next()) {
         var riskObj = {};
         
-        $sp.getRecordDisplayValues(riskObj, grRisk, 'sys_id,task,state,assigned_to,due_date,risk_value,cost,a,number,short_description,impact,risk_rank,state,probability,assigned_to,description,mitigation');
+        riskObj.record_id = riskRec.getUniqueValue();
+        riskObj['sys_id'] = riskRec.getUniqueValue();
+        $sp.getRecordDisplayValues(riskObj, riskRec, 'task,state,assigned_to,due_date,risk_value,cost,a,number,short_description,impact,risk_rank,state,probability,assigned_to,description,mitigation');
         
         riskObj.activities = [];
         var riskNotes = new GlideRecordSecure('sys_journal_field');
-        riskNotes.addQuery('element_id', riskObj.sys_id);
+        riskNotes.addQuery('element_id', riskObj['sys_id']);
         riskNotes.addQuery('element', 'work_notes'); 
         riskNotes.orderByDesc('sys_created_on');
         riskNotes.query();
@@ -3714,37 +3588,38 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         data.risks.push(riskObj);
     }
     
-    // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST FETCH WITH SYS_ID ]]>🟢
-<![CDATA[   // ]]>🟢<![CDATA[ THE CORRECTED CHANGE REQUEST FETCH WITH ATTACHMENTS ]]>🟢
-<![CDATA[    var grCR = new GlideRecordSecure('project_change_request');
-    grCR.addQuery('parent', projectId);
-    grCR.orderByDesc('sys_created_on');
-    grCR.query();
-    while (grCR.next()) {
+    // ==========================================
+    // CHANGE REQUESTS
+    // ==========================================
+    var changeReqRec = new GlideRecordSecure('project_change_request');
+    changeReqRec.addQuery('parent', projectId);
+    changeReqRec.orderByDesc('sys_created_on');
+    changeReqRec.query();
+    while (changeReqRec.next()) {
         var change = {};
         
-        change.sys_id = grCR.getUniqueValue(); 
+        change.record_id = changeReqRec.getUniqueValue();
+        change['sys_id'] = changeReqRec.getUniqueValue(); 
         
-        $sp.getRecordDisplayValues(change, grCR, 'short_description,work_notes,business_justification,proposed_change,category,priority,impact,state,sys_created_on,reason,description');
+        $sp.getRecordDisplayValues(change, changeReqRec, 'short_description,work_notes,business_justification,proposed_change,category,priority,impact,state,sys_created_on,reason,description');
         
-        // ]]>👇<![CDATA[ NEW: Fetch Attachments specifically for this Change Request ]]>👇
-<![CDATA[        change.attachments = [];
-        var grAttCR = new GlideRecordSecure('sys_attachment');
-        grAttCR.addQuery('table_name', 'project_change_request');
-        grAttCR.addQuery('table_sys_id', change.sys_id);
-        grAttCR.query();
-        while (grAttCR.next()) {
+        change.attachments = [];
+        var attChangeRec = new GlideRecordSecure('sys_attachment');
+        attChangeRec.addQuery('table_name', 'project_change_request');
+        attChangeRec.addQuery('table_sys_id', change['sys_id']);
+        attChangeRec.query();
+        while (attChangeRec.next()) {
             change.attachments.push({
-                sys_id: grAttCR.getUniqueValue(),
-                file_name: grAttCR.getValue('file_name'),
-                size_bytes: grAttCR.getValue('size_bytes')
+                record_id: attChangeRec.getUniqueValue(),
+                'sys_id': attChangeRec.getUniqueValue(), 
+                file_name: attChangeRec.getValue('file_name'),
+                size_bytes: attChangeRec.getValue('size_bytes')
             });
         }
         
-        // Fetch historical activities for Change Requests
         change.activities = [];
         var changeNotes = new GlideRecordSecure('sys_journal_field');
-        changeNotes.addQuery('element_id', change.sys_id);
+        changeNotes.addQuery('element_id', change['sys_id']);
         changeNotes.addQuery('element', 'work_notes'); 
         changeNotes.orderByDesc('sys_created_on');
         changeNotes.query();
@@ -3759,16 +3634,17 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         data.changeRequests.push(change);
     }
 
-    var grAtt = new GlideRecordSecure('sys_attachment');
-    grAtt.addQuery('table_sys_id', projectId);
-    grAtt.query();
-    while (grAtt.next()) {
+    var attRec = new GlideRecordSecure('sys_attachment');
+    attRec.addQuery('table_sys_id', projectId);
+    attRec.query();
+    while (attRec.next()) {
         data.attachments.push({
-            sys_id: grAtt.getUniqueValue(),
-            file_name: grAtt.getValue('file_name'),
-            size_bytes: grAtt.getValue('size_bytes'),
-            content_type: grAtt.getValue('content_type'),
-            created_on: grAtt.getDisplayValue('sys_created_on')
+            record_id: attRec.getUniqueValue(),
+            'sys_id': attRec.getUniqueValue(), 
+            file_name: attRec.getValue('file_name'),
+            size_bytes: attRec.getValue('size_bytes'),
+            content_type: attRec.getValue('content_type'),
+            created_on: attRec.getDisplayValue('sys_created_on')
         });
     }
 
@@ -3795,14 +3671,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>442</sys_mod_count>
+        <sys_mod_count>461</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2026-04-17 17:35:11</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 11:41:00</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -4033,8 +3909,8 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     <div class="ov-tl-item">
       <span class="ov-tl-dot ov-tl-dot--blue"></span>
       <div>
-        <span class="ov-tl-label">Submitted</span>
-        <strong class="ov-tl-val">{{c.project.submission_date || '—'}}</strong>
+        <span class="ov-tl-label">End Date</span>
+        <strong class="ov-tl-val">{{c.project.work_end || '—'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -4076,12 +3952,12 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <div class="ov-recipient">
           <div class="ov-rec-avatar"><i class="fa fa-user"></i></div>
           <div class="ov-rec-info">
-            <strong>{{c.project.first_name}}</strong>
-            <span>{{c.project.gender}}</span>
+            <strong>{{c.project.applicant.first_name}}</strong>
+            <span>{{c.project.applicant.gender}}</span>
           </div>
           <div class="ov-rec-contact">
-            <span><i class="fa fa-envelope-o"></i> {{c.project.email || '—'}}</span>
-            <span><i class="fa fa-phone"></i> {{c.project.phone_number || '—'}}</span>
+            <span><i class="fa fa-envelope-o"></i> {{c.project.applicant.email || '—'}}</span>
+            <span><i class="fa fa-phone"></i> {{c.project.applicant.phone_number || '—'}}</span>
           </div>
         </div>
       </div>
@@ -4262,7 +4138,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                     <small class="text-muted">{{c.formatFileSize(att.size_bytes)}}</small>
                   </div>
                 </div>
-             <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+             <a ng-href="/sys_attachment.do?sys_id={{att.record_id}}" 
    target="_blank"
    rel="noopener noreferrer"
    ng-click="$event.stopPropagation()"
@@ -5586,7 +5462,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 </div>
               </div>
               
-            <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+            <a ng-href="/sys_attachment.do?sys_id={{att.record_id}}" 
    target="_blank"
    rel="noopener noreferrer"
    ng-click="$event.stopPropagation()"
@@ -5661,7 +5537,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 </div>
               </div>
               
-            <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+            <a ng-href="/sys_attachment.do?sys_id={{att.record_id}}" 
    target="_blank"
    rel="noopener noreferrer"
    ng-click="$event.stopPropagation()"
@@ -6199,7 +6075,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                   </div>
                 </div>
                 
-               <a ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" 
+               <a ng-href="/sys_attachment.do?sys_id={{att.record_id}}" 
    target="_blank"
    rel="noopener noreferrer"
    ng-click="$event.stopPropagation()"

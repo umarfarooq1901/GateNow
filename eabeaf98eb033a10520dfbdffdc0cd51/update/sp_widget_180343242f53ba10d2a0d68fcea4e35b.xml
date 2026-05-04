@@ -242,40 +242,40 @@
         <option_schema/>
         <public>true</public>
         <roles/>
-        <script><![CDATA[(function() {
-  data.announcements = [];
+        <script><![CDATA[(function () {
+    data.announcements = [];
 
-  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-  gr.addQuery('active', true);
-  gr.addNotNullQuery('announcement');
-  gr.orderByDesc('sys_updated_on');
-  gr.setLimit(8);
-  gr.query();
+    // Use a descriptive variable name for the GlideRecord
+    var grantProgramGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+    grantProgramGr.addQuery('active', true);
+    grantProgramGr.addNotNullQuery('announcement');
+    grantProgramGr.orderByDesc('sys_updated_on');
+    grantProgramGr.setLimit(8);
+    grantProgramGr.query();
 
-  while (gr.next()) {
-    var updatedOn = gr.getValue('sys_updated_on'); // raw datetime string
-    data.announcements.push({
-      sys_id:       gr.getUniqueValue(),
-      program_name: gr.getDisplayValue('program_name'),
-      announcement: gr.getDisplayValue('announcement'),
-      updated_on:   updatedOn
-    });
-  }
-})();
-]]></script>
+    while (grantProgramGr.next()) {
+        var updatedOn = grantProgramGr.getValue('sys_updated_on'); // raw datetime string
+        data.announcements.push({
+            sys_id: grantProgramGr.getUniqueValue(),
+            program_name: grantProgramGr.getDisplayValue('program_name'),
+            announcement: grantProgramGr.getDisplayValue('announcement'),
+            updated_on: updatedOn
+        });
+    }
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-23 09:55:09</sys_created_on>
         <sys_id>180343242f53ba10d2a0d68fcea4e35b</sys_id>
-        <sys_mod_count>5</sys_mod_count>
+        <sys_mod_count>6</sys_mod_count>
         <sys_name>Announcements Applicant</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_180343242f53ba10d2a0d68fcea4e35b</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-03-31 15:10:36</sys_updated_on>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-04-30 07:29:33</sys_updated_on>
         <template><![CDATA[<div class="gna-wrapper">
   <div class="gna-inner">
 

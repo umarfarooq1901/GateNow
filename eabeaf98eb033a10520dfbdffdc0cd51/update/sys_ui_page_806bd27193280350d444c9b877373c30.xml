@@ -1,0 +1,512 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ui_page">
+    <sys_ui_page action="INSERT_OR_UPDATE">
+        <category>general</category>
+        <client_script/>
+        <description>Contact Support page for GateNow — displays support hours, contact details, and escalation information.</description>
+        <direct>true</direct>
+        <endpoint>x_enno_gatenow_contact support.do</endpoint>
+        <html><![CDATA[<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #eef0f8;
+    color: #1a1a2e;
+  }
+
+  .gn-support-wrapper {
+    max-width: 960px;
+    margin: 48px auto;
+    padding: 0 24px 72px;
+  }
+
+  .gn-support-header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .gn-support-header .gn-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #d9d5f5;
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #4c3d9e;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .gn-support-header .gn-badge .dot {
+    width: 7px;
+    height: 7px;
+    background: #4c3d9e;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .gn-support-header h1 {
+    font-size: 36px;
+    font-weight: 800;
+    color: #1a1a2e;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+
+  .gn-support-header h1 span { color: #2fb8e0; }
+
+  .gn-support-header p {
+    font-size: 15px;
+    color: #64748b;
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .gn-info-banner {
+    background: #fff;
+    border: 1px solid #d9d5f5;
+    border-left: 4px solid #4c3d9e;
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 13.5px;
+    color: #4c3d9e;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .gn-info-banner .banner-icon {
+    width: 28px;
+    height: 28px;
+    background: #ede9fe;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .gn-support-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .gn-support-grid { grid-template-columns: 1fr; }
+  }
+
+  .gn-card {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 26px;
+    border: 1px solid #e8e6f5;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+
+  .gn-card:hover {
+    box-shadow: 0 8px 24px rgba(76,61,158,0.08);
+    transform: translateY(-2px);
+  }
+
+  .gn-card-full { grid-column: 1 / -1; }
+
+  .gn-card-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f1f0fa;
+  }
+
+  .gn-card-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .icon-purple { background: #ede9fe; color: #4c3d9e; }
+  .icon-cyan   { background: #e0f7fd; color: #0891b2; }
+  .icon-soft   { background: #f3f0ff; color: #6d28d9; }
+  .icon-navy   { background: #e8eaf6; color: #3730a3; }
+  .icon-red    { background: #fee2e2; color: #b91c1c; }
+
+  .gn-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .gn-card-subtitle {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 3px;
+  }
+
+  .gn-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f8f7fe;
+    font-size: 13.5px;
+  }
+
+  .gn-info-row:last-child { border-bottom: none; }
+
+  .gn-info-row .label {
+    min-width: 120px;
+    font-weight: 600;
+    color: #64748b;
+    flex-shrink: 0;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .gn-info-row .value { color: #1a1a2e; font-size: 13.5px; }
+
+  .gn-info-row a {
+    color: #4c3d9e;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .gn-info-row a:hover {
+    color: #2fb8e0;
+    text-decoration: underline;
+  }
+
+  .gn-hours-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  .gn-hours-table td {
+    padding: 9px 4px;
+    border-bottom: 1px solid #f1f0fa;
+  }
+
+  .gn-hours-table tr:last-child td { border-bottom: none; }
+
+  .gn-hours-table td:first-child {
+    font-weight: 600;
+    color: #64748b;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .gn-hours-table td:last-child { text-align: right; }
+
+  .badge-open {
+    background: #dcfce7;
+    color: #15803d;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-closed {
+    background: #f1f0fa;
+    color: #94a3b8;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .gn-steps { list-style: none; counter-reset: step-counter; }
+
+  .gn-steps li {
+    counter-increment: step-counter;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f0fa;
+    font-size: 13.5px;
+  }
+
+  .gn-steps li:last-child { border-bottom: none; }
+
+  .gn-steps li::before {
+    content: counter(step-counter);
+    min-width: 28px;
+    height: 28px;
+    background: #4c3d9e;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .gn-steps li strong {
+    display: block;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 3px;
+    font-size: 14px;
+  }
+
+  .gn-steps li span { color: #64748b; line-height: 1.6; }
+
+  .gn-steps li a {
+    color: #4c3d9e;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .gn-steps li a:hover { color: #2fb8e0; text-decoration: underline; }
+
+  .gn-support-footer {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 12.5px;
+    color: #94a3b8;
+    line-height: 2;
+  }
+
+  .gn-support-footer a {
+    color: #4c3d9e;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .gn-support-footer a:hover { color: #2fb8e0; }
+
+  .gn-dots {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    justify-content: center;
+  }
+
+  .gn-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #c4b9f0;
+    display: inline-block;
+  }
+
+  .gn-dots span:nth-child(2) { background: #2fb8e0; opacity: 0.7; }
+  .gn-dots span:nth-child(3) { background: #c4b9f0; opacity: 0.5; }
+</style>
+
+<div class="gn-support-wrapper">
+
+  <!-- Page Header -->
+  <div class="gn-support-header">
+    <div><span class="gn-badge"><span class="dot"></span> GateNow Support</span></div>
+    <h1>We are here to&#160;<span>help.</span></h1>
+    <p>Contact the EnableNow GateNow Support Team for technical assistance, grant inquiries, and escalation support.</p>
+  </div>
+
+  <div class="gn-dots">
+    <span></span><span></span><span></span>
+  </div>
+
+  <!-- Info Banner -->
+  <div class="gn-info-banner">
+    <div class="banner-icon">&#8505;</div>
+    <span>For urgent issues outside business hours, email&#160;<strong><a href="mailto:servicenow@enablenow.com" rel="noopener noreferrer nofollow" style="color:#4c3d9e; font-weight:700; text-decoration:none;">servicenow@enablenow.com</a></strong>&#160;&#8212; we respond on the next business day.</span>
+  </div>
+
+  <!-- Row 1: Support Hours + Technical Support -->
+  <div class="gn-support-grid">
+
+    <div class="gn-card">
+      <div class="gn-card-header">
+        <div class="gn-card-icon icon-purple">&#128336;</div>
+        <div>
+          <div class="gn-card-title">Support Hours</div>
+          <div class="gn-card-subtitle">All times Eastern (ET)</div>
+        </div>
+      </div>
+      <table class="gn-hours-table">
+        <tr>
+          <td>Mon &#8211; Fri</td>
+          <td><span class="badge-open">OPEN</span>&#160; 8:00 AM &#8211; 6:00 PM</td>
+        </tr>
+        <tr>
+          <td>Saturday</td>
+          <td><span class="badge-closed">CLOSED</span></td>
+        </tr>
+        <tr>
+          <td>Sunday</td>
+          <td><span class="badge-closed">CLOSED</span></td>
+        </tr>
+        <tr>
+          <td>Federal Holidays</td>
+          <td><span class="badge-closed">CLOSED</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="gn-card">
+      <div class="gn-card-header">
+        <div class="gn-card-icon icon-cyan">&#128187;</div>
+        <div>
+          <div class="gn-card-title">Technical Support</div>
+          <div class="gn-card-subtitle">EnableNow, Inc. &#8212; GateNow Support Team</div>
+        </div>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Email</span>
+        <span class="value"><a href="mailto:servicenow@enablenow.com" rel="noopener noreferrer nofollow">servicenow@enablenow.com</a></span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Phone</span>
+        <span class="value">(202) 800-6040</span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Website</span>
+        <span class="value"><a href="https://www.enablenow.com" target="_blank" rel="noopener noreferrer nofollow">www.enablenow.com &#8599;</a></span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Response</span>
+        <span class="value">Within 1 business day</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: Grant Inquiries + What to Include -->
+  <div class="gn-support-grid">
+
+    <div class="gn-card">
+      <div class="gn-card-header">
+        <div class="gn-card-icon icon-soft">&#128196;</div>
+        <div>
+          <div class="gn-card-title">Program and Grant Inquiries</div>
+          <div class="gn-card-subtitle">Applications, awards, and funding questions</div>
+        </div>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Email</span>
+        <span class="value"><a href="mailto:servicenow@enablenow.com" rel="noopener noreferrer nofollow">servicenow@enablenow.com</a></span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Phone</span>
+        <span class="value">(202) 800-6040</span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">Response</span>
+        <span class="value">Within 2 business days</span>
+      </div>
+    </div>
+
+    <div class="gn-card">
+      <div class="gn-card-header">
+        <div class="gn-card-icon icon-navy">&#128221;</div>
+        <div>
+          <div class="gn-card-title">When Contacting Support</div>
+          <div class="gn-card-subtitle">Include these for faster resolution</div>
+        </div>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">&#10003; Issue</span>
+        <span class="value">Clear description of the problem</span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">&#10003; Screenshot</span>
+        <span class="value">Attach screenshots or screen recording</span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">&#10003; Record No.</span>
+        <span class="value">Application or Award number if applicable</span>
+      </div>
+      <div class="gn-info-row">
+        <span class="label">&#10003; Steps</span>
+        <span class="value">Steps taken before the issue occurred</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 3: Escalation Path Full Width -->
+  <div class="gn-support-grid">
+    <div class="gn-card gn-card-full">
+      <div class="gn-card-header">
+        <div class="gn-card-icon icon-red">&#9650;</div>
+        <div>
+          <div class="gn-card-title">Escalation Path</div>
+          <div class="gn-card-subtitle">Follow these steps if your issue remains unresolved</div>
+        </div>
+      </div>
+      <ol class="gn-steps">
+        <li>
+          <div>
+            <strong>Email the GateNow Support Team</strong>
+            <span>Send a detailed email to&#160;<a href="mailto:servicenow@enablenow.com" rel="noopener noreferrer nofollow">servicenow@enablenow.com</a>&#160;with a full description and any supporting screenshots.</span>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Call Support Directly</strong>
+            <span>If no response within 1 business day, call&#160;<strong>(202) 800-6040</strong>&#160;during business hours (Monday &#8211; Friday, 8:00 AM &#8211; 6:00 PM ET).</span>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Executive Escalation</strong>
+            <span>For unresolved critical platform issues, re-email&#160;<a href="mailto:servicenow@enablenow.com" rel="noopener noreferrer nofollow">servicenow@enablenow.com</a>&#160;with subject line&#160;<strong>URGENT ESCALATION</strong>&#160;and reference your original email thread.</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="gn-support-footer">
+    GateNow &#8212; Grant Approval and Tracking Engine<br/>
+    Developed by EnableNow, Inc. &#169; 2026. All rights reserved.<br/>
+    <a href="https://www.enablenow.com" target="_blank" rel="noopener noreferrer nofollow">www.enablenow.com &#8599;</a>
+  </div>
+
+</div>
+
+</j:jelly>]]></html>
+        <name>contact support</name>
+        <processing_script/>
+        <sys_class_name>sys_ui_page</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-04-30 07:38:33</sys_created_on>
+        <sys_id>806bd27193280350d444c9b877373c30</sys_id>
+        <sys_mod_count>9</sys_mod_count>
+        <sys_name>contact support</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ui_page_806bd27193280350d444c9b877373c30</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-04-30 08:24:59</sys_updated_on>
+    </sys_ui_page>
+</record_update>

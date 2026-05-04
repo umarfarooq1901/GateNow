@@ -102,19 +102,24 @@
         <run_time>1970-01-01 08:00:00</run_time>
         <run_type>daily</run_type>
         <run_weekinmonth>1</run_weekinmonth>
-        <script><![CDATA[sn_flow_trigger.FlowTriggerAPI.fireTimerTrigger('208f1727ebcbfa10520dfbdffdc0cd3e');]]></script>
+        <script><![CDATA[var triggerId = gs.getProperty('x_enno_gatenow.trigger_timer_208f17', '');
+if (triggerId) {
+    sn_flow_trigger.FlowTriggerAPI.fireTimerTrigger(triggerId);
+} else {
+    gs.warn('GateNow: System property x_enno_gatenow.trigger_timer_208f17 is not configured.');
+}]]></script>
         <sys_class_name>sys_flow_trigger_auto_script</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-02-20 09:24:45</sys_created_on>
         <sys_id>a88f1727ebcbfa10520dfbdffdc0cd3e</sys_id>
-        <sys_mod_count>1</sys_mod_count>
+        <sys_mod_count>2</sys_mod_count>
         <sys_name/>
         <sys_package/>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name/>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-14 07:28:23</sys_updated_on>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-04-29 10:56:56</sys_updated_on>
         <time_zone/>
         <trigger display_value="">208f1727ebcbfa10520dfbdffdc0cd3e</trigger>
         <upgrade_safe>true</upgrade_safe>

@@ -25,43 +25,55 @@
         <run_time>1970-01-01 00:00:00</run_time>
         <run_type>daily</run_type>
         <run_weekinmonth>1</run_weekinmonth>
-        <script><![CDATA[var uniqueGroups = [];
-var reviewGr = new GlideRecord('x_enno_gatenow_grant_review'); 
+        <script><![CDATA[(function() {
+    var uniqueGroups = [];
+    var dailyReviewGR = new GlideRecord('x_enno_gatenow_grant_review'); 
+    
+    
+    dailyReviewGR.addEncodedQuery('review_start_dateONToday@javascript:gs.beginningOfToday()@javascript:gs.endOfToday()');
+    dailyReviewGR.query();
 
-// Query for records where Review Start Date is Today
-var queryStr = 'review_start_dateONToday@javascript:gs.beginningOfToday()@javascript:gs.endOfToday()';
-reviewGr.addEncodedQuery(queryStr);
-reviewGr.query();
-
-while (reviewGr.next()) {
-    var groupsInList = reviewGr.reviewer.toString().split(',');
-    for (var i = 0; i < groupsInList.length; i++) {
-        var groupId = groupsInList[i].trim();
-        if (groupId && uniqueGroups.indexOf(groupId) === -1) {
-            uniqueGroups.push(groupId);
+    while (dailyReviewGR.next()) {
+        var groupsInList = dailyReviewGR.getValue('reviewer');
+        
+        
+        if (!groupsInList) continue; 
+        
+        var groupsArray = groupsInList.split(',');
+        for (var i = 0; i < groupsArray.length; i++) {
+            var groupId = groupsArray[i].trim();
+            
+            
+            if (groupId && uniqueGroups.indexOf(groupId) === -1) {
+                uniqueGroups.push(groupId);
+            }
         }
     }
-}
 
-// Fire the event for each unique group
-for (var j = 0; j < uniqueGroups.length; j++) {
-    var groupGr = new GlideRecord('sys_user_group');
-    if (groupGr.get(uniqueGroups[j])) {
-        gs.eventQueue('x_enno_gatenow.group.daily_review', groupGr, uniqueGroups[j], ''); 
+    
+    if (uniqueGroups.length > 0) {
+        var userGroupGR = new GlideRecord('sys_user_group');
+        userGroupGR.addQuery('sys_id', 'IN', uniqueGroups.join(','));
+        userGroupGR.query();
+        
+        while (userGroupGR.next()) {
+           
+            gs.eventQueue('x_enno_gatenow.group.daily_review', userGroupGR, userGroupGR.getUniqueValue(), ''); 
+        }
     }
-}]]></script>
+})();]]></script>
         <sys_class_name>sysauto_script</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-04-06 08:47:21</sys_created_on>
         <sys_id>8392cb4eeb84c310520dfbdffdc0cd1c</sys_id>
-        <sys_mod_count>7</sys_mod_count>
+        <sys_mod_count>8</sys_mod_count>
         <sys_name>GateNow - Daily Group Review Aggregation</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sysauto_script_8392cb4eeb84c310520dfbdffdc0cd1c</sys_update_name>
         <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-14 07:28:58</sys_updated_on>
+        <sys_updated_on>2026-04-30 07:55:59</sys_updated_on>
         <time_zone>GMT</time_zone>
         <upgrade_safe>false</upgrade_safe>
     </sysauto_script>

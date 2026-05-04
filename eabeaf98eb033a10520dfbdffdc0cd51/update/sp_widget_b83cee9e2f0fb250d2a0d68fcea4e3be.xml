@@ -7,12 +7,12 @@
   c.tab = 'overview';
 
   c.applyForGrant = function() {
-    if (!c.data.program || !c.data.program.sys_id) return;
+    if (!c.data.program || !c.data.program) return;
     
     // 2. Use $location.search to update parameters safely
     $location.search({
       id: 'grant_application',
-      program: c.data.program.sys_id // Ensure parameter name matches your application logic
+      program: c.data.program// Ensure parameter name matches your application logic
     });
   };
 
@@ -507,79 +507,83 @@
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function() {
-  data.loaded  = false;
-  data.program = null;
+    data.loaded  = false;
+    data.program = null;
 
- 
-  var programId = $sp.getParameter('sys_id') || $sp.getParameter('program_id');
+    var programId = $sp.getParameter('sys_id') || $sp.getParameter('program_id');
 
-  if (!programId) {
-    data.loaded = true; 
-    return;
-  }
+    if (!programId) {
+        data.loaded = true; 
+        return;
+    }
 
-  var gr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-  gr.addQuery('sys_id', programId);
-  gr.addQuery('active', true);
-  gr.setLimit(1);
-  gr.query();
+    // --- Fetch Grant Program ---
+    var grantProgramGR = new GlideRecordSecure('x_enno_gatenow_grant_program');
+    grantProgramGR.addQuery('sys_id', programId);
+    grantProgramGR.addQuery('active', true);
+    grantProgramGR.setLimit(1);
+    grantProgramGR.query();
 
-  if (!gr.next()) {
+    if (!grantProgramGR.next()) {
+        data.loaded = true;
+        return;
+    }
+
+    data.program = {
+        sys_id:                     grantProgramGR.getUniqueValue(),
+        number:                     grantProgramGR.getValue('number'),
+        name:                       grantProgramGR.getDisplayValue('program_name'),
+        lead:                       grantProgramGR.getDisplayValue('program_lead'),
+        manager:                    grantProgramGR.getDisplayValue('program_manager'),
+        status:                     grantProgramGR.getDisplayValue('status'),
+        active:                     grantProgramGR.getValue('active') === '1',
+        start_date:                 grantProgramGR.getDisplayValue('start_date'),
+        end_date:                   grantProgramGR.getDisplayValue('end_date'),
+        proposal_open:              grantProgramGR.getDisplayValue('proposal_open_date'),
+        proposal_close:             grantProgramGR.getDisplayValue('proposal_close_date'),
+        priority:                   grantProgramGR.getDisplayValue('priority'),
+        budget:                     grantProgramGR.getDisplayValue('program_budget'),
+        currency:                   '',
+        disbursement_schedule:      grantProgramGR.getDisplayValue('disbursement_schedule'),
+        disbursement_type:          grantProgramGR.getDisplayValue('disbursement_type'),
+        category:                   grantProgramGR.getDisplayValue('category'),
+        award_type:                 grantProgramGR.getDisplayValue('award_type'),
+        description:                grantProgramGR.getValue('description'),
+        image:                      grantProgramGR.getDisplayValue('image'),
+        synopsis:                   grantProgramGR.getValue('synopsis'),
+        assistance_listing_number:  grantProgramGR.getDisplayValue('assistance_listing_number'),
+        funding_opportunity_number: grantProgramGR.getDisplayValue('funding_opportunity_number'),
+        summary_statement:          grantProgramGR.getValue('summary_statement'),
+        eligibility_summary:        grantProgramGR.getValue('eligibility_summary'),
+        terms:                      grantProgramGR.getValue('terms_and_conditions')
+    };
+
+    // --- Fetch Attachments ---
+    var attachments = [];
+    var programAttachmentGR = new GlideRecordSecure('sys_attachment');
+    programAttachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_program');
+    programAttachmentGR.addQuery('table_sys_id', grantProgramGR.getUniqueValue());
+    programAttachmentGR.orderBy('file_name');
+    programAttachmentGR.query();
+    
+    while (programAttachmentGR.next()) {
+        var bytes = parseInt(programAttachmentGR.getValue('size_bytes')) || 0;
+        var sizeFmt = bytes < 1024 ? bytes + ' B'
+                    : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB'
+                    : (bytes / 1048576).toFixed(1) + ' MB';
+                    
+        attachments.push({
+            sys_id:          programAttachmentGR.getUniqueValue(),
+            name:            programAttachmentGR.getValue('file_name'),
+            type:            programAttachmentGR.getValue('content_type') || 'application/octet-stream',
+            size_bytes:      bytes,
+            size_formatted:  sizeFmt,
+            url:             '/sys_attachment.do?sys_id=' + programAttachmentGR.getUniqueValue()
+        });
+    }
+    
+    data.program.attachments = attachments;
     data.loaded = true;
-    return;
-  }
-
-  data.program = {
-    sys_id:                gr.getUniqueValue(),
-    number:                gr.getValue('number'),
-    name:                  gr.getDisplayValue('program_name'),
-    lead:                  gr.getDisplayValue('program_lead'),
-    manager:               gr.getDisplayValue('program_manager'),
-    status:                gr.getDisplayValue('status'),
-    active:                gr.getValue('active') === '1',
-    start_date:            gr.getDisplayValue('start_date'),
-    end_date:              gr.getDisplayValue('end_date'),
-    proposal_open:         gr.getDisplayValue('proposal_open_date'),
-    proposal_close:        gr.getDisplayValue('proposal_close_date'),
-    priority:              gr.getDisplayValue('priority'),
-    budget:                gr.getDisplayValue('program_budget'),
-    currency:              '',
-    disbursement_schedule: gr.getDisplayValue('disbursement_schedule'),
-    disbursement_type:     gr.getDisplayValue('disbursement_type'),
-    category:              gr.getDisplayValue('category'),
-    award_type:            gr.getDisplayValue('award_type'),
-    description:           gr.getValue('description'),
-    image:                 gr.getDisplayValue('image'),
-    synopsis:              gr.getValue('synopsis'),
-		assistance_listing_number: gr.getDisplayValue('assistance_listing_number'),
-funding_opportunity_number: gr.getDisplayValue('funding_opportunity_number'),
-    summary_statement:     gr.getValue('summary_statement'),
-    eligibility_summary:   gr.getValue('eligibility_summary'),
-    terms:                 gr.getValue('terms_and_conditions')
-  };
-// Fetch attachments
-var attachments = [];
-var attGr = new GlideRecordSecure('sys_attachment');
-attGr.addQuery('table_name', 'x_enno_gatenow_grant_program');
-attGr.addQuery('table_sys_id', gr.getUniqueValue());
-attGr.orderBy('file_name');
-attGr.query();
-while (attGr.next()) {
-    var bytes = parseInt(attGr.getValue('size_bytes')) || 0;
-    var sizeFmt = bytes < 1024 ? bytes + ' B'
-                : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB'
-                : (bytes / 1048576).toFixed(1) + ' MB';
-    attachments.push({
-        sys_id:          attGr.getUniqueValue(),
-        name:            attGr.getValue('file_name'),
-        type:            attGr.getValue('content_type') || 'application/octet-stream',
-        size_bytes:      bytes,
-        size_formatted:  sizeFmt,
-        url:             '/sys_attachment.do?sys_id=' + attGr.getUniqueValue()
-    });
-}
-data.program.attachments = attachments;
-  data.loaded = true;
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -587,14 +591,14 @@ data.program.attachments = attachments;
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-16 08:29:06</sys_created_on>
         <sys_id>b83cee9e2f0fb250d2a0d68fcea4e3be</sys_id>
-        <sys_mod_count>23</sys_mod_count>
+        <sys_mod_count>30</sys_mod_count>
         <sys_name>Published Program Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2026-04-17 11:25:01</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-05-04 12:01:11</sys_updated_on>
         <template><![CDATA[<div class="grant-detail-page" ng-if="data.loaded && data.program">
   
   <!-- Hero Section with Clean Image (NO TEXT OVERLAY) -->
