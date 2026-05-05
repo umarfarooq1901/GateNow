@@ -35,6 +35,10 @@
     
     c.baselineReport = { report_status: 'baseline_report' };
     c.statusReport = { report_status: 'monthly_report' };
+	c.reportStatusChoices = [
+    { label: 'Final Report',    value: 'Final Report' },
+    { label: 'Monthly Report',  value: 'monthly_report' }
+];
     c.changeRequest = {};
 
     /* --- 2. INITIALIZE --- */
@@ -233,7 +237,7 @@
     c.finishStatusSuccess = function() {
         c.submitting = false;
         c.statusFile = null; 
-        c.statusReport = { report_status: 'monthly_report' }; 
+        c.statusReport = { report_status: '' };
         
         $timeout(function() {
             c.activeTab = 'reports'; 
@@ -491,19 +495,27 @@
 
     /* --- 6. UTILITIES --- */
     
-    c.downloadAttachment = function(attachment) {
-        if (!attachment) return;
-        
-        // This will now catch the dual-mapped ID perfectly!
-        var targetId = attachment.record_id || attachment['sys_id'];
-        
-        if (targetId) {
-            var url = '/sys_attachment.do?sys_id=' + targetId;
-            $window.open(url, '_blank');
-        } else {
-            spUtil.addErrorMessage("Error: Could not locate the attachment ID.");
-        }
-    };
+   c.downloadAttachment = function(attachment) {
+    if (!attachment) return;
+
+    var targetId = attachment.record_id || attachment['sys_id'];
+
+    if (!targetId || typeof targetId !== 'string' || !/^[a-f0-9]{32}$/.test(targetId)) {
+        spUtil.addErrorMessage("Invalid attachment reference.");
+        return;
+    }
+
+    // ✅ Construct a relative URL — never pass user input directly to $window.open
+    var url = '/sys_attachment.do?sys_id=' + encodeURIComponent(targetId);
+
+    var anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';  
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+};
 
     c.formatCurrency = function(amount) {
         if (amount === undefined || amount === null || amount === '') return '$0.00';
@@ -3671,14 +3683,14 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>461</sys_mod_count>
+        <sys_mod_count>467</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-05-04 11:41:00</sys_updated_on>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-05-05 11:30:40</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -3840,7 +3852,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       
      <div ng-if="c.activeTab === 'overview'" class="ov-wrapper">
 
-  <!-- ── HERO BANNER ─────────────────────────────── -->
+  <!-- â”€â”€ HERO BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="ov-hero">
     <div class="ov-hero__glow"></div>
     <div class="ov-hero__glow ov-hero__glow--2"></div>
@@ -3896,13 +3908,13 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
     </div>
   </div>
 
-  <!-- ── TIMELINE STRIP ──────────────────────────── -->
+  <!-- â”€â”€ TIMELINE STRIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="ov-timeline-strip">
     <div class="ov-tl-item">
       <span class="ov-tl-dot ov-tl-dot--green"></span>
       <div>
         <span class="ov-tl-label">Start Date</span>
-        <strong class="ov-tl-val">{{c.project.work_start || '—'}}</strong>
+        <strong class="ov-tl-val">{{c.project.work_start || 'â€”'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3910,7 +3922,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--blue"></span>
       <div>
         <span class="ov-tl-label">End Date</span>
-        <strong class="ov-tl-val">{{c.project.work_end || '—'}}</strong>
+        <strong class="ov-tl-val">{{c.project.work_end || 'â€”'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3918,7 +3930,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--indigo"></span>
       <div>
         <span class="ov-tl-label">Planned start date</span>
-        <strong class="ov-tl-val">{{c.project.start_date || '—'}}</strong>
+        <strong class="ov-tl-val">{{c.project.start_date || 'â€”'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3926,15 +3938,15 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--red"></span>
       <div>
         <span class="ov-tl-label">Planned end date</span>
-        <strong class="ov-tl-val">{{c.project.end_date || '—'}}</strong>
+        <strong class="ov-tl-val">{{c.project.end_date || 'â€”'}}</strong>
       </div>
     </div>
   </div>
 
-  <!-- ── BODY GRID ────────────────────────────────── -->
+  <!-- â”€â”€ BODY GRID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="ov-body-grid">
 
-    <!-- LEFT — Details + Recipient -->
+    <!-- LEFT â€” Details + Recipient -->
     <div class="ov-body-left">
 
       <!-- Details Card -->
@@ -3956,8 +3968,8 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
             <span>{{c.project.applicant.gender}}</span>
           </div>
           <div class="ov-rec-contact">
-            <span><i class="fa fa-envelope-o"></i> {{c.project.applicant.email || '—'}}</span>
-            <span><i class="fa fa-phone"></i> {{c.project.applicant.phone_number || '—'}}</span>
+            <span><i class="fa fa-envelope-o"></i> {{c.project.applicant.email || 'â€”'}}</span>
+            <span><i class="fa fa-phone"></i> {{c.project.applicant.phone_number || 'â€”'}}</span>
           </div>
         </div>
       </div>
@@ -3973,7 +3985,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
           <label class="ov-btn-upload ov-card__action" ng-class="{'is-loading': c.uploading}">
             <i class="fa fa-upload"></i>
             <span ng-if="!c.uploading">Upload File</span>
-            <span ng-if="c.uploading">Uploading…</span>
+            <span ng-if="c.uploading">Uploadingâ€¦</span>
             <input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
           </label>
         </div>
@@ -4006,7 +4018,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
 
     </div>
 
-    <!-- RIGHT — Activity -->
+    <!-- RIGHT â€” Activity -->
     <div class="ov-body-right">
       <div class="ov-card ov-card--activity ov-card--anim">
         <div class="ov-card__hdr">
@@ -4037,7 +4049,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         <div class="ov-comment-box">
           <input type="text" class="ov-comment-input"
                  ng-model="c.newComment"
-                 placeholder="Add an update…"
+                 placeholder="Add an updateâ€¦"
                  ng-keyup="$event.keyCode === 13 && c.newComment && c.postComment()">
           <button class="ov-comment-send"
                   ng-click="c.postComment()"
@@ -4229,18 +4241,17 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
           </div>
           
           <div class="col-md-3">
-            <div class="form-group">
-              <label>Report Status <span class="required">*</span></label>
-              <input type="text" 
-                     class="form-control" 
-                     value="Monthly Report" 
-                     readonly 
-                     style="background-color: #f8fafc; cursor: not-allowed; border-color: #e2e8f0;">
-              <input type="hidden" 
-                     ng-model="c.statusReport.report_status" 
-                     ng-init="c.statusReport.report_status = 'monthly_report'">
-            </div>
-          </div>
+    <div class="form-group">
+        <label>Report Status <span class="required">*</span></label>
+        <select class="form-control"
+                ng-model="c.statusReport.report_status"
+                required>
+            <option value="">-- None --</option>
+            <option value="Final Report">Final Report</option>
+            <option value="monthly_report">Monthly Report</option>
+        </select>
+    </div>
+</div>
           
           <div class="col-md-3">
             <div class="form-group">
@@ -5572,7 +5583,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
           </div>
           <div>
             <h3 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: #1e293b;">Reimbursement Request</h3>
-            <span style="font-size: 13px; color: #64748b;">{{c.selectedReimbursement.number}} • Submitted: {{c.selectedReimbursement.date_request_submitted || c.selectedReimbursement.sys_created_on}}</span>
+            <span style="font-size: 13px; color: #64748b;">{{c.selectedReimbursement.number}} â€¢ Submitted: {{c.selectedReimbursement.date_request_submitted || c.selectedReimbursement.sys_created_on}}</span>
           </div>
         </div>
         <button type="button" style="background: none; border: none; font-size: 24px; color: #94a3b8; cursor: pointer;" data-dismiss="modal">&times;</button>
