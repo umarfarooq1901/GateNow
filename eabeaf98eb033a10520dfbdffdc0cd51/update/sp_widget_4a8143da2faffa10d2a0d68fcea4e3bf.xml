@@ -68,8 +68,14 @@
                 c.baselineSubmitted = r.data.baselineSubmitted || false;
                 
                 if (c.baselineSubmitted && r.data.baselineReport) {
-                    c.baselineReport = r.data.baselineReport;
-                }
+    c.baselineReport = r.data.baselineReport;
+    
+    // ADD THIS FIX: Convert the string back into a JS Date object
+    if (c.baselineReport.as_on) {
+        // Adding 'T00:00:00' prevents timezone shifting bugs
+        c.baselineReport.as_on = new Date(c.baselineReport.as_on + 'T00:00:00');
+    }
+}
                 c.reimbursementHistory = r.data.reimbursementHistory || [];
             }
             c.loading = false;
@@ -197,42 +203,55 @@
     };
 
     c.submitStatusReport = function() {
-        c.submitting = true;
-        c.server.get({
-            action: 'submitStatusReport',
-            report: c.statusReport,
-            sys_id: c.project['sys_id']
-        }).then(function(r) {
-            if (r.data.success) {
-                var newRecordSysId = r.data.new_status_id; 
+    c.submitting = true;
 
-                if (c.statusFile && newRecordSysId) {
-                    var formData = new FormData();
-                    formData.append('table_name', 'project_status');
-                    formData.append('table_sys_id', newRecordSysId);
-                    formData.append('file', c.statusFile);
+    // Create a copy of the report data so we don't break the UI binding
+    var payload = angular.copy(c.statusReport);
 
-                    $http({
-                        method: 'POST',
-                        url: '/api/now/attachment/upload',
-                        headers: { 'Content-Type': undefined },
-                        data: formData,
-                        transformRequest: angular.identity
-                    }).then(function() {
-                        c.finishStatusSuccess(r.data);
-                    }, function() {
-                        spUtil.addErrorMessage("Report saved, but attachment failed.");
-                        c.finishStatusSuccess(r.data);
-                    });
-                } else {
+    // FIX: Force the date to a string to prevent timezone decrementing
+    if (payload.as_on) {
+        // This takes the '2026-05-07' part and ignores the time/timezone
+        var d = new Date(payload.as_on);
+        payload.as_on = d.getFullYear() + '-' + 
+                        ('0' + (d.getMonth() + 1)).slice(-2) + '-' + 
+                        ('0' + d.getDate()).slice(-2);
+    }
+
+    c.server.get({
+        action: 'submitStatusReport',
+        report: payload, // Send the cleaned payload instead of c.statusReport
+        sys_id: c.project['sys_id']
+    }).then(function(r) {
+        if (r.data.success) {
+            var newRecordSysId = r.data.new_status_id; 
+
+            if (c.statusFile && newRecordSysId) {
+                var formData = new FormData();
+                formData.append('table_name', 'project_status');
+                formData.append('table_sys_id', newRecordSysId);
+                formData.append('file', c.statusFile);
+
+                $http({
+                    method: 'POST',
+                    url: '/api/now/attachment/upload',
+                    headers: { 'Content-Type': undefined },
+                    data: formData,
+                    transformRequest: angular.identity
+                }).then(function() {
                     c.finishStatusSuccess(r.data);
-                }
+                }, function() {
+                    spUtil.addErrorMessage("Report saved, but attachment failed.");
+                    c.finishStatusSuccess(r.data);
+                });
             } else {
-                c.submitting = false;
-                spUtil.addErrorMessage("Error submitting the report.");
+                c.finishStatusSuccess(r.data);
             }
-        });
-    };
+        } else {
+            c.submitting = false;
+            spUtil.addErrorMessage("Error submitting the report.");
+        }
+    });
+};
 
     c.finishStatusSuccess = function() {
         c.submitting = false;
@@ -449,11 +468,17 @@
     };
 
     c.finishBaselineSuccess = function() {
+
         c.submitting = false;
+
         c.baselineFile = null;
+
         c.baselineSubmitted = true;
+
         spUtil.addInfoMessage("Baseline report and documents submitted.");
-        c.loadData(); 
+
+        c.loadData();
+
     };
     
     /* --- 5. MODAL VIEWERS --- */
@@ -3104,13 +3129,13 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     /* --- 2. HANDLE SUBMISSIONS --- */
     if (input && input.action) {
         
-        if (input.action === 'postComment') {
-            var msgRec = new GlideRecordSecure('pm_project');
-            if (msgRec.get(input['sys_id'])) {
-                msgRec.comments = input.comment; 
-                msgRec.update();
-            }
-        }
+  if (input.action === 'postComment') {
+    var msgRec = new GlideRecordSecure('pm_project');
+    if (msgRec.get(input['sys_id'])) {
+        msgRec.comments = input.comment;
+        msgRec.update();
+    }
+}
 
       if (input.action === 'submitBaselineReport') {
             var percents = input.report.percent_complete;
@@ -3468,7 +3493,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         if (statusRec.x_enno_gatenow_report_status == 'baseline_report') {
             data.baselineSubmitted = true;
             
-            data.baselineReport.as_on = statusRec.getDisplayValue('as_on').split(' ')[0];
+data.baselineReport.as_on = statusRec.getValue('as_on');
             
             data.baselineReport.percent_complete = parseInt(statusRec.getValue('x_enno_gatenow_percent_complete'));
             data.baselineReport.executive_summary = statusRec.getValue('executive_summary');
@@ -3661,36 +3686,85 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
     }
 
     /* --- HELPER FUNCTIONS --- */
-    function getComments(sysId) {
-        var list = [];
-        var journal = new GlideRecordSecure('sys_journal_field');
-        journal.addQuery('element_id', sysId);
-        journal.addQuery('element', 'comments'); 
-        journal.orderByDesc('sys_created_on');
-        journal.query();
-        while (journal.next()) {
-            list.push({
-                comment: journal.value.getDisplayValue(),
-                created_on: journal.sys_created_on.getDisplayValue(),
-                created_by_name: journal.sys_created_by.getDisplayValue()
-            });
+   function getComments(sysId) {
+    var list = [];
+
+    var projRec = new GlideRecordSecure('pm_project');
+    if (!projRec.get(sysId)) return list;
+
+    // --- Fetch Additional Comments (comments field) ---
+    var rawComments = projRec.comments.getJournalEntry(-1);
+    if (rawComments && rawComments.trim() !== '') {
+        var commentEntries = rawComments.split('\n\n');
+        for (var i = 0; i < commentEntries.length; i++) {
+            var entry = commentEntries[i].trim();
+            if (!entry) continue;
+
+            var firstNewline = entry.indexOf('\n');
+            var header = (firstNewline !== -1) ? entry.substring(0, firstNewline) : entry;
+            var commentText = (firstNewline !== -1) ? entry.substring(firstNewline + 1).trim() : '';
+            var dashIndex = header.indexOf(' - ');
+            var createdOn = (dashIndex !== -1) ? header.substring(0, dashIndex).trim() : header;
+            var createdBy = (dashIndex !== -1) ? header.substring(dashIndex + 3).trim() : 'Unknown';
+
+            if (commentText) {
+                list.push({
+                    comment: commentText,
+                    created_on: createdOn,
+                    created_by_name: createdBy,
+                    type: 'comment'  // optional: use this in HTML to style differently
+                });
+            }
         }
-        return list;
     }
+
+    // --- Fetch Work Notes (notes field) ---
+    var rawNotes = projRec.work_notes.getJournalEntry(-1);
+    if (rawNotes && rawNotes.trim() !== '') {
+        var noteEntries = rawNotes.split('\n\n');
+        for (var j = 0; j < noteEntries.length; j++) {
+            var noteEntry = noteEntries[j].trim();
+            if (!noteEntry) continue;
+
+            var noteNewline = noteEntry.indexOf('\n');
+            var noteHeader = (noteNewline !== -1) ? noteEntry.substring(0, noteNewline) : noteEntry;
+            var noteText = (noteNewline !== -1) ? noteEntry.substring(noteNewline + 1).trim() : '';
+            var noteDash = noteHeader.indexOf(' - ');
+            var noteCreatedOn = (noteDash !== -1) ? noteHeader.substring(0, noteDash).trim() : noteHeader;
+            var noteCreatedBy = (noteDash !== -1) ? noteHeader.substring(noteDash + 3).trim() : 'Unknown';
+
+            if (noteText) {
+                list.push({
+                    comment: noteText,
+                    created_on: noteCreatedOn,
+                    created_by_name: noteCreatedBy,
+                    type: 'work_note'  // optional: use this to show a ]]>🔒<![CDATA[ or "Internal" badge
+                });
+            }
+        }
+    }
+
+    // --- Sort merged list by date descending ---
+    list.sort(function(a, b) {
+        return new Date(b.created_on) - new Date(a.created_on);
+    });
+
+    return list;
+}
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>467</sys_mod_count>
+        <sys_mod_count>479</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>sharik.mir</sys_updated_by>
-        <sys_updated_on>2026-05-05 11:30:40</sys_updated_on>
+        <sys_updated_by>basit.hassan</sys_updated_by>
+        <sys_updated_on>2026-05-07 11:52:55</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -3914,7 +3988,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--green"></span>
       <div>
         <span class="ov-tl-label">Start Date</span>
-        <strong class="ov-tl-val">{{c.project.work_start || 'â€”'}}</strong>
+        <strong class="ov-tl-val">{{c.project.work_start || 'Not defined'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3922,7 +3996,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--blue"></span>
       <div>
         <span class="ov-tl-label">End Date</span>
-        <strong class="ov-tl-val">{{c.project.work_end || 'â€”'}}</strong>
+        <strong class="ov-tl-val">{{c.project.work_end || 'Not defined'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3930,7 +4004,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--indigo"></span>
       <div>
         <span class="ov-tl-label">Planned start date</span>
-        <strong class="ov-tl-val">{{c.project.start_date || 'â€”'}}</strong>
+        <strong class="ov-tl-val">{{c.project.start_date || 'Not defined'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -3938,7 +4012,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
       <span class="ov-tl-dot ov-tl-dot--red"></span>
       <div>
         <span class="ov-tl-label">Planned end date</span>
-        <strong class="ov-tl-val">{{c.project.end_date || 'â€”'}}</strong>
+        <strong class="ov-tl-val">{{c.project.end_date || 'Not defined'}}</strong>
       </div>
     </div>
   </div>
@@ -3946,7 +4020,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
   <!-- â”€â”€ BODY GRID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div class="ov-body-grid">
 
-    <!-- LEFT â€” Details + Recipient -->
+    <!-- LEFT  Details + Recipient -->
     <div class="ov-body-left">
 
       <!-- Details Card -->
@@ -3968,8 +4042,8 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
             <span>{{c.project.applicant.gender}}</span>
           </div>
           <div class="ov-rec-contact">
-            <span><i class="fa fa-envelope-o"></i> {{c.project.applicant.email || 'â€”'}}</span>
-            <span><i class="fa fa-phone"></i> {{c.project.applicant.phone_number || 'â€”'}}</span>
+            <span><i class="fa fa-envelope-o"></i> {{c.project.applicant.email || 'Not defined'}}</span>
+            <span><i class="fa fa-phone"></i> {{c.project.applicant.phone_number || 'Not defined'}}</span>
           </div>
         </div>
       </div>
@@ -4049,7 +4123,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         <div class="ov-comment-box">
           <input type="text" class="ov-comment-input"
                  ng-model="c.newComment"
-                 placeholder="Add an updateâ€¦"
+                 placeholder="Add an update"
                  ng-keyup="$event.keyCode === 13 && c.newComment && c.postComment()">
           <button class="ov-comment-send"
                   ng-click="c.postComment()"
