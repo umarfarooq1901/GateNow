@@ -331,12 +331,13 @@
     // ==========================================
     // REIMBURSEMENT MATH & SUBMISSION
     // ==========================================
-    c.calculateReimbursement = function() {
-        var a = c.reimbursement.line_a || 0;
-        var b = c.reimbursement.line_b || 0;
-        var d = c.reimbursement.line_d || 0;
-        var f = c.reimbursement.line_f || 0;
-        var h = c.reimbursement.line_h || 0;
+   c.calculateReimbursement = function() {
+        // FIX 1: Parse to Float to prevent string concatenation (e.g. 10 + 10 = 1010)
+        var a = parseFloat(c.reimbursement.line_a) || 0;
+        var b = parseFloat(c.reimbursement.line_b) || 0;
+        var d = parseFloat(c.reimbursement.line_d) || 0;
+        var f = parseFloat(c.reimbursement.line_f) || 0;
+        var h = parseFloat(c.reimbursement.line_h) || 0;
 
         c.reimbursement.line_c = a - b;
         c.reimbursement.line_e = c.reimbursement.line_c + d;
@@ -357,9 +358,29 @@
 
     c.submitReimbursement = function() {
         c.submitting = true;
+
+        // --- FIX 2: Date formatter to prevent Timezone Shift ---
+        function formatDateToLocalString(dateVal) {
+            if (!dateVal) return dateVal;
+            var d = new Date(dateVal);
+            if (isNaN(d.getTime())) return dateVal; 
+            var month = '' + (d.getMonth() + 1);
+            var day = '' + d.getDate();
+            var year = d.getFullYear();
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            return [year, month, day].join('-');
+        }
+
+        var safeData = angular.copy(c.reimbursement);
+        safeData.period_from = formatDateToLocalString(safeData.period_from);
+        safeData.period_to = formatDateToLocalString(safeData.period_to);
+        safeData.date_submitted = formatDateToLocalString(safeData.date_submitted);
+        // --------------------------------------------------------
+
         var requestPayload = {
             action: 'submit_reimbursement_form',
-            reimbursementData: c.reimbursement,
+            reimbursementData: safeData, // Pass the fixed data, not c.reimbursement
             project_id: c.project['sys_id']
         };
 
@@ -412,7 +433,6 @@
             c.activeTab = 'reimbursement_history'; 
         }, 3000);
     };
-    
     // ==========================================
     // BASELINE REPORT SUBMISSION
     // ==========================================
@@ -3249,11 +3269,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             }
         }
             
-        if (input.action === 'submit_reimbursement_form') {
+       if (input.action === 'submit_reimbursement_form') {
             var formData = input.reimbursementData;
             var reimbFormRec = new GlideRecordSecure('x_enno_gatenow_reimbursement'); 
             reimbFormRec.initialize();
-            reimbFormRec.setValue('parent', projectId);
+            
+            // --- FIX 1: Catch 'project_id' from the client payload ---
+            var targetProjectId = input.project_id || projectId;
+            reimbFormRec.setValue('parent', targetProjectId);
 
             if (formData.payment_type === 'advance') {
                 reimbFormRec.setValue('advance', true);         
@@ -3283,8 +3306,12 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             reimbFormRec.setValue('employer_identification_number', formData.ein);
             reimbFormRec.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
             reimbFormRec.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
+            
+            // --- FIX 2: Reverted back to setValue because the client sends YYYY-MM-DD ---
             reimbFormRec.setValue('from', formData.period_from);
             reimbFormRec.setValue('to', formData.period_to);
+            // ----------------------------------------------------------------------------
+
             reimbFormRec.setValue('name', formData.name);
             reimbFormRec.setValue('street1', formData.recipient_street1);
             reimbFormRec.setValue('street2', formData.recipient_street2);
@@ -3314,7 +3341,11 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             reimbFormRec.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.alt_estimated_balance);
             reimbFormRec.setValue('amount_requested', formData.alt_amount_requested);
             reimbFormRec.setValue('certifying_official_signature', formData.certifying_official_signature);
+            
+            // --- FIX 2: Reverted back to setValue ---
             reimbFormRec.setValue('date_request_submitted', formData.date_submitted);
+            // ----------------------------------------
+
             reimbFormRec.setValue('prefix', formData.prefix);
             reimbFormRec.setValue('first_name', formData.first_name);
             reimbFormRec.setValue('middle_name', formData.middle_name);
@@ -3757,14 +3788,14 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>479</sys_mod_count>
+        <sys_mod_count>488</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>basit.hassan</sys_updated_by>
-        <sys_updated_on>2026-05-07 11:52:55</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-05-10 15:26:04</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -5657,7 +5688,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           </div>
           <div>
             <h3 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: #1e293b;">Reimbursement Request</h3>
-            <span style="font-size: 13px; color: #64748b;">{{c.selectedReimbursement.number}} â€¢ Submitted: {{c.selectedReimbursement.date_request_submitted || c.selectedReimbursement.sys_created_on}}</span>
+            <span style="font-size: 13px; color: #64748b;">{{c.selectedReimbursement.number}}  Submitted: {{c.selectedReimbursement.date_request_submitted || c.selectedReimbursement.sys_created_on}}</span>
           </div>
         </div>
         <button type="button" style="background: none; border: none; font-size: 24px; color: #94a3b8; cursor: pointer;" data-dismiss="modal">&times;</button>

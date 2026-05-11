@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_email">
+    <sys_script_email action="INSERT_OR_UPDATE">
+        <name>View Project For Final Report</name>
+        <new_lines_to_html>false</new_lines_to_html>
+        <script><![CDATA[(function runMailScript(current, template, email, email_action, event) {
+
+    // current is sysapproval_approver
+    // source_id points to the pm_project record being approved
+    var project = current.source_id;
+
+    if (project && !project.nil()) {
+
+        var instanceUrl = gs.getProperty('glide.servlet.uri');
+
+        var projectUrl = instanceUrl +
+            "now/workspace/project/home/sub/record/pm_project/" +
+            project.sys_id +
+            "/params/page-name/details/project-table/pm_project" +
+            "/project-id/" + project.sys_id +
+            "/record-status/1";
+
+        template.print(projectUrl);
+
+    } else {
+
+        template.print('#');
+
+    }
+
+})(current, template, email, email_action, event);]]></script>
+        <sys_class_name>sys_script_email</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-05-11 07:35:29</sys_created_on>
+        <sys_id>d265c3599374c310d444c9b877373c56</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_name>View Project For Final Report</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_script_email_d265c3599374c310d444c9b877373c56</sys_update_name>
+        <sys_updated_by>basit.hassan</sys_updated_by>
+        <sys_updated_on>2026-05-11 08:14:13</sys_updated_on>
+    </sys_script_email>
+</record_update>
