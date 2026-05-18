@@ -1,144 +1,136 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
     <element db_object_id="2fb64f12ebc7f210520dfbdffdc0cdf0" label="Service Applicants" max_length="40" name="x_enno_gatenow_service_applicants" type="collection">
-        <element choice="1" label="Gender" max_length="40" name="gender" read_only="true" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Male" sequence="1" value="Male"/>
-                <element inactive_on_update="false" label="Female" sequence="0" value="Female"/>
-                <element inactive_on_update="false" label="Other" sequence="2" value="Other"/>
-            </choice>
-        </element>
-        <element label="Birthdate" mandatory="true" max_length="40" name="birthdate" read_only="true" type="glide_date"/>
-        <element choice="1" label="Marital status" max_length="40" name="marital_status" read_only="true" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Single" sequence="0" value="Single"/>
-                <element inactive_on_update="false" label="Widowed" sequence="3" value="Widowed"/>
-                <element inactive_on_update="false" label="Divorced" sequence="2" value="Divorced"/>
-                <element inactive_on_update="false" label="Married" sequence="1" value="Married"/>
-            </choice>
-        </element>
-        <element label="City" max_length="40" name="city" read_only="true" type="string"/>
-        <element label="Zip / Postal code" max_length="40" name="zip_postal_code" read_only="true" type="string"/>
-        <element label="Middle name" max_length="40" name="middle_name" read_only="true" type="string"/>
-        <element label="UEI" max_length="40" name="uei" read_only="true" type="string"/>
-        <element label="Street" max_length="40" name="street" read_only="true" type="string"/>
         <element label="Project Activities/Methodology" mandatory="true" max_length="4000" name="project_activities_methodology" read_only="true" type="string"/>
+        <element label="Middle name" max_length="40" name="middle_name" read_only="true" type="string"/>
         <element label="Program Category" max_length="40" name="program_category" read_only="true" type="string"/>
+        <element label="UEI" max_length="40" name="uei" read_only="true" type="string"/>
         <element label="SSN" max_length="40" name="ssn" read_only="true" type="string"/>
-        <element label="Project End Date" max_length="40" name="project_end_date" read_only="true" type="glide_date"/>
+        <element label="Street" max_length="40" name="street" read_only="true" type="string"/>
         <element choice="1" label="Disability status" max_length="40" name="disability_status" read_only="true" type="choice">
             <choice>
-                <element inactive_on_update="false" label="I do not wish to provide this information" sequence="2" value="do_not_wish"/>
                 <element inactive_on_update="false" label="No, I do not have a disability" sequence="1" value="no"/>
                 <element inactive_on_update="false" label="Yes, I have a disability" sequence="0" value="yes"/>
+                <element inactive_on_update="false" label="I do not wish to provide this information" sequence="2" value="do_not_wish"/>
+            </choice>
+        </element>
+        <element label="Short Description" mandatory="true" max_length="4000" name="short_description" read_only="true" type="string"/>
+        <element label="Organization" max_length="40" name="organization" read_only="true" type="string"/>
+        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" read_only="true" type="string" use_dynamic_default="true"/>
+        <element choice="1" label="Military status" max_length="40" name="military_status" read_only="true" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="Veterans" sequence="1" value="veterans"/>
+                <element inactive_on_update="false" label="Active duty" sequence="0" value="active_duty"/>
+                <element inactive_on_update="false" label="I do not wish to provide this information" sequence="3" value="i_do_not_wish_to_provide_this_information"/>
+                <element inactive_on_update="false" label="No military duty" sequence="2" value="no_military_duty"/>
             </choice>
         </element>
         <element label="TIN / EIN" max_length="40" name="tin_ein" read_only="true" type="string"/>
+        <element label="Country" max_length="40" name="country" read_only="true" type="string"/>
+        <element label="Project Start Date" max_length="40" name="project_start_date" read_only="true" type="glide_date"/>
+        <element label="Last name" mandatory="true" max_length="40" name="last_name" read_only="true" type="string"/>
         <element choice="1" label="Tribal affiliation" max_length="40" name="tribal_affiliation" read_only="true" type="choice">
             <choice>
                 <element inactive_on_update="false" label="No" sequence="1" value="No"/>
                 <element inactive_on_update="false" label="Yes" sequence="0" value="Yes"/>
             </choice>
         </element>
-        <element label="Phone Number" max_length="40" name="phone_number" read_only="true" type="string"/>
-        <element label="Short Description" mandatory="true" max_length="4000" name="short_description" read_only="true" type="string"/>
-        <element label="Country" max_length="40" name="country" read_only="true" type="string"/>
         <element calculation="(function calculatedFieldValue(current) {&#10;&#10;// If grant_review is set, show that status; otherwise show empty message&#10;if (!gr.grant_review.nil()) {&#10;    return gr.grant_review.getDisplayValue('status');&#10;}&#10;return 'No Review Assigned';&#10;&#10;&#10;})(current);" label="Status" max_length="40" name="status" read_only="true" type="string" virtual="true"/>
-        <element choice="1" label="Identity type" mandatory="true" max_length="40" name="identity_type" read_only="true" type="choice">
+        <element choice="1" label="Race" max_length="40" name="race" read_only="true" type="choice">
             <choice>
-                <element inactive_on_update="false" label="Medicare Number" sequence="1" value="Medicare Number"/>
-                <element inactive_on_update="false" label="Driver's License Number" sequence="0" value="Drivers License Number"/>
-                <element inactive_on_update="false" label="State Identification Number" sequence="3" value="State Identification Number"/>
-                <element inactive_on_update="false" label="Social Security Number" sequence="2" value="Social Security Number"/>
+                <element inactive_on_update="false" label="Native Hawaiian or Other pacific Islander" sequence="3" value="Native Hawaiian or Other pacific Islander"/>
+                <element inactive_on_update="false" label="Black or African American" sequence="2" value="Black or African American"/>
+                <element inactive_on_update="false" label="I do not wish to provide this informantion" sequence="5" value="I do not wish to provide this informantion"/>
+                <element inactive_on_update="false" label="White" sequence="4" value="White"/>
+                <element inactive_on_update="false" label="Asian" sequence="1" value="Asian"/>
+                <element inactive_on_update="false" label="American Indian or Alaska Native" sequence="0" value="American Indian or Alaska Native"/>
             </choice>
         </element>
-        <element choice="1" label="Ethnicity" max_length="40" name="ethnicity" read_only="true" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Not Hispanic or Latino" sequence="1" value="Not Hispanic or Latino"/>
-                <element inactive_on_update="false" label="Hispanic or Latino" sequence="0" value="Hispanic or Latino"/>
-                <element inactive_on_update="false" label="I do not wish to provide this information" sequence="2" value="I do not wish to provide this information"/>
-            </choice>
-        </element>
-        <element label="Project Goals and Objectives" mandatory="true" max_length="4000" name="project_goals_and_objectives" read_only="true" type="string"/>
-        <element choice="1" label="State" max_length="40" name="state" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Review Completed" sequence="3" value="review_completed"/>
-                <element inactive_on_update="false" label="Declined by Applicant" sequence="7" value="declined_by_applicant"/>
-                <element inactive_on_update="false" label="Cancelled" sequence="10" value="Cancelled"/>
-                <element inactive_on_update="false" label="Award Acknowledged" sequence="6" value="award_acknowledged"/>
-                <element inactive_on_update="false" label="Review in Progress" sequence="2" value="review_in_progress"/>
-                <element inactive_on_update="false" label="Ready for Review" sequence="1" value="ready_for_review"/>
-                <element inactive_on_update="false" label="Project Completed" sequence="9" value="project_completed"/>
-                <element inactive_on_update="false" label="Declined by Agency" sequence="5" value="declined_by_agency"/>
-                <element inactive_on_update="false" label="Project in Progress" sequence="8" value="project_in_progress"/>
-                <element inactive_on_update="false" label="Award Pending" sequence="4" value="award_pending"/>
-                <element inactive_on_update="false" label="New" sequence="0" value="new"/>
-            </choice>
-        </element>
-        <element label="Proposal Description" mandatory="true" max_length="4000" name="proposal_description" read_only="true" type="string"/>
-        <element label="Submission date" max_length="40" name="submission_date" read_only="true" type="glide_date"/>
-        <element label="Email" mandatory="true" max_length="40" name="email" read_only="true" type="string"/>
-        <element choice="1" label="Citizenship status" mandatory="true" max_length="40" name="citizenship_status" read_only="true" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Citizen" sequence="0" value="Citizen"/>
-                <element inactive_on_update="false" label="Undocumented" sequence="3" value="Undocumented"/>
-                <element inactive_on_update="false" label="Permanent Resident" sequence="2" value="Permanent Resident"/>
-                <element inactive_on_update="false" label="Non-Immigrant" sequence="1" value="Non-Immigrant"/>
-            </choice>
-        </element>
-        <element label="First name" mandatory="true" max_length="40" name="first_name" read_only="true" type="string"/>
-        <element label="Requested Budget" max_length="38" name="requested_budget" read_only="true" type="currency"/>
-        <element label="Program" max_length="40" name="program" read_only="true" reference="x_enno_gatenow_grant_program" type="reference"/>
+        <element label="Project End Date" max_length="40" name="project_end_date" read_only="true" type="glide_date"/>
+        <element label="Phone Number" max_length="40" name="phone_number" read_only="true" type="string"/>
         <element choice="1" label="Education level" max_length="40" name="education_level" read_only="true" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Technical or occupational certificate" sequence="7" value="Technical or occupational certificate"/>
-                <element inactive_on_update="false" label="Master's degree" sequence="4" value="Masters degree"/>
-                <element inactive_on_update="false" label="Associate degree" sequence="0" value="Associate degree"/>
                 <element inactive_on_update="false" label="High school or equivalent" sequence="3" value="High school or equivalent"/>
                 <element inactive_on_update="false" label="Some college coursework completed" sequence="6" value="Some college coursework completed"/>
                 <element inactive_on_update="false" label="Doctorate" sequence="2" value="Doctorate"/>
+                <element inactive_on_update="false" label="Professional" sequence="5" value="Professional"/>
                 <element inactive_on_update="false" label="Bachelor's degree" sequence="1" value="bachelor_degree"/>
                 <element inactive_on_update="false" label="Other" sequence="8" value="Other"/>
-                <element inactive_on_update="false" label="Professional" sequence="5" value="Professional"/>
+                <element inactive_on_update="false" label="Master's degree" sequence="4" value="Masters degree"/>
+                <element inactive_on_update="false" label="Associate degree" sequence="0" value="Associate degree"/>
             </choice>
         </element>
-        <element label="Organization" max_length="40" name="organization" read_only="true" type="string"/>
-        <element label="Project Start Date" max_length="40" name="project_start_date" read_only="true" type="glide_date"/>
-        <element label="Grant Review" max_length="32" name="grant_review" reference="x_enno_gatenow_grant_review" type="reference"/>
         <element label="User" max_length="40" name="user" read_only="true" reference="sys_user" type="reference"/>
-        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" read_only="true" type="string" use_dynamic_default="true"/>
-        <element choice="1" label="Race" max_length="40" name="race" read_only="true" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Black or African American" sequence="2" value="Black or African American"/>
-                <element inactive_on_update="false" label="Asian" sequence="1" value="Asian"/>
-                <element inactive_on_update="false" label="I do not wish to provide this informantion" sequence="5" value="I do not wish to provide this informantion"/>
-                <element inactive_on_update="false" label="White" sequence="4" value="White"/>
-                <element inactive_on_update="false" label="American Indian or Alaska Native" sequence="0" value="American Indian or Alaska Native"/>
-                <element inactive_on_update="false" label="Native Hawaiian or Other pacific Islander" sequence="3" value="Native Hawaiian or Other pacific Islander"/>
-            </choice>
-        </element>
         <element choice="1" label="Applicant type" mandatory="true" max_length="40" name="applicant_type" read_only="true" type="choice">
             <choice>
-                <element inactive_on_update="false" label="Government" sequence="0" value="Government"/>
                 <element inactive_on_update="false" label="Organization" sequence="2" value="Organization"/>
                 <element inactive_on_update="false" label="Individual" sequence="1" value="Individual"/>
+                <element inactive_on_update="false" label="Government" sequence="0" value="Government"/>
             </choice>
         </element>
-        <element choice="1" label="Military status" max_length="40" name="military_status" read_only="true" type="choice">
+        <element choice="1" label="Marital status" max_length="40" name="marital_status" read_only="true" type="choice">
             <choice>
-                <element inactive_on_update="false" label="I do not wish to provide this information" sequence="3" value="i_do_not_wish_to_provide_this_information"/>
-                <element inactive_on_update="false" label="No military duty" sequence="2" value="no_military_duty"/>
-                <element inactive_on_update="false" label="Veterans" sequence="1" value="veterans"/>
-                <element inactive_on_update="false" label="Active duty" sequence="0" value="active_duty"/>
+                <element inactive_on_update="false" label="Divorced" sequence="2" value="Divorced"/>
+                <element inactive_on_update="false" label="Married" sequence="1" value="Married"/>
+                <element inactive_on_update="false" label="Single" sequence="0" value="Single"/>
+                <element inactive_on_update="false" label="Widowed" sequence="3" value="Widowed"/>
             </choice>
         </element>
-        <element label="Last name" mandatory="true" max_length="40" name="last_name" read_only="true" type="string"/>
+        <element label="City" max_length="40" name="city" read_only="true" type="string"/>
+        <element label="Zip / Postal code" max_length="40" name="zip_postal_code" read_only="true" type="string"/>
+        <element choice="1" label="Ethnicity" max_length="40" name="ethnicity" read_only="true" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="I do not wish to provide this information" sequence="2" value="I do not wish to provide this information"/>
+                <element inactive_on_update="false" label="Not Hispanic or Latino" sequence="1" value="Not Hispanic or Latino"/>
+                <element inactive_on_update="false" label="Hispanic or Latino" sequence="0" value="Hispanic or Latino"/>
+            </choice>
+        </element>
+        <element label="Submission date" max_length="40" name="submission_date" read_only="true" type="glide_date"/>
+        <element label="Requested Budget" max_length="38" name="requested_budget" read_only="true" type="currency"/>
+        <element label="Project Goals and Objectives" mandatory="true" max_length="4000" name="project_goals_and_objectives" read_only="true" type="string"/>
+        <element label="Email" mandatory="true" max_length="40" name="email" read_only="true" type="string"/>
+        <element choice="1" label="State" max_length="40" name="state" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="Declined by Applicant" sequence="7" value="declined_by_applicant"/>
+                <element inactive_on_update="false" label="Review Completed" sequence="3" value="review_completed"/>
+                <element inactive_on_update="false" label="New" sequence="0" value="new"/>
+                <element inactive_on_update="false" label="Cancelled" sequence="10" value="Cancelled"/>
+                <element inactive_on_update="false" label="Award Acknowledged" sequence="6" value="award_acknowledged"/>
+                <element inactive_on_update="false" label="Project Completed" sequence="9" value="project_completed"/>
+                <element inactive_on_update="false" label="Declined by Agency" sequence="5" value="declined_by_agency"/>
+                <element inactive_on_update="false" label="Review in Progress" sequence="2" value="review_in_progress"/>
+                <element inactive_on_update="false" label="Ready for Review" sequence="1" value="ready_for_review"/>
+                <element inactive_on_update="false" label="Project in Progress" sequence="8" value="project_in_progress"/>
+                <element inactive_on_update="false" label="Award Pending" sequence="4" value="award_pending"/>
+            </choice>
+        </element>
+        <element choice="1" label="Citizenship status" mandatory="true" max_length="40" name="citizenship_status" read_only="true" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="Non-Immigrant" sequence="1" value="Non-Immigrant"/>
+                <element inactive_on_update="false" label="Undocumented" sequence="3" value="Undocumented"/>
+                <element inactive_on_update="false" label="Citizen" sequence="0" value="Citizen"/>
+                <element inactive_on_update="false" label="Permanent Resident" sequence="2" value="Permanent Resident"/>
+            </choice>
+        </element>
+        <element choice="1" label="Identity type" mandatory="true" max_length="40" name="identity_type" read_only="true" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="State Identification Number" sequence="3" value="State Identification Number"/>
+                <element inactive_on_update="false" label="Social Security Number" sequence="2" value="Social Security Number"/>
+                <element inactive_on_update="false" label="Medicare Number" sequence="1" value="Medicare Number"/>
+                <element inactive_on_update="false" label="Driver's License Number" sequence="0" value="Drivers License Number"/>
+            </choice>
+        </element>
+        <element label="Proposal Description" mandatory="true" max_length="4000" name="proposal_description" read_only="true" type="string"/>
+        <element label="First name" mandatory="true" max_length="40" name="first_name" read_only="true" type="string"/>
+        <element choice="1" label="Gender" max_length="40" name="gender" read_only="true" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="Other" sequence="2" value="Other"/>
+                <element inactive_on_update="false" label="Male" sequence="1" value="Male"/>
+                <element inactive_on_update="false" label="Female" sequence="0" value="Female"/>
+            </choice>
+        </element>
+        <element label="Birthdate" mandatory="true" max_length="40" name="birthdate" read_only="true" type="glide_date"/>
         <index name="index">
-            <element name="grant_review"/>
-        </index>
-        <index name="index2">
-            <element name="program"/>
-        </index>
-        <index name="index3">
             <element name="user"/>
         </index>
     </element>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?><database>
+    <element audit="true" db_object_id="2afd036f2ff88310d2a0d68fcea4e3be" label="Issue" max_length="40" name="x_enno_gatenow_issue" type="collection">
+        <element label="Work notes" max_length="255" name="work_notes" type="journal_input"/>
+        <element choice="1" label="Impact" max_length="40" name="impact" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="3 - Low" sequence="2" value="3"/>
+                <element inactive_on_update="false" label="1 - High" sequence="0" value="1"/>
+                <element inactive_on_update="false" label="2 - Medium" sequence="1" value="2"/>
+            </choice>
+        </element>
+        <element label="Short description" mandatory="true" max_length="140" name="short_description" type="string"/>
+        <element label="Project" max_length="32" name="project" reference="x_enno_gatenow_project" type="reference"/>
+        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" type="string" use_dynamic_default="true"/>
+        <element label="Description" max_length="4000" name="description" type="string"/>
+        <element choice="1" label="Priority" max_length="40" name="priority" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="3 - Moderate" sequence="2" value="3"/>
+                <element inactive_on_update="false" label="5 - Planning" sequence="4" value="5"/>
+                <element inactive_on_update="false" label="1 - Critical" sequence="0" value="1"/>
+                <element inactive_on_update="false" label="4 - Low" sequence="3" value="4"/>
+                <element inactive_on_update="false" label="2 - High" sequence="1" value="2"/>
+            </choice>
+        </element>
+        <index name="index">
+            <element name="project"/>
+        </index>
+    </element>
+</database>

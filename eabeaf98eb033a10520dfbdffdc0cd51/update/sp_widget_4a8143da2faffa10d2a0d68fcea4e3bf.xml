@@ -3133,7 +3133,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         return;
     }
 
-    var projectRec = new GlideRecordSecure('pm_project');
+    var projectRec = new GlideRecordSecure('x_enno_gatenow_project');
     if (!projectRec.get(projectId)) {
         data.error = "Project record not found.";
         return;
@@ -3150,7 +3150,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     if (input && input.action) {
         
   if (input.action === 'postComment') {
-    var msgRec = new GlideRecordSecure('pm_project');
+    var msgRec = new GlideRecordSecure('x_enno_gatenow_project');
     if (msgRec.get(input['sys_id'])) {
         msgRec.comments = input.comment;
         msgRec.update();
@@ -3159,12 +3159,12 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
       if (input.action === 'submitBaselineReport') {
             var percents = input.report.percent_complete;
-            var baseline = new GlideRecordSecure('project_status');
+            var baseline = new GlideRecordSecure('x_enno_gatenow_status_report');
             baseline.initialize();
             baseline.project = projectId;
-            baseline.x_enno_gatenow_report_status = 'baseline_report'; 
-            baseline.as_on = input.report.as_on;
-            baseline.x_enno_gatenow_percent_complete = percents;
+            baseline.report_status = 'baseline_report'; 
+            baseline.status_date = input.report.status_date;
+            baseline.percents = percents;
             baseline.executive_summary = input.report.executive_summary;
             baseline.comments = input.report.comments;
             baseline.overall_health = 'green';
@@ -3181,25 +3181,25 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
       if (input.action === 'submitStatusReport') {
             var percent = input.report.percent_complete;
-            var monthly = new GlideRecordSecure('project_status');
+            var monthly = new GlideRecordSecure('x_enno_gatenow_status_report');
             monthly.initialize();
             monthly.project = projectId;
-            monthly.as_on = input.report.as_on;
-            monthly.x_enno_gatenow_report_status = input.report.report_status;
+            monthly.status_date = input.report.status_date;
+            monthly.report_status = input.report.report_status;
             monthly.overall_health = input.report.overall_health;
-            monthly.x_enno_gatenow_percent_complete = percent;
+            monthly.percent_complete = percent;
             monthly.executive_summary = input.report.executive_summary;
-            monthly.achievements_last_week = input.report.achievements_last_week;
-            monthly.key_activities_next_week = input.report.key_activities_next_week;
+            monthly.last_week_s_achievements = input.report.last_week_s_achievements;
+            monthly.key_activities_planned = input.report.key_activities_planned;
             monthly.schedule = input.report.schedule;
             monthly.schedule_comments = input.report.schedule_comments;
             monthly.cost = input.report.cost;
-            monthly.cost_comments = input.report.cost_comments;
+            monthly.comments_on_cost = input.report.comments_on_cost;
             monthly.scope = input.report.scope;
-            monthly.scope_comments = input.report.scope_comments;
+            monthly.comments_on_scope = input.report.	comments_on_scope;
             monthly.comments = input.report.comments;
             monthly.resources = input.report.resources;
-            monthly.resources_comments = input.report.resources_comments;
+            monthly.resource0 = input.report.resource0;
 
             var newIdis = monthly.insert();
             
@@ -3207,7 +3207,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                 data.success = true;
                 data.new_status_id = newIdis.toString(); 
                 
-                var projectUpdateRec = new GlideRecordSecure('pm_project');
+                var projectUpdateRec = new GlideRecordSecure('x_enno_gatenow_project');
                 if (projectUpdateRec.get(projectId)) {
                     projectUpdateRec.percent_complete = percent;
                     projectUpdateRec.update();
@@ -3217,7 +3217,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             
             
         if (input.action === 'postIssueWorkNote') {
-            var issueNoteRec = new GlideRecordSecure('issue');
+            var issueNoteRec = new GlideRecordSecure('x_enno_gatenow_issue');
             if (issueNoteRec.get(input.issue_sys_id)) {
                 issueNoteRec.work_notes = input.work_note; 
                 issueNoteRec.update();
@@ -3250,7 +3250,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         }
 
        if (input.action === 'submitChangeRequest') {
-            var cr = new GlideRecordSecure('project_change_request');
+            var cr = new GlideRecordSecure('x_enno_gatenow_request_change');
             cr.initialize();
             cr.parent = projectId;
             cr.short_description = input.change.short_description;
@@ -3367,7 +3367,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         }
 
         if (input.action === 'postRiskWorkNote') {
-            var riskNoteRec = new GlideRecordSecure('risk');
+            var riskNoteRec = new GlideRecordSecure('x_enno_gatenow_risk');
             if (riskNoteRec.get(input.risk_sys_id)) {
                 
                 riskNoteRec.work_notes = input.work_note; 
@@ -3404,7 +3404,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         }
         
         if (input.action === 'postChangeWorkNote') {
-            var changeNoteRec = new GlideRecordSecure('project_change_request'); 
+            var changeNoteRec = new GlideRecordSecure('x_enno_gatenow_request_change'); 
             if (changeNoteRec.get(input.change_sys_id)) {
                 
                 changeNoteRec.work_notes = input.work_note;
@@ -3434,27 +3434,27 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
     data.comments = getComments(projectId);
     
     // Use getRecordDisplayValues for standard fields
-    $sp.getRecordDisplayValues(data.projectData, projectRec, 'number,short_description,phase,description,work_start,work_end,start_date,end_date,percent_complete,state');
+    $sp.getRecordDisplayValues(data.projectData, projectRec, 'number,short_description,phase,description,actual_start_date,actual_end_date,planned_start_date,planned_end_date,percent_complete,state');
 
     // Dual-Mapping: Satisfies the HTML and completely bypasses the scanner
     data.projectData.record_id = projectId;
     data.projectData['sys_id'] = projectId;
 
-    data.projectData.name = projectRec.getDisplayValue('short_description');
-    data.projectData.x_enno_gatenow_award = projectRec.getDisplayValue('x_enno_gatenow_award');
+    data.projectData.project_name = projectRec.getDisplayValue('project_name');
+    data.projectData.x_enno_gatenow_award = projectRec.getDisplayValue('award');
 
     // Strip time from Project Dates
-    data.projectData.start_date = projectRec.getDisplayValue('start_date').split(' ')[0];
-    data.projectData.end_date = projectRec.getDisplayValue('end_date').split(' ')[0];
-    data.projectData.actual_end_date = projectRec.getDisplayValue('work_end').split(' ')[0];
-    data.projectData.work_start = projectRec.getDisplayValue('work_start').split(' ')[0];
-data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0];
+    data.projectData.start_date = projectRec.getDisplayValue('planned_start_date').split(' ')[0];
+    data.projectData.end_date = projectRec.getDisplayValue('planned_end_date').split(' ')[0];
+    data.projectData.actual_end_date = projectRec.getDisplayValue('actual_end_date').split(' ')[0];
+    data.projectData.work_start = projectRec.getDisplayValue('actual_start_date').split(' ')[0];
+data.projectData.work_end = projectRec.getDisplayValue('actual_end_date').split(' ')[0];
 
-    data.projectData.x_enno_gatenow_applicant = projectRec.getDisplayValue('x_enno_gatenow_applicant');
+    data.projectData.x_enno_gatenow_applicant = projectRec.getDisplayValue('applicant');
     data.projectData.phase = projectRec.getValue('phase');
     data.projectData.percent_complete = projectRec.getValue('percent_complete');
 
-    var awardSid = projectRec.getValue('x_enno_gatenow_award');
+    var awardSid = projectRec.getValue('award');
     if (awardSid) {
         var awardRec = new GlideRecordSecure('x_enno_gatenow_grant_awards');
         if (awardRec.get(awardSid)) {
@@ -3463,7 +3463,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         }
     }
 
-    var applicantSid = projectRec.getValue('x_enno_gatenow_applicant');
+    var applicantSid = projectRec.getValue('applicant');
     if (applicantSid) {
         var appRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
         if (appRec.get(applicantSid)) {
@@ -3483,9 +3483,9 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
     data.baselineSubmitted = false;
     data.baselineReport = {};
 
-    var statusRec = new GlideRecordSecure('project_status');
+    var statusRec = new GlideRecordSecure('x_enno_gatenow_status_report');
     statusRec.addQuery('project', projectId);
-    statusRec.orderByDesc('as_on');
+    statusRec.orderByDesc('status_date');
     statusRec.query();
 
     while (statusRec.next()) {
@@ -3493,7 +3493,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         sr.record_id = statusRec.getUniqueValue();
         sr['sys_id'] = statusRec.getUniqueValue();
 
-        $sp.getRecordDisplayValues(sr, statusRec, 'as_on,overall_health,proposed_change,descrition,schedule,cost,scope,x_enno_gatenow_percent_complete,sys_created_on,executive_summary,achievements_last_week,key_activities_next_week,scope_comments,schedule_comments,cost_comments,resources,resources_comments');
+        $sp.getRecordDisplayValues(sr, statusRec, 'status_date,overall_health,proposed_change,descrition,schedule,cost,scope,percent_complete,sys_created_on,executive_summary,last_week_s_achievements,key_activities_planned,comments_on_scope,comments_on_schedule,comments_on_cost,resources,	resource0');
 
         if (sr.as_on) sr.as_on = sr.as_on.split(' ')[0];
 
@@ -3505,7 +3505,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
         sr.cost_color = statusRec.getValue('cost');
         sr.scope_label = statusRec.getDisplayValue('scope');
         sr.scope_color = statusRec.getValue('scope');
-        sr.percent_complete = statusRec.getValue('x_enno_gatenow_percent_complete') || 0;
+        sr.percent_complete = statusRec.getValue('percent_complete') || 0;
 
         sr.attachments = [];
         var attStatusRec = new GlideRecordSecure('sys_attachment');
@@ -3526,7 +3526,7 @@ data.projectData.work_end = projectRec.getDisplayValue('work_end').split(' ')[0]
             
 data.baselineReport.as_on = statusRec.getValue('as_on');
             
-            data.baselineReport.percent_complete = parseInt(statusRec.getValue('x_enno_gatenow_percent_complete'));
+            data.baselineReport.percent_complete = parseInt(statusRec.getValue('percent_complete'));
             data.baselineReport.executive_summary = statusRec.getValue('executive_summary');
             data.baselineReport.comments = statusRec.getValue('comments');
             data.baselineReport.attachments = sr.attachments;
@@ -3592,7 +3592,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
     // ISSUE RECORDS
     // ==========================================
     data.issues = [];
-    var issueRec = new GlideRecordSecure('issue'); 
+    var issueRec = new GlideRecordSecure('x_enno_gatenow_issue'); 
     issueRec.addQuery('parent', projectId); 
     issueRec.orderByDesc('sys_created_on');
     issueRec.query();
@@ -3627,7 +3627,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
     // RISK RECORDS
     // ==========================================
     data.risks = [];
-    var riskRec = new GlideRecordSecure('risk'); 
+    var riskRec = new GlideRecordSecure('x_enno_gatenow_risk'); 
     riskRec.addQuery('task', projectId); 
     riskRec.orderByDesc('sys_created_on');
     riskRec.query();
@@ -3637,7 +3637,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         
         riskObj.record_id = riskRec.getUniqueValue();
         riskObj['sys_id'] = riskRec.getUniqueValue();
-        $sp.getRecordDisplayValues(riskObj, riskRec, 'task,state,assigned_to,due_date,risk_value,cost,a,number,short_description,impact,risk_rank,state,probability,assigned_to,description,mitigation');
+        $sp.getRecordDisplayValues(riskObj, riskRec, 'project,state,assigned_to,due_date,risk_value,cost,a,number,short_description,impact,risk_rank,state,probability,assigned_to,description,mitigation_plan');
         
         riskObj.activities = [];
         var riskNotes = new GlideRecordSecure('sys_journal_field');
@@ -3659,7 +3659,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
     // ==========================================
     // CHANGE REQUESTS
     // ==========================================
-    var changeReqRec = new GlideRecordSecure('project_change_request');
+    var changeReqRec = new GlideRecordSecure('x_enno_gatenow_request_change');
     changeReqRec.addQuery('parent', projectId);
     changeReqRec.orderByDesc('sys_created_on');
     changeReqRec.query();
@@ -3720,7 +3720,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
    function getComments(sysId) {
     var list = [];
 
-    var projRec = new GlideRecordSecure('pm_project');
+    var projRec = new GlideRecordSecure('x_enno_gatenow_project');
     if (!projRec.get(sysId)) return list;
 
     // --- Fetch Additional Comments (comments field) ---
@@ -3788,14 +3788,14 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>488</sys_mod_count>
+        <sys_mod_count>490</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-05-10 15:26:04</sys_updated_on>
+        <sys_updated_by>mohammad.younis</sys_updated_by>
+        <sys_updated_on>2026-05-18 11:17:59</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
     
@@ -3840,7 +3840,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
               <div class="main-info-grid">
                 <div class="title-section">
                   <small class="context-label-light">Project Overview</small>
-                  <h1 class="display-title-light">{{c.project.name}}</h1>
+                  <h1 class="display-title-light">{{c.project.project_name}}</h1>
                 </div>
 
                 <div class="meta-grid-light">
@@ -3954,10 +3954,10 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           
           
           
-      
+       
      <div ng-if="c.activeTab === 'overview'" class="ov-wrapper">
 
-  <!-- â”€â”€ HERO BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ── HERO BANNER ─────────────────────────── -->
   <div class="ov-hero">
     <div class="ov-hero__glow"></div>
     <div class="ov-hero__glow ov-hero__glow--2"></div>
@@ -3966,7 +3966,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
       <span class="ov-hero__eyebrow">
         <span class="ov-pulse"></span> Grant Project
       </span>
-      <h1 class="ov-hero__title">{{c.project.name}}</h1>
+      <h1 class="ov-hero__title">{{c.project.project_name}}</h1>
       <div class="ov-hero__tags">
         <span class="ov-tag ov-tag--indigo">
           <i class="fa fa-hashtag"></i> {{c.project.number}}
@@ -3975,7 +3975,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           <i class="fa fa-trophy"></i> {{c.project.x_enno_gatenow_award || 'No Award'}}
         </span>
         <span class="ov-tag ov-tag--slate">
-          <i class="fa fa-user"></i> {{c.project.x_enno_gatenow_applicant || 'N/A'}}
+          <i class="fa fa-user"></i> {{c.project.applicant || 'N/A'}}
         </span>
         <span class="ov-phase-badge">{{c.project.phase || 'Planning'}}</span>
       </div>
@@ -4013,13 +4013,13 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
     </div>
   </div>
 
-  <!-- â”€â”€ TIMELINE STRIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ── TIMELINE STRIP ──────────────────────── -->
   <div class="ov-timeline-strip">
     <div class="ov-tl-item">
       <span class="ov-tl-dot ov-tl-dot--green"></span>
       <div>
         <span class="ov-tl-label">Start Date</span>
-        <strong class="ov-tl-val">{{c.project.work_start || 'Not defined'}}</strong>
+        <strong class="ov-tl-val">{{c.project.actual_start_date || 'Not defined'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -4027,7 +4027,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
       <span class="ov-tl-dot ov-tl-dot--blue"></span>
       <div>
         <span class="ov-tl-label">End Date</span>
-        <strong class="ov-tl-val">{{c.project.work_end || 'Not defined'}}</strong>
+        <strong class="ov-tl-val">{{c.project.actual_end_date || 'Not defined'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -4035,7 +4035,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
       <span class="ov-tl-dot ov-tl-dot--indigo"></span>
       <div>
         <span class="ov-tl-label">Planned start date</span>
-        <strong class="ov-tl-val">{{c.project.start_date || 'Not defined'}}</strong>
+        <strong class="ov-tl-val">{{c.project.planned_start_date || 'Not defined'}}</strong>
       </div>
     </div>
     <div class="ov-tl-line"></div>
@@ -4043,12 +4043,12 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
       <span class="ov-tl-dot ov-tl-dot--red"></span>
       <div>
         <span class="ov-tl-label">Planned end date</span>
-        <strong class="ov-tl-val">{{c.project.end_date || 'Not defined'}}</strong>
+        <strong class="ov-tl-val">{{c.project.planned_end_date || 'Not defined'}}</strong>
       </div>
     </div>
   </div>
 
-  <!-- â”€â”€ BODY GRID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ── BODY GRID ───────────────────────────── -->
   <div class="ov-body-grid">
 
     <!-- LEFT  Details + Recipient -->
@@ -4090,7 +4090,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           <label class="ov-btn-upload ov-card__action" ng-class="{'is-loading': c.uploading}">
             <i class="fa fa-upload"></i>
             <span ng-if="!c.uploading">Upload File</span>
-            <span ng-if="c.uploading">Uploadingâ€¦</span>
+            <span ng-if="c.uploading">Uploading…</span>
             <input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
           </label>
         </div>
@@ -4123,7 +4123,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
 
     </div>
 
-    <!-- RIGHT â€” Activity -->
+    <!-- RIGHT — Activity -->
     <div class="ov-body-right">
       <div class="ov-card ov-card--activity ov-card--anim">
         <div class="ov-card__hdr">
@@ -4188,7 +4188,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           <div class="col-md-4">
             <div class="form-group">
               <label>Status Date <span class="required" ng-if="!c.baselineSubmitted">*</span></label>
-              <input type="date" class="form-control" ng-model="c.baselineReport.as_on" ng-readonly="c.baselineSubmitted" required>
+              <input type="date" class="form-control" ng-model="c.baselineReport.status_date" ng-readonly="c.baselineSubmitted" required>
             </div>
           </div>
           <div class="col-md-4">
@@ -4303,8 +4303,8 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         </thead>
         <tbody>
           <tr ng-repeat="item in c.baselineHistory">
-            <td class="font-bold">{{item.as_on}}</td>
-            <td><span class="badge-status" ng-class="item.health_color">{{item.health_label || 'GREEN'}}</span></td>
+            <td class="font-bold">{{item.status_date}}</td>
+            <td><span class="badge-status" ng-class="item.health_color">{{item.	overall_health || 'GREEN'}}</span></td>
             <td>
               <div class="progress-container">
                 <span class="progress-text">{{item.percent_complete}}%</span>
@@ -4341,7 +4341,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           <div class="col-md-3">
             <div class="form-group">
               <label>Status Date <span class="required">*</span></label>
-              <input type="date" class="form-control" ng-model="c.statusReport.as_on" required>
+              <input type="date" class="form-control" ng-model="c.statusReport.status_date" required>
             </div>
           </div>
           
@@ -4387,13 +4387,13 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           <div class="col-md-6">
             <div class="form-group">
               <label>Achievements Last Month</label>
-              <textarea class="form-control" rows="5" ng-model="c.statusReport.achievements_last_week" placeholder="List key milestones and accomplishments"></textarea>
+              <textarea class="form-control" rows="5" ng-model="c.statusReport.last_week_s_achievements" placeholder="List key milestones and accomplishments"></textarea>
             </div>
           </div>
           <div class="col-md-6">
             <div class="form-group">
               <label>Key Activities Next Month</label>
-              <textarea class="form-control" rows="5" ng-model="c.statusReport.key_activities_next_week" placeholder="Describe planned activities and upcoming work"></textarea>
+              <textarea class="form-control" rows="5" ng-model="c.statusReport.	key_activities_planned" placeholder="Describe planned activities and upcoming work"></textarea>
             </div>
           </div>
         </div>
@@ -4415,7 +4415,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
             <div class="col-md-9">
               <div class="form-group">
                 <label>Schedule Comments</label>
-                <textarea class="form-control" rows="4" ng-model="c.statusReport.schedule_comments" placeholder="Explain schedule status, delays, or acceleration"></textarea>
+                <textarea class="form-control" rows="4" ng-model="c.statusReport.comments_on_schedule" placeholder="Explain schedule status, delays, or acceleration"></textarea>
               </div>
             </div>
           </div>
@@ -4438,7 +4438,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
             <div class="col-md-9">
               <div class="form-group">
                 <label>Cost Comments</label>
-                <textarea class="form-control" rows="4" ng-model="c.statusReport.cost_comments" placeholder="Explain budget status, variances, or concerns"></textarea>
+                <textarea class="form-control" rows="4" ng-model="c.statusReport.comments_on_cost" placeholder="Explain budget status, variances, or concerns"></textarea>
               </div>
             </div>
           </div>
@@ -4468,7 +4468,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         <label>Resources Comments</label>
         <textarea class="form-control" 
                   rows="4" 
-                  ng-model="c.statusReport.resources_comments" 
+                  ng-model="c.statusReport.resource0" 
                   placeholder="Explain resource availability, staffing changes, or constraints"></textarea>
       </div>
     </div>
@@ -4497,7 +4497,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
             <div class="col-md-9">
               <div class="form-group">
                 <label>Scope Comments</label>
-                <textarea class="form-control" rows="4" ng-model="c.statusReport.scope_comments" placeholder="Explain scope status, changes, or risks"></textarea>
+                <textarea class="form-control" rows="4" ng-model="c.statusReport.comments_on_scope" placeholder="Explain scope status, changes, or risks"></textarea>
               </div>
             </div>
           </div>
@@ -4569,13 +4569,13 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         <table class="modern-table">
           <thead><tr><th>Status Date</th><th>Overall Health</th><th>Schedule</th><th>Cost</th><th>Scope</th><th>Progress</th><th class="text-right">Actions</th></tr></thead>
           <tbody>
-            <tr ng-repeat="report in c.submittedReports | orderBy:'-as_on'">
-              <td class="bold-text">{{report.as_on}}</td>
+            <tr ng-repeat="report in c.submittedReports | orderBy:'-status_date'">
+              <td class="bold-text">{{report.status_date}}</td>
               <td><span class="status-pill" ng-class="'pill-' + report.overall_health.toLowerCase()">{{report.overall_health}}</span></td>
               <td><div class="status-indicator-wrap"><div class="status-dot" ng-class="'dot-' + report.schedule.toLowerCase()"></div><span class="status-text-small">{{report.schedule}}</span></div></td>
               <td><div class="status-indicator-wrap"><div class="status-dot" ng-class="'dot-' + report.cost.toLowerCase()"></div><span class="status-text-small">{{report.cost}}</span></div></td>
               <td><div class="status-indicator-wrap"><div class="status-dot" ng-class="'dot-' + report.scope.toLowerCase()"></div><span class="status-text-small">{{report.scope}}</span></div></td>
-               <td><div class="progress-cell"><span class="pct-text">{{report.x_enno_gatenow_percent_complete}}%</span><div class="mini-progress-bar"><div class="bar-fill" ng-style="{'width': report.x_enno_gatenow_percent_complete + '%'}"></div></div></div></td>
+               <td><div class="progress-cell"><span class="pct-text">{{report.percent_complete}}%</span><div class="mini-progress-bar"><div class="bar-fill" ng-style="{'width': report.percent_complete + '%'}"></div></div></div></td>
               <td ><button class="btn-icon-view" ng-click="c.viewReport(report)" title="View Detailed Report"><i class="fa fa-eye"></i> <span>View</span></button></td>
             </tr>
           </tbody>
@@ -5379,7 +5379,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
               </div>
               <div style="display: flex; justify-content: space-between;">
                 <label style="color: #64748b; font-weight: 500;">Project</label> 
-                <span style="font-weight: 600;">{{c.selectedIssue.project || c.project.name || 'N/A'}}</span>
+                <span style="font-weight: 600;">{{c.selectedIssue.project || c.project.project_name || 'N/A'}}</span>
               </div>
             </div>
             
@@ -5532,7 +5532,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
       <div class="modal-header-modern">
         <div class="header-content">
           <div class="report-icon"><i class="fa fa-file-text-o"></i></div>
-          <div><h3 class="modal-title-modern">Status Report</h3><span class="report-date">{{c.selectedReport.as_on}}</span></div>
+          <div><h3 class="modal-title-modern">Status Report</h3><span class="report-date">{{c.selectedReport.status_date}}</span></div>
         </div>
         <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
       </div>
@@ -5551,17 +5551,17 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         <div class="report-content-grid">
           <div class="content-section full-width"><h4><i class="fa fa-align-left"></i> Executive Summary</h4><div class="narrative-box" ng-bind-html="c.selectedReport.executive_summary"></div></div>
           <div class="content-row">
-            <div class="content-section half-width"><h4><i class="fa fa-trophy"></i> Achievements Last Week</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.achievements_last_week"></div></div>
-            <div class="content-section half-width"><h4><i class="fa fa-rocket"></i> Key Activities Next Week</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.key_activities_next_week"></div></div>
+            <div class="content-section half-width"><h4><i class="fa fa-trophy"></i> Achievements Last Month</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.last_week_s_achievements"></div></div>
+            <div class="content-section half-width"><h4><i class="fa fa-rocket"></i> Key Activities Next Month</h4><div class="narrative-box secondary" ng-bind-html="c.selectedReport.key_activities_planned"></div></div>
           </div>
 
           <div class="commentary-grid">
-            <div class="comment-item"><label>Schedule Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.schedule_comments || 'No comments.'"></div></div>
-            <div class="comment-item"><label>Cost Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.cost_comments || 'No comments.'"></div></div>
+            <div class="comment-item"><label>Schedule Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.comments_on_schedule || 'No comments.'"></div></div>
+            <div class="comment-item"><label>Cost Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.comments_on_cost || 'No comments.'"></div></div>
             
-            <div class="comment-item"><label>Resources Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.resources_comments || 'No comments.'"></div></div>
+            <div class="comment-item"><label>Resources Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.resource0 || 'No comments.'"></div></div>
             
-            <div class="comment-item"><label>Scope Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.scope_comments || 'No comments.'"></div></div>
+            <div class="comment-item"><label>Scope Commentary</label><div class="comment-text" ng-bind-html="c.selectedReport.comments_on_scope || 'No comments.'"></div></div>
           </div>
         </div>
         
@@ -5606,7 +5606,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           <div class="report-icon"><i class="fa fa-flag"></i></div>
           <div>
             <h3 class="modal-title-modern">Baseline Report Details</h3>
-            <span class="report-date">Status Date: {{c.selectedBaseline.as_on}}</span>
+            <span class="report-date">Status Date: {{c.selectedBaseline.status_date}}</span>
           </div>
         </div>
         <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
@@ -5918,15 +5918,11 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
     </div>
   </div>
 </div>
-      
-      
-      
-      
-      
-      
-      
-      
-      
+        
+        
+        
+        
+        
       <div class="modal fade modern-report-modal" id="riskModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content" ng-if="c.selectedRisk">
@@ -5967,7 +5963,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
           
           <div class="content-row" style="display: flex; gap: 30px; margin-bottom: 25px;">
             <div class="content-section half-width" style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Task</label> <span style="font-weight: 600;">{{c.selectedRisk.task || 'N/A'}}</span></div>
+              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Task</label> <span style="font-weight: 600;">{{c.selectedRisk.project || 'N/A'}}</span></div>
               <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Status</label> <span style="font-weight: 600;">{{c.selectedRisk.state || 'N/A'}}</span></div>
               <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Value</label> <span style="font-weight: 600;">{{c.selectedRisk.risk_value || 'N/A'}}</span></div>
               <div style="display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Estimated Cost</label> <span style="font-weight: 600; color: #0f172a;">{{c.formatCurrency(c.selectedRisk.cost)}}</span></div>
@@ -5987,7 +5983,7 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
 
           <div class="content-section full-width">
             <h4><i class="fa fa-shield"></i> Mitigation Plan</h4>
-            <div class="narrative-box secondary">{{c.selectedRisk.mitigation || 'No mitigation plan provided.'}}</div>
+            <div class="narrative-box secondary">{{c.selectedRisk.mitigation_plan || 'No mitigation plan provided.'}}</div>
           </div>
 
           <div class="content-section full-width work-notes-section" style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
@@ -6016,104 +6012,6 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
               </div>
               
               <div ng-if="!c.selectedRisk.activities || c.selectedRisk.activities.length === 0" style="text-align: center; color: #94a3b8; padding: 30px 0; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
-                <i class="fa fa-commenting-o" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
-                No work notes yet. Be the first to add one!
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer-modern">
-        <button type="button" class="btn-modern-secondary" data-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-      
-      
-      
-      
-      
-      <div class="modal fade modern-report-modal" id="issueModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content" ng-if="c.selectedIssue">
-      
-      <div class="modal-header-modern">
-        <div class="header-content">
-          <div class="report-icon" style="background-color: #fee2e2; color: #dc2626;">
-            <i class="fa fa-bug"></i>
-          </div>
-          <div>
-            <h3 class="modal-title-modern">{{c.selectedIssue.number}}</h3>
-            <span class="report-date">{{c.selectedIssue.short_description}}</span>
-          </div>
-        </div>
-        <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
-      </div>
-
-      <div class="modal-body modern-body">
-        
-        <div class="health-indicator-bar">
-          <div class="indicator-item">
-            <label>State</label>
-            <span class="status-badge-pill pill-default">{{c.selectedIssue.state}}</span>
-          </div>
-          <div class="indicator-item">
-            <label>Priority</label>
-            <span class="status-badge-pill" ng-class="'pill-p' + c.selectedIssue.priority.charAt(0)">{{c.selectedIssue.priority}}</span>
-          </div>
-          <div class="indicator-item">
-            <label>Impact</label>
-            <span class="status-badge-pill pill-default">{{c.selectedIssue.impact}}</span>
-          </div>
-          <div class="indicator-item border-none">
-            <label>Assigned To</label>
-            <span style="font-weight: 600; color: #1e293b;">{{c.selectedIssue.assigned_to || 'Unassigned'}}</span>
-          </div>
-        </div>
-
-        <div class="report-content-grid">
-          
-          <div class="content-section full-width" style="margin-bottom: 20px;">
-            <h4><i class="fa fa-info-circle"></i> Description</h4>
-            <div class="narrative-box secondary">{{c.selectedIssue.description || 'No description provided.'}}</div>
-          </div>
-
-          <div class="content-section full-width work-notes-section" style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
-            <h4><i class="fa fa-comments"></i> Work Notes</h4>
-            
-            <div class="work-note-input-wrap" style="display: flex; gap: 15px; margin-bottom: 25px; align-items: stretch;">
-              <textarea class="form-control" 
-                        ng-model="c.newIssueWorkNote" 
-                        placeholder="Type your work note here..." 
-                        rows="3" 
-                        style="resize: vertical; flex: 1; border-radius: 8px; border: 1px solid #cbd5e1; padding: 12px; font-size: 14px;"></textarea>
-              <button class="btn btn-primary" 
-                      ng-click="c.postIssueWorkNote()" 
-                      ng-disabled="c.submitting || !c.newIssueWorkNote" 
-                      style="padding: 0 20px; border-radius: 8px; font-weight: 600; background-color: #0284c7; border: none;">
-                <i class="fa fa-paper-plane" ng-if="!c.submitting"></i>
-                <i class="fa fa-spinner fa-spin" ng-if="c.submitting"></i> Post
-              </button>
-            </div>
-
-            <div class="activity-stream" style="max-height: 350px; overflow-y: auto; padding-right: 10px;">
-              
-              <div class="activity-item" ng-repeat="note in c.selectedIssue.activities" style="display: flex; gap: 15px; margin-bottom: 20px;">
-                <div class="activity-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569; flex-shrink: 0;">
-                  <i class="fa fa-user"></i>
-                </div>
-                <div class="activity-content" style="flex: 1;">
-                  <div class="activity-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                    <strong style="color: #1e293b; font-size: 14px;">{{note.sys_created_by}}</strong>
-                    <span style="color: #64748b; font-size: 12px;"><i class="fa fa-clock-o"></i> {{note.sys_created_on}}</span>
-                  </div>
-                  <div class="activity-text" style="color: #334155; font-size: 14px; background: #fffbeb; padding: 12px; border-radius: 0 8px 8px 8px; border-left: 4px solid #f59e0b; white-space: pre-wrap;" ng-bind-html="note.value"></div>
-                </div>
-              </div>
-              
-              <div ng-if="!c.selectedIssue.activities || c.selectedIssue.activities.length === 0" style="text-align: center; color: #94a3b8; padding: 30px 0; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
                 <i class="fa fa-commenting-o" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
                 No work notes yet. Be the first to add one!
               </div>
@@ -6365,6 +6263,6 @@ data.baselineReport.as_on = statusRec.getValue('as_on');
         <button type="button" class="btn-modern-secondary" data-dismiss="modal">Close Request</button>
       </div>
 
-    </div> </div> </div> ]]></template>
+    </div> </div> </div>]]></template>
     </sp_widget>
 </record_update>

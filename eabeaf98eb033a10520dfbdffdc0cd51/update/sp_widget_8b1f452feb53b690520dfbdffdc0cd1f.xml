@@ -451,13 +451,17 @@ data.error    = '';
 var currentUser = gs.getUserID();
 var q = (input && input.q) ? String(input.q) : '';
 
-var grProjects = new GlideRecordSecure('pm_project');
-grProjects.addQuery('x_enno_gatenow_applicant.user', currentUser);
+// 1. UPDATED PROJECT TABLE
+var grProjects = new GlideRecordSecure('x_enno_gatenow_project');
+
+// 2. UPDATED APPLICANT FIELD
+grProjects.addQuery('applicant.user', currentUser);
 grProjects.addQuery('phase', 'IN', 'planning,executing,delivering');
 
 if (q) {
     var qc = grProjects.addQuery('number', 'CONTAINS', q);
-    qc.addOrCondition('short_description', 'CONTAINS', q);
+    // 3. UPDATED SEARCH TO LOOK AT PROJECT NAME
+    qc.addOrCondition('project_name', 'CONTAINS', q);
 }
 
 grProjects.orderByDesc('sys_created_on');
@@ -468,22 +472,21 @@ gs.info('Encoded Query: ' + grProjects.getEncodedQuery());
 
 grProjects.query();
 
-// ✅ Use a counter variable instead of getRowCount()
 var rowCount = 0;
 while (grProjects.next()) {
     rowCount++;
 
-    // Use getDisplayValue() to respect the user's Timezone settings
-    var displayStart = grProjects.getDisplayValue('work_start'); 
-    var displayEnd   = grProjects.getDisplayValue('work_end');   
+    // 4. UPDATED DATE FIELDS
+    var displayStart = grProjects.getDisplayValue('actual_start_date'); 
+    var displayEnd   = grProjects.getDisplayValue('actual_end_date');   
 
     var projectObj = {
         sys_id:           grProjects.getUniqueValue(),
-        name:             grProjects.getValue('short_description') || 'No Description',
+        // 5. UPDATED TITLE FIELD
+        name:             grProjects.getValue('project_name') || 'No Description',
         number:           grProjects.getValue('number') || '',
         phase:            grProjects.getValue('phase') || '',
         
-        // Now splitting the localized string
         start_date:       displayStart ? displayStart.split(' ')[0] : 'Not Started',
         end_date:         displayEnd   ? displayEnd.split(' ')[0]   : 'Not Defined',
         
@@ -501,8 +504,8 @@ while (grProjects.next()) {
         });
     }
 
-    // Activity 2 — Change Request Submitted
-    var grChange = new GlideRecordSecure('project_change_request');
+    // Activity 2 — Change Request Submitted (UPDATED TABLE)
+    var grChange = new GlideRecordSecure('x_enno_gatenow_request_change');
     grChange.addQuery('parent', grProjects.getUniqueValue());
     grChange.query();
     if (grChange.next()) {
@@ -513,8 +516,8 @@ while (grProjects.next()) {
         });
     }
 
-    // Activity 3 — Status Report Created
-    var grReport = new GlideRecordSecure('project_status');
+    // Activity 3 — Status Report Created (UPDATED TABLE)
+    var grReport = new GlideRecordSecure('x_enno_gatenow_status_report');
     grReport.addQuery('project', grProjects.getUniqueValue());
     grReport.orderByDesc('sys_created_on');
     grReport.query();
@@ -546,14 +549,14 @@ if (rowCount === 0 && !q) {
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-04 09:10:31</sys_created_on>
         <sys_id>8b1f452feb53b690520dfbdffdc0cd1f</sys_id>
-        <sys_mod_count>153</sys_mod_count>
+        <sys_mod_count>154</sys_mod_count>
         <sys_name>My Project</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_8b1f452feb53b690520dfbdffdc0cd1f</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-05-04 11:44:25</sys_updated_on>
+        <sys_updated_by>mohammad.younis</sys_updated_by>
+        <sys_updated_on>2026-05-18 11:24:42</sys_updated_on>
         <template><![CDATA[<div class="projects-wrapper" style="margin: -15px;">
   <div class="main-flex-container" style="display: flex; align-items: flex-start;">
     
