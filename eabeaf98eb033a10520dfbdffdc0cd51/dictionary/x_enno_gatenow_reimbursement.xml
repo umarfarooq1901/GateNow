@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
-    <element db_object_id="c983c2822f348310d2a0d68fcea4e329" label="Reimbursement" max_length="40" name="x_enno_gatenow_reimbursement" type="collection">
+    <element audit="true" db_object_id="c983c2822f348310d2a0d68fcea4e329" label="Reimbursement" max_length="40" name="x_enno_gatenow_reimbursement" type="collection">
         <element label="First Name " max_length="40" name="first_name" type="string"/>
         <element label="ZIP/Postal Code:" max_length="255" name="zip_postal_code" type="integer"/>
         <element label="Country:" max_length="40" name="countr0" type="string"/>
         <element label="Request 1st Month" max_length="20" name="request_1st_month" type="currency"/>
         <element label="Work notes" max_length="255" name="work_notes" type="journal_input"/>
+        <element label="Source Table" max_length="80" name="source_table" type="table_name"/>
         <element label="Country:" max_length="40" name="country" type="string"/>
         <element label="Federal Share of Amount (on Total)" max_length="20" name="federal_share_of_amount_on_total" type="currency"/>
         <element label="Name:" max_length="40" name="name" type="string"/>
@@ -28,6 +29,7 @@
         <element label="Cash" max_length="255" name="cash" type="boolean"/>
         <element label="Prefix" max_length="40" name="prefix" type="string"/>
         <element label="Date Request Submitted" max_length="255" name="date_request_submitted" type="glide_date"/>
+        <element label="Program" max_length="32" name="program" reference="x_enno_gatenow_grant_program" type="reference"/>
         <element label="PARTIAL PAYMENT REQUEST NUMBER FOR THIS REQUEST" max_length="40" name="partial_payment_request_number_for_this_request" type="string"/>
         <element label="Configuration item" max_length="32" name="configuration_item" reference="cmdb_ci" type="reference"/>
         <element label="Assigned to" max_length="32" name="assigned_to" reference="imp_user" type="reference"/>
@@ -45,7 +47,7 @@
         <element label="City:" max_length="40" name="city" type="string"/>
         <element label="Total Program outlays to date" max_length="20" name="total_program_outlays_to_date" type="currency"/>
         <element label="New Field 1Federal payments previously requested" max_length="20" name="new_field_1federal_payments_previously_requested" type="currency"/>
-        <element label="Number" max_length="40" name="number" type="string"/>
+        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" type="string" use_dynamic_default="true"/>
         <element label="Province:" max_length="40" name="province" type="string"/>
         <element label="From" max_length="255" name="from" type="glide_date"/>
         <element label="Amount Requested " max_length="20" name="amount_requested" type="currency"/>
@@ -75,11 +77,18 @@
         <element label="FEDERAL GRANT OR OTHER IDENTIFYING NUMBER ASSIGNED BY FEDERAL AGENCY" max_length="40" name="federal_grant_or_other_identifying_number_assigned_by_federal_agency" type="string"/>
         <element label="Request 3rd Month" max_length="20" name="request_3rd_month" type="currency"/>
         <element label="Final" max_length="255" name="final" type="boolean"/>
+        <element label="Project" max_length="32" name="project" reference="x_enno_gatenow_project" type="reference"/>
         <index name="index">
             <element name="assigned_to"/>
         </index>
         <index name="index2">
             <element name="configuration_item"/>
+        </index>
+        <index name="index3">
+            <element name="program"/>
+        </index>
+        <index name="index4">
+            <element name="project"/>
         </index>
     </element>
 </database>
