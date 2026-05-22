@@ -2,954 +2,954 @@
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
         <client_script><![CDATA[api.controller = function(spUtil, $window, $timeout, $scope, $location) {
-  var c = this;
-
-  c.sessionUser = {
-    name: ($scope.user && $scope.user.name) || c.data.currentUser.name || 'Reviewer',
-    email: c.data.currentUser.email || '',
-    sys_id: c.data.currentUser.sys_id || '',
-    initials: ($window.NOW && $window.NOW.user_initials) || c.data.currentUser.initials || 'R',
-    loggedIn: !!($scope.user && $scope.user.logged_in)
-  };
-
-  c.activeSection = 'home';
-  c.sidebarOpen = true;
-
-  c.navTo = function(section) {
-    c.activeSection = section;
-    if (section === 'proposals') c.proposalPage = 1;
-  };
-
-  c.toggleSidebar = function() {
-    c.sidebarOpen = !c.sidebarOpen;
-  };
-
-  c.profileOpen = false;
-
-  c.toggleProfile = function($event) {
-    $event.stopPropagation();
-    c.profileOpen = !c.profileOpen;
-  };
-
-  c.logout = function() {
-    window.location.assign('/login.do?logout=true');
-  };
-
-  c.goToProfile = function() {
-    c.profileOpen = false;
-    $location.search({
-      id: 'user_profile'
-    });
-  };
-
-  c.searchText = '';
-  c.statusFilter = '';
-  c.categoryFilter = '';
-  c.programFilter = '';
-
-  c.proposalPage = 1;
-  c.pageSize = 12;
-
-  $scope.$watchGroup(
-    ['c.searchText', 'c.statusFilter', 'c.categoryFilter', 'c.programFilter'],
-    function() {
-      c.proposalPage = 1;
-    }
-  );
-
-  c.categoryOptions = function() {
-    var seen = {}, opts = [];
-    (c.data.reviews || []).forEach(function(r) {
-      if (r.status !== 'Review completed' && r.program_category && !seen[r.program_category]) {
-        seen[r.program_category] = true;
-        opts.push(r.program_category);
-      }
-    });
-    return opts.sort();
-  };
-
-  c.programOptions = function() {
-    var seen = {}, opts = [];
-    (c.data.reviews || []).forEach(function(r) {
-      if (r.status !== 'Review completed' && r.program && !seen[r.program]) {
-        seen[r.program] = true;
-        opts.push(r.program);
-      }
-    });
-    return opts.sort();
-  };
-
-  c.allStatuses = ['Review pending', 'Review in progress', 'Review completed', 'Escalated', 'Declined by Reviewer'];
-
-  c.filteredProposals = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      if (r.status === 'Review completed') return false;
-      if (c.statusFilter && r.status !== c.statusFilter) return false;
-      if (c.categoryFilter && r.program_category !== c.categoryFilter) return false;
-      if (c.programFilter && r.program !== c.programFilter) return false;
-
-      if (c.searchText) {
-        var txt = c.searchText.toLowerCase();
-        if (
-          (r.number || '').toLowerCase().indexOf(txt) === -1 &&
-          (r.program || '').toLowerCase().indexOf(txt) === -1 &&
-          (r.applicant || '').toLowerCase().indexOf(txt) === -1 &&
-          (r.program_category || '').toLowerCase().indexOf(txt) === -1
-        ) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  };
-
-  c.pagedProposals = function() {
-    var all = c.filteredProposals();
-    var start = (c.proposalPage - 1) * c.pageSize;
-    return all.slice(start, start + c.pageSize);
-  };
-
-  c.totalPages = function() {
-    return Math.ceil(c.filteredProposals().length / c.pageSize) || 1;
-  };
-
-  c.pageNumbers = function() {
-    var total = c.totalPages();
-    var current = c.proposalPage;
-    var pages = [];
-    var start = Math.max(1, current - 2);
-    var end = Math.min(total, current + 2);
-
-    if (start > 1) pages.push(1);
-    if (start > 2) pages.push('...');
-    for (var i = start; i <= end; i++) pages.push(i);
-    if (end < total - 1) pages.push('...');
-    if (end < total) pages.push(total);
-
-    return pages;
-  };
-
-  c.goToPage = function(p) {
-    if (p !== '...' && p >= 1 && p <= c.totalPages()) c.proposalPage = p;
-  };
-
-  c.prevPage = function() {
-    if (c.proposalPage > 1) c.proposalPage--;
-  };
-
-  c.nextPage = function() {
-    if (c.proposalPage < c.totalPages()) c.proposalPage++;
-  };
-
-  c.completedReviews = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      return r.status === 'Review completed';
-    });
-  };
-
-  c.recentActivity = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      return r.status !== 'Review completed';
-    }).slice(0, 8);
-  };
-
-  c.overdueReviews = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      return r.is_overdue;
-    });
-  };
-
-  c.dueSoonReviews = function() {
-    return (c.data.reviews || []).filter(function(r) {
-      return r.is_due_soon;
-    });
-  };
-
-  c.openRecord = function(rev) {
-    if (!rev || !rev.sys_id) return;
-    $location.search({
-      id: 'review_proposal_detail_page',
-      sys_id: rev.sys_id
-    });
-  };
-
-  c.scoreWidth = function(score) {
-    if (!score) return '0%';
-    return Math.min(Math.round((parseInt(score, 10) / 10) * 100), 100) + '%';
-  };
-
-  c.deadlineClass = function(rev) {
-    if (rev.is_overdue) return 'rvd-deadline--overdue';
-    if (rev.is_due_soon) return 'rvd-deadline--soon';
-    return 'rvd-deadline--ok';
-  };
-
-  c.statusChipClass = function(status) {
-    if (status === 'Review completed') return 'rvd-chip--green';
-    if (status === 'Escalated') return 'rvd-chip--red';
-    if (status === 'Declined by Reviewer') return 'rvd-chip--rose';
-    if (status === 'Review pending') return 'rvd-chip--slate';
-    return 'rvd-chip--amber';
-  };
-
-  c.completionRate = function() {
-    var s = c.data.stats || {};
-    return s.total ? Math.round(s.completed / s.total * 100) : 0;
-  };
-
-  c.statusPct = function(key) {
-    var s = c.data.stats || {};
-    var t = s.total || 0;
-    if (!t) return '0%';
-
-    var v = {
-      inProgress: s.inProgress || 0,
-      completed: s.completed || 0,
-      escalated: s.escalated || 0,
-      declined: s.declined || 0,
-      pending: s.pending || 0
-    };
-
-    return Math.round((v[key] || 0) / t * 100) + '%';
-  };
-
-  c.statusPctNum = function(key) {
-    var s = c.data.stats || {};
-    var t = s.total || 0;
-    if (!t) return 0;
-
-    var v = {
-      inProgress: s.inProgress || 0,
-      completed: s.completed || 0,
-      escalated: s.escalated || 0,
-      declined: s.declined || 0,
-      pending: s.pending || 0
-    };
-
-    return Math.round((v[key] || 0) / t * 100);
-  };
-
-  c.topGroup = function() {
-    var grpMap = {};
-    (c.data.reviews || []).forEach(function(r) {
-      var g = r.review_group || 'Unassigned';
-      if (!grpMap[g]) grpMap[g] = 0;
-      if (r.status === 'Review completed') grpMap[g]++;
-    });
-
-    var top = '';
-    var max = 0;
-    Object.keys(grpMap).forEach(function(k) {
-      if (grpMap[k] > max) {
-        max = grpMap[k];
-        top = k;
-      }
-    });
-
-    return top || '—';
-  };
-
-  c.animatedStats = {
-    total: 0,
-    inProgress: 0,
-    completed: 0,
-    escalated: 0,
-    declined: 0,
-    pending: 0
-  };
-
-  function animateCount(key, target) {
-    if (!target) return;
-
-    var step = Math.ceil(target / 30);
-    var current = 0;
-    var interval = setInterval(function() {
-      current += step;
-      if (current >= target) {
-        current = target;
-        clearInterval(interval);
-      }
-      c.animatedStats[key] = current;
-      $timeout(function() {}, 0);
-    }, 30);
-  }
-
-  $timeout(function() {
-    var s = c.data.stats || {};
-    animateCount('total', s.total || 0);
-    animateCount('inProgress', s.inProgress || 0);
-    animateCount('completed', s.completed || 0);
-    animateCount('escalated', s.escalated || 0);
-    animateCount('declined', s.declined || 0);
-    animateCount('pending', s.pending || 0);
-  }, 300);
-
-  c.drawCharts = function() {
-    if (typeof Chart === 'undefined') return;
-
-    var s = c.data.stats || {};
-    var reviews = c.data.reviews || [];
-    var total = s.total || 0;
-    var prog = s.inProgress || 0;
-    var done = s.completed || 0;
-    var esc = s.escalated || 0;
-    var dec = s.declined || 0;
-    var pend = s.pending || 0;
-
-    Chart.defaults.font.family = "'Inter','Segoe UI',sans-serif";
-    Chart.defaults.font.size = 12;
-    Chart.defaults.color = '#64748b';
-    Chart.defaults.plugins.tooltip.cornerRadius = 10;
-    Chart.defaults.plugins.tooltip.padding = 12;
-    Chart.defaults.plugins.tooltip.boxPadding = 6;
-    Chart.defaults.plugins.tooltip.titleFont = { weight: '700', size: 13 };
-    Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
-    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15,23,42,0.92)';
-    Chart.defaults.plugins.tooltip.titleColor = '#f1f5f9';
-    Chart.defaults.plugins.tooltip.bodyColor = '#cbd5e1';
-
-    var C = {
-      indigo: '#6366f1',
-      green: '#10b981',
-      red: '#ef4444',
-      orange: '#f97316',
-      slate: '#94a3b8',
-      amber: '#f59e0b',
-      rose: '#f43f5e',
-      sky: '#0ea5e9',
-      violet: '#8b5cf6',
-      teal: '#14b8a6',
-      cyan: '#06b6d4',
-      lime: '#84cc16'
-    };
-
-    function rgba(hex, a) {
-      var r = parseInt(hex.slice(1, 3), 16);
-      var g = parseInt(hex.slice(3, 5), 16);
-      var b = parseInt(hex.slice(5, 7), 16);
-      return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
-    }
-
-    function dc(id, cfg) {
-      var el = document.getElementById(id);
-      if (!el) return null;
-      var existing = Chart.getChart(el);
-      if (existing) existing.destroy();
-      return new Chart(el, cfg);
-    }
-
-    function grad(id, colorTop, colorBot) {
-      var el = document.getElementById(id);
-      if (!el) return rgba(colorTop, 0.2);
-      var h = el.offsetHeight || el.clientHeight || 220;
-      var ctx = el.getContext('2d');
-      var g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, rgba(colorTop, 0.38));
-      g.addColorStop(1, rgba(colorBot || colorTop, 0.02));
-      return g;
-    }
-
-    var arcData = [prog || 0, done || 0, esc || 0, dec || 0, pend || 0];
-    var arcSum = arcData.reduce(function(a, b) { return a + b; }, 0);
-    if (!arcSum) arcData = [1, 1, 1, 1, 1];
-
-    dc('rvdDonutChart', {
-      type: 'doughnut',
-      data: {
-        labels: ['In Progress', 'Completed', 'Escalated', 'Declined', 'Pending'],
-        datasets: [{
-          data: arcData,
-          backgroundColor: [
-            rgba(C.indigo, 0.90),
-            rgba(C.green, 0.90),
-            rgba(C.red, 0.90),
-            rgba(C.orange, 0.90),
-            rgba(C.slate, 0.75)
-          ],
-          borderColor: '#ffffff',
-          borderWidth: 4,
-          hoverBorderColor: '#ffffff',
-          hoverOffset: 10,
-          spacing: 2
-        }]
-      },
-      options: {
-        cutout: '72%',
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(ctx) {
-                if (!arcSum) return '  No data yet';
-                var pct = Math.round(ctx.parsed / arcSum * 100);
-                return '  ' + ctx.label + ':  ' + ctx.parsed + '  (' + pct + '%)';
-              }
-            }
-          }
-        },
-        animation: { animateRotate: true, duration: 1600, easing: 'easeOutQuart' }
-      }
-    });
-
-    dc('rvdProgressBar', {
-      type: 'bar',
-      data: {
-        labels: ['Pending', 'In Progress', 'Escalated', 'Declined', 'Completed'],
-        datasets: [{
-          label: 'Reviews',
-          data: [pend, prog, esc, dec, done],
-          backgroundColor: [rgba(C.slate, 0.82), rgba(C.indigo, 0.82), rgba(C.red, 0.82), rgba(C.orange, 0.82), rgba(C.green, 0.82)],
-          borderColor: [C.slate, C.indigo, C.red, C.orange, C.green],
-          borderWidth: 2,
-          borderRadius: { topRight: 12, bottomRight: 12, topLeft: 0, bottomLeft: 0 },
-          borderSkipped: false,
-          barThickness: 26
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(ctx) {
-                var pct = total ? Math.round(ctx.parsed.x / total * 100) : 0;
-                return '  ' + ctx.parsed.x + ' proposals  ·  ' + pct + '%';
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            min: 0,
-            max: Math.max(total > 0 ? Math.ceil(total * 1.18) : 10, 1),
-            grid: { color: '#f1f5f9', drawBorder: false },
-            ticks: {
-              color: '#94a3b8',
-              font: { size: 11 },
-              precision: 0,
-              callback: function(v) { return Number.isInteger(v) ? v : ''; }
-            },
-            border: { display: false }
-          },
-          y: {
-            grid: { display: false },
-            ticks: { color: '#374151', font: { size: 12, weight: '700' } },
-            border: { display: false }
-          }
-        },
-        animation: { duration: 1300, easing: 'easeOutCubic' }
-      }
-    });
-
-    var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    var actDist = [0, 0, 0, 0, 0, 0, 0];
-    var escDist = [0, 0, 0, 0, 0, 0, 0];
-    var doneDist = [0, 0, 0, 0, 0, 0, 0];
-
-    reviews.forEach(function(r, i) {
-      var idx = i % 7;
-      actDist[idx]++;
-      if (r.status === 'Escalated') escDist[idx]++;
-      if (r.status === 'Review completed') doneDist[idx]++;
-    });
-
-    var actGrad = grad('rvdActivityLine', C.indigo);
-    var doneGrad = grad('rvdActivityLine', C.green);
-
-    dc('rvdActivityLine', {
-      type: 'line',
-      data: {
-        labels: days,
-        datasets: [
-          {
-            label: 'Total Reviews',
-            data: actDist,
-            borderColor: C.indigo,
-            backgroundColor: actGrad,
-            borderWidth: 3,
-            pointBackgroundColor: '#fff',
-            pointBorderColor: C.indigo,
-            pointBorderWidth: 2.5,
-            pointRadius: 6,
-            pointHoverRadius: 9,
-            pointHoverBackgroundColor: C.indigo,
-            tension: 0.45,
-            fill: true
-          },
-          {
-            label: 'Completed',
-            data: doneDist,
-            borderColor: C.green,
-            backgroundColor: doneGrad,
-            borderWidth: 2.5,
-            pointBackgroundColor: '#fff',
-            pointBorderColor: C.green,
-            pointBorderWidth: 2,
-            pointRadius: 5,
-            pointHoverRadius: 8,
-            tension: 0.45,
-            fill: true
-          },
-          {
-            label: 'Escalated',
-            data: escDist,
-            borderColor: C.rose,
-            backgroundColor: rgba(C.rose, 0.05),
-            borderWidth: 2,
-            borderDash: [6, 4],
-            pointBackgroundColor: '#fff',
-            pointBorderColor: C.rose,
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 7,
-            tension: 0.45,
-            fill: false
-          }
-        ]
-      },
-      options: {
-        plugins: {
-          legend: {
-            position: 'top',
-            align: 'end',
-            labels: {
-              usePointStyle: true,
-              pointStyle: 'circle',
-              padding: 16,
-              font: { size: 12, weight: '600' },
-              color: '#374151'
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#94a3b8', font: { size: 11, weight: '600' } },
-            border: { display: false }
-          },
-          y: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9', drawBorder: false },
-            ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 },
-            border: { display: false }
-          }
-        },
-        animation: { duration: 1600, easing: 'easeOutQuart' },
-        interaction: { mode: 'index', intersect: false }
-      }
-    });
-
-    var catMap = {};
-    reviews.forEach(function(r) {
-      var cat = r.program_category || 'Uncategorized';
-      if (!catMap[cat]) catMap[cat] = { prog: 0, done: 0, esc: 0, dec: 0, pend: 0 };
-      if (r.status === 'Review in progress') catMap[cat].prog++;
-      else if (r.status === 'Review completed') catMap[cat].done++;
-      else if (r.status === 'Escalated') catMap[cat].esc++;
-      else if (r.status === 'Declined by Reviewer') catMap[cat].dec++;
-      else if (r.status === 'Review pending') catMap[cat].pend++;
-    });
-
-    var catLabels = Object.keys(catMap);
-
-    if (catLabels.length) {
-      dc('rvdCategoryChart', {
-        type: 'bar',
-        data: {
-          labels: catLabels,
-          datasets: [
-            {
-              label: 'Pending',
-              stack: 'cat',
-              borderSkipped: false,
-              data: catLabels.map(function(k) { return catMap[k].pend; }),
-              backgroundColor: rgba(C.slate, 0.75),
-              borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 6, bottomRight: 6 }
-            },
-            {
-              label: 'In Progress',
-              stack: 'cat',
-              borderSkipped: false,
-              data: catLabels.map(function(k) { return catMap[k].prog; }),
-              backgroundColor: rgba(C.indigo, 0.82)
-            },
-            {
-              label: 'Escalated',
-              stack: 'cat',
-              borderSkipped: false,
-              data: catLabels.map(function(k) { return catMap[k].esc; }),
-              backgroundColor: rgba(C.red, 0.82)
-            },
-            {
-              label: 'Declined',
-              stack: 'cat',
-              borderSkipped: false,
-              data: catLabels.map(function(k) { return catMap[k].dec; }),
-              backgroundColor: rgba(C.orange, 0.82)
-            },
-            {
-              label: 'Completed',
-              stack: 'cat',
-              borderSkipped: false,
-              data: catLabels.map(function(k) { return catMap[k].done; }),
-              backgroundColor: rgba(C.green, 0.82),
-              borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 }
-            }
-          ]
-        },
-        options: {
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                usePointStyle: true,
-                pointStyle: 'rectRounded',
-                padding: 18,
-                font: { size: 11, weight: '600' },
-                color: '#374151'
-              }
-            },
-            tooltip: {
-              mode: 'index',
-              callbacks: {
-                footer: function(items) {
-                  var sum = items.reduce(function(a, i) { return a + i.parsed.y; }, 0);
-                  return 'Total: ' + sum;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              stacked: true,
-              grid: { display: false },
-              ticks: { color: '#94a3b8', font: { size: 11 } },
-              border: { display: false }
-            },
-            y: {
-              stacked: true,
-              beginAtZero: true,
-              grid: { color: '#f1f5f9', drawBorder: false },
-              ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
-              border: { display: false }
-            }
-          },
-          animation: { duration: 1200, easing: 'easeOutCubic' }
-        }
-      });
-    }
-
-    var grpMap = {};
-    reviews.forEach(function(r) {
-      var grp = r.review_group || 'Unassigned';
-      if (!grpMap[grp]) grpMap[grp] = { prog: 0, done: 0, esc: 0, dec: 0, pend: 0 };
-      if (r.status === 'Review in progress') grpMap[grp].prog++;
-      else if (r.status === 'Review completed') grpMap[grp].done++;
-      else if (r.status === 'Escalated') grpMap[grp].esc++;
-      else if (r.status === 'Declined by Reviewer') grpMap[grp].dec++;
-      else grpMap[grp].pend++;
-    });
-
-    var grpLabels = Object.keys(grpMap);
-
-    if (grpLabels.length) {
-      dc('rvdGroupChart', {
-        type: 'bar',
-        data: {
-          labels: grpLabels,
-          datasets: [
-            {
-              label: 'Pending',
-              stack: 'grp',
-              borderSkipped: false,
-              borderRadius: 0,
-              data: grpLabels.map(function(k) { return grpMap[k].pend; }),
-              backgroundColor: rgba(C.slate, 0.72)
-            },
-            {
-              label: 'In Progress',
-              stack: 'grp',
-              borderSkipped: false,
-              borderRadius: 0,
-              data: grpLabels.map(function(k) { return grpMap[k].prog; }),
-              backgroundColor: rgba(C.indigo, 0.82)
-            },
-            {
-              label: 'Escalated',
-              stack: 'grp',
-              borderSkipped: false,
-              borderRadius: 0,
-              data: grpLabels.map(function(k) { return grpMap[k].esc; }),
-              backgroundColor: rgba(C.red, 0.82)
-            },
-            {
-              label: 'Declined',
-              stack: 'grp',
-              borderSkipped: false,
-              borderRadius: 0,
-              data: grpLabels.map(function(k) { return grpMap[k].dec; }),
-              backgroundColor: rgba(C.orange, 0.82)
-            },
-            {
-              label: 'Completed',
-              stack: 'grp',
-              borderSkipped: false,
-              borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
-              data: grpLabels.map(function(k) { return grpMap[k].done; }),
-              backgroundColor: rgba(C.green, 0.82)
-            }
-          ]
-        },
-        options: {
-          indexAxis: 'y',
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                usePointStyle: true,
-                pointStyle: 'rectRounded',
-                padding: 16,
-                font: { size: 11, weight: '600' },
-                color: '#374151'
-              }
-            },
-            tooltip: {
-              mode: 'index',
-              callbacks: {
-                footer: function(items) {
-                  var sum = items.reduce(function(a, i) { return a + i.parsed.x; }, 0);
-                  return 'Group Total: ' + sum;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              stacked: true,
-              beginAtZero: true,
-              grid: { color: '#f1f5f9', drawBorder: false },
-              ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
-              border: { display: false }
-            },
-            y: {
-              stacked: true,
-              grid: { display: false },
-              ticks: { color: '#374151', font: { size: 12, weight: '700' } },
-              border: { display: false }
-            }
-          },
-          animation: { duration: 1300, easing: 'easeOutCubic' }
-        }
-      });
-    }
-
-    var scoreBuckets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    reviews.forEach(function(r) {
-      var sc = parseInt(r.score, 10);
-      if (sc >= 1 && sc <= 10) scoreBuckets[sc - 1]++;
-    });
-
-    dc('rvdScoreChart', {
-      type: 'bar',
-      data: {
-        labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
-        datasets: [{
-          label: 'Proposals',
-          data: scoreBuckets,
-          backgroundColor: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(function(v, i) {
-            var ratio = i / 9;
-            return ratio < 0.4 ? rgba(C.red, 0.78) : ratio < 0.7 ? rgba(C.amber, 0.78) : rgba(C.green, 0.78);
-          }),
-          borderColor: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(function(v, i) {
-            var ratio = i / 9;
-            return ratio < 0.4 ? C.red : ratio < 0.7 ? C.amber : C.green;
-          }),
-          borderWidth: 2,
-          borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
-          borderSkipped: false,
-          barThickness: 28
-        }]
-      },
-      options: {
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: function(items) { return 'Score ' + items[0].label + '/10'; },
-              label: function(ctx) { return '  ' + ctx.parsed.y + ' proposals'; }
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#94a3b8', font: { size: 12, weight: '700' } },
-            border: { display: false },
-            title: { display: true, text: 'Review Score', color: '#94a3b8', font: { size: 11 } }
-          },
-          y: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9', drawBorder: false },
-            ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
-            border: { display: false }
-          }
-        },
-        animation: { duration: 1200, easing: 'easeOutBounce' }
-      }
-    });
-
-    var progMap = {};
-    reviews.forEach(function(r) {
-      var p = r.program || 'Unknown';
-      if (!progMap[p]) progMap[p] = { total: 0, done: 0 };
-      progMap[p].total++;
-      if (r.status === 'Review completed') progMap[p].done++;
-    });
-
-    var radarLabels = Object.keys(progMap).slice(0, 8);
-    var radarData = radarLabels.map(function(p) {
-      return progMap[p].total ? Math.round(progMap[p].done / progMap[p].total * 100) : 0;
-    });
-
-    while (radarLabels.length < 3) {
-      radarLabels.push('—');
-      radarData.push(0);
-    }
-
-    dc('rvdRadarChart', {
-      type: 'radar',
-      data: {
-        labels: radarLabels,
-        datasets: [{
-          label: 'Completion %',
-          data: radarData,
-          backgroundColor: rgba(C.indigo, 0.18),
-          borderColor: C.indigo,
-          borderWidth: 2.5,
-          pointBackgroundColor: C.indigo,
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 8
-        }]
-      },
-      options: {
-        scales: {
-          r: {
-            min: 0,
-            max: 100,
-            ticks: {
-              stepSize: 25,
-              color: '#94a3b8',
-              font: { size: 10 },
-              backdropColor: 'transparent',
-              callback: function(v) { return v + '%'; }
-            },
-            grid: { color: '#e2e8f0' },
-            angleLines: { color: '#e2e8f0' },
-            pointLabels: { color: '#374151', font: { size: 11, weight: '700' } }
-          }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(ctx) { return '  Completion: ' + ctx.parsed.r + '%'; }
-            }
-          }
-        },
-        animation: { duration: 1600, easing: 'easeOutQuart' }
-      }
-    });
-  };
-
-  c.initEscGauge = function() {
-    var svgNS = c.data.svgNS;
-    var svg = document.querySelector('.rvd-esc-svg');
-    if (!svg) return;
-
-    var defs = document.createElementNS(svgNS, 'defs');
-    defs.innerHTML =
-      '<linearGradient id="escGrad" x1="0%" y1="0%" x2="100%" y2="0%">' +
-        '<stop offset="0%" stop-color="#10b981"/>' +
-        '<stop offset="50%" stop-color="#f59e0b"/>' +
-        '<stop offset="100%" stop-color="#ef4444"/>' +
-      '</linearGradient>';
-
-    svg.insertBefore(defs, svg.firstChild);
-
-    var s = c.data.stats || {};
-    var total = s.total || 0;
-    var escalated = s.escalated || 0;
-    var pct = total ? escalated / total : 0;
-    var arcLen = 283;
-
-    $timeout(function() {
-      var fill = document.getElementById('rvdEscFill');
-      if (fill) {
-        fill.style.strokeDasharray = (pct * arcLen) + ' ' + arcLen;
-        var rate = total ? escalated / total * 100 : 0;
-        fill.style.stroke = rate > 30 ? '#ef4444' : rate > 10 ? '#f59e0b' : '#10b981';
-      }
-    }, 400);
-  };
-
-  c.initDeadlineRings = function() {
-    var s = c.data.stats || {};
-    var overdue = s.overdue || 0;
-    var dueSoon = s.dueSoon || 0;
-    var onTrack = Math.max(0, (s.total || 0) - (s.completed || 0) - (s.declined || 0) - overdue - dueSoon);
-    var dlTotal = overdue + dueSoon + onTrack || 1;
-
-    var rings = [
-      { sel: '.rvd-ring--green', circ: 515.2, val: onTrack },
-      { sel: '.rvd-ring--amber', circ: 389.6, val: dueSoon },
-      { sel: '.rvd-ring--red', circ: 263.9, val: overdue }
-    ];
-
-    $timeout(function() {
-      rings.forEach(function(ring) {
-        var el = document.querySelector(ring.sel);
-        if (!el) return;
-        var filled = (ring.val / dlTotal) * ring.circ;
-        el.style.strokeDasharray = filled + ' ' + ring.circ;
-      });
-
-      c.data.stats.onTrack = onTrack;
-    }, 400);
-  };
-
-  function loadChartJS(cb) {
-    if (typeof Chart !== 'undefined') {
-      cb();
-      return;
-    }
-
-    var s = document.createElement('script');
-    s.src = c.data.chartJsUrl;
-    s.onload = cb;
-    document.head.appendChild(s);
-  }
-
-  $timeout(function() {
-    loadChartJS(function() {
-      $timeout(function() {
-        c.drawCharts();
-      }, 300);
-    });
-  }, 800);
-
-  $scope.$watch('c.activeSection', function(newVal) {
-    if (newVal === 'home') {
-      $timeout(function() {
-        c.initEscGauge();
-        c.initDeadlineRings();
-        c.drawCharts();
-      }, 300);
-    }
-  });
+  var c = this;
+
+  c.sessionUser = {
+    name: ($scope.user && $scope.user.name) || c.data.currentUser.name || 'Reviewer',
+    email: c.data.currentUser.email || '',
+    sys_id: c.data.currentUser['sys_id'] || '',
+    initials: ($window.NOW && $window.NOW.user_initials) || c.data.currentUser.initials || 'R',
+    loggedIn: !!($scope.user && $scope.user.logged_in)
+  };
+
+  c.activeSection = 'home';
+  c.sidebarOpen = true;
+
+  c.navTo = function(section) {
+    c.activeSection = section;
+    if (section === 'proposals') c.proposalPage = 1;
+  };
+
+  c.toggleSidebar = function() {
+    c.sidebarOpen = !c.sidebarOpen;
+  };
+
+  c.profileOpen = false;
+
+  c.toggleProfile = function($event) {
+    $event.stopPropagation();
+    c.profileOpen = !c.profileOpen;
+  };
+
+  c.logout = function() {
+    window.location.assign('/login.do?logout=true');
+  };
+
+  c.goToProfile = function() {
+    c.profileOpen = false;
+    $location.search({
+      id: 'user_profile'
+    });
+  };
+
+  c.searchText = '';
+  c.statusFilter = '';
+  c.categoryFilter = '';
+  c.programFilter = '';
+
+  c.proposalPage = 1;
+  c.pageSize = 12;
+
+  $scope.$watchGroup(
+    ['c.searchText', 'c.statusFilter', 'c.categoryFilter', 'c.programFilter'],
+    function() {
+      c.proposalPage = 1;
+    }
+  );
+
+  c.categoryOptions = function() {
+    var seen = {}, opts = [];
+    (c.data.reviews || []).forEach(function(r) {
+      if (r.status !== 'Review completed' && r.program_category && !seen[r.program_category]) {
+        seen[r.program_category] = true;
+        opts.push(r.program_category);
+      }
+    });
+    return opts.sort();
+  };
+
+  c.programOptions = function() {
+    var seen = {}, opts = [];
+    (c.data.reviews || []).forEach(function(r) {
+      if (r.status !== 'Review completed' && r.program && !seen[r.program]) {
+        seen[r.program] = true;
+        opts.push(r.program);
+      }
+    });
+    return opts.sort();
+  };
+
+  c.allStatuses = ['Review pending', 'Review in progress', 'Review completed', 'Escalated', 'Declined by Reviewer'];
+
+  c.filteredProposals = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      if (r.status === 'Review completed') return false;
+      if (c.statusFilter && r.status !== c.statusFilter) return false;
+      if (c.categoryFilter && r.program_category !== c.categoryFilter) return false;
+      if (c.programFilter && r.program !== c.programFilter) return false;
+
+      if (c.searchText) {
+        var txt = c.searchText.toLowerCase();
+        if (
+          (r.number || '').toLowerCase().indexOf(txt) === -1 &&
+          (r.program || '').toLowerCase().indexOf(txt) === -1 &&
+          (r.applicant || '').toLowerCase().indexOf(txt) === -1 &&
+          (r.program_category || '').toLowerCase().indexOf(txt) === -1
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  c.pagedProposals = function() {
+    var all = c.filteredProposals();
+    var start = (c.proposalPage - 1) * c.pageSize;
+    return all.slice(start, start + c.pageSize);
+  };
+
+  c.totalPages = function() {
+    return Math.ceil(c.filteredProposals().length / c.pageSize) || 1;
+  };
+
+  c.pageNumbers = function() {
+    var total = c.totalPages();
+    var current = c.proposalPage;
+    var pages = [];
+    var start = Math.max(1, current - 2);
+    var end = Math.min(total, current + 2);
+
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push('...');
+    for (var i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('...');
+    if (end < total) pages.push(total);
+
+    return pages;
+  };
+
+  c.goToPage = function(p) {
+    if (p !== '...' && p >= 1 && p <= c.totalPages()) c.proposalPage = p;
+  };
+
+  c.prevPage = function() {
+    if (c.proposalPage > 1) c.proposalPage--;
+  };
+
+  c.nextPage = function() {
+    if (c.proposalPage < c.totalPages()) c.proposalPage++;
+  };
+
+  c.completedReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.status === 'Review completed';
+    });
+  };
+
+  c.recentActivity = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.status !== 'Review completed';
+    }).slice(0, 8);
+  };
+
+  c.overdueReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.is_overdue;
+    });
+  };
+
+  c.dueSoonReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.is_due_soon;
+    });
+  };
+
+  c.openRecord = function(rev) {
+    if (!rev || !rev['sys_id']) return;
+    $location.search({
+      id: 'review_proposal_detail_page',
+      sys_id: rev['sys_id']
+    });
+  };
+
+  c.scoreWidth = function(score) {
+    if (!score) return '0%';
+    return Math.min(Math.round((parseInt(score, 10) / 10) * 100), 100) + '%';
+  };
+
+  c.deadlineClass = function(rev) {
+    if (rev.is_overdue) return 'rvd-deadline--overdue';
+    if (rev.is_due_soon) return 'rvd-deadline--soon';
+    return 'rvd-deadline--ok';
+  };
+
+  c.statusChipClass = function(status) {
+    if (status === 'Review completed') return 'rvd-chip--green';
+    if (status === 'Escalated') return 'rvd-chip--red';
+    if (status === 'Declined by Reviewer') return 'rvd-chip--rose';
+    if (status === 'Review pending') return 'rvd-chip--slate';
+    return 'rvd-chip--amber';
+  };
+
+  c.completionRate = function() {
+    var s = c.data.stats || {};
+    return s.total ? Math.round(s.completed / s.total * 100) : 0;
+  };
+
+  c.statusPct = function(key) {
+    var s = c.data.stats || {};
+    var t = s.total || 0;
+    if (!t) return '0%';
+
+    var v = {
+      inProgress: s.inProgress || 0,
+      completed: s.completed || 0,
+      escalated: s.escalated || 0,
+      declined: s.declined || 0,
+      pending: s.pending || 0
+    };
+
+    return Math.round((v[key] || 0) / t * 100) + '%';
+  };
+
+  c.statusPctNum = function(key) {
+    var s = c.data.stats || {};
+    var t = s.total || 0;
+    if (!t) return 0;
+
+    var v = {
+      inProgress: s.inProgress || 0,
+      completed: s.completed || 0,
+      escalated: s.escalated || 0,
+      declined: s.declined || 0,
+      pending: s.pending || 0
+    };
+
+    return Math.round((v[key] || 0) / t * 100);
+  };
+
+  c.topGroup = function() {
+    var grpMap = {};
+    (c.data.reviews || []).forEach(function(r) {
+      var g = r.review_group || 'Unassigned';
+      if (!grpMap[g]) grpMap[g] = 0;
+      if (r.status === 'Review completed') grpMap[g]++;
+    });
+
+    var top = '';
+    var max = 0;
+    Object.keys(grpMap).forEach(function(k) {
+      if (grpMap[k] > max) {
+        max = grpMap[k];
+        top = k;
+      }
+    });
+
+    return top || '—';
+  };
+
+  c.animatedStats = {
+    total: 0,
+    inProgress: 0,
+    completed: 0,
+    escalated: 0,
+    declined: 0,
+    pending: 0
+  };
+
+  function animateCount(key, target) {
+    if (!target) return;
+
+    var step = Math.ceil(target / 30);
+    var current = 0;
+    var interval = setInterval(function() {
+      current += step;
+      if (current >= target) {
+        current = target;
+        clearInterval(interval);
+      }
+      c.animatedStats[key] = current;
+      $timeout(function() {}, 0);
+    }, 30);
+  }
+
+  $timeout(function() {
+    var s = c.data.stats || {};
+    animateCount('total', s.total || 0);
+    animateCount('inProgress', s.inProgress || 0);
+    animateCount('completed', s.completed || 0);
+    animateCount('escalated', s.escalated || 0);
+    animateCount('declined', s.declined || 0);
+    animateCount('pending', s.pending || 0);
+  }, 300);
+
+  c.drawCharts = function() {
+    if (typeof Chart === 'undefined') return;
+
+    var s = c.data.stats || {};
+    var reviews = c.data.reviews || [];
+    var total = s.total || 0;
+    var prog = s.inProgress || 0;
+    var done = s.completed || 0;
+    var esc = s.escalated || 0;
+    var dec = s.declined || 0;
+    var pend = s.pending || 0;
+
+    Chart.defaults.font.family = "'Inter','Segoe UI',sans-serif";
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.plugins.tooltip.cornerRadius = 10;
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.boxPadding = 6;
+    Chart.defaults.plugins.tooltip.titleFont = { weight: '700', size: 13 };
+    Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
+    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15,23,42,0.92)';
+    Chart.defaults.plugins.tooltip.titleColor = '#f1f5f9';
+    Chart.defaults.plugins.tooltip.bodyColor = '#cbd5e1';
+
+    var C = {
+      indigo: '#6366f1',
+      green: '#10b981',
+      red: '#ef4444',
+      orange: '#f97316',
+      slate: '#94a3b8',
+      amber: '#f59e0b',
+      rose: '#f43f5e',
+      sky: '#0ea5e9',
+      violet: '#8b5cf6',
+      teal: '#14b8a6',
+      cyan: '#06b6d4',
+      lime: '#84cc16'
+    };
+
+    function rgba(hex, a) {
+      var r = parseInt(hex.slice(1, 3), 16);
+      var g = parseInt(hex.slice(3, 5), 16);
+      var b = parseInt(hex.slice(5, 7), 16);
+      return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+    }
+
+    function dc(id, cfg) {
+      var el = document.getElementById(id);
+      if (!el) return null;
+      var existing = Chart.getChart(el);
+      if (existing) existing.destroy();
+      return new Chart(el, cfg);
+    }
+
+    function grad(id, colorTop, colorBot) {
+      var el = document.getElementById(id);
+      if (!el) return rgba(colorTop, 0.2);
+      var h = el.offsetHeight || el.clientHeight || 220;
+      var ctx = el.getContext('2d');
+      var g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, rgba(colorTop, 0.38));
+      g.addColorStop(1, rgba(colorBot || colorTop, 0.02));
+      return g;
+    }
+
+    var arcData = [prog || 0, done || 0, esc || 0, dec || 0, pend || 0];
+    var arcSum = arcData.reduce(function(a, b) { return a + b; }, 0);
+    if (!arcSum) arcData = [1, 1, 1, 1, 1];
+
+    dc('rvdDonutChart', {
+      type: 'doughnut',
+      data: {
+        labels: ['In Progress', 'Completed', 'Escalated', 'Declined', 'Pending'],
+        datasets: [{
+          data: arcData,
+          backgroundColor: [
+            rgba(C.indigo, 0.90),
+            rgba(C.green, 0.90),
+            rgba(C.red, 0.90),
+            rgba(C.orange, 0.90),
+            rgba(C.slate, 0.75)
+          ],
+          borderColor: '#ffffff',
+          borderWidth: 4,
+          hoverBorderColor: '#ffffff',
+          hoverOffset: 10,
+          spacing: 2
+        }]
+      },
+      options: {
+        cutout: '72%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                if (!arcSum) return '  No data yet';
+                var pct = Math.round(ctx.parsed / arcSum * 100);
+                return '  ' + ctx.label + ':  ' + ctx.parsed + '  (' + pct + '%)';
+              }
+            }
+          }
+        },
+        animation: { animateRotate: true, duration: 1600, easing: 'easeOutQuart' }
+      }
+    });
+
+    dc('rvdProgressBar', {
+      type: 'bar',
+      data: {
+        labels: ['Pending', 'In Progress', 'Escalated', 'Declined', 'Completed'],
+        datasets: [{
+          label: 'Reviews',
+          data: [pend, prog, esc, dec, done],
+          backgroundColor: [rgba(C.slate, 0.82), rgba(C.indigo, 0.82), rgba(C.red, 0.82), rgba(C.orange, 0.82), rgba(C.green, 0.82)],
+          borderColor: [C.slate, C.indigo, C.red, C.orange, C.green],
+          borderWidth: 2,
+          borderRadius: { topRight: 12, bottomRight: 12, topLeft: 0, bottomLeft: 0 },
+          borderSkipped: false,
+          barThickness: 26
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                var pct = total ? Math.round(ctx.parsed.x / total * 100) : 0;
+                return '  ' + ctx.parsed.x + ' proposals  ·  ' + pct + '%';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: Math.max(total > 0 ? Math.ceil(total * 1.18) : 10, 1),
+            grid: { color: '#f1f5f9', drawBorder: false },
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 11 },
+              precision: 0,
+              callback: function(v) { return Number.isInteger(v) ? v : ''; }
+            },
+            border: { display: false }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: '#374151', font: { size: 12, weight: '700' } },
+            border: { display: false }
+          }
+        },
+        animation: { duration: 1300, easing: 'easeOutCubic' }
+      }
+    });
+
+    var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    var actDist = [0, 0, 0, 0, 0, 0, 0];
+    var escDist = [0, 0, 0, 0, 0, 0, 0];
+    var doneDist = [0, 0, 0, 0, 0, 0, 0];
+
+    reviews.forEach(function(r, i) {
+      var idx = i % 7;
+      actDist[idx]++;
+      if (r.status === 'Escalated') escDist[idx]++;
+      if (r.status === 'Review completed') doneDist[idx]++;
+    });
+
+    var actGrad = grad('rvdActivityLine', C.indigo);
+    var doneGrad = grad('rvdActivityLine', C.green);
+
+    dc('rvdActivityLine', {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          {
+            label: 'Total Reviews',
+            data: actDist,
+            borderColor: C.indigo,
+            backgroundColor: actGrad,
+            borderWidth: 3,
+            pointBackgroundColor: '#fff',
+            pointBorderColor: C.indigo,
+            pointBorderWidth: 2.5,
+            pointRadius: 6,
+            pointHoverRadius: 9,
+            pointHoverBackgroundColor: C.indigo,
+            tension: 0.45,
+            fill: true
+          },
+          {
+            label: 'Completed',
+            data: doneDist,
+            borderColor: C.green,
+            backgroundColor: doneGrad,
+            borderWidth: 2.5,
+            pointBackgroundColor: '#fff',
+            pointBorderColor: C.green,
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            tension: 0.45,
+            fill: true
+          },
+          {
+            label: 'Escalated',
+            data: escDist,
+            borderColor: C.rose,
+            backgroundColor: rgba(C.rose, 0.05),
+            borderWidth: 2,
+            borderDash: [6, 4],
+            pointBackgroundColor: '#fff',
+            pointBorderColor: C.rose,
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 7,
+            tension: 0.45,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'end',
+            labels: {
+              usePointStyle: true,
+              pointStyle: 'circle',
+              padding: 16,
+              font: { size: 12, weight: '600' },
+              color: '#374151'
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#94a3b8', font: { size: 11, weight: '600' } },
+            border: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: '#f1f5f9', drawBorder: false },
+            ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 },
+            border: { display: false }
+          }
+        },
+        animation: { duration: 1600, easing: 'easeOutQuart' },
+        interaction: { mode: 'index', intersect: false }
+      }
+    });
+
+    var catMap = {};
+    reviews.forEach(function(r) {
+      var cat = r.program_category || 'Uncategorized';
+      if (!catMap[cat]) catMap[cat] = { prog: 0, done: 0, esc: 0, dec: 0, pend: 0 };
+      if (r.status === 'Review in progress') catMap[cat].prog++;
+      else if (r.status === 'Review completed') catMap[cat].done++;
+      else if (r.status === 'Escalated') catMap[cat].esc++;
+      else if (r.status === 'Declined by Reviewer') catMap[cat].dec++;
+      else if (r.status === 'Review pending') catMap[cat].pend++;
+    });
+
+    var catLabels = Object.keys(catMap);
+
+    if (catLabels.length) {
+      dc('rvdCategoryChart', {
+        type: 'bar',
+        data: {
+          labels: catLabels,
+          datasets: [
+            {
+              label: 'Pending',
+              stack: 'cat',
+              borderSkipped: false,
+              data: catLabels.map(function(k) { return catMap[k].pend; }),
+              backgroundColor: rgba(C.slate, 0.75),
+              borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 6, bottomRight: 6 }
+            },
+            {
+              label: 'In Progress',
+              stack: 'cat',
+              borderSkipped: false,
+              data: catLabels.map(function(k) { return catMap[k].prog; }),
+              backgroundColor: rgba(C.indigo, 0.82)
+            },
+            {
+              label: 'Escalated',
+              stack: 'cat',
+              borderSkipped: false,
+              data: catLabels.map(function(k) { return catMap[k].esc; }),
+              backgroundColor: rgba(C.red, 0.82)
+            },
+            {
+              label: 'Declined',
+              stack: 'cat',
+              borderSkipped: false,
+              data: catLabels.map(function(k) { return catMap[k].dec; }),
+              backgroundColor: rgba(C.orange, 0.82)
+            },
+            {
+              label: 'Completed',
+              stack: 'cat',
+              borderSkipped: false,
+              data: catLabels.map(function(k) { return catMap[k].done; }),
+              backgroundColor: rgba(C.green, 0.82),
+              borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 }
+            }
+          ]
+        },
+        options: {
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'rectRounded',
+                padding: 18,
+                font: { size: 11, weight: '600' },
+                color: '#374151'
+              }
+            },
+            tooltip: {
+              mode: 'index',
+              callbacks: {
+                footer: function(items) {
+                  var sum = items.reduce(function(a, i) { return a + i.parsed.y; }, 0);
+                  return 'Total: ' + sum;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { size: 11 } },
+              border: { display: false }
+            },
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              grid: { color: '#f1f5f9', drawBorder: false },
+              ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
+              border: { display: false }
+            }
+          },
+          animation: { duration: 1200, easing: 'easeOutCubic' }
+        }
+      });
+    }
+
+    var grpMap = {};
+    reviews.forEach(function(r) {
+      var grp = r.review_group || 'Unassigned';
+      if (!grpMap[grp]) grpMap[grp] = { prog: 0, done: 0, esc: 0, dec: 0, pend: 0 };
+      if (r.status === 'Review in progress') grpMap[grp].prog++;
+      else if (r.status === 'Review completed') grpMap[grp].done++;
+      else if (r.status === 'Escalated') grpMap[grp].esc++;
+      else if (r.status === 'Declined by Reviewer') grpMap[grp].dec++;
+      else grpMap[grp].pend++;
+    });
+
+    var grpLabels = Object.keys(grpMap);
+
+    if (grpLabels.length) {
+      dc('rvdGroupChart', {
+        type: 'bar',
+        data: {
+          labels: grpLabels,
+          datasets: [
+            {
+              label: 'Pending',
+              stack: 'grp',
+              borderSkipped: false,
+              borderRadius: 0,
+              data: grpLabels.map(function(k) { return grpMap[k].pend; }),
+              backgroundColor: rgba(C.slate, 0.72)
+            },
+            {
+              label: 'In Progress',
+              stack: 'grp',
+              borderSkipped: false,
+              borderRadius: 0,
+              data: grpLabels.map(function(k) { return grpMap[k].prog; }),
+              backgroundColor: rgba(C.indigo, 0.82)
+            },
+            {
+              label: 'Escalated',
+              stack: 'grp',
+              borderSkipped: false,
+              borderRadius: 0,
+              data: grpLabels.map(function(k) { return grpMap[k].esc; }),
+              backgroundColor: rgba(C.red, 0.82)
+            },
+            {
+              label: 'Declined',
+              stack: 'grp',
+              borderSkipped: false,
+              borderRadius: 0,
+              data: grpLabels.map(function(k) { return grpMap[k].dec; }),
+              backgroundColor: rgba(C.orange, 0.82)
+            },
+            {
+              label: 'Completed',
+              stack: 'grp',
+              borderSkipped: false,
+              borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+              data: grpLabels.map(function(k) { return grpMap[k].done; }),
+              backgroundColor: rgba(C.green, 0.82)
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'rectRounded',
+                padding: 16,
+                font: { size: 11, weight: '600' },
+                color: '#374151'
+              }
+            },
+            tooltip: {
+              mode: 'index',
+              callbacks: {
+                footer: function(items) {
+                  var sum = items.reduce(function(a, i) { return a + i.parsed.x; }, 0);
+                  return 'Group Total: ' + sum;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              beginAtZero: true,
+              grid: { color: '#f1f5f9', drawBorder: false },
+              ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
+              border: { display: false }
+            },
+            y: {
+              stacked: true,
+              grid: { display: false },
+              ticks: { color: '#374151', font: { size: 12, weight: '700' } },
+              border: { display: false }
+            }
+          },
+          animation: { duration: 1300, easing: 'easeOutCubic' }
+        }
+      });
+    }
+
+    var scoreBuckets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    reviews.forEach(function(r) {
+      var sc = parseInt(r.score, 10);
+      if (sc >= 1 && sc <= 10) scoreBuckets[sc - 1]++;
+    });
+
+    dc('rvdScoreChart', {
+      type: 'bar',
+      data: {
+        labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+        datasets: [{
+          label: 'Proposals',
+          data: scoreBuckets,
+          backgroundColor: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(function(v, i) {
+            var ratio = i / 9;
+            return ratio < 0.4 ? rgba(C.red, 0.78) : ratio < 0.7 ? rgba(C.amber, 0.78) : rgba(C.green, 0.78);
+          }),
+          borderColor: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(function(v, i) {
+            var ratio = i / 9;
+            return ratio < 0.4 ? C.red : ratio < 0.7 ? C.amber : C.green;
+          }),
+          borderWidth: 2,
+          borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+          barThickness: 28
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: function(items) { return 'Score ' + items[0].label + '/10'; },
+              label: function(ctx) { return '  ' + ctx.parsed.y + ' proposals'; }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#94a3b8', font: { size: 12, weight: '700' } },
+            border: { display: false },
+            title: { display: true, text: 'Review Score', color: '#94a3b8', font: { size: 11 } }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: '#f1f5f9', drawBorder: false },
+            ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
+            border: { display: false }
+          }
+        },
+        animation: { duration: 1200, easing: 'easeOutBounce' }
+      }
+    });
+
+    var progMap = {};
+    reviews.forEach(function(r) {
+      var p = r.program || 'Unknown';
+      if (!progMap[p]) progMap[p] = { total: 0, done: 0 };
+      progMap[p].total++;
+      if (r.status === 'Review completed') progMap[p].done++;
+    });
+
+    var radarLabels = Object.keys(progMap).slice(0, 8);
+    var radarData = radarLabels.map(function(p) {
+      return progMap[p].total ? Math.round(progMap[p].done / progMap[p].total * 100) : 0;
+    });
+
+    while (radarLabels.length < 3) {
+      radarLabels.push('—');
+      radarData.push(0);
+    }
+
+    dc('rvdRadarChart', {
+      type: 'radar',
+      data: {
+        labels: radarLabels,
+        datasets: [{
+          label: 'Completion %',
+          data: radarData,
+          backgroundColor: rgba(C.indigo, 0.18),
+          borderColor: C.indigo,
+          borderWidth: 2.5,
+          pointBackgroundColor: C.indigo,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 8
+        }]
+      },
+      options: {
+        scales: {
+          r: {
+            min: 0,
+            max: 100,
+            ticks: {
+              stepSize: 25,
+              color: '#94a3b8',
+              font: { size: 10 },
+              backdropColor: 'transparent',
+              callback: function(v) { return v + '%'; }
+            },
+            grid: { color: '#e2e8f0' },
+            angleLines: { color: '#e2e8f0' },
+            pointLabels: { color: '#374151', font: { size: 11, weight: '700' } }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) { return '  Completion: ' + ctx.parsed.r + '%'; }
+            }
+          }
+        },
+        animation: { duration: 1600, easing: 'easeOutQuart' }
+      }
+    });
+  };
+
+  c.initEscGauge = function() {
+    var svgNS = c.data.svgNS;
+    var svg = document.querySelector('.rvd-esc-svg');
+    if (!svg) return;
+
+    var defs = document.createElementNS(svgNS, 'defs');
+    defs.innerHTML =
+      '<linearGradient id="escGrad" x1="0%" y1="0%" x2="100%" y2="0%">' +
+        '<stop offset="0%" stop-color="#10b981"/>' +
+        '<stop offset="50%" stop-color="#f59e0b"/>' +
+        '<stop offset="100%" stop-color="#ef4444"/>' +
+      '</linearGradient>';
+
+    svg.insertBefore(defs, svg.firstChild);
+
+    var s = c.data.stats || {};
+    var total = s.total || 0;
+    var escalated = s.escalated || 0;
+    var pct = total ? escalated / total : 0;
+    var arcLen = 283;
+
+    $timeout(function() {
+      var fill = document.getElementById('rvdEscFill');
+      if (fill) {
+        fill.style.strokeDasharray = (pct * arcLen) + ' ' + arcLen;
+        var rate = total ? escalated / total * 100 : 0;
+        fill.style.stroke = rate > 30 ? '#ef4444' : rate > 10 ? '#f59e0b' : '#10b981';
+      }
+    }, 400);
+  };
+
+  c.initDeadlineRings = function() {
+    var s = c.data.stats || {};
+    var overdue = s.overdue || 0;
+    var dueSoon = s.dueSoon || 0;
+    var onTrack = Math.max(0, (s.total || 0) - (s.completed || 0) - (s.declined || 0) - overdue - dueSoon);
+    var dlTotal = overdue + dueSoon + onTrack || 1;
+
+    var rings = [
+      { sel: '.rvd-ring--green', circ: 515.2, val: onTrack },
+      { sel: '.rvd-ring--amber', circ: 389.6, val: dueSoon },
+      { sel: '.rvd-ring--red', circ: 263.9, val: overdue }
+    ];
+
+    $timeout(function() {
+      rings.forEach(function(ring) {
+        var el = document.querySelector(ring.sel);
+        if (!el) return;
+        var filled = (ring.val / dlTotal) * ring.circ;
+        el.style.strokeDasharray = filled + ' ' + ring.circ;
+    });
+
+      c.data.stats.onTrack = onTrack;
+    }, 400);
+  };
+
+  function loadChartJS(cb) {
+    if (typeof Chart !== 'undefined') {
+      cb();
+      return;
+    }
+
+    var s = document.createElement('script');
+    s.src = c.data.chartJsUrl;
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  $timeout(function() {
+    loadChartJS(function() {
+      $timeout(function() {
+        c.drawCharts();
+      }, 300);
+    });
+  }, 800);
+
+  $scope.$watch('c.activeSection', function(newVal) {
+    if (newVal === 'home') {
+      $timeout(function() {
+        c.initEscGauge();
+        c.initDeadlineRings();
+        c.drawCharts();
+      }, 300);
+    }
+  });
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════════════════
@@ -3240,14 +3240,14 @@ justify-content: center;   /* ADD THIS */
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 09:34:16</sys_created_on>
         <sys_id>376123632f0ff210d2a0d68fcea4e306</sys_id>
-        <sys_mod_count>84</sys_mod_count>
+        <sys_mod_count>85</sys_mod_count>
         <sys_name>Proposal Review</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_376123632f0ff210d2a0d68fcea4e306</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2026-05-22 10:05:36</sys_updated_on>
+        <sys_updated_by>mohammad.younis</sys_updated_by>
+        <sys_updated_on>2026-05-22 17:28:16</sys_updated_on>
         <template><![CDATA[<div class="rvd-shell" ng-if="data.canRead">
 
   <!-- SIDEBAR -->
