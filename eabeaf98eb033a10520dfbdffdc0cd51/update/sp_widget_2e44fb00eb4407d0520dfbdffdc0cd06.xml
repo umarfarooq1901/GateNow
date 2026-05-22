@@ -543,83 +543,88 @@
         <script><![CDATA[(function() {
     data.sideBar = $sp.getWidget('sidebar_dashboard');
     data.list_page = options.list_page_id || 'my_award_list';
-    
+
     var currentUser = gs.getUserID();
     var sysId = $sp.getParameter('sys_id') || (input && input.target_id);
 
-    if (!sysId) return;
+    if (!sysId)
+        return;
 
-    /* --- 1. HANDLE STATUS UPDATE --- */
-    if (input && input.action === 'update_award_choice') {
-        var awardUpdateGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        if (awardUpdateGR.get(input.target_id)) {
-            awardUpdateGR.setValue('applicant_response', input.new_status);
-            if (input.comment_submission) {
-                awardUpdateGR.work_notes = input.comment_submission;
+    /* 1. HANDLE STATUS UPDATE */
+    if (input && input.action === 'update_award_choice' && input.target_id && input.new_status) {
+        var normalizedStatus = String(input.new_status || '').toLowerCase();
+
+        if (['acknowledged', 'pending', 'rejected'].indexOf(normalizedStatus) > -1) {
+            var awardUpdateGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+            if (awardUpdateGR.get(input.target_id)) {
+                awardUpdateGR.setValue('applicant_response', normalizedStatus);
+
+                if (input.comment_submission && String(input.comment_submission).trim()) {
+                    awardUpdateGR.work_notes = String(input.comment_submission).trim();
+                }
+
+                awardUpdateGR.update();
             }
-            awardUpdateGR.update();
         }
     }
 
-    /* --- 2. IDENTIFY THE APPLICANT (Security Check) --- */
+    /* 2. IDENTIFY THE APPLICANT (SECURITY CHECK) */
     var applicantIds = [];
     var applicantLookupGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     applicantLookupGR.addQuery('user', currentUser);
     applicantLookupGR.query();
+
     while (applicantLookupGR.next()) {
         applicantIds.push(applicantLookupGR.getUniqueValue());
     }
 
-    /* --- 3. FETCH SINGLE AWARD DATA --- */
+    /* 3. FETCH SINGLE AWARD DATA */
     if (applicantIds.length > 0) {
         var awardGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
         awardGR.addQuery('sys_id', sysId);
-        // Security: Ensures user can only view their own awards
-        awardGR.addQuery('applicant', 'IN', applicantIds.join(',')); 
+        awardGR.addQuery('applicant', 'IN', applicantIds.join(','));
         awardGR.query();
 
         if (awardGR.next()) {
-            var rawResponse = String(awardGR.getValue('applicant_response') || '');
+            var rawResponse = String(awardGR.getValue('applicant_response') || '').toLowerCase();
 
-            /* --- Fetch attachments for this specific record --- */
             var attachments = [];
             var attachmentGR = new GlideRecordSecure('sys_attachment');
             attachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_awards');
             attachmentGR.addQuery('table_sys_id', sysId);
             attachmentGR.query();
-            
+
             while (attachmentGR.next()) {
                 attachments.push({
-                    sys_id:        attachmentGR.getUniqueValue(),
-                    file_name:     attachmentGR.getDisplayValue('file_name'),
-                    content_type:  attachmentGR.getDisplayValue('content_type'),
-                    size_bytes:    parseInt(attachmentGR.getValue('size_bytes') || 0),
+                    sys_id: attachmentGR.getUniqueValue(),
+                    file_name: attachmentGR.getDisplayValue('file_name'),
+                    content_type: attachmentGR.getDisplayValue('content_type'),
+                    size_bytes: parseInt(attachmentGR.getValue('size_bytes') || 0, 10),
                     download_link: '/sys_attachment.do?sys_id=' + attachmentGR.getUniqueValue()
                 });
             }
 
             data.selectedAward = {
-                sys_id:                     awardGR.getUniqueValue(),
-                number:                     awardGR.getDisplayValue('number'),
-                program_name:               awardGR.getDisplayValue('program_name'),
-                proposal_number:            awardGR.getDisplayValue('applicant'),
-                effective_date_of_award:    awardGR.getDisplayValue('effective_date_of_award'),
-                award_start_date:           awardGR.getDisplayValue('award_start_date'),
-                award_end_date:             awardGR.getDisplayValue('award_end_date'),
-                award_amount:               parseFloat(awardGR.getValue('build_grant_amount') || 0),
-                applicant_response:         rawResponse,
+                sys_id: awardGR.getUniqueValue(),
+                number: awardGR.getDisplayValue('number'),
+                program_name: awardGR.getDisplayValue('program_name'),
+                proposal_number: awardGR.getDisplayValue('applicant'),
+                effective_date_of_award: awardGR.getDisplayValue('effective_date_of_award'),
+                award_start_date: awardGR.getDisplayValue('award_start_date'),
+                award_end_date: awardGR.getDisplayValue('award_end_date'),
+                award_amount: parseFloat(awardGR.getValue('build_grant_amount') || 0),
+                applicant_response: rawResponse,
                 applicant_response_display: awardGR.getDisplayValue('applicant_response'),
-                grant_program_id:           awardGR.getDisplayValue('grant_program'),
-                decision_reason:            awardGR.getDisplayValue('decision_reason'),
-                award_letter:               awardGR.getValue('award_letter'),
-                fain:                       awardGR.getDisplayValue('fain'),
-                assistance_listing:         awardGR.getDisplayValue('assistance_listing'),
-                unique_entity_id:           awardGR.getDisplayValue('unique_entity_id'),
-                tin:                        awardGR.getDisplayValue('tin'),
+                grant_program_id: awardGR.getDisplayValue('grant_program'),
+                decision_reason: awardGR.getDisplayValue('decision_reason'),
+                award_letter: awardGR.getValue('award_letter'),
+                fain: awardGR.getDisplayValue('fain'),
+                assistance_listing: awardGR.getDisplayValue('assistance_listing'),
+                unique_entity_id: awardGR.getDisplayValue('unique_entity_id'),
+                tin: awardGR.getDisplayValue('tin'),
                 funding_opportunity_number: awardGR.getDisplayValue('funding_opportunity_number'),
-                
-                attachments:                attachments,
-                work_notes:                 '' 
+                attachments: attachments,
+                work_notes: ''
             };
         }
     }
@@ -629,14 +634,14 @@
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-31 07:00:33</sys_created_on>
         <sys_id>2e44fb00eb4407d0520dfbdffdc0cd06</sys_id>
-        <sys_mod_count>32</sys_mod_count>
+        <sys_mod_count>33</sys_mod_count>
         <sys_name>My Award Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_2e44fb00eb4407d0520dfbdffdc0cd06</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-05-04 11:42:47</sys_updated_on>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-05-20 09:44:47</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -648,43 +653,47 @@
       <button class="dt-back" ng-click="c.backToList()">
         <i class="fa fa-chevron-left"></i> My Awards
       </button>
+
       <div class="dt-topbar-crumb">
         <span class="dt-crumb-prog">{{data.selectedAward.program_name}}</span>
         <span class="dt-crumb-sep">/</span>
         <span class="dt-crumb-num">{{data.selectedAward.number}}</span>
       </div>
+
       <div class="dt-topbar-badge"
            ng-class="{
-             'dt-badge--green': data.selectedAward.applicant_response === 'Acknowledged',
-             'dt-badge--amber': data.selectedAward.applicant_response === 'Pending',
-             'dt-badge--red':   data.selectedAward.applicant_response === 'Rejected'
+             'dt-badge--green': data.selectedAward.applicant_response === 'acknowledged',
+             'dt-badge--amber': data.selectedAward.applicant_response === 'pending',
+             'dt-badge--red': data.selectedAward.applicant_response === 'rejected'
            }">
-        <i class="fa fa-check-circle" ng-if="data.selectedAward.applicant_response === 'Acknowledged'"></i>
-        <i class="fa fa-clock-o"      ng-if="data.selectedAward.applicant_response === 'Pending'"></i>
-        <i class="fa fa-times-circle" ng-if="data.selectedAward.applicant_response === 'Rejected'"></i>
+        <i class="fa fa-check-circle" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
+        <i class="fa fa-clock-o" ng-if="data.selectedAward.applicant_response === 'pending'"></i>
+        <i class="fa fa-times-circle" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
         {{data.selectedAward.applicant_response_display}}
       </div>
     </div>
 
     <div class="dt-hero"
          ng-class="{
-           'dt-hero--green': data.selectedAward.applicant_response === 'Acknowledged',
-           'dt-hero--amber': data.selectedAward.applicant_response === 'Pending',
-           'dt-hero--red':   data.selectedAward.applicant_response === 'Rejected'
+           'dt-hero--green': data.selectedAward.applicant_response === 'acknowledged',
+           'dt-hero--amber': data.selectedAward.applicant_response === 'pending',
+           'dt-hero--red': data.selectedAward.applicant_response === 'rejected'
          }">
       <div class="dt-hero-glow"></div>
-      <div class="dt-hero-inner">
 
+      <div class="dt-hero-inner">
         <div class="dt-hero-left">
           <div class="dt-hero-icon-wrap">
             <i class="fa fa-trophy"></i>
           </div>
+
           <div class="dt-hero-text">
             <p class="dt-hero-eyebrow">
               <i class="fa fa-certificate"></i> Grant Award &nbsp;·&nbsp; GateNow
             </p>
             <h1 class="dt-hero-title">{{data.selectedAward.number}}</h1>
             <p class="dt-hero-subtitle">{{data.selectedAward.program_name}}</p>
+
             <div class="dt-hero-tags">
               <span class="dt-hero-tag" ng-if="data.selectedAward.grant_program_id">
                 <i class="fa fa-sitemap"></i> {{data.selectedAward.grant_program_id}}
@@ -701,13 +710,11 @@
             <p class="dt-ac-label">Build Grant Amount</p>
             <p class="dt-ac-value">{{data.selectedAward.award_amount | currency:'$':2}}</p>
             <div class="dt-ac-bar-wrap">
-              <div class="dt-ac-bar-fill"
-                   ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
+              <div class="dt-ac-bar-fill" ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
             </div>
             <p class="dt-ac-note">Relative to highest award</p>
           </div>
         </div>
-
       </div>
 
       <div class="dt-hero-tl">
@@ -720,10 +727,12 @@
             <span class="dt-htl-val">{{data.selectedAward.award_start_date || '—'}}</span>
           </div>
         </div>
+
         <div class="dt-htl-connector">
           <div class="dt-htl-line"></div>
           <span class="dt-htl-arrow">▶</span>
         </div>
+
         <div class="dt-htl-node">
           <div class="dt-htl-dot dt-htl-dot--eff">
             <i class="fa fa-star"></i>
@@ -733,10 +742,12 @@
             <span class="dt-htl-val">{{data.selectedAward.effective_date_of_award || '—'}}</span>
           </div>
         </div>
+
         <div class="dt-htl-connector">
           <div class="dt-htl-line"></div>
           <span class="dt-htl-arrow">▶</span>
         </div>
+
         <div class="dt-htl-node">
           <div class="dt-htl-dot dt-htl-dot--end">
             <i class="fa fa-flag-checkered"></i>
@@ -750,38 +761,35 @@
     </div>
 
     <div class="dt-tabs">
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'overview'}"
-              ng-click="c.setDetailTab('overview')">
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'overview'}" ng-click="c.setDetailTab('overview')">
         <i class="fa fa-th-large"></i> Overview
       </button>
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'financial'}"
-              ng-click="c.setDetailTab('financial')">
+
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'financial'}" ng-click="c.setDetailTab('financial')">
         <i class="fa fa-dollar"></i> Financial
       </button>
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'letter'}"
-              ng-click="c.setDetailTab('letter')">
+
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'letter'}" ng-click="c.setDetailTab('letter')">
         <i class="fa fa-envelope-open-o"></i> Award Letter
       </button>
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'attachments'}"
-              ng-click="c.setDetailTab('attachments')">
+
+      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'attachments'}" ng-click="c.setDetailTab('attachments')">
         <i class="fa fa-paperclip"></i> Attachments
         <span class="dt-tab-count" ng-if="data.selectedAward.attachments.length > 0">
           {{data.selectedAward.attachments.length}}
         </span>
       </button>
+
       <button class="dt-tab dt-tab--amber"
-              
               ng-class="{'dt-tab--active': c.detailTab === 'respond'}"
               ng-click="c.setDetailTab('respond')">
         <i class="fa fa-pencil-square-o"></i> Respond
-        <span class="dt-tab-pulse"></span>
+        <span class="dt-tab-pulse" ng-if="data.selectedAward.applicant_response === 'pending'"></span>
       </button>
     </div>
 
     <div class="dt-panel" ng-if="c.detailTab === 'overview'">
-
       <div class="dt-two-col">
-
         <div class="dt-card">
           <div class="dt-card-hdr">
             <div class="dt-card-ico dt-ico--indigo"><i class="fa fa-id-badge"></i></div>
@@ -790,6 +798,7 @@
               <p class="dt-card-sub">Core references</p>
             </div>
           </div>
+
           <div class="dt-field-list">
             <div class="dt-field-row">
               <span class="dt-fl">Award Number</span>
@@ -822,6 +831,7 @@
               <p class="dt-card-sub">Regulatory references</p>
             </div>
           </div>
+
           <div class="dt-compliance-grid">
             <div class="dt-comp-tile">
               <span class="dt-comp-lbl"><i class="fa fa-barcode"></i> FAIN</span>
@@ -851,12 +861,12 @@
             <p class="dt-card-sub">Rationale from the program office</p>
           </div>
         </div>
+
         <div class="dt-blockquote">
           <div class="dt-bq-accent"></div>
           <p class="dt-bq-text">{{data.selectedAward.decision_reason || 'No rationale provided.'}}</p>
         </div>
       </div>
-
     </div>
 
     <div class="dt-panel" ng-if="c.detailTab === 'financial'">
@@ -866,17 +876,19 @@
           <p class="dt-fin-big">{{data.selectedAward.award_amount | currency:'$':2}}</p>
           <p class="dt-fin-caption">Build Grant Amount as approved by program office</p>
         </div>
+
         <div class="dt-fin-hero-right">
           <div class="dt-fin-bar-label">
             <span>Award vs. Max</span>
             <span>{{c.amountPercent(data.selectedAward)}}%</span>
           </div>
+
           <div class="dt-fin-bar-track">
             <div class="dt-fin-bar-fill"
                  ng-class="{
-                   'dt-fill--green': data.selectedAward.applicant_response === 'Acknowledged',
-                   'dt-fill--amber': data.selectedAward.applicant_response === 'Pending',
-                   'dt-fill--red':   data.selectedAward.applicant_response === 'Rejected'
+                   'dt-fill--green': data.selectedAward.applicant_response === 'acknowledged',
+                   'dt-fill--amber': data.selectedAward.applicant_response === 'pending',
+                   'dt-fill--red': data.selectedAward.applicant_response === 'rejected'
                  }"
                  ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
           </div>
@@ -892,6 +904,7 @@
               <p class="dt-card-sub">Award funding details</p>
             </div>
           </div>
+
           <div class="dt-field-list">
             <div class="dt-field-row">
               <span class="dt-fl">Build Grant Amount</span>
@@ -911,6 +924,7 @@
             </div>
           </div>
         </div>
+
         <div class="dt-card">
           <div class="dt-card-hdr">
             <div class="dt-card-ico dt-ico--indigo"><i class="fa fa-calendar"></i></div>
@@ -919,6 +933,7 @@
               <p class="dt-card-sub">Key dates</p>
             </div>
           </div>
+
           <div class="dt-date-track">
             <div class="dt-date-node">
               <div class="dt-dn-dot dt-dn--start"><i class="fa fa-play-circle"></i></div>
@@ -927,7 +942,9 @@
                 <span class="dt-dn-val">{{data.selectedAward.award_start_date || '—'}}</span>
               </div>
             </div>
+
             <div class="dt-date-line"></div>
+
             <div class="dt-date-node">
               <div class="dt-dn-dot dt-dn--eff"><i class="fa fa-star"></i></div>
               <div class="dt-dn-body">
@@ -935,7 +952,9 @@
                 <span class="dt-dn-val">{{data.selectedAward.effective_date_of_award || '—'}}</span>
               </div>
             </div>
+
             <div class="dt-date-line"></div>
+
             <div class="dt-date-node">
               <div class="dt-dn-dot dt-dn--end"><i class="fa fa-flag-checkered"></i></div>
               <div class="dt-dn-body">
@@ -962,6 +981,7 @@
             </span>
           </div>
         </div>
+
         <div class="dt-letter-body" ng-bind-html="data.selectedAward.award_letter"></div>
       </div>
     </div>
@@ -1005,31 +1025,32 @@
       </div>
     </div>
 
-   <div class="dt-panel" ng-if="c.detailTab === 'respond'">
+    <div class="dt-panel" ng-if="c.detailTab === 'respond'">
 
-      <div class="dt-responded" ng-if="data.selectedAward.applicant_response !== 'Pending'">
+      <div class="dt-responded" ng-if="data.selectedAward.applicant_response !== 'pending'">
         <div class="dt-responded-icon"
              ng-class="{
-               'dt-ri--green': data.selectedAward.applicant_response === 'Acknowledged',
-               'dt-ri--red':   data.selectedAward.applicant_response === 'Rejected'
+               'dt-ri--green': data.selectedAward.applicant_response === 'acknowledged',
+               'dt-ri--red': data.selectedAward.applicant_response === 'rejected'
              }">
-          <i class="fa fa-check" ng-if="data.selectedAward.applicant_response === 'Acknowledged'"></i>
-          <i class="fa fa-times" ng-if="data.selectedAward.applicant_response === 'Rejected'"></i>
+          <i class="fa fa-check" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
+          <i class="fa fa-times" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
         </div>
-        
+
         <h3 class="dt-responded-title">
-          {{data.selectedAward.applicant_response === 'Acknowledged' ? 'Award Acknowledged' : 'Award Rejected'}}
+          {{data.selectedAward.applicant_response === 'acknowledged' ? 'Award Acknowledged' : 'Award Rejected'}}
         </h3>
-        
-        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'Acknowledged'">
+
+        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'acknowledged'">
           Thank you. You have successfully <strong>accepted</strong> the terms of this award.
         </p>
-        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'Rejected'">
+
+        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'rejected'">
           You have <strong>declined</strong> this award. The program office has been notified of your decision.
         </p>
       </div>
 
-      <div class="dt-respond-wrap" ng-if="data.selectedAward.applicant_response === 'Pending'">
+      <div class="dt-respond-wrap" ng-if="data.selectedAward.applicant_response === 'pending'">
 
         <div class="dt-resp-alert">
           <div class="dt-resp-alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
@@ -1064,15 +1085,18 @@
               Your Response Comments <span class="dt-req">*</span>
             </label>
             <span class="dt-resp-counter"
-                  ng-class="(data.selectedAward.work_notes||'').length < 10 ? 'dt-cnt--low' : 'dt-cnt--ok'">
-              {{(data.selectedAward.work_notes||'').length}} / 4000
+                  ng-class="(data.selectedAward.work_notes || '').length < 10 ? 'dt-cnt--low' : 'dt-cnt--ok'">
+              {{(data.selectedAward.work_notes || '').length}} / 4000
             </span>
           </div>
-          <textarea class="dt-resp-ta" rows="6"
+
+          <textarea class="dt-resp-ta"
+                    rows="6"
                     ng-model="data.selectedAward.work_notes"
                     placeholder="Describe your decision clearly (minimum 10 characters)…"></textarea>
-          
-          <div ng-if="(data.selectedAward.work_notes||'').length < 10" style="color: #d9534f; margin-top: 8px; font-weight: bold; font-size: 13px;">
+
+          <div ng-if="(data.selectedAward.work_notes || '').length < 10"
+               style="color: #d9534f; margin-top: 8px; font-weight: bold; font-size: 13px;">
             <i class="fa fa-info-circle"></i> Please enter at least 10 characters to enable response buttons.
           </div>
 
@@ -1083,15 +1107,15 @@
 
         <div class="dt-resp-actions">
           <button class="dt-btn-accept"
-            ng-disabled="(data.selectedAward.work_notes||'').length < 10"
-            ng-click="c.updateChoice(data.selectedAward, 'Acknowledged')">
+                  ng-disabled="(data.selectedAward.work_notes || '').length < 10 || c.submitting"
+                  ng-click="c.updateChoice(data.selectedAward, 'acknowledged')">
             <i class="fa fa-check"></i>
             Accept Award
           </button>
 
           <button class="dt-btn-decline"
-            ng-disabled="(data.selectedAward.work_notes||'').length < 10"
-            ng-click="c.updateChoice(data.selectedAward, 'Rejected')">
+                  ng-disabled="(data.selectedAward.work_notes || '').length < 10 || c.submitting"
+                  ng-click="c.updateChoice(data.selectedAward, 'rejected')">
             <i class="fa fa-times"></i>
             Decline Award
           </button>

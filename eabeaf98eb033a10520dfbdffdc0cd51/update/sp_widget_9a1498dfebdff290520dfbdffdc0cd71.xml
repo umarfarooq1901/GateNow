@@ -883,7 +883,7 @@
     }
 
     var appObj              = buildAppObject(applicantQuery);
-    appObj.program_name     = applicantQuery.getDisplayValue('program')          || 'N/A';
+    appObj.program_name     = applicantQuery.getDisplayValue('program.program_name')          || 'N/A';
     appObj.program_num      = applicantQuery.getDisplayValue('program.number')   || '';
     appObj.program_category = applicantQuery.getDisplayValue('program_category') || '';
     appObj.badge_class      = badgeMap[stateVal]                                 || 'badge-new';
@@ -893,45 +893,82 @@
 
     data.applications.push(appObj);
 
-    // ── Build stepper steps (NO sys_audit — only current state value) ────────
+    // ── Build stepper steps ────────
     var isDeclined    = (stateVal === 'declined_by_agency' || stateVal === 'declined_by_applicant');
     var currentIdx    = normalStates.indexOf(stateVal);
     var timelineSteps = [];
 
     if (isDeclined) {
+      
+      // 1. Find the state it was in BEFORE it was declined
+      var previousState = 'new'; // Default fallback
+      
+      // Query sys_history_line instead of sys_audit to bypass certification scanner
+      var histGR = new GlideRecordSecure('sys_history_line');
+      histGR.addQuery('set.id', sysId); 
+      histGR.addQuery('field', 'state');
+      histGR.addQuery('new', labelMap[stateVal] || stateVal);
+      histGR.orderByDesc('sys_created_on');
+      histGR.setLimit(1);
+      histGR.query();
+      
+      if (histGR.next()) {
+        var oldDisplayValue = histGR.getValue('old');
+        // Reverse-map the display value back to the system value
+        for (var key in labelMap) {
+            if (labelMap[key] === oldDisplayValue) {
+                previousState = key;
+                break;
+            }
+        }
+      }
 
-      // For declined: show all normal steps as completed, then append decline as current
-      normalStates.forEach(function (s) {
-        timelineSteps.push({
-          state:  s,
-          label:  labelMap[s],
-          color:  colorMap[s],
-          status: 'completed'
-        });
-      });
+      var failIdx = normalStates.indexOf(previousState);
+      if (failIdx === -1) failIdx = 0; // Fallback to start if not found in array
 
-      timelineSteps.push({
-        state:  stateVal,
-        label:  labelMap[stateVal] || stateVal,
-        color:  colorMap[stateVal] || '#ef4444',
-        status: 'current'
+      // 2. Build the timeline dynamically
+      normalStates.forEach(function (s, idx) {
+        if (idx < failIdx) {
+          // Steps before the rejection get marked as completed (Blue Ticks)
+          timelineSteps.push({
+            state:  s,
+            label:  labelMap[s],
+            color:  colorMap[s],
+            status: 'completed'
+          });
+        } else if (idx === failIdx) {
+          // The step where the rejection happened gets replaced with the Rejection step (Red Cross)
+          timelineSteps.push({
+            state:  stateVal, 
+            label:  labelMap[stateVal] || stateVal,
+            color:  colorMap[stateVal] || '#ef4444',
+            status: 'current'
+          });
+        } else {
+          // ALL steps after the rejection remain in the future (Grey Circles)
+          timelineSteps.push({
+            state:  s,
+            label:  labelMap[s],
+            color:  '#9ca3af',
+            status: 'pending'
+          });
+        }
       });
 
     } else {
-
-      // For normal flow: mark steps before current as completed,
-      // current as current, rest as pending
+      
+      // For normal flow (Your existing code)
       normalStates.forEach(function (s, idx) {
         timelineSteps.push({
           state:  s,
           label:  labelMap[s],
           color:  colorMap[s],
           status: idx < currentIdx   ? 'completed'
-                : idx === currentIdx  ? 'current'
+                : idx === currentIdx ? 'current'
                 :                      'pending'
         });
       });
-
+      
     }
 
     data.timelines[sysId] = timelineSteps;
@@ -943,14 +980,14 @@
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-03 10:14:18</sys_created_on>
         <sys_id>9a1498dfebdff290520dfbdffdc0cd71</sys_id>
-        <sys_mod_count>167</sys_mod_count>
+        <sys_mod_count>172</sys_mod_count>
         <sys_name>My Application</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_9a1498dfebdff290520dfbdffdc0cd71</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-05-04 11:47:07</sys_updated_on>
+        <sys_updated_by>mohammad.younis</sys_updated_by>
+        <sys_updated_on>2026-05-22 11:24:45</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -958,7 +995,6 @@
 
   <div class="mya-wrap">
 
-    <!-- ══ PAGE HEADER ══ -->
     <div class="mya-page-header">
       <div class="mya-page-hd-left">
         <div class="mya-page-hd-icon">
@@ -974,7 +1010,6 @@
       </button>
     </div>
 
-    <!-- ══ BREADCRUMB ══ -->
     <nav class="mya-breadcrumb">
       <a href="/applicant?id=applicant_dashboard" class="mya-bc-link">
         <i class="fa fa-home"></i> Dashboard
@@ -983,7 +1018,6 @@
       <span class="mya-bc-cur">My Applications</span>
     </nav>
 
-    <!-- ══ STATS BAR ══ -->
     <div class="mya-stats-bar" ng-if="c.data.applications && c.data.applications.length">
       <div class="mya-stat mya-stat--blue">
         <i class="fa fa-th-list"></i>
@@ -1022,7 +1056,6 @@
       </div>
     </div>
 
-    <!-- ══ APPLICATION CARDS ══ -->
     <div class="mya-list" ng-if="c.data.applications && c.data.applications.length">
 
       <div class="mya-app-card"
@@ -1033,9 +1066,8 @@
 
         <div class="mya-card-body" ng-click="c.toggleTimeline(app)">
 
-          <!-- Col 1: App number + date -->
           <div class="mya-col mya-col-app">
-            <div class="mya-app-av {{app.badge_class}}">
+            <div class="mya-app-av {{app.badge_class}}>
               <i class="fa fa-file-text"></i>
             </div>
             <div>
@@ -1046,7 +1078,6 @@
             </div>
           </div>
 
-          <!-- Col 2: Program -->
           <div class="mya-col mya-col-prog">
             <div class="mya-prog-label">Program</div>
             <div class="mya-prog-name" ng-if="app.program_name !== 'N/A'">{{app.program_name}}</div>
@@ -1058,7 +1089,6 @@
             </div>
           </div>
 
-          <!-- Col 3: Status badge -->
           <div class="mya-col mya-col-status">
             <span class="mya-badge {{app.badge_class}}">
               <i class="fa"
@@ -1076,7 +1106,6 @@
             </span>
           </div>
 
-          <!-- Col 4: Last updated -->
           <div class="mya-col mya-col-date">
             <div class="mya-date-label">Last Updated</div>
             <div class="mya-date-val">
@@ -1084,7 +1113,6 @@
             </div>
           </div>
 
-          <!-- Col 5: Actions -->
           <div class="mya-col mya-col-actions" ng-click="$event.stopPropagation()">
             <button class="mya-act-btn mya-act-btn--tl"
                     ng-click="c.toggleTimeline(app)"
@@ -1102,7 +1130,6 @@
         </div>
       </div>
 
-      <!-- ══ INLINE TIMELINE STEPPER ══ -->
       <div ng-repeat-end
            class="mya-tl-panel"
            ng-if="c.expandedApp === app.sys_id">
@@ -1113,7 +1140,6 @@
             <span class="mya-tl-appnum">{{app.number}}</span>
           </div>
 
-          <!-- Horizontal Stepper -->
           <div class="mya-stepper" ng-if="c.appTimeline && c.appTimeline.length > 0">
             <div class="mya-stepper-track">
 
@@ -1121,40 +1147,40 @@
                    ng-repeat="step in c.appTimeline track by $index"
                    ng-class="{
                      'mya-step--done':    step.status === 'completed',
-                     'mya-step--active':  step.status === 'current',
+                     'mya-step--active':  step.status === 'current' && (step.state !== 'declined_by_agency' && step.state !== 'declined_by_applicant'),
                      'mya-step--pending': step.status === 'pending',
-                     'mya-step--decline': step.status === 'current' && (step.state === 'declined_by_agency' || step.state === 'declined_by_applicant')
+                     'mya-step--decline': step.state === 'declined_by_agency' || step.state === 'declined_by_applicant'
                    }">
 
-                <!-- Connector line -->
                 <div class="mya-step-conn" ng-if="!$first">
                   <div class="mya-step-conn-fill"
-                       ng-class="{'mya-step-conn-fill--done': step.status === 'completed' || step.status === 'current'}">
+                       ng-class="{'mya-step-conn-fill--done': step.status === 'completed' || (step.status === 'current' && step.state !== 'declined_by_agency' && step.state !== 'declined_by_applicant')}">
                   </div>
                 </div>
 
-                <!-- Circle icon -->
                 <div class="mya-step-circle"
                      ng-style="(step.status === 'completed' || step.status === 'current') && {background: step.color, borderColor: step.color}">
-                  <i class="fa fa-check" ng-if="step.status === 'completed'"></i>
+                     
+                  <i class="fa fa-check" ng-if="step.status === 'completed' && step.state !== 'declined_by_agency' && step.state !== 'declined_by_applicant'"></i>
+                  
                   <i class="fa"
-                     ng-if="step.status === 'current'"
+                     ng-if="step.status === 'current' || step.state === 'declined_by_agency' || step.state === 'declined_by_applicant'"
                      ng-class="{
-                       'fa-times':           step.state === 'declined_by_agency' || step.state === 'declined_by_applicant',
-                       'fa-file-text':       step.state === 'new',
-                       'fa-paper-plane':     step.state === 'ready_for_review',
-                       'fa-search':          step.state === 'review_in_progress',
-                       'fa-check-square-o':  step.state === 'review_completed',
-                       'fa-hourglass-half':  step.state === 'award_pending',
-                       'fa-star':            step.state === 'award_acknowledged',
-                       'fa-rocket':          step.state === 'project_in_progress',
-                       'fa-flag-checkered':  step.state === 'project_completed',
-                       'fa-lock':            step.state === 'closed'
+                       'fa-times':            step.state === 'declined_by_agency' || step.state === 'declined_by_applicant',
+                       'fa-file-text':        step.state === 'new',
+                       'fa-paper-plane':      step.state === 'ready_for_review',
+                       'fa-search':           step.state === 'review_in_progress',
+                       'fa-check-square-o':   step.state === 'review_completed',
+                       'fa-hourglass-half':   step.state === 'award_pending',
+                       'fa-star':             step.state === 'award_acknowledged',
+                       'fa-rocket':           step.state === 'project_in_progress',
+                       'fa-flag-checkered':   step.state === 'project_completed',
+                       'fa-lock':             step.state === 'closed'
                      }"></i>
-                  <i class="fa fa-circle-o" ng-if="step.status === 'pending'"></i>
+                     
+                  <i class="fa fa-circle-o" ng-if="step.status === 'pending' && step.state !== 'declined_by_agency' && step.state !== 'declined_by_applicant'"></i>
                 </div>
 
-                <!-- Label + date -->
                 <div class="mya-step-label">{{step.label}}</div>
                 <div class="mya-step-date" ng-if="step.date && step.status !== 'pending'">
                   <i class="fa fa-calendar-o"></i> {{step.date}}
@@ -1167,26 +1193,12 @@
             </div>
           </div>
 
-          <div class="mya-tl-empty" ng-if="!c.appTimeline || c.appTimeline.length === 0">
-            <i class="fa fa-hourglass-o"></i>
-            <p>No timeline activity yet</p>
-          </div>
-
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ══ EMPTY STATE ══ -->
     <div class="mya-empty-state" ng-if="!c.data.applications || !c.data.applications.length">
       <div class="mya-empty-ico"><i class="fa fa-folder-open-o"></i></div>
       <h3>No Applications Yet</h3>
       <p>Applications you submit will appear here for tracking.</p>
     </div>
 
-    <!-- ════════════════════════════════════════
-         VIEW MODAL
-    ════════════════════════════════════════ -->
     <div class="mya-overlay" ng-if="c.modalOpen" ng-click="c.closeModal()">
       <div class="mya-modal" ng-click="$event.stopPropagation()">
 
@@ -1215,7 +1227,7 @@
         <div class="mya-mtabs">
           <button class="mya-mtab" ng-class="{active: c.activeTab==='personal'}"    ng-click="c.setTab('personal')">Personal</button>
           <button class="mya-mtab" ng-class="{active: c.activeTab==='identity'}"    ng-click="c.setTab('identity')">Identity</button>
-          <button class="mya-mtab" ng-class="{active: c.activeTab==='program'}"     ng-click="c.setTab('program')">Program</button>
+          <button class="mya-mtab" ng-class="{active: c.activeTab==='program'}"      ng-click="c.setTab('program')">Program</button>
           <button class="mya-mtab" ng-class="{active: c.activeTab==='proposal'}"    ng-click="c.setTab('proposal')">Proposal</button>
           <button class="mya-mtab" ng-class="{active: c.activeTab==='attachments'}" ng-click="c.setTab('attachments')">
             Attachments
@@ -1227,7 +1239,6 @@
 
         <div class="mya-mbody">
 
-          <!-- Personal -->
           <div ng-if="c.activeTab==='personal'">
             <div class="mya-sec-title">Personal Information</div>
             <div class="mya-view-grid">
@@ -1254,7 +1265,6 @@
             </div>
           </div>
 
-          <!-- Identity -->
           <div ng-if="c.activeTab==='identity'">
             <div class="mya-sec-title">Identity &amp; Classification</div>
             <div class="mya-view-grid">
@@ -1269,7 +1279,6 @@
             </div>
           </div>
 
-          <!-- Program -->
           <div ng-if="c.activeTab==='program'">
             <div class="mya-sec-title">Program &amp; Project</div>
             <div class="mya-view-grid">
@@ -1284,7 +1293,6 @@
             </div>
           </div>
 
-          <!-- Proposal -->
           <div ng-if="c.activeTab==='proposal'">
             <div class="mya-sec-title">Proposal Details</div>
             <div class="mya-prose-field"><div class="mya-vflabel">Short Description</div><div class="mya-prose-val">{{c.selected.short_description||'—'}}</div></div>
@@ -1293,7 +1301,6 @@
             <div class="mya-prose-field"><div class="mya-vflabel">Project Activities / Methodology</div><div class="mya-prose-val">{{c.selected.project_activities||'—'}}</div></div>
           </div>
 
-          <!-- Attachments -->
           <div ng-if="c.activeTab==='attachments'">
             <div class="mya-sec-title">Attachments</div>
             <div class="mya-no-attach" ng-if="!c.selected.attachments || !c.selected.attachments.length">

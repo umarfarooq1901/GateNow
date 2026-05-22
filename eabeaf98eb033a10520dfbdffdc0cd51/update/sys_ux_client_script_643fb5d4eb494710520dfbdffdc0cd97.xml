@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ux_client_script">
+    <sys_ux_client_script action="INSERT_OR_UPDATE">
+        <controller_preset/>
+        <includes/>
+        <macroponent display_value="Status Report">6c3fb5d4eb494710520dfbdffdc0cd91</macroponent>
+        <name>Set browser or workspace tab title</name>
+        <preset/>
+        <required_translations>[]</required_translations>
+        <script><![CDATA[/**
+* @param {params} params
+* @param {api} params.api
+* @param {any} params.event
+* @param {any} params.imports
+* @param {ApiHelpers} params.helpers
+*/
+function handler({api, event, helpers, imports}) {
+    // set browser and workspace tab title
+    if (!event.payload.title) {
+        console.warn('ignoring request to set empty tab title');
+        return;
+    }
+    api.emit('SCREEN_STATUS_CHANGED', { title: event.payload.title });
+}]]></script>
+        <script_api_version>2.0.0</script_api_version>
+        <sys_class_name>sys_ux_client_script</sys_class_name>
+        <sys_created_by>sharik.mir</sys_created_by>
+        <sys_created_on>2026-05-20 10:09:17</sys_created_on>
+        <sys_id>643fb5d4eb494710520dfbdffdc0cd97</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Set browser or workspace tab title</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ux_client_script_643fb5d4eb494710520dfbdffdc0cd97</sys_update_name>
+        <sys_updated_by>sharik.mir</sys_updated_by>
+        <sys_updated_on>2026-05-20 10:09:17</sys_updated_on>
+        <target>macroponent</target>
+        <type>default</type>
+    </sys_ux_client_script>
+</record_update>

@@ -110,9 +110,9 @@
     };
 
     c.replaceActivitiesInList = function(list, selectedItem, newActivities) {
-        if (!list || !selectedItem || !selectedItem.sys_id) return;
+        if (!list || !selectedItem || !selectedItem['sys_id']) return;
         for (var i = 0; i < list.length; i++) {
-            if (list[i].sys_id === selectedItem.sys_id) {
+            if (list[i]['sys_id'] === selectedItem['sys_id']) {
                 list[i].activities = newActivities;
                 break;
             }
@@ -128,18 +128,15 @@
         c.server.get({
             action: 'postComment',
             comment: comment,
-            // CRITICAL FIX: Ensure sys_id is never blank by falling back to the URL
-            sys_id: c.project['sys_id'] || $location.search().sys_id
+            sys_id: c.project['sys_id'] || $location.search()['sys_id']
         }).then(function(r) {
             c.submitting = false;
             
-            // Check if the server successfully updated the record
             if (r.data.success) {
                 c.comments = r.data.comments || [];
                 c.newComment = '';
                 spUtil.addInfoMessage("Comment posted successfully.");
             } else {
-                // If it failed, show the exact reason
                 spUtil.addErrorMessage(r.data.error_message || "Failed to post comment.");
             }
         }).catch(function() {
@@ -156,13 +153,12 @@
         c.server.get({
             action: 'postProjectWorkNote',
             work_note: note,
-            // Fallback to URL to ensure ID is never blank
-            sys_id: c.project['sys_id'] || $location.search().sys_id 
+            sys_id: c.project['sys_id'] || $location.search()['sys_id']
         }).then(function(r) {
             c.submitting = false;
             if (r.data.success) {
                 c.comments = r.data.comments || [];
-                c.newProjectWorkNote = ''; // Clear the input box
+                c.newProjectWorkNote = '';
                 spUtil.addInfoMessage("Work note posted successfully.");
             } else {
                 spUtil.addErrorMessage(r.data.error_message || "Failed to post work note.");
@@ -305,8 +301,6 @@
                     var formData = new FormData();
                     formData.append('table_name', 'x_enno_gatenow_status_report');
                     formData.append('table_sys_id', newRecordSysId);
-                    
-                    // FIX: ServiceNow Attachment API requires 'uploadFile'
                     formData.append('uploadFile', c.statusFile); 
 
                     $http({
@@ -372,8 +366,6 @@
                     var formData = new FormData();
                     formData.append('table_name', 'x_enno_gatenow_request_change');
                     formData.append('table_sys_id', newRecordSysId);
-                    
-                    // FIX: ServiceNow Attachment API requires 'uploadFile'
                     formData.append('uploadFile', c.changeFile);
 
                     $http({
@@ -458,8 +450,6 @@
                     var formData = new FormData();
                     formData.append('table_name', 'x_enno_gatenow_reimbursement');
                     formData.append('table_sys_id', newRecordSysId);
-                    
-                    // FIX: ServiceNow Attachment API requires 'uploadFile'
                     formData.append('uploadFile', c.reimbursementFile);
 
                     $http({
@@ -533,7 +523,6 @@
             sys_id: c.project['sys_id']
         }).then(function(r) {
             if (r.data.success) {
-                // INSTANTLY LOCK THE FORM UI
                 c.baselineSubmitted = true;
                 c.baselineReport = r.data.new_baseline_record || c.baselineReport;
 
@@ -543,8 +532,6 @@
                     var formData = new FormData();
                     formData.append('table_name', 'x_enno_gatenow_status_report');
                     formData.append('table_sys_id', newRecordSysId);
-                    
-                    // FIX: ServiceNow Attachment API requires 'uploadFile'
                     formData.append('uploadFile', c.baselineFile);
 
                     $http({
@@ -572,17 +559,22 @@
         });
     };
 
-    c.finishBaselineSuccess = function() {
+   c.finishBaselineSuccess = function() {
         c.submitting = false;
         c.baselineFile = null;
-        c.baselineSubmitted = true; // Double check the lock
+        c.baselineSubmitted = true; 
         
         spUtil.addInfoMessage("Baseline report and documents submitted successfully.");
         
-        // Force a targeted clean reload of the baseline tab to mimic OOB behavior
         $timeout(function() {
-            var currentId = $location.search().id || 'my_project_page'; 
-            $window.location.href = '?id=' + currentId + '&sys_id=' + c.project.sys_id + '&tab=baseline';
+            var rawId = $location.search()['id'] || 'my_project_page'; 
+            var currentId = rawId.toString().replace(/[^a-zA-Z0-9_-]/g, '');
+            
+            $location.search({
+                id: currentId,
+                sys_id: c.project['sys_id'] || '',
+                tab: 'baseline'
+            });
         }, 800);
     };
 
@@ -685,8 +677,6 @@
         var formData = new FormData();
         formData.append('table_name', targetTable);
         formData.append('table_sys_id', targetSysId);
-        
-        // FIX: ServiceNow Attachment API requires 'uploadFile'
         formData.append('uploadFile', file);
 
         $http({
@@ -3319,7 +3309,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
                     as_on: input.report.as_on,
                     percent_complete: percents,
                     executive_summary: input.report.executive_summary,
-                    health_color: 'GREEN',
+                    health_color: 'green',
                     health_label: 'Green',
                     attachments: []
                 };
@@ -3455,24 +3445,24 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             reimbFormRec.setValue('street2', formData.recipient_street2);
             reimbFormRec.setValue('city', formData.recipient_city);
             reimbFormRec.setValue('county', formData.recipient_county);
-            reimbFormRec.setValue('stat0', formData.recipient_state);
+            reimbFormRec.setValue('state', formData.recipient_state);
             reimbFormRec.setValue('province', formData.recipient_province);
             reimbFormRec.setValue('country', formData.recipient_country);
             reimbFormRec.setValue('zip_postal_code', formData.recipient_zip);
             reimbFormRec.setValue('nam0', formData.payee_name);
             reimbFormRec.setValue('cit0', formData.payee_city);
-            reimbFormRec.setValue('stat1', formData.payee_state);
+            reimbFormRec.setValue('stat0', formData.payee_state);
             reimbFormRec.setValue('countr0', formData.payee_country);
             reimbFormRec.setValue('zip_postal_cod0', formData.payee_zip);
             reimbFormRec.setValue('total_program_outlays_to_date', formData.line_a);
             reimbFormRec.setValue('less_cumulative_program_income', formData.line_b);
-            reimbFormRec.setValue('net_program_outlays', formData.line_c);
+            reimbFormRec.setValue('net_program_outlays_total_program_outlays_to_less_cumulative_program_income', formData.line_c);
             reimbFormRec.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
             reimbFormRec.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
             reimbFormRec.setValue('non_federal_share_of_amount_on_total', formData.line_f);
-            reimbFormRec.setValue('federal_share_of_amount_on_totals', formData.line_g);
+            reimbFormRec.setValue('federal_share_of_amount_on_total', formData.line_g);
             reimbFormRec.setValue('federal_payments_previously_requested', formData.line_h);
-            reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previously', formData.line_i);
+            reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previous', formData.line_i);
             reimbFormRec.setValue('request_1st_month', formData.request_1st_month);
             reimbFormRec.setValue('request_2nd_month', formData.request_2nd_month);
             reimbFormRec.setValue('request_3rd_month', formData.request_3rd_month);
@@ -3486,7 +3476,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             reimbFormRec.setValue('last_name', formData.last_name);
             reimbFormRec.setValue('suffix', formData.suffix);
             reimbFormRec.setValue('title', formData.official_title);
-            reimbFormRec.setValue('telephone', formData.official_phone);
+            reimbFormRec.setValue('telephon0', formData.official_phone);
 
             var newSysId = reimbFormRec.insert();
 
@@ -3637,10 +3627,10 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         reimb['sys_id'] = reimbRec.getUniqueValue();
 
         $sp.getRecordDisplayValues(
-            reimb,
-            reimbRec,
-            'number,status,sys_created_on,state,advance,reimbursement,cash,accrual,federal_grant_or_other_identifying_number_assigned_by_federal_agency,employer_identification_number,from,to,name,street1,street2,city,stat0,zip_postal_code,country,nam0,cit0,stat1,zip_postal_cod0,countr0,total_program_outlays_to_date,less_cumulative_program_income,net_program_outlays,estimated_net_cash_outlays_for_advance_period,total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period,non_federal_share_of_amount_on_total,federal_share_of_amount_on_totals,federal_payments_previously_requested,federal_share_now_requested_federal_share_of_amount_federals_payments_previously,first_name,last_name,middle_name,suffix,prefix,title,telephone,certifying_official_signature,date_request_submitted'
-        );
+    reimb,
+    reimbRec,
+    'number,status,sys_created_on,state,advance,reimbursement,cash,accrual,federal_grant_or_other_identifying_number_assigned_by_federal_agency,employer_identification_number,from,to,name,street1,street2,city,stat0,zip_postal_code,country,nam0,cit0,stat1,zip_postal_cod0,countr0,total_program_outlays_to_date,less_cumulative_program_income,net_program_outlays_total_program_outlays_to_less_cumulative_program_income,estimated_net_cash_outlays_for_advance_period,total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period,non_federal_share_of_amount_on_total,federal_share_of_amount_on_total,federal_payments_previously_requested,federal_share_now_requested_federal_share_of_amount_federals_payments_previous,first_name,last_name,middle_name,suffix,prefix,title,telephon0,certifying_official_signature,date_request_submitted,amount_requested'
+);
 
         if (reimbRec.getValue('advance') == '1' || reimbRec.getValue('advance') == 'true') {
             reimb.payment_type_label = 'Advance';
@@ -3696,7 +3686,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         $sp.getRecordDisplayValues(
             riskObj,
             riskRec,
-            'project,state,assigned_to,due_date,cost,number,short_description,impact,risk_rank,probability,description,mitigation_plan'
+            'project,state,assigned_to,due_date,cost,number,short_description,impact,risk_rank,probability,description,mitigation_plan,risk_status'
         );
 
         riskObj.mitigation = riskObj.mitigation_plan;
@@ -3920,14 +3910,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>523</sys_mod_count>
+        <sys_mod_count>550</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
         <sys_updated_by>mohammad.younis</sys_updated_by>
-        <sys_updated_on>2026-05-20 06:55:25</sys_updated_on>
+        <sys_updated_on>2026-05-22 10:37:03</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
 
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
@@ -5568,7 +5558,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
                     <div class="form-group"><label>Proposed Change <span class="required">*</span></label><textarea class="form-control" rows="4" ng-model="c.changeRequest.description" placeholder="Describe the proposed change in detail" required></textarea></div>
 
-                    <div class="form-group"><label>General Description</label><textarea class="form-control" rows="3" ng-model="c.changeRequest.proposed_change" placeholder="Additional details or context"></textarea></div>
+                    
 
                     <div class="form-group m-t-md">
 
@@ -5678,7 +5668,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         <table class="modern-table">
 
-          <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Impact</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+          <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Impact</th><th class="text-right">Actions</th></tr></thead>
 
           <tbody>
 
@@ -5692,7 +5682,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
               <td><div class="priority-cell"><div class="status-dot" ng-class="'dot-i' + change.impact"></div><span>{{change.impact}}</span></div></td>
 
-              <td><span class="status-pill" ng-class="c.getStatusClass(change.state)">{{change.state}}</span></td>
+             
 
               <td ><button class="btn-icon-view" ng-click="c.viewChange(change)"><i class="fa fa-eye"></i> <span>View</span></button></td>
 
@@ -6506,17 +6496,6 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
         <div class="row" style="margin-top: 20px;">
 
-          <div class="col-md-8">
-
-            <div class="form-group">
-
-              <label>Signature of Authorized Certifying Official <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.certifying_official_signature" placeholder="Type full name to sign electronically" required>
-
-            </div>
-
-          </div>
 
           <div class="col-md-4">
 
@@ -6868,364 +6847,148 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
             
 
-            <div ng-if="c.activeTab === 'issue'" class="modern-card animated fadeIn">
-
+           <div ng-if="c.activeTab === 'issue'" class="modern-card animated fadeIn">
   <div class="card-header-modern">
-
     <h3><i class="fa fa-bug"></i> Project Issues</h3>
-
   </div>
-
   
-
   <div class="card-body-flush">
-
     
-
     <div ng-if="!c.issues || c.issues.length === 0" class="modern-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; text-align: center; background-color: #f8fafc; border-radius: 8px; margin: 20px; border: 2px dashed #cbd5e1;">
-
       <div class="empty-icon-wrap" style="width: 72px; height: 72px; background-color: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; color: #94a3b8; font-size: 32px;">
-
         <i class="fa fa-check-circle"></i>
-
       </div>
-
       <h4 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600; color: #1e293b;">No Issues Logged</h4>
-
       <p style="margin: 0; color: #64748b; font-size: 14px;">Great news! There are currently no active issues logged for this project.</p>
-
     </div>
-
-
 
     <div ng-if="c.issues.length > 0" class="table-container">
-
       <table class="modern-table">
-
         <thead>
-
           <tr>
-
             <th>Number</th>
-
             <th>Priority</th>
-
             <th>Impact</th>
-
-            <th>State</th>
-
             <th>Actions</th>
-
           </tr>
-
         </thead>
-
         <tbody>
-
           <tr ng-repeat="issue in c.issues | orderBy:'-number'">
-
             <td class="bold-text">{{issue.number}}</td>
-
             
-
             <td>
-
               <span class="status-pill" ng-class="'pill-p' + issue.priority.charAt(0)">
-
                 {{issue.priority}}
-
               </span>
-
             </td>
-
             
-
             <td style="text-align: left;">
-
               <div style="display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 0;">
-
                 <div class="status-dot" ng-class="'dot-impact-' + issue.impact.charAt(0)"></div>
-
                 <span class="status-text-small" style="margin: 0;">{{issue.impact}}</span>
-
               </div>
-
             </td>
-
             
-
-            <td>{{issue.state}}</td>
-
-            
-
             <td>
-
               <button class="btn-icon-view" ng-click="c.viewIssue(issue)" title="View Issue Details">
-
                 <i class="fa fa-eye"></i> <span>View</span>
-
               </button>
-
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
-
     
-
   </div>
-
 </div>
-
-
 
 
 
 <div class="modal fade modern-report-modal" id="issueModal" tabindex="-1" role="dialog">
-
   <div class="modal-dialog modal-lg" role="document">
-
     <div class="modal-content" ng-if="c.selectedIssue">
-
       
-
       <div class="modal-header-modern">
-
         <div class="header-content">
-
           <div class="report-icon" style="background-color: #fee2e2; color: #dc2626;">
-
             <i class="fa fa-bug"></i>
-
           </div>
-
           <div>
-
             <h3 class="modal-title-modern">{{c.selectedIssue.number}}</h3>
-
             <span class="report-date">{{c.selectedIssue.short_description}}</span>
-
           </div>
-
         </div>
-
         <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
-
       </div>
-
-
 
       <div class="modal-body modern-body">
-
         
-
         <div class="health-indicator-bar">
-
           <div class="indicator-item">
-
-            <label>State</label>
-
-            <span class="status-badge-pill pill-default">{{c.selectedIssue.state}}</span>
-
-          </div>
-
-          <div class="indicator-item">
-
             <label>Priority</label>
-
             <span class="status-badge-pill" ng-class="'pill-p' + c.selectedIssue.priority.charAt(0)">{{c.selectedIssue.priority}}</span>
-
           </div>
-
-          <div class="indicator-item">
-
-            <label>Impact</label>
-
-            <span class="status-badge-pill pill-default">{{c.selectedIssue.impact}}</span>
-
-          </div>
-
           <div class="indicator-item border-none">
-
-            <label>Assigned To</label>
-
-            <span style="font-weight: 600; color: #1e293b;">{{c.selectedIssue.assigned_to || 'Unassigned'}}</span>
-
+            <label>Impact</label>
+            <span class="status-badge-pill pill-default">{{c.selectedIssue.impact}}</span>
           </div>
-
         </div>
-
-
 
         <div class="report-content-grid">
-
           
-
-          <div class="content-row" style="display: flex; gap: 30px; margin-bottom: 25px;">
-
-            
-
-            <div class="content-section half-width" style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;">
-
-                <label style="color: #64748b; font-weight: 500;">Short Description</label> 
-
-                <span style="font-weight: 600; text-align: right;">{{c.selectedIssue.short_description || 'N/A'}}</span>
-
-              </div>
-
-              <div style="display: flex; justify-content: space-between;">
-
-                <label style="color: #64748b; font-weight: 500;">Project</label> 
-
-                <span style="font-weight: 600;">{{c.selectedIssue.project || c.project.name || 'N/A'}}</span>
-
-              </div>
-
-            </div>
-
-            
-
-            <div class="content-section half-width" style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;">
-
-                <label style="color: #64748b; font-weight: 500;">Estimated Cost</label> 
-
-                <span style="font-weight: 600; color: #0f172a;">{{c.formatCurrency(c.selectedIssue.estimated_cost)}}</span>
-
-              </div>
-
-              <div style="display: flex; justify-content: space-between;">
-
-                <label style="color: #64748b; font-weight: 500;">Due Date</label> 
-
-                <span style="font-weight: 600;">{{c.selectedIssue.due_date || 'N/A'}}</span>
-
-              </div>
-
-            </div>
-
-
-
-          </div>
-
-
-
           <div class="content-section full-width" style="margin-bottom: 20px;">
-
             <h4><i class="fa fa-info-circle"></i> Description</h4>
-
             <div class="narrative-box secondary">{{c.selectedIssue.description || 'No description provided.'}}</div>
-
           </div>
-
-
 
           <div class="content-section full-width work-notes-section" style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
-
             <h4><i class="fa fa-comments"></i> Work Notes</h4>
-
             
-
             <div class="work-note-input-wrap" style="display: flex; gap: 15px; margin-bottom: 25px; align-items: stretch;">
-
               <textarea class="form-control" 
-
                         ng-model="c.newIssueWorkNote" 
-
                         placeholder="Type your work note here..." 
-
                         rows="3" 
-
                         style="resize: vertical; flex: 1; border-radius: 8px; border: 1px solid #cbd5e1; padding: 12px; font-size: 14px;"></textarea>
-
               <button class="btn btn-primary" 
-
                       ng-click="c.postIssueWorkNote()" 
-
                       ng-disabled="c.submitting || !c.newIssueWorkNote" 
-
                       style="padding: 0 20px; border-radius: 8px; font-weight: 600; background-color: #0284c7; border: none;">
-
                 <i class="fa fa-paper-plane" ng-if="!c.submitting"></i>
-
                 <i class="fa fa-spinner fa-spin" ng-if="c.submitting"></i> Post
-
               </button>
-
             </div>
-
-
 
             <div class="activity-stream" style="max-height: 350px; overflow-y: auto; padding-right: 10px;">
-
-              <div class="activity-item" ng-repeat="note in c.selectedIssue.activities" style="display: flex; gap: 15px; margin-bottom: 20px;">
-
-                <div class="activity-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569; flex-shrink: 0;">
-
-                  <i class="fa fa-user"></i>
-
-                </div>
-
-                <div class="activity-content" style="flex: 1;">
-
-                  <div class="activity-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-
-                    <strong style="color: #1e293b; font-size: 14px;">{{note.sys_created_by}}</strong>
-
-                    <span style="color: #64748b; font-size: 12px;"><i class="fa fa-clock-o"></i> {{note.sys_created_on}}</span>
-
-                  </div>
-
-                  <div class="activity-text" style="color: #334155; font-size: 14px; background: #fffbeb; padding: 12px; border-radius: 0 8px 8px 8px; border-left: 4px solid #f59e0b; white-space: pre-wrap;" ng-bind-html="note.value"></div>
-
-                </div>
-
-              </div>
-
               
-
-              <div ng-if="!c.selectedIssue.activities || c.selectedIssue.activities.length === 0" style="text-align: center; color: #94a3b8; padding: 30px 0; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
-
-                <i class="fa fa-commenting-o" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
-
-                No work notes yet. Be the first to add one!
-
+              <div class="activity-item" ng-repeat="note in c.selectedIssue.activities" style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <div class="activity-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569; flex-shrink: 0;">
+                  <i class="fa fa-user"></i>
+                </div>
+                <div class="activity-content" style="flex: 1;">
+                  <div class="activity-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <strong style="color: #1e293b; font-size: 14px;">{{note.sys_created_by}}</strong>
+                    <span style="color: #64748b; font-size: 12px;"><i class="fa fa-clock-o"></i> {{note.sys_created_on}}</span>
+                  </div>
+                  <div class="activity-text" style="color: #334155; font-size: 14px; background: #fffbeb; padding: 12px; border-radius: 0 8px 8px 8px; border-left: 4px solid #f59e0b; white-space: pre-wrap;" ng-bind-html="note.value"></div>
+                </div>
               </div>
-
+              
+              <div ng-if="!c.selectedIssue.activities || c.selectedIssue.activities.length === 0" style="text-align: center; color: #94a3b8; padding: 30px 0; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                <i class="fa fa-commenting-o" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                No work notes yet. Be the first to add one!
+              </div>
             </div>
 
-
-
           </div>
-
         </div>
-
       </div>
-
       <div class="modal-footer-modern">
-
         <button type="button" class="btn-modern-secondary" data-dismiss="modal">Close</button>
-
       </div>
-
     </div>
-
   </div>
-
 </div>
-
-            
-
-            
-
             
 
             
@@ -7334,7 +7097,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
               
 
-              <td>{{risk.state}}</td>
+            
 
               
 
@@ -7680,491 +7443,240 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
       
 
-     <div class="modal fade modern-report-modal" id="reimbursementModal" tabindex="-1" role="dialog">
-
+   <div class="modal fade modern-report-modal" id="reimbursementModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-lg" role="document" style="max-width: 900px;">
-
     <div class="modal-content" ng-if="c.selectedReimbursement" style="border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
-
       
-
       <div class="modal-header-modern" style="background: #fff; padding: 24px 30px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-start;">
-
         <div class="header-content" style="display: flex; gap: 16px; align-items: center;">
-
           <div class="report-icon" style="background-color: #f1f5f9; width: 48px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-
             <i class="fa fa-file-text-o" style="color: #4f46e5; font-size: 20px;"></i>
-
           </div>
-
           <div>
-
             <h3 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: #1e293b;">Reimbursement Request</h3>
-
-            <span style="font-size: 13px; color: #64748b;">{{c.selectedReimbursement.number}}  Submitted: {{c.selectedReimbursement.date_request_submitted || c.selectedReimbursement.sys_created_on}}</span>
-
+            <span style="font-size: 13px; color: #64748b;">{{c.selectedReimbursement.number}}</span>
           </div>
-
         </div>
-
         <button type="button" style="background: none; border: none; font-size: 24px; color: #94a3b8; cursor: pointer;" data-dismiss="modal">&times;</button>
-
       </div>
-
-
 
       <div class="modal-body modern-body" style="background: #ffffff; padding: 30px;">
-
         
-
         <div style="display: flex; justify-content: space-between; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px; background: #fff;">
-
           
-
-<div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
-
+          <div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">STATUS</label>
-
             <span style="background-color: #f8fafc; color: #334155; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">{{c.selectedReimbursement.status}}</span>
-
           </div>
-
           <div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
-
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">PAYMENT TYPE</label>
-
             <span style="background-color: #f8fafc; color: #334155; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">{{c.selectedReimbursement.payment_type_label}}</span>
-
           </div>
-
           <div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
-
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">BASIS</label>
-
             <span style="background-color: #f8fafc; color: #334155; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">{{c.selectedReimbursement.basis_label}}</span>
-
           </div>
-
           <div style="flex: 1; text-align: center;">
-
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">AMOUNT REQUESTED</label>
-
             <div style="font-size: 22px; font-weight: 800; color: #0d9488;">
-
-              {{c.formatCurrency(c.selectedReimbursement.federal_share_now_requested_federal_share_of_amount_federals_payments_previously)}}
-
+              {{c.formatCurrency(c.selectedReimbursement.amount_requested)}}
             </div>
-
           </div>
-
         </div>
 
-
-
         <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
-
           <i class="fa fa-info-circle" style="color: #6366f1; margin-right: 8px;"></i> General Information
-
         </h4>
-
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px 24px 8px 24px; margin-bottom: 30px;">
-
           <div class="row">
-
             <div class="col-sm-4">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Grant / ID Number</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.federal_grant_or_other_identifying_number_assigned_by_federal_agency}}</div>
-
             </div>
-
             <div class="col-sm-4">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Employer ID (EIN)</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.employer_identification_number || 'N/A'}}</div>
-
             </div>
-
             <div class="col-sm-4">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Period Covered</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.from}} <span class="text-muted" style="margin: 0 4px;">to</span> {{c.selectedReimbursement.to}}</div>
-
             </div>
-
           </div>
-
         </div>
 
-
-
         <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
-
           <i class="fa fa-map-marker" style="color: #6366f1; margin-right: 8px;"></i> Location Details
-
         </h4>
-
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 30px;">
-
           <div class="row">
-
             
-
             <div class="col-md-6" style="border-right: 1px solid #e2e8f0; padding-right: 24px;">
-
               <h5 style="font-size: 14px; font-weight: 600; color: #334155; margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Recipient Organization</h5>
-
               
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Name</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.name}}</div>
 
-
-
               <div class="row">
-
                 <div class="col-xs-6">
-
                   <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Street 1</label>
-
                   <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.street1}}</div>
-
                 </div>
-
                 <div class="col-xs-6">
-
                   <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Street 2</label>
-
                   <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.street2 || '-'}}</div>
-
                 </div>
-
               </div>
-
-
 
               <div class="row">
-
                 <div class="col-xs-5">
-
                   <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">City</label>
-
                   <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.city}}</div>
-
                 </div>
-
                 <div class="col-xs-3">
-
                   <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">State</label>
-
                   <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.stat0}}</div>
-
                 </div>
-
                 <div class="col-xs-4">
-
                   <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">ZIP Code</label>
-
                   <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.zip_postal_code}}</div>
-
                 </div>
-
               </div>
-
-
 
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Country</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.country}}</div>
-
             </div>
-
             
-
             <div class="col-md-6" style="padding-left: 24px;">
-
               <h5 style="font-size: 14px; font-weight: 600; color: #334155; margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Payee Information</h5>
-
               
-
               <div ng-if="!c.selectedReimbursement.nam0" style="padding: 20px 0; color: #94a3b8; font-style: italic;">
-
                 Same as Recipient Organization
-
               </div>
-
               
-
               <div ng-if="c.selectedReimbursement.nam0">
-
                 <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Name</label>
-
                 <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.nam0}}</div>
 
-
-
                 <div class="row">
-
                   <div class="col-xs-5">
-
                     <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">City</label>
-
                     <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.cit0}}</div>
-
                   </div>
-
                   <div class="col-xs-3">
-
                     <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">State</label>
-
                     <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.stat1}}</div>
-
                   </div>
-
                   <div class="col-xs-4">
-
                     <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">ZIP Code</label>
-
                     <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.zip_postal_cod0}}</div>
-
                   </div>
-
                 </div>
-
-
 
                 <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Country</label>
-
                 <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.countr0}}</div>
-
               </div>
-
             </div>
 
-
-
           </div>
-
         </div>
 
-
-
         <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
-
           <i class="fa fa-calculator" style="color: #6366f1; margin-right: 8px;"></i> Computation of Amount
-
         </h4>
-
         <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 24px; margin-bottom: 30px;">
-
           <table style="width: 100%; font-size: 14px; color: #475569;">
-
             <tbody>
-
               <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 14px 0;">a. Total Program outlays to date</td><td class="text-right">{{c.formatCurrency(c.selectedReimbursement.total_program_outlays_to_date)}}</td></tr>
-
               <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 14px 0;">b. Less: Cumulative Program income</td><td class="text-right">{{c.formatCurrency(c.selectedReimbursement.less_cumulative_program_income)}}</td></tr>
-
-              <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><td style="padding: 14px 8px; font-weight: 600; color: #1e293b;">c. Net Program Outlays</td><td class="text-right" style="padding: 14px 8px; font-weight: 600; color: #1e293b;">{{c.formatCurrency(c.selectedReimbursement.net_program_outlays)}}</td></tr>
-
+              <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><td style="padding: 14px 8px; font-weight: 600; color: #1e293b;">c. Net Program Outlays</td><td class="text-right" style="padding: 14px 8px; font-weight: 600; color: #1e293b;">{{c.formatCurrency(c.selectedReimbursement.net_program_outlays_total_program_outlays_to_less_cumulative_program_income)}}</td></tr>
               <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 14px 0;">d. Estimated net cash outlays for advance period</td><td class="text-right">{{c.formatCurrency(c.selectedReimbursement.estimated_net_cash_outlays_for_advance_period)}}</td></tr>
-
               <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><td style="padding: 14px 8px; font-weight: 600; color: #1e293b;">e. Total</td><td class="text-right" style="padding: 14px 8px; font-weight: 600; color: #1e293b;">{{c.formatCurrency(c.selectedReimbursement.total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period)}}</td></tr>
-
               <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 14px 0;">f. Non-Federal share of amount</td><td class="text-right">{{c.formatCurrency(c.selectedReimbursement.non_federal_share_of_amount_on_total)}}</td></tr>
-
-              <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><td style="padding: 14px 8px; font-weight: 600; color: #1e293b;">g. Federal share of amount</td><td class="text-right" style="padding: 14px 8px; font-weight: 600; color: #1e293b;">{{c.formatCurrency(c.selectedReimbursement.federal_share_of_amount_on_totals)}}</td></tr>
-
+              <tr style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><td style="padding: 14px 8px; font-weight: 600; color: #1e293b;">g. Federal share of amount</td><td class="text-right" style="padding: 14px 8px; font-weight: 600; color: #1e293b;">{{c.formatCurrency(c.selectedReimbursement.federal_share_of_amount_on_total)}}</td></tr>
               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 14px 0;">h. Federal payments previously requested</td><td class="text-right">{{c.formatCurrency(c.selectedReimbursement.federal_payments_previously_requested)}}</td></tr>
-
-              <tr><td style="padding: 16px 0; font-size: 15px; color: #0d9488; font-weight: 600;">i. Federal share now requested</td><td class="text-right" style="padding: 16px 0; font-size: 16px; font-weight: 700; color: #0d9488;">{{c.formatCurrency(c.selectedReimbursement.federal_share_now_requested_federal_share_of_amount_federals_payments_previously)}}</td></tr>
-
+              <tr><td style="padding: 16px 0; font-size: 15px; color: #0d9488; font-weight: 600;">i. Federal share now requested</td><td class="text-right" style="padding: 16px 0; font-size: 16px; font-weight: 700; color: #0d9488;">{{c.formatCurrency(c.selectedReimbursement.federal_share_now_requested_federal_share_of_amount_federals_payments_previous)}}</td></tr>
             </tbody>
-
           </table>
-
         </div>
-
-
 
         <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
-
           <i class="fa fa-check-square-o" style="color: #6366f1; margin-right: 8px;"></i> Certification Details
-
         </h4>
-
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 10px;">
-
           
-
           <div class="row">
-
             <div class="col-sm-2">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Prefix</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.prefix || '-'}}</div>
-
             </div>
-
             <div class="col-sm-5">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">First Name</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.first_name}}</div>
-
             </div>
-
             <div class="col-sm-5">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Middle Name</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.middle_name || '-'}}</div>
-
             </div>
-
           </div>
 
-
-
           <div class="row">
-
             <div class="col-sm-5">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Last Name</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.last_name}}</div>
-
             </div>
-
             <div class="col-sm-2">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Suffix</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.suffix || '-'}}</div>
-
             </div>
-
             <div class="col-sm-5">
-
               <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Title</label>
-
               <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.title}}</div>
-
             </div>
-
           </div>
 
-
-
           <div class="row">
-
-            <div class="col-sm-12">
-
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Telephone</label>
-
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.telephone}}</div>
-
-            </div>
-
-          </div>
-
-
-
-          <hr style="border-top: 1px solid #e2e8f0; margin: 24px 0;">
-
-
-
-          <div class="row">
-
             <div class="col-sm-8">
-
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Electronic Signature</label>
-
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 48px; display: flex; align-items: center; font-family: 'Courier New', Courier, monospace; font-size: 18px; font-weight: 600; color: #4f46e5;">{{c.selectedReimbursement.certifying_official_signature}}</div>
-
+              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Telephone</label>
+              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.telephon0}}</div>
             </div>
-
-            <div class="col-sm-4 text-right">
-
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Date Submitted</label>
-
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 48px; display: flex; align-items: center; justify-content: flex-end; font-size: 16px; color: #1e293b; font-weight: 700;">{{c.selectedReimbursement.date_request_submitted}}</div>
-
-            </div>
-
-          </div>
-
-
-
-        </div>
-
-<h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px; margin-top: 30px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
-
-          <i class="fa fa-paperclip" style="color: #6366f1; margin-right: 8px;"></i> Attached Documents
-
-        </h4>
-
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 10px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
-
-          <div class="attachment-list">
-
-            <div ng-repeat="att in c.selectedReimbursement.attachments" style="background: #fff; border: 1px solid #cbd5e1; padding: 12px 16px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-
-              <div style="display: flex; align-items: center;">
-
-                <i class="fa fa-file-text-o" style="color: #4f46e5; font-size: 24px; margin-right: 15px;"></i>
-
-                <div>
-
-                  <span style="font-weight: 600; color: #1e293b; display: block;">{{att.file_name}}</span>
-
-                  <span style="font-size: 12px; color: #64748b;">{{c.formatFileSize(att.size_bytes)}}</span>
-
-                </div>
-
+            <div class="col-sm-4">
+              <label style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block;">Date Submitted</label>
+              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; font-size: 14px; color: #1e293b; font-weight: 700;">
+                <i class="fa fa-calendar" style="color: #94a3b8; margin-right: 8px;"></i> {{c.selectedReimbursement.date_request_submitted}}
               </div>
-
-              <button type="button" style="background: transparent; border: 1px solid #4f46e5; color: #4f46e5; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#4f46e5'; this.style.color='#fff';" onmouseout="this.style.background='transparent'; this.style.color='#4f46e5';" ng-click="c.downloadAttachment(att)" title="Download File">
-
-                <i class="fa fa-download"></i> Download
-
-              </button>
-
             </div>
-
           </div>
 
         </div>
-
+        <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px; margin-top: 30px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
+          <i class="fa fa-paperclip" style="color: #6366f1; margin-right: 8px;"></i> Attached Documents
+        </h4>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 10px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
+          <div class="attachment-list">
+            <div ng-repeat="att in c.selectedReimbursement.attachments" style="background: #fff; border: 1px solid #cbd5e1; padding: 12px 16px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+              <div style="display: flex; align-items: center;">
+                <i class="fa fa-file-text-o" style="color: #4f46e5; font-size: 24px; margin-right: 15px;"></i>
+                <div>
+                  <span style="font-weight: 600; color: #1e293b; display: block;">{{att.file_name}}</span>
+                  <span style="font-size: 12px; color: #64748b;">{{c.formatFileSize(att.size_bytes)}}</span>
+                </div>
+              </div>
+              <button type="button" style="background: transparent; border: 1px solid #4f46e5; color: #4f46e5; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#4f46e5'; this.style.color='#fff';" onmouseout="this.style.background='transparent'; this.style.color='#4f46e5';" ng-click="c.downloadAttachment(att)" title="Download File">
+                <i class="fa fa-download"></i> Download
+              </button>
+            </div>
+          </div>
+        </div>
         
-
       </div>
-
-
 
       <div style="background: #ffffff; padding: 20px 30px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end;">
-
         <button type="button" style="background: #ffffff; border: 1px solid #cbd5e1; color: #334155; padding: 8px 20px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;" data-dismiss="modal">Close Report</button>
-
       </div>
-
       
-
     </div>
-
   </div>
-
 </div>
-
-      
-
-      
 
       
 
@@ -8218,14 +7730,6 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
           <div class="indicator-item">
 
-            <label>State</label>
-
-            <span class="status-badge-pill pill-default">{{c.selectedRisk.state}}</span>
-
-          </div>
-
-          <div class="indicator-item">
-
             <label>Probability</label>
 
             <span class="status-badge-pill" ng-class="'pill-' + c.selectedRisk.probability.toLowerCase()">{{c.selectedRisk.probability}}</span>
@@ -8260,13 +7764,10 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
             <div class="content-section half-width" style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
 
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Task</label> <span style="font-weight: 600;">{{c.selectedRisk.task || 'N/A'}}</span></div>
+              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Task</label> <span style="font-weight: 600;">{{c.selectedRisk.project || 'N/A'}}</span></div>
 
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Status</label> <span style="font-weight: 600;">{{c.selectedRisk.state || 'N/A'}}</span></div>
+              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Status</label> <span style="font-weight: 600;">{{c.selectedRisk.risk_status || 'N/A'}}</span></div>
 
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Value</label> <span style="font-weight: 600;">{{c.selectedRisk.risk_value || 'N/A'}}</span></div>
-
-              <div style="display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Estimated Cost</label> <span style="font-weight: 600; color: #0f172a;">{{c.formatCurrency(c.selectedRisk.cost)}}</span></div>
 
             </div>
 
@@ -8274,12 +7775,10 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
             <div class="content-section half-width" style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
 
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Owner</label> <span style="font-weight: 600;">{{c.selectedRisk.risk_owner || 'Unassigned'}}</span></div>
-
-              <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Assigned To</label> <span style="font-weight: 600;">{{c.selectedRisk.assigned_to || 'Unassigned'}}</span></div>
+             
 
               <div style="display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Due Date</label> <span style="font-weight: 600;">{{c.selectedRisk.due_date || 'N/A'}}</span></div>
-
+				 <div style="margin-bottom: 8px; display: flex; justify-content: space-between;"><label style="color: #64748b; font-weight: 500;">Risk Rank</label> <span style="font-weight: 600;">{{c.selectedRisk.risk_rank || 'N/A'}}</span></div>
             </div>
 
           </div>
@@ -8396,190 +7895,90 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
       
 
-      <div class="modal fade modern-report-modal" id="issueModal" tabindex="-1" role="dialog">
-
+     <div class="modal fade modern-report-modal" id="issueModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-lg" role="document">
-
     <div class="modal-content" ng-if="c.selectedIssue">
-
       
-
       <div class="modal-header-modern">
-
         <div class="header-content">
-
           <div class="report-icon" style="background-color: #fee2e2; color: #dc2626;">
-
             <i class="fa fa-bug"></i>
-
           </div>
-
           <div>
-
             <h3 class="modal-title-modern">{{c.selectedIssue.number}}</h3>
-
             <span class="report-date">{{c.selectedIssue.short_description}}</span>
-
           </div>
-
         </div>
-
         <button type="button" class="btn-close-modern" data-dismiss="modal">&times;</button>
-
       </div>
-
-
 
       <div class="modal-body modern-body">
-
         
-
         <div class="health-indicator-bar">
-
           <div class="indicator-item">
-
-            <label>State</label>
-
-            <span class="status-badge-pill pill-default">{{c.selectedIssue.state}}</span>
-
-          </div>
-
-          <div class="indicator-item">
-
             <label>Priority</label>
-
             <span class="status-badge-pill" ng-class="'pill-p' + c.selectedIssue.priority.charAt(0)">{{c.selectedIssue.priority}}</span>
-
           </div>
-
-          <div class="indicator-item">
-
-            <label>Impact</label>
-
-            <span class="status-badge-pill pill-default">{{c.selectedIssue.impact}}</span>
-
-          </div>
-
           <div class="indicator-item border-none">
-
-            <label>Assigned To</label>
-
-            <span style="font-weight: 600; color: #1e293b;">{{c.selectedIssue.assigned_to || 'Unassigned'}}</span>
-
+            <label>Impact</label>
+            <span class="status-badge-pill pill-default">{{c.selectedIssue.impact}}</span>
           </div>
-
         </div>
-
-
 
         <div class="report-content-grid">
-
           
-
           <div class="content-section full-width" style="margin-bottom: 20px;">
-
             <h4><i class="fa fa-info-circle"></i> Description</h4>
-
             <div class="narrative-box secondary">{{c.selectedIssue.description || 'No description provided.'}}</div>
-
           </div>
-
-
 
           <div class="content-section full-width work-notes-section" style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
-
             <h4><i class="fa fa-comments"></i> Work Notes</h4>
-
             
-
             <div class="work-note-input-wrap" style="display: flex; gap: 15px; margin-bottom: 25px; align-items: stretch;">
-
               <textarea class="form-control" 
-
                         ng-model="c.newIssueWorkNote" 
-
                         placeholder="Type your work note here..." 
-
                         rows="3" 
-
                         style="resize: vertical; flex: 1; border-radius: 8px; border: 1px solid #cbd5e1; padding: 12px; font-size: 14px;"></textarea>
-
               <button class="btn btn-primary" 
-
                       ng-click="c.postIssueWorkNote()" 
-
                       ng-disabled="c.submitting || !c.newIssueWorkNote" 
-
                       style="padding: 0 20px; border-radius: 8px; font-weight: 600; background-color: #0284c7; border: none;">
-
                 <i class="fa fa-paper-plane" ng-if="!c.submitting"></i>
-
                 <i class="fa fa-spinner fa-spin" ng-if="c.submitting"></i> Post
-
               </button>
-
             </div>
-
-
 
             <div class="activity-stream" style="max-height: 350px; overflow-y: auto; padding-right: 10px;">
-
               
-
               <div class="activity-item" ng-repeat="note in c.selectedIssue.activities" style="display: flex; gap: 15px; margin-bottom: 20px;">
-
                 <div class="activity-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569; flex-shrink: 0;">
-
                   <i class="fa fa-user"></i>
-
                 </div>
-
                 <div class="activity-content" style="flex: 1;">
-
                   <div class="activity-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-
                     <strong style="color: #1e293b; font-size: 14px;">{{note.sys_created_by}}</strong>
-
                     <span style="color: #64748b; font-size: 12px;"><i class="fa fa-clock-o"></i> {{note.sys_created_on}}</span>
-
                   </div>
-
                   <div class="activity-text" style="color: #334155; font-size: 14px; background: #fffbeb; padding: 12px; border-radius: 0 8px 8px 8px; border-left: 4px solid #f59e0b; white-space: pre-wrap;" ng-bind-html="note.value"></div>
-
                 </div>
-
               </div>
-
               
-
               <div ng-if="!c.selectedIssue.activities || c.selectedIssue.activities.length === 0" style="text-align: center; color: #94a3b8; padding: 30px 0; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
-
                 <i class="fa fa-commenting-o" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
-
                 No work notes yet. Be the first to add one!
-
               </div>
-
             </div>
 
-
-
           </div>
-
         </div>
-
       </div>
-
       <div class="modal-footer-modern">
-
         <button type="button" class="btn-modern-secondary" data-dismiss="modal">Close</button>
-
       </div>
-
     </div>
-
   </div>
-
 </div>
 
       

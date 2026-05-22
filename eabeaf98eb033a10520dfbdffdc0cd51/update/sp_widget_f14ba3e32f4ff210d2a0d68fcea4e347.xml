@@ -985,14 +985,14 @@ margin: 0;                /* ← remove auto centering */
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 10:17:06</sys_created_on>
         <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
-        <sys_mod_count>97</sys_mod_count>
+        <sys_mod_count>98</sys_mod_count>
         <sys_name>Review Proposal Detail</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-04-30 07:35:54</sys_updated_on>
+        <sys_updated_by>adnan.tariq</sys_updated_by>
+        <sys_updated_on>2026-05-20 11:00:47</sys_updated_on>
         <template><![CDATA[<!-- ACCESS DENIED -->
 <div class="rp-denied" ng-if="!data.found">
   <div class="rp-denied__box">
@@ -1019,7 +1019,7 @@ margin: 0;                /* ← remove auto centering */
         <span class="rp-status-dot
           {{data.status === 'Review completed'     ? 'rp-dot--green' :
             data.status === 'Declined by Reviewer' ? 'rp-dot--red'   :
-            data.status === 'On hold'              ? 'rp-dot--red'   : 'rp-dot--blue'}}">
+            data.status === 'On hold'              ? 'rp-dot--amber' : 'rp-dot--blue'}}">
           <span class="rp-dot__pulse"></span>
           {{data.status}}
         </span>
@@ -1070,6 +1070,13 @@ margin: 0;                /* ← remove auto centering */
   <div class="rp-banner rp-banner--info" ng-if="c.isReadOnly">
     <i class="fa fa-info-circle"></i>
     <span><strong>View Only.</strong> Your group is not the final reviewer. You can read all details and add work notes. Click <strong>Proceed</strong> to pass to the next group.</span>
+  </div>
+
+  <!-- SUBMITTED / WAITING BANNER -->
+  <div class="rp-banner rp-banner--info"
+       ng-if="!c.isCompleted && !c.isReadOnly && !data.is_last_reviewer && data.submitted">
+    <i class="fa fa-check-circle"></i>
+    <span><strong>Submitted.</strong> Passed to the next review group. You may still add work notes.</span>
   </div>
 
   <!-- ── TAB NAV ── -->
@@ -1568,7 +1575,7 @@ margin: 0;                /* ← remove auto centering */
             <p class="rp-locked-note"><i class="fa fa-lock"></i> Score is locked. Review completed.</p>
           </div>
 
-          <!-- ② READ-ONLY -->
+          <!-- ② READ-ONLY (intermediate reviewer, not yet submitted) -->
           <div ng-if="c.isReadOnly">
             <div class="rp-readonly-notice">
               <div class="rp-readonly-notice__icon"><i class="fa fa-info-circle"></i></div>
@@ -1591,7 +1598,7 @@ margin: 0;                /* ← remove auto centering */
             </div>
           </div>
 
-          <!-- ③ EDITABLE — last reviewer -->
+          <!-- ③ EDITABLE — last reviewer, not yet completed -->
           <div ng-if="c.canScore">
             <p class="rp-score-instruction">Select a score from 1 (lowest) to 10 (highest):</p>
             <div class="rp-score-grid">
@@ -1645,25 +1652,21 @@ margin: 0;                /* ← remove auto centering */
               </span>
             </div>
 
-            <textarea class="rp-textarea" rows="4"
-                      ng-model="c.form.comments"
-                      ng-if="c.canScore"
-                      placeholder="Write your review notes (saved with submission)…"></textarea>
-
+            <!-- ✅ FIXED: single textarea using c.newNote for ALL roles -->
             <textarea class="rp-textarea" rows="4"
                       ng-model="c.newNote"
-                      ng-if="!c.canScore"
-                      placeholder="Type your note here…"></textarea>
+                      placeholder="{{c.canScore ? 'Write your review notes…' : 'Type your note here…'}}">
+            </textarea>
 
             <div class="rp-compose__footer">
               <span class="rp-char-count">
-                {{(c.canScore ? (c.form.comments || '') : (c.newNote || '')).length}} / 2000
+                {{(c.newNote || '').length}} / 2000
               </span>
+              <!-- ✅ FIXED: Post Note button visible for ALL roles (last reviewer, intermediate, completed) -->
               <button type="button"
                       class="rp-btn rp-btn--primary rp-btn--sm"
-                      ng-if="!c.canScore"
                       ng-click="c.addNote()"
-                      ng-disabled="!c.newNote || c.addingNote">
+                      ng-disabled="!c.newNote || !c.newNote.trim() || c.addingNote">
                 <i class="fa fa-plus" ng-if="!c.addingNote"></i>
                 <i class="fa fa-spinner fa-spin" ng-if="c.addingNote"></i>
                 {{c.addingNote ? 'Saving…' : 'Post Note'}}
