@@ -437,41 +437,41 @@
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function () {
-    // Allows instance-independent dynamic linking (set 'detail_page_id' in Widget Options)
     data.detail_page = options.detail_page_id || 'my_award_detail';
-    data.sideBar     = $sp.getWidget('sidebar_dashboard');
+    data.sideBar = $sp.getWidget('sidebar_dashboard');
 
     var currentUser = gs.getUserID();
     data.awards = [];
 
-    /* --- 1. IDENTIFY THE APPLICANT --- */
     var applicantIds = [];
     var applicantGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
     applicantGr.addQuery('user', currentUser);
     applicantGr.query();
+
     while (applicantGr.next()) {
         applicantIds.push(applicantGr.getUniqueValue());
     }
 
-    /* --- 2. FETCH AWARD DATA (Lightweight for List View) --- */
     if (applicantIds.length > 0) {
         var awardGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        awardGr.addQuery('applicant_response', 'IN', 'Pending,Acknowledged,Rejected');
+        awardGr.addQuery('applicant_response', 'IN', 'pending,acknowledged,rejected');
         awardGr.addQuery('applicant', 'IN', applicantIds.join(','));
         awardGr.orderByDesc('sys_created_on');
         awardGr.query();
 
         while (awardGr.next()) {
+            var responseValue = String(awardGr.getValue('applicant_response') || '').toLowerCase();
+
             data.awards.push({
-                sys_id:             awardGr.getUniqueValue(),
-                number:             awardGr.getDisplayValue('number'),
-                program_name:       awardGr.getDisplayValue('program_name'),
-                award_start_date:   awardGr.getDisplayValue('award_start_date'),
-                award_end_date:     awardGr.getDisplayValue('award_end_date'),
-                award_amount:       parseFloat(awardGr.getValue('build_grant_amount') || 0),
-                applicant_response: String(awardGr.getValue('applicant_response') || ''),
+                sys_id: awardGr.getUniqueValue(),
+                number: awardGr.getDisplayValue('number'),
+                program_name: awardGr.getDisplayValue('program_name'),
+                award_start_date: awardGr.getDisplayValue('award_start_date'),
+                award_end_date: awardGr.getDisplayValue('award_end_date'),
+                award_amount: parseFloat(awardGr.getValue('build_grant_amount') || 0),
+                applicant_response: responseValue,
                 applicant_response_display: awardGr.getDisplayValue('applicant_response'),
-                grant_program_id:   awardGr.getDisplayValue('grant_program')
+                grant_program_id: awardGr.getDisplayValue('grant_program')
             });
         }
     }
@@ -481,14 +481,14 @@
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-31 06:38:43</sys_created_on>
         <sys_id>934faf84eb0407d0520dfbdffdc0cd0b</sys_id>
-        <sys_mod_count>23</sys_mod_count>
+        <sys_mod_count>27</sys_mod_count>
         <sys_name>My Award List</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_934faf84eb0407d0520dfbdffdc0cd0b</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-05-04 11:49:51</sys_updated_on>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-05-20 09:26:07</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
@@ -510,14 +510,49 @@
         <p class="aw-panel-label">Awards Overview</p>
         <div class="aw-donut-wrap">
           <svg class="aw-donut-svg" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="46" fill="none" stroke="#f1f5f9" stroke-width="14"/>
-            <circle cx="60" cy="60" r="46" fill="none" stroke="#10b981" stroke-width="14" stroke-dasharray="{{(c.countByResponse('acknowledged') / data.awards.length) * 289}} 289" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 60 60)" class="aw-donut-seg"/>
-            <circle cx="60" cy="60" r="46" fill="none" stroke="#f59e0b" stroke-width="14" stroke-dasharray="{{(c.countByResponse('pending') / data.awards.length) * 289}} 289" stroke-dashoffset="{{-( (c.countByResponse('acknowledged') / data.awards.length) * 289 )}}" stroke-linecap="round" transform="rotate(-90 60 60)" class="aw-donut-seg"/>
-            <circle cx="60" cy="60" r="46" fill="none" stroke="#ef4444" stroke-width="14" stroke-dasharray="{{(c.countByResponse('rejected') / data.awards.length) * 289}} 289" stroke-dashoffset="{{-( (c.countByResponse('acknowledged') / data.awards.length + c.countByResponse('pending') / data.awards.length) * 289 )}}" stroke-linecap="round" transform="rotate(-90 60 60)" class="aw-donut-seg"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="#f1f5f9" stroke-width="14"></circle>
+
+            <circle
+              cx="60" cy="60" r="46"
+              fill="none"
+              stroke="#10b981"
+              stroke-width="14"
+              stroke-dasharray="{{(c.countByResponse('acknowledged') / data.awards.length) * 289}} 289"
+              stroke-dashoffset="0"
+              stroke-linecap="round"
+              transform="rotate(-90 60 60)"
+              class="aw-donut-seg">
+            </circle>
+
+            <circle
+              cx="60" cy="60" r="46"
+              fill="none"
+              stroke="#f59e0b"
+              stroke-width="14"
+              stroke-dasharray="{{(c.countByResponse('pending') / data.awards.length) * 289}} 289"
+              stroke-dashoffset="{{-((c.countByResponse('acknowledged') / data.awards.length) * 289)}}"
+              stroke-linecap="round"
+              transform="rotate(-90 60 60)"
+              class="aw-donut-seg">
+            </circle>
+
+            <circle
+              cx="60" cy="60" r="46"
+              fill="none"
+              stroke="#ef4444"
+              stroke-width="14"
+              stroke-dasharray="{{(c.countByResponse('rejected') / data.awards.length) * 289}} 289"
+              stroke-dashoffset="{{-(((c.countByResponse('acknowledged') / data.awards.length) + (c.countByResponse('pending') / data.awards.length)) * 289)}}"
+              stroke-linecap="round"
+              transform="rotate(-90 60 60)"
+              class="aw-donut-seg">
+            </circle>
+
             <text x="60" y="55" text-anchor="middle" class="aw-donut-center-num">{{data.awards.length}}</text>
             <text x="60" y="70" text-anchor="middle" class="aw-donut-center-lbl">Total</text>
           </svg>
         </div>
+
         <div class="aw-donut-legend">
           <div class="aw-legend-item">
             <span class="aw-legend-dot aw-dot--green"></span>
@@ -546,10 +581,11 @@
           </div>
           <div class="aw-tile-sparkline">
             <svg viewBox="0 0 60 24" preserveAspectRatio="none">
-              <polyline points="0,20 15,14 30,16 45,8 60,4" fill="none" stroke="rgba(99,102,241,0.4)" stroke-width="2" stroke-linecap="round"/>
+              <polyline points="0,20 15,14 30,16 45,8 60,4" fill="none" stroke="rgba(99,102,241,0.4)" stroke-width="2" stroke-linecap="round"></polyline>
             </svg>
           </div>
         </div>
+
         <div class="aw-stat-tile aw-tile--amount">
           <div class="aw-tile-icon"><i class="fa fa-dollar"></i></div>
           <div class="aw-tile-body">
@@ -558,10 +594,11 @@
           </div>
           <div class="aw-tile-sparkline">
             <svg viewBox="0 0 60 24" preserveAspectRatio="none">
-              <polyline points="0,22 15,18 30,10 45,12 60,4" fill="none" stroke="rgba(16,185,129,0.4)" stroke-width="2" stroke-linecap="round"/>
+              <polyline points="0,22 15,18 30,10 45,12 60,4" fill="none" stroke="rgba(16,185,129,0.4)" stroke-width="2" stroke-linecap="round"></polyline>
             </svg>
           </div>
         </div>
+
         <div class="aw-stat-tile aw-tile--pending">
           <div class="aw-tile-icon"><i class="fa fa-clock-o"></i></div>
           <div class="aw-tile-body">
@@ -576,18 +613,29 @@
     </div>
 
     <div class="aw-filters" ng-if="data.awards.length > 0">
-      <button class="aw-filter-btn" ng-class="{'aw-filter--active': c.activeFilter === 'all'}" ng-click="c.setFilter('all')">
+      <button class="aw-filter-btn"
+              ng-class="{'aw-filter--active': c.activeFilter === 'all'}"
+              ng-click="c.setFilter('all')">
         All <span class="aw-filter-count">{{data.awards.length}}</span>
       </button>
-      <button class="aw-filter-btn aw-filter-btn--amber" ng-class="{'aw-filter--active': c.activeFilter === 'pending'}" ng-click="c.setFilter('pending')">
+
+      <button class="aw-filter-btn aw-filter-btn--amber"
+              ng-class="{'aw-filter--active': c.activeFilter === 'pending'}"
+              ng-click="c.setFilter('pending')">
         <span class="aw-fbtn-dot aw-fbtn-dot--amber"></span> Pending
         <span class="aw-filter-count">{{c.countByResponse('pending')}}</span>
       </button>
-      <button class="aw-filter-btn aw-filter-btn--green" ng-class="{'aw-filter--active': c.activeFilter === 'acknowledged'}" ng-click="c.setFilter('acknowledged')">
+
+      <button class="aw-filter-btn aw-filter-btn--green"
+              ng-class="{'aw-filter--active': c.activeFilter === 'acknowledged'}"
+              ng-click="c.setFilter('acknowledged')">
         <span class="aw-fbtn-dot aw-fbtn-dot--green"></span> Acknowledged
         <span class="aw-filter-count">{{c.countByResponse('acknowledged')}}</span>
       </button>
-      <button class="aw-filter-btn aw-filter-btn--red" ng-class="{'aw-filter--active': c.activeFilter === 'rejected'}" ng-click="c.setFilter('rejected')">
+
+      <button class="aw-filter-btn aw-filter-btn--red"
+              ng-class="{'aw-filter--active': c.activeFilter === 'rejected'}"
+              ng-click="c.setFilter('rejected')">
         <span class="aw-fbtn-dot aw-fbtn-dot--red"></span> Declined
         <span class="aw-filter-count">{{c.countByResponse('rejected')}}</span>
       </button>
@@ -602,69 +650,106 @@
     </div>
 
     <div class="aw-cards" ng-if="(data.awards | filter:c.filterFn).length > 0">
-      <div class="aw-card" ng-repeat="award in data.awards | filter:c.filterFn" ng-click="c.openAward(award)"
-        ng-class="{ 'aw-card--green': award.applicant_response === 'acknowledged', 'aw-card--amber': award.applicant_response === 'pending', 'aw-card--red': award.applicant_response === 'declined' }">
+      <div class="aw-card"
+           ng-repeat="award in data.awards | filter:c.filterFn"
+           ng-click="c.openAward(award)"
+           ng-class="{
+             'aw-card--green': award.applicant_response === 'acknowledged',
+             'aw-card--amber': award.applicant_response === 'pending',
+             'aw-card--red': award.applicant_response === 'rejected'
+           }">
+
         <div class="aw-card-glow"></div>
+
         <div class="aw-card-row1">
           <span class="aw-card-num">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <rect width="10" height="10" rx="3" fill="currentColor" opacity=".15"/>
+              <rect width="10" height="10" rx="3" fill="currentColor" opacity=".15"></rect>
               <text x="5" y="7.5" text-anchor="middle" font-size="7" font-weight="800" fill="currentColor">#</text>
             </svg>
             {{award.number}}
           </span>
-          <span class="aw-card-badge" ng-class="{ 'aw-badge--green': award.applicant_response === 'acknowledged', 'aw-badge--amber': award.applicant_response === 'pending', 'aw-badge--red': award.applicant_response === 'declined' }">
+
+          <span class="aw-card-badge"
+                ng-class="{
+                  'aw-badge--green': award.applicant_response === 'acknowledged',
+                  'aw-badge--amber': award.applicant_response === 'pending',
+                  'aw-badge--red': award.applicant_response === 'rejected'
+                }">
             <span class="aw-badge-icon">
               <i class="fa fa-check" ng-if="award.applicant_response === 'acknowledged'"></i>
               <i class="fa fa-clock-o" ng-if="award.applicant_response === 'pending'"></i>
-              <i class="fa fa-times" ng-if="award.applicant_response === 'declined'"></i>
+              <i class="fa fa-times" ng-if="award.applicant_response === 'rejected'"></i>
             </span>
             {{award.applicant_response_display}}
           </span>
         </div>
+
         <h3 class="aw-card-title">{{award.program_name}}</h3>
+
         <div class="aw-card-tag" ng-if="award.grant_program_id">
           <i class="fa fa-sitemap"></i>
           <span>{{award.grant_program_id}}</span>
         </div>
+
         <div class="aw-card-sep"></div>
+
         <div class="aw-card-amount-block">
           <div class="aw-card-amount-meta">
             <span class="aw-card-amount-lbl">Grant Amount</span>
-            <span class="aw-card-amount-val" ng-class="{ 'aw-av--green': award.applicant_response === 'acknowledged', 'aw-av--amber': award.applicant_response === 'pending', 'aw-av--red': award.applicant_response === 'declined' }">
+            <span class="aw-card-amount-val"
+                  ng-class="{
+                    'aw-av--green': award.applicant_response === 'acknowledged',
+                    'aw-av--amber': award.applicant_response === 'pending',
+                    'aw-av--red': award.applicant_response === 'rejected'
+                  }">
               {{award.award_amount | currency:'$':0}}
             </span>
           </div>
+
           <div class="aw-card-progress">
-            <div class="aw-card-progress-fill" ng-class="{ 'aw-pf--green': award.applicant_response === 'acknowledged', 'aw-pf--amber': award.applicant_response === 'pending', 'aw-pf--red': award.applicant_response === 'declined' }" ng-style="{'width': c.amountPercent(award) + '%'}"></div>
+            <div class="aw-card-progress-fill"
+                 ng-class="{
+                   'aw-pf--green': award.applicant_response === 'acknowledged',
+                   'aw-pf--amber': award.applicant_response === 'pending',
+                   'aw-pf--red': award.applicant_response === 'rejected'
+                 }"
+                 ng-style="{'width': c.amountPercent(award) + '%'}">
+            </div>
           </div>
         </div>
+
         <div class="aw-card-dates">
           <div class="aw-card-date-pill">
             <span class="aw-dp-lbl">Start</span>
             <span class="aw-dp-val">{{award.award_start_date || '—'}}</span>
           </div>
+
           <div class="aw-date-connector">
             <div class="aw-dc-line"></div>
             <i class="fa fa-chevron-right aw-dc-arrow"></i>
           </div>
+
           <div class="aw-card-date-pill aw-card-date-pill--end">
             <span class="aw-dp-lbl">End</span>
             <span class="aw-dp-val">{{award.award_end_date || '—'}}</span>
           </div>
         </div>
+
         <div class="aw-card-foot">
           <div class="aw-card-foot-alert" ng-if="award.applicant_response === 'pending'">
             <span class="aw-fa-pulse"></span>
             Action needed
           </div>
+
           <span ng-if="award.applicant_response !== 'pending'"></span>
-          <button class="aw-card-cta">
+
+          <button class="aw-card-cta" type="button">
             Open <i class="fa fa-arrow-right"></i>
           </button>
         </div>
       </div>
-    </div> 
+    </div>
   </main>
 </div>]]></template>
     </sp_widget>

@@ -1,62 +1,95 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
-    <element db_object_id="e5fbdcca2f37f290d2a0d68fcea4e3ea" extends="task" label="Reimbursement" max_length="40" name="x_enno_gatenow_reimbursement" type="collection">
-        <element label="Non-Federal share of amount (on Total)" max_length="20" name="non_federal_share_of_amount_on_total" type="currency"/>
-        <element label="To" max_length="255" name="to" type="glide_date"/>
+    <element audit="true" db_object_id="c983c2822f348310d2a0d68fcea4e329" label="Reimbursement" max_length="40" name="x_enno_gatenow_reimbursement" type="collection">
+        <element label="First Name " max_length="40" name="first_name" type="string"/>
+        <element label="ZIP/Postal Code:" max_length="255" name="zip_postal_code" type="integer"/>
+        <element label="Country:" max_length="40" name="countr0" type="string"/>
+        <element label="Request 1st Month" max_length="20" name="request_1st_month" type="currency"/>
+        <element label="Work notes" max_length="255" name="work_notes" type="journal_input"/>
+        <element label="Source Table" max_length="80" name="source_table" type="table_name"/>
+        <element label="Country:" max_length="40" name="country" type="string"/>
+        <element label="Federal Share of Amount (on Total)" max_length="20" name="federal_share_of_amount_on_total" type="currency"/>
         <element label="Name:" max_length="40" name="name" type="string"/>
+        <element label="Title" max_length="40" name="title" type="string"/>
+        <element label="Telephone" max_length="255" name="telephone" type="integer"/>
+        <element label="Reimbursement" max_length="255" name="reimbursement" type="boolean"/>
+        <element label="Federal payments previously requested" max_length="20" name="federal_payments_previously_requested" type="currency"/>
+        <element label="Total(Sum of Net Program Outlays &amp; Estimated cash outlays for advanced period)" max_length="20" name="total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period" type="currency"/>
+        <element label="Active" max_length="255" name="active" type="boolean"/>
+        <element label="Middle Name " max_length="40" name="middle_name" type="string"/>
+        <element label="Less: Cumulative Program income" max_length="20" name="less_cumulative_program_income" type="currency"/>
+        <element label="Short description" max_length="160" name="short_description" type="string"/>
+        <element label="Street1:" max_length="40" name="street1" type="string"/>
+        <element label="Non-Federal share of amount (on Total)  " max_length="20" name="non_federal_share_of_amount_on_total" type="currency"/>
+        <element label="To" max_length="255" name="to" type="glide_date"/>
+        <element label="Federal share now requested(Federal share of amount - Federals payments previous" max_length="20" name="federal_share_now_requested_federal_share_of_amount_federals_payments_previous" type="currency"/>
+        <element label="Partial" max_length="255" name="partial" type="boolean"/>
         <element label="Street2:" max_length="40" name="street2" type="string"/>
-        <element label="Middle Name" max_length="40" name="middle_name" type="string"/>
+        <element label="County:" max_length="40" name="county" type="string"/>
+        <element label="Description" max_length="4000" name="description" type="string"/>
+        <element label="Cash" max_length="255" name="cash" type="boolean"/>
+        <element label="Prefix" max_length="40" name="prefix" type="string"/>
+        <element label="Date Request Submitted" max_length="255" name="date_request_submitted" type="glide_date"/>
+        <element label="Program" max_length="32" name="program" reference="x_enno_gatenow_grant_program" type="reference"/>
+        <element label="PARTIAL PAYMENT REQUEST NUMBER FOR THIS REQUEST" max_length="40" name="partial_payment_request_number_for_this_request" type="string"/>
+        <element label="Configuration item" max_length="32" name="configuration_item" reference="cmdb_ci" type="reference"/>
+        <element label="Assigned to" max_length="32" name="assigned_to" reference="imp_user" type="reference"/>
         <element choice="1" label="Status" max_length="40" name="status" type="choice">
             <choice>
+                <element inactive_on_update="false" label="Rejected" sequence="2" value="Rejected"/>
+                <element inactive_on_update="false" label="Submitted" sequence="0" value="Submitted"/>
                 <element inactive_on_update="false" label="Paid" sequence="3" value="Paid"/>
                 <element inactive_on_update="false" label="Approved" sequence="1" value="Approved"/>
-                <element inactive_on_update="false" label="Submitted" sequence="0" value="Submitted"/>
-                <element inactive_on_update="false" label="Rejected" sequence="2" value="Rejected"/>
             </choice>
         </element>
-        <element label="City:" max_length="40" name="city" type="string"/>
-        <element label="Telephone" max_length="255" name="telephone" type="integer"/>
-        <element label="Country:" max_length="40" name="country" type="string"/>
-        <element label="Total(Sum of Net Program Outlays &amp; Estimated cash outlays for advanced period)" max_length="20" name="total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period" type="currency"/>
-        <element label="EMPLOYER IDENTIFICATION NUMBER" max_length="40" name="employer_identification_number" type="string"/>
-        <element label="Final" max_length="255" name="final" type="boolean"/>
-        <element label="Federal Share of Amount (on Total)" max_length="20" name="federal_share_of_amount_on_totals" type="currency"/>
-        <element label="State:" max_length="40" name="stat0" type="string"/>
-        <element label="Accrual" max_length="255" name="accrual" type="boolean"/>
-        <element attributes="omit_sys_original=true" label="Federal share now requested(Federal share of amount - Federals payments previous" max_length="20" name="federal_share_now_requested_federal_share_of_amount_federals_payments_previously" type="currency"/>
-        <element label="First Name" max_length="40" name="first_name" type="string"/>
-        <element label="Amount Requested" max_length="20" name="amount_requested" type="currency"/>
-        <element label="From" max_length="255" name="from" type="glide_date"/>
-        <element label="Last Name" max_length="40" name="last_name" type="string"/>
-        <element label="Partial" max_length="255" name="partial" type="boolean"/>
-        <element label="ZIP/Postal Code:" max_length="255" name="zip_postal_code" type="integer"/>
-        <element label="Request 1st Month" max_length="20" name="request_1st_month" type="currency"/>
-        <element label="FEDERAL GRANT OR OTHER IDENTIFYING NUMBER ASSIGNED BY FEDERAL AGENCY" max_length="40" name="federal_grant_or_other_identifying_number_assigned_by_federal_agency" type="string"/>
-        <element label="Province:" max_length="40" name="province" type="string"/>
-        <element attributes="omit_sys_original=true" label="Estimated Federal Cash Outlays that will be made during period advance" max_length="20" name="estimated_federal_cash_outlays_that_will_be_made_during_period_covered_by_the_ad" type="currency"/>
-        <element label="Request 3rd Month" max_length="20" name="request_3rd_month" type="currency"/>
-        <element label="State:" max_length="40" name="stat1" type="string"/>
-        <element label="Cash" max_length="255" name="cash" type="boolean"/>
-        <element label="Net Program Outlays(Total Program outlays to  - Less: Cumulative Program income)" max_length="20" name="net_program_outlays" type="currency"/>
+        <element label="Net Program Outlays(Total Program outlays to  - Less: Cumulative Program income)" max_length="20" name="net_program_outlays_total_program_outlays_to_less_cumulative_program_income" type="currency"/>
         <element label="Suffix" max_length="40" name="suffix" type="string"/>
-        <element label="Name:" max_length="40" name="nam0" type="string"/>
-        <element label="Street1:" max_length="40" name="street1" type="string"/>
-        <element label="Less: Cumulative Program income" max_length="20" name="less_cumulative_program_income" type="currency"/>
-        <element label="City:" max_length="40" name="cit0" type="string"/>
-        <element label="Prefix" max_length="40" name="prefix" type="string"/>
-        <element label="Country:" max_length="40" name="countr0" type="string"/>
-        <element label="PARTIAL PAYMENT REQUEST NUMBER FOR THIS REQUEST" max_length="40" name="partial_payment_request_number_for_this_request" type="string"/>
+        <element label="c" max_length="40" name="c" type="string"/>
+        <element label="City:" max_length="40" name="city" type="string"/>
         <element label="Total Program outlays to date" max_length="20" name="total_program_outlays_to_date" type="currency"/>
-        <element label="Date Request Submitted" max_length="255" name="date_request_submitted" type="glide_date"/>
-        <element attributes="edge_encryption_enabled=true" label="FEDERAL SPONSORING AGENCY AND ORGANIZATIONAL ELEMENT TO WHICH THIS REPORT IS SUB" max_length="100" name="federal_sponsoring_agency_and_organizational_element_to_which_this_report_is_sub" type="string"/>
-        <element label="FINANCIAL ASSISTANCE IDEBTIFICATION NUMBER" max_length="40" name="financial_assistance_idebtification_number" type="string"/>
-        <element label="Title" max_length="40" name="title" type="string"/>
-        <element label="County:" max_length="40" name="county" type="string"/>
-        <element label="ZIP/Postal Code:" max_length="255" name="zip_postal_cod0" type="integer"/>
-        <element label="Reimbursement" max_length="255" name="reimbursement" type="boolean"/>
-        <element label="Estimated net cash outlays for advance period" max_length="20" name="estimated_net_cash_outlays_for_advance_period" type="currency"/>
-        <element label="Estimated balance of Federal cash on hand as of beginning of Advance Period" max_length="20" name="estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period" type="currency"/>
+        <element label="New Field 1Federal payments previously requested" max_length="20" name="new_field_1federal_payments_previously_requested" type="currency"/>
+        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" type="string" use_dynamic_default="true"/>
+        <element label="Province:" max_length="40" name="province" type="string"/>
+        <element label="From" max_length="255" name="from" type="glide_date"/>
+        <element label="Amount Requested " max_length="20" name="amount_requested" type="currency"/>
+        <element label="Estimated Federal Cash Outlays that will be made during period covered by the Ad" max_length="20" name="estimated_federal_cash_outlays_that_will_be_made_during_period_covered_by_the_ad" type="currency"/>
         <element label="Request 2nd Month" max_length="20" name="request_2nd_month" type="currency"/>
-        <element label="Federal payments previously requested" max_length="20" name="federal_payments_previously_requested" type="currency"/>
+        <element label="Accrual" max_length="255" name="accrual" type="boolean"/>
+        <element label="FINANCIAL ASSISTANCE IDEBTIFICATION NUMBER" max_length="40" name="financial_assistance_idebtification_number" type="string"/>
+        <element label="Telephone" max_length="40" name="telephon0" type="string"/>
+        <element label="Estimated net cash outlays for advance period" max_length="20" name="estimated_net_cash_outlays_for_advance_period" type="currency"/>
+        <element label="Name:" max_length="40" name="nam0" type="string"/>
+        <element label="State:" max_length="40" name="state" type="string"/>
+        <element label="Last Name " max_length="40" name="last_name" type="string"/>
         <element label="Advance" max_length="255" name="advance" type="boolean"/>
+        <element choice="1" label="Priority" max_length="40" name="priority" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="1 - Critical" sequence="0" value="1 - Critical"/>
+                <element inactive_on_update="false" label="4 - Low" sequence="3" value="4 - Low"/>
+                <element inactive_on_update="false" label="2 - High" sequence="1" value="2 - High"/>
+                <element inactive_on_update="false" label="3 - Moderate" sequence="2" value="3 - Moderate"/>
+                <element inactive_on_update="false" label="5 - Planning" sequence="4" value="5 - Planning"/>
+            </choice>
+        </element>
+        <element label="Estimated balance of Federal cash on hand as of beginning of Advance Period" max_length="20" name="estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period" type="currency"/>
+        <element label="EMPLOYER IDENTIFICATION NUMBER" max_length="40" name="employer_identification_number" type="string"/>
+        <element label="ZIP/Postal Code:" max_length="40" name="zip_postal_cod0" type="string"/>
+        <element label="State:" max_length="40" name="stat0" type="string"/>
+        <element label="City:" max_length="40" name="cit0" type="string"/>
+        <element label="FEDERAL GRANT OR OTHER IDENTIFYING NUMBER ASSIGNED BY FEDERAL AGENCY" max_length="40" name="federal_grant_or_other_identifying_number_assigned_by_federal_agency" type="string"/>
+        <element label="Request 3rd Month" max_length="20" name="request_3rd_month" type="currency"/>
+        <element label="Final" max_length="255" name="final" type="boolean"/>
+        <element label="Project" max_length="32" name="project" reference="x_enno_gatenow_project" type="reference"/>
+        <index name="index">
+            <element name="assigned_to"/>
+        </index>
+        <index name="index2">
+            <element name="configuration_item"/>
+        </index>
+        <index name="index3">
+            <element name="program"/>
+        </index>
+        <index name="index4">
+            <element name="project"/>
+        </index>
     </element>
 </database>

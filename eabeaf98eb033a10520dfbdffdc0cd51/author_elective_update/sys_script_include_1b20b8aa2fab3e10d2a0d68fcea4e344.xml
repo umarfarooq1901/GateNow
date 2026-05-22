@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="DELETE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_enno_gatenow.ProjectDetailsAPI</api_name>
+        <caller_access/>
+        <client_callable>true</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ProjectDetailsAPI</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[var ProjectDetailsAPI = Class.create();
+ProjectDetailsAPI.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
+
+    submitChangeRequest: function() {
+        var result = {
+            success: false,
+            error: ''
+        };
+
+        try {
+            // Get data from the Portal
+            var projectId = this.getParameter('sysparm_project_id');
+            var changeData = JSON.parse(this.getParameter('sysparm_change'));
+
+            // Create the record
+            var grChange = new GlideRecordsecure('project_change_request');
+            grChange.initialize();
+            grChange.parent = projectId;
+            grChange.short_description = changeData.short_description;
+            grChange.category = changeData.category;
+            grChange.priority = changeData.priority;
+            grChange.impact = changeData.impact;
+            grChange.description = changeData.description;
+            
+            // Custom fields for GateNow
+            grChange.x_sysus_grant_life_reason_for_change = changeData.reason;
+            grChange.x_sysus_grant_life_proposed_change = changeData.proposed_change;
+
+            var newId = grChange.insert();
+
+            if (newId) {
+                result.success = true;
+                // Get the display values to send back to the UI list
+                result.change = {
+                    sys_id: newId,
+                    short_description: grChange.getValue('short_description'),
+                    category_label: grChange.getDisplayValue('category'),
+                    priority_label: grChange.getDisplayValue('priority'),
+                    impact_label: grChange.getDisplayValue('impact'),
+                    state_label: grChange.getDisplayValue('state'),
+                    submitted_on: new GlideDateTime().getDisplayValue()
+                };
+            } else {
+                result.error = "Insert failed. Check permissions.";
+            }
+        } catch (e) {
+            result.error = e.message;
+        }
+
+        return JSON.stringify(result);
+    },
+
+    type: 'ProjectDetailsAPI'
+});]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-03-13 14:40:40</sys_created_on>
+        <sys_id>1b20b8aa2fab3e10d2a0d68fcea4e344</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name>ProjectDetailsAPI</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_script_include_1b20b8aa2fab3e10d2a0d68fcea4e344</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-04-01 14:45:39</sys_updated_on>
+    </sys_script_include>
+<sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>253cd7823b92b6d0677f04e0b5e45a33</instance_id>
+        <instance_name>enablenowincdemo1</instance_name>
+        <name>sys_script_include_1b20b8aa2fab3e10d2a0d68fcea4e344</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sys_script_include"&gt;
+    &lt;sys_script_include action="INSERT_OR_UPDATE"&gt;
+        &lt;access&gt;public&lt;/access&gt;
+        &lt;active&gt;true&lt;/active&gt;
+        &lt;api_name&gt;x_enno_gatenow.ProjectDetailsAPI&lt;/api_name&gt;
+        &lt;caller_access/&gt;
+        &lt;client_callable&gt;true&lt;/client_callable&gt;
+        &lt;description/&gt;
+        &lt;mobile_callable&gt;false&lt;/mobile_callable&gt;
+        &lt;name&gt;ProjectDetailsAPI&lt;/name&gt;
+        &lt;sandbox_callable&gt;false&lt;/sandbox_callable&gt;
+        &lt;script&gt;&lt;![CDATA[var ProjectDetailsAPI = Class.create();
+ProjectDetailsAPI.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
+
+    submitChangeRequest: function() {
+        var result = {
+            success: false,
+            error: ''
+        };
+
+        try {
+            // Get data from the Portal
+            var projectId = this.getParameter('sysparm_project_id');
+            var changeData = JSON.parse(this.getParameter('sysparm_change'));
+
+            // Create the record
+            var grChange = new GlideRecordsecure('project_change_request');
+            grChange.initialize();
+            grChange.parent = projectId;
+            grChange.short_description = changeData.short_description;
+            grChange.category = changeData.category;
+            grChange.priority = changeData.priority;
+            grChange.impact = changeData.impact;
+            grChange.description = changeData.description;
+            
+            // Custom fields for GateNow
+            grChange.x_sysus_grant_life_reason_for_change = changeData.reason;
+            grChange.x_sysus_grant_life_proposed_change = changeData.proposed_change;
+
+            var newId = grChange.insert();
+
+            if (newId) {
+                result.success = true;
+                // Get the display values to send back to the UI list
+                result.change = {
+                    sys_id: newId,
+                    short_description: grChange.getValue('short_description'),
+                    category_label: grChange.getDisplayValue('category'),
+                    priority_label: grChange.getDisplayValue('priority'),
+                    impact_label: grChange.getDisplayValue('impact'),
+                    state_label: grChange.getDisplayValue('state'),
+                    submitted_on: new GlideDateTime().getDisplayValue()
+                };
+            } else {
+                result.error = "Insert failed. Check permissions.";
+            }
+        } catch (e) {
+            result.error = e.message;
+        }
+
+        return JSON.stringify(result);
+    },
+
+    type: 'ProjectDetailsAPI'
+});]]&gt;&lt;/script&gt;
+        &lt;sys_class_name&gt;sys_script_include&lt;/sys_class_name&gt;
+        &lt;sys_created_by&gt;younis.khan&lt;/sys_created_by&gt;
+        &lt;sys_created_on&gt;2026-03-13 14:40:40&lt;/sys_created_on&gt;
+        &lt;sys_id&gt;1b20b8aa2fab3e10d2a0d68fcea4e344&lt;/sys_id&gt;
+        &lt;sys_mod_count&gt;1&lt;/sys_mod_count&gt;
+        &lt;sys_name&gt;ProjectDetailsAPI&lt;/sys_name&gt;
+        &lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;
+        &lt;sys_policy&gt;read&lt;/sys_policy&gt;
+        &lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;
+        &lt;sys_update_name&gt;sys_script_include_1b20b8aa2fab3e10d2a0d68fcea4e344&lt;/sys_update_name&gt;
+        &lt;sys_updated_by&gt;younis.khan&lt;/sys_updated_by&gt;
+        &lt;sys_updated_on&gt;2026-04-01 14:45:39&lt;/sys_updated_on&gt;
+    &lt;/sys_script_include&gt;
+&lt;/record_update&gt;</payload>
+        <payload_hash>1230956668</payload_hash>
+        <record_name>ProjectDetailsAPI</record_name>
+        <reverted_from/>
+        <source>793cd1c62fbc4310d2a0d68fcea4e390</source>
+        <source_table>sys_upgrade_history</source_table>
+        <state>previous</state>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-05-13 07:54:19</sys_created_on>
+        <sys_id>9b2d55c22ffc4310d2a0d68fcea4e3fa</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>19e20545aaa0000001</sys_recorded_at>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-05-13 07:54:19</sys_updated_on>
+        <type>Script Include</type>
+        <update_guid>5b2d55c20afc4310776f4cee48dfb4fa</update_guid>
+        <update_guid_history>5b2d55c20afc4310776f4cee48dfb4fa:1230956668</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete/>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-05-18 07:44:37</sys_created_on>
+        <sys_db_object display_value="" name="sys_script_include">sys_script_include</sys_db_object>
+        <sys_id>0fd4060a90364b3b877727754ffee359</sys_id>
+        <sys_metadata>1b20b8aa2fab3e10d2a0d68fcea4e344</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ProjectDetailsAPI</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy>read</sys_policy>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sys_script_include_1b20b8aa2fab3e10d2a0d68fcea4e344</sys_update_name>
+        <sys_update_version display_value="sys_script_include_1b20b8aa2fab3e10d2a0d68fcea4e344">9b2d55c22ffc4310d2a0d68fcea4e3fa</sys_update_version>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-05-18 07:44:37</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>
