@@ -1,35 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
     <element audit="true" db_object_id="6914cbefeb784310520dfbdffdc0cd1c" label="Project" max_length="40" name="x_enno_gatenow_project" type="collection">
-        <element label="Description" max_length="4000" name="description" type="string"/>
-        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" type="string" use_dynamic_default="true"/>
-        <element label="Planned End Date" max_length="255" name="planned_end_date" type="glide_date"/>
-        <element label="Program Manager" max_length="32" name="program_manager" reference="sys_user" type="reference"/>
         <element choice="1" label="Phase" max_length="40" name="phase" type="choice">
             <choice>
-                <element inactive_on_update="false" label="Planning" sequence="1" value="Planning"/>
-                <element inactive_on_update="false" label="Delivering" sequence="3" value="Delivering"/>
-                <element inactive_on_update="false" label="Cancelled" sequence="5" value="cancelled"/>
-                <element inactive_on_update="false" label="Closed Completed" sequence="4" value="Closing"/>
                 <element inactive_on_update="false" label="Executing" sequence="2" value="Executing"/>
+                <element inactive_on_update="false" label="Cancelled" sequence="5" value="cancelled"/>
+                <element inactive_on_update="false" label="Planning" sequence="1" value="Planning"/>
+                <element inactive_on_update="false" label="Closed Completed" sequence="4" value="Closing"/>
                 <element inactive_on_update="false" label="Initiating" sequence="0" value="Initiating"/>
-            </choice>
-        </element>
-        <element label="Work Notes" max_length="255" name="work_notes" type="journal_input"/>
-        <element label="Percent Complete" max_length="38" name="percent_complete" type="percent_complete"/>
-        <element choice="1" label="Status" max_length="40" name="status" type="choice">
-            <choice>
-                <element inactive_on_update="false" label="Red" sequence="2" value="Red"/>
-                <element inactive_on_update="false" label="Green" sequence="0" value="Green"/>
-                <element inactive_on_update="false" label="Yellow" sequence="1" value="Yellow"/>
+                <element inactive_on_update="false" label="Delivering" sequence="3" value="Delivering"/>
             </choice>
         </element>
         <element label="Applicant" max_length="32" name="applicant" reference="x_enno_gatenow_service_applicants" type="reference"/>
-        <element label="Actual Start Date" max_length="255" name="actual_start_date" type="glide_date"/>
-        <element label="Planned Start Date" max_length="255" name="planned_start_date" type="glide_date"/>
-        <element label="Project Name" max_length="160" name="project_name" type="string"/>
         <element label="Program" max_length="32" name="program" reference="x_enno_gatenow_grant_program" type="reference"/>
+        <element label="Description" max_length="4000" name="description" type="string"/>
+        <element default="javascript:getNextObjNumberPadded();" dynamic_default_value="fdcb83a85f220100a9ad2572f2b4773c" label="Number" max_length="40" name="number" type="string" use_dynamic_default="true"/>
+        <element label="Work Notes" max_length="255" name="work_notes" type="journal_input"/>
+        <element label="Actual Start Date" max_length="255" name="actual_start_date" type="glide_date"/>
         <element label="Award" max_length="32" name="award" reference="x_enno_gatenow_grant_awards" type="reference"/>
         <element label="Actual End Date" max_length="255" name="actual_end_date" type="glide_date"/>
+        <element label="Planned End Date" max_length="255" name="planned_end_date" type="glide_date"/>
+        <element label="Percent Complete" max_length="38" name="percent_complete" type="percent_complete"/>
+        <element label="Planned Start Date" max_length="255" name="planned_start_date" type="glide_date"/>
+        <element label="Project Name" max_length="160" name="project_name" type="string"/>
+        <element label="Program Manager" max_length="32" name="program_manager" reference="sys_user" type="reference"/>
+        <element choice="1" label="Status" max_length="40" name="status" type="choice">
+            <choice>
+                <element inactive_on_update="false" label="Yellow" sequence="1" value="Yellow"/>
+                <element inactive_on_update="false" label="Green" sequence="0" value="Green"/>
+                <element inactive_on_update="false" label="Red" sequence="2" value="Red"/>
+            </choice>
+        </element>
         <index name="index">
             <element name="applicant"/>
         </index>
