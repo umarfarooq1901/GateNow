@@ -75,10 +75,15 @@
             c.baselineSubmitted = d.baselineSubmitted || false;
             c.reimbursementHistory = d.reimbursementHistory || [];
 
-            if (c.baselineSubmitted && d.baselineReport) {
+           if (c.baselineSubmitted && d.baselineReport) {
                 c.baselineReport = d.baselineReport;
                 if (c.baselineReport.as_on) {
                     c.baselineReport.as_on = new Date(c.baselineReport.as_on + 'T00:00:00');
+                }
+                
+                // ADD THESE 3 LINES: Force it back to a number on page load
+                if (c.baselineReport.percent_complete) {
+                    c.baselineReport.percent_complete = parseFloat(c.baselineReport.percent_complete);
                 }
             }
 
@@ -525,6 +530,11 @@
             if (r.data.success) {
                 c.baselineSubmitted = true;
                 c.baselineReport = r.data.new_baseline_record || c.baselineReport;
+
+                // ADD THESE 3 LINES: Force it back to a number right after submission
+                if (c.baselineReport.percent_complete) {
+                    c.baselineReport.percent_complete = parseFloat(c.baselineReport.percent_complete);
+                }
 
                 var newRecordSysId = r.data.new_baseline_id;
 
@@ -3290,7 +3300,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             baseline.setValue('status_date', input.report.as_on);
             baseline.setValue('percent_complete', percents);
             baseline.setValue('executive_summary', input.report.executive_summary);
-            baseline.setValue('comments', input.report.comments);
+            
             baseline.setValue('overall_health', 'green');
 
             var newId = baseline.insert();
@@ -3881,13 +3891,26 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         return list;
     }
 
-    function normalizeReportStatus(rawStatus) {
-        var val = (rawStatus || '').toString().trim().toLowerCase();
-        if (!val) return '';
-        if (val === 'baseline report' || val === 'baseline_report' || val === 'baseline')
-            return getBaselineStatusValue();
-        return rawStatus;
+   function normalizeReportStatus(rawStatus) {
+    // Convert whatever comes in to a trimmed, lowercase string for safe checking
+    var val = (rawStatus || '').toString().trim().toLowerCase();
+    
+    if (!val) return ''; // If empty, let ServiceNow handle the default
+    
+    // Map to the EXACT Dictionary Values shown in your screenshot
+    if (val === 'baseline report' || val === 'baseline_report' || val === 'baseline') {
+        return 'Baseline Report';
     }
+    if (val === 'final report' || val === 'final') {
+        return 'Final Report'; 
+    }
+    if (val === 'monthly report' || val === 'monthly') {
+        return 'Monthly Report';
+    }
+    
+    // Fallback just in case
+    return rawStatus;
+}
 
     function getBaselineStatusValue() {
         return 'Baseline Report';
@@ -3910,14 +3933,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>550</sys_mod_count>
+        <sys_mod_count>554</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
-        <sys_updated_by>mohammad.younis</sys_updated_by>
-        <sys_updated_on>2026-05-22 10:37:03</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-05-26 10:42:21</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
 
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
@@ -5006,28 +5029,17 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
           
 
-          <div class="col-md-3">
-
+         <div class="col-md-3">
     <div class="form-group">
-
         <label>Report Status <span class="required">*</span></label>
-
         <select class="form-control"
-
                 ng-model="c.statusReport.report_status"
-
                 required>
-
             <option value="">-- None --</option>
-
-            <option value="Final Report">Final Report</option>
-
-            <option value="Monthly Report">Monthly Report</option>
-
+            <option ng-value="'Final Report'">Final Report</option>
+            <option ng-value="'Monthly Report'">Monthly Report</option>
         </select>
-
     </div>
-
 </div>
 
           
