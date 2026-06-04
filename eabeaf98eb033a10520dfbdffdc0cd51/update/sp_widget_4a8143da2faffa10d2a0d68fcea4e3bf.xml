@@ -64,6 +64,14 @@
             var d = r.data || {};
 
             c.project = d.projectData || {};
+					if (c.project.applicant) {
+        c.reimbursement.name = c.project.applicant.first_name || '';
+        c.reimbursement.organization = c.project.applicant.organization || '';
+        c.reimbursement.street = c.project.applicant.street || '';
+        c.reimbursement.city = c.project.applicant.city || '';
+        c.reimbursement.country = c.project.applicant.country || '';
+        c.reimbursement.zip = c.project.applicant.zip_postal_code || '';
+    }
             c.attachments = d.attachments || [];
             c.comments = d.comments || [];
             c.submittedReports = d.submittedReports || [];
@@ -3349,7 +3357,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             monthly.setValue('comments_on_scope', input.report.scope_comments);
             monthly.setValue('comments', input.report.comments);
             monthly.setValue('resources', input.report.resources);
-            monthly.setValue('resource0', input.report.resources_comments);
+            monthly.setValue('resource_comments', input.report.resources_comments);
 
             var newIdis = monthly.insert();
 
@@ -3405,101 +3413,83 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             }
         }
 
-        if (input.action === 'submit_reimbursement_form') {
-            var formData = input.reimbursementData || {};
-            var reimbFormRec = new GlideRecordSecure('x_enno_gatenow_reimbursement');
-            reimbFormRec.initialize();
+       if (input.action === 'submit_reimbursement_form') {
+    var formData = input.reimbursementData || {};
+    var reimbFormRec = new GlideRecordSecure('x_enno_gatenow_reimbursement');
+    reimbFormRec.initialize();
 
-            var targetProjectId = input.project_id || projectId;
-            
-            // --- UPDATED: Use 'project' field instead of 'parent' ---
-            reimbFormRec.setValue('project', targetProjectId);
-            
-            // --- ADDED: Auto-populate the program from the project record ---
-            if (projectRec && projectRec.isValidRecord()) {
-                reimbFormRec.setValue('program', projectRec.getValue('program'));
-            }
+    var targetProjectId = input.project_id || projectId;
+    
+    // --- Auto-populate fields from the project record ---
+    reimbFormRec.setValue('project', targetProjectId);
+    
+    if (projectRec && projectRec.isValidRecord()) {
+        reimbFormRec.setValue('program', projectRec.getValue('program'));
+        // AUTO-POPULATE APPLICANT REFERENCE FIELD
+        reimbFormRec.setValue('applicant', projectRec.getValue('applicant')); 
+    }
 
-            if (formData.payment_type === 'advance') {
-                reimbFormRec.setValue('advance', true);
-                reimbFormRec.setValue('reimbursement', false);
-            } else if (formData.payment_type === 'reimbursement') {
-                reimbFormRec.setValue('advance', false);
-                reimbFormRec.setValue('reimbursement', true);
-            }
+    // --- Request Details Field Mapping ---
+    if (formData.payment_type === 'advance') {
+        reimbFormRec.setValue('advance', true);
+        reimbFormRec.setValue('reimbursement', false);
+    } else if (formData.payment_type === 'reimbursement') {
+        reimbFormRec.setValue('advance', false);
+        reimbFormRec.setValue('reimbursement', true);
+    }
 
-            if (formData.request_status === 'final') {
-                reimbFormRec.setValue('final', true);
-                reimbFormRec.setValue('partial', false);
-            } else if (formData.request_status === 'partial') {
-                reimbFormRec.setValue('final', false);
-                reimbFormRec.setValue('partial', true);
-            }
+    if (formData.request_status === 'final') {
+        reimbFormRec.setValue('final', true);
+        reimbFormRec.setValue('partial', false);
+    } else if (formData.request_status === 'partial') {
+        reimbFormRec.setValue('final', false);
+        reimbFormRec.setValue('partial', true);
+    }
 
-            if (formData.basis === 'cash') {
-                reimbFormRec.setValue('cash', true);
-                reimbFormRec.setValue('accrual', false);
-            } else if (formData.basis === 'accrual') {
-                reimbFormRec.setValue('cash', false);
-                reimbFormRec.setValue('accrual', true);
-            }
+    if (formData.basis === 'cash') {
+        reimbFormRec.setValue('cash', true);
+        reimbFormRec.setValue('accrual', false);
+    } else if (formData.basis === 'accrual') {
+        reimbFormRec.setValue('cash', false);
+        reimbFormRec.setValue('accrual', true);
+    }
 
-            reimbFormRec.setValue('federal_grant_or_other_identifying_number_assigned_by_federal_agency', formData.grant_number);
-            reimbFormRec.setValue('employer_identification_number', formData.ein);
-            reimbFormRec.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
-            reimbFormRec.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
-            reimbFormRec.setValue('from', formData.period_from);
-            reimbFormRec.setValue('to', formData.period_to);
-            reimbFormRec.setValue('name', formData.name);
-            reimbFormRec.setValue('street1', formData.recipient_street1);
-            reimbFormRec.setValue('street2', formData.recipient_street2);
-            reimbFormRec.setValue('city', formData.recipient_city);
-            reimbFormRec.setValue('county', formData.recipient_county);
-            reimbFormRec.setValue('state', formData.recipient_state);
-            reimbFormRec.setValue('province', formData.recipient_province);
-            reimbFormRec.setValue('country', formData.recipient_country);
-            reimbFormRec.setValue('zip_postal_code', formData.recipient_zip);
-            reimbFormRec.setValue('nam0', formData.payee_name);
-            reimbFormRec.setValue('cit0', formData.payee_city);
-            reimbFormRec.setValue('stat0', formData.payee_state);
-            reimbFormRec.setValue('countr0', formData.payee_country);
-            reimbFormRec.setValue('zip_postal_cod0', formData.payee_zip);
-            reimbFormRec.setValue('total_program_outlays_to_date', formData.line_a);
-            reimbFormRec.setValue('less_cumulative_program_income', formData.line_b);
-            reimbFormRec.setValue('net_program_outlays_total_program_outlays_to_less_cumulative_program_income', formData.line_c);
-            reimbFormRec.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
-            reimbFormRec.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
-            reimbFormRec.setValue('non_federal_share_of_amount_on_total', formData.line_f);
-            reimbFormRec.setValue('federal_share_of_amount_on_total', formData.line_g);
-            reimbFormRec.setValue('federal_payments_previously_requested', formData.line_h);
-            reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previous', formData.line_i);
-            reimbFormRec.setValue('request_1st_month', formData.request_1st_month);
-            reimbFormRec.setValue('request_2nd_month', formData.request_2nd_month);
-            reimbFormRec.setValue('request_3rd_month', formData.request_3rd_month);
-            reimbFormRec.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.alt_estimated_balance);
-            reimbFormRec.setValue('amount_requested', formData.alt_amount_requested);
-            reimbFormRec.setValue('certifying_official_signature', formData.certifying_official_signature);
-            reimbFormRec.setValue('date_request_submitted', formData.date_submitted);
-            reimbFormRec.setValue('prefix', formData.prefix);
-            reimbFormRec.setValue('first_name', formData.first_name);
-            reimbFormRec.setValue('middle_name', formData.middle_name);
-            reimbFormRec.setValue('last_name', formData.last_name);
-            reimbFormRec.setValue('suffix', formData.suffix);
-            reimbFormRec.setValue('title', formData.official_title);
-            reimbFormRec.setValue('telephon0', formData.official_phone);
+    reimbFormRec.setValue('federal_grant_or_other_identifying_number_assigned_by_federal_agency', formData.grant_number);
+    reimbFormRec.setValue('employer_identification_number', formData.ein);
+    reimbFormRec.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
+    reimbFormRec.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
+    reimbFormRec.setValue('from', formData.period_from);
+    reimbFormRec.setValue('to', formData.period_to);
 
-            var newSysId = reimbFormRec.insert();
+    // --- Computation of Amount Field Mapping ---
+    reimbFormRec.setValue('total_program_outlays_to_date', formData.line_a);
+    reimbFormRec.setValue('less_cumulative_program_income', formData.line_b);
+    reimbFormRec.setValue('net_program_outlays_total_program_outlays_to_less_cumulative_program_income', formData.line_c);
+    reimbFormRec.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
+    reimbFormRec.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
+    reimbFormRec.setValue('non_federal_share_of_amount_on_total', formData.line_f);
+    reimbFormRec.setValue('federal_share_of_amount_on_total', formData.line_g);
+    reimbFormRec.setValue('federal_payments_previously_requested', formData.line_h);
+    reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previous', formData.line_i);
+    reimbFormRec.setValue('request_1st_month', formData.request_1st_month);
+    reimbFormRec.setValue('request_2nd_month', formData.request_2nd_month);
+    reimbFormRec.setValue('request_3rd_month', formData.request_3rd_month);
 
-            if (newSysId) {
-                data.success = true;
-                data.new_record_number = reimbFormRec.getValue('number') || newSysId;
-                data.new_record_sys_id = newSysId.toString();
-            } else {
-                data.success = false;
-            }
-            
-            // --- REMOVED 'return;' SO THE SCRIPT CONTINUES AND UPDATES THE HISTORY LIST ---
-        }
+    // --- Alternate Computation Field Mapping ---
+    reimbFormRec.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.alt_estimated_balance);
+    reimbFormRec.setValue('amount_requested', formData.alt_amount_requested);
+
+    // --- Insert Statement ---
+    var newSysId = reimbFormRec.insert();
+
+    if (newSysId) {
+        data.success = true;
+        data.new_record_number = reimbFormRec.getValue('number') || newSysId;
+        data.new_record_sys_id = newSysId.toString();
+    } else {
+        data.success = false;
+    }
+}
 		
         if (input.action === 'postRiskWorkNote') {
             data.updatedRiskActivities = addWorkNoteAndReturnHistory(
@@ -3563,10 +3553,10 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
             data.projectData.x_enno_gatenow_applicant = appRec.getDisplayValue('first_name');
             data.projectData.applicant = {};
             $sp.getRecordDisplayValues(
-                data.projectData.applicant,
-                appRec,
-                'email,first_name,uei,phone_number,gender,zip_postal_code,ssn,project_start_date,project_end_date,submission_date'
-            );
+    data.projectData.applicant,
+    appRec,
+    'email,first_name,uei,phone_number,gender,zip_postal_code,ssn,project_start_date,project_end_date,submission_date,organization,street,city,country'
+);
             data.projectData.applicant.tin = appRec.getDisplayValue('tin_ein');
             data.projectData.applicant.requested_budget = appRec.getValue('requested_budget');
 
@@ -3590,7 +3580,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         $sp.getRecordDisplayValues(
             sr,
             statusRec,
-            'status_date,report_status,overall_health,schedule,cost,scope,percent_complete,sys_created_on,executive_summary,last_week_s_achievements,key_activities_planned,comments_on_scope,comments_on_schedule,comments_on_cost,resources,resource0,comments'
+            'status_date,report_status,overall_health,schedule,cost,scope,percent_complete,sys_created_on,executive_summary,last_week_s_achievements,key_activities_planned,comments_on_scope,comments_on_schedule,comments_on_cost,resources,resource_comments,comments'
         );
 
         sr.as_on = sr.status_date;
@@ -3599,7 +3589,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         sr.scope_comments = sr.comments_on_scope;
         sr.schedule_comments = sr.comments_on_schedule;
         sr.cost_comments = sr.comments_on_cost;
-        sr.resources_comments = sr.resource0;
+        sr.resources_comments = sr.resource_comments;
         sr.x_enno_gatenow_percent_complete = sr.percent_complete;
 
         if (sr.as_on)
@@ -3933,14 +3923,14 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-13 06:33:22</sys_created_on>
         <sys_id>4a8143da2faffa10d2a0d68fcea4e3bf</sys_id>
-        <sys_mod_count>554</sys_mod_count>
+        <sys_mod_count>567</sys_mod_count>
         <sys_name>Project_Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4a8143da2faffa10d2a0d68fcea4e3bf</sys_update_name>
         <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-05-26 10:42:21</sys_updated_on>
+        <sys_updated_on>2026-06-04 09:48:37</sys_updated_on>
         <template><![CDATA[<div class="gpa-project-details" ng-cloak style="margin: -15px;">
 
   <div class="main-layout-flex" style="display: flex; min-height: 100vh; align-items: stretch;">
@@ -5722,1012 +5712,345 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
             
 
-          <div ng-if="c.activeTab === 'reimbursement'" class="gpa-tab-pane">
+        <div ng-if="c.activeTab === 'reimbursement'" class="gpa-tab-pane">
 
-            
-
-           <div class="custom-success-overlay" ng-if="c.showSuccessScreen">
-
-  <div class="success-message-card">
-
-    <div class="success-icon-circle">
-
-      <i class="fa fa-check"></i>
-
-    </div>
-
-    <h2>Request Submitted!</h2>
-
-    <p>Thank you. Your reimbursement request has been securely submitted.</p>
-
-    <p class="reference-text" ng-if="c.successRefNumber">Reference: {{c.successRefNumber}}</p>
-
-    
-
-    <div class="loading-redirect">
-
-      <div class="redirect-text">Redirecting you to history...</div>
-
-      <div class="progress-line-track">
-
-        <div class="progress-line-fill"></div>
-
+  <div class="custom-success-overlay" ng-if="c.showSuccessScreen">
+    <div class="success-message-card">
+      <div class="success-icon-circle">
+        <i class="fa fa-check"></i>
       </div>
+      <h2>Request Submitted!</h2>
+      <p>Thank you. Your reimbursement request has been securely submitted.</p>
+      <p class="reference-text" ng-if="c.successRefNumber">Reference: {{c.successRefNumber}}</p>
 
+      <div class="loading-redirect">
+        <div class="redirect-text">Redirecting you to history...</div>
+        <div class="progress-line-track">
+          <div class="progress-line-fill"></div>
+        </div>
+      </div>
     </div>
-
-    
-
   </div>
-
-</div>
-
-            
-
-  
 
   <form name="reimbursementForm" ng-submit="c.submitReimbursement()">
 
-    
-
     <div class="gpa-card modern-spacing">
-
       <div class="gpa-card__header">
-
         <h3><i class="fa fa-file-text-o"></i> Request Details</h3>
-
         <p class="text-muted">General information for your advance or reimbursement request.</p>
-
       </div>
-
       <div class="gpa-card__body">
 
-        
-
         <div class="row">
-
           <div class="col-md-4">
-
             <div class="form-group">
-
               <label>Type of Payment Requested <span class="required">*</span></label>
-
               <select class="form-control" ng-model="c.reimbursement.payment_type" required>
-
                 <option value="">-- Select --</option>
-
                 <option value="advance">Advance</option>
-
                 <option value="reimbursement">Reimbursement</option>
-
               </select>
-
             </div>
-
           </div>
-
           <div class="col-md-4">
-
             <div class="form-group">
-
               <label>Applicable Box <span class="required">*</span></label>
-
               <select class="form-control" ng-model="c.reimbursement.request_status" required>
-
                 <option value="">-- Select --</option>
-
                 <option value="final">Final</option>
-
                 <option value="partial">Partial</option>
-
               </select>
-
             </div>
-
           </div>
-
           <div class="col-md-4">
-
             <div class="form-group">
-
               <label>Basis of Request <span class="required">*</span></label>
-
               <select class="form-control" ng-model="c.reimbursement.basis" required>
-
                 <option value="">-- Select --</option>
-
                 <option value="cash">Cash</option>
-
                 <option value="accrual">Accrual</option>
-
               </select>
-
             </div>
-
           </div>
-
         </div>
 
-
-
         <div class="row">
-
           <div class="col-md-4">
-
             <div class="form-group">
-
               <label>Federal Grant or Identifying Number <span class="required">*</span></label>
-
               <input type="text" class="form-control" ng-model="c.reimbursement.grant_number" value="{{c.project.x_enno_gatenow_award}}" required>
-
             </div>
-
           </div>
-
           <div class="col-md-4">
-
             <div class="form-group">
-
               <label>Employer Identification Number <span class="required">*</span></label>
-
               <input type="text" class="form-control" ng-model="c.reimbursement.ein" required>
-
             </div>
-
           </div>
-
           <div class="col-md-4">
-
             <div class="form-group">
-
               <label>Partial Payment Request Number</label>
-
               <input type="text" class="form-control" ng-model="c.reimbursement.partial_payment_number">
-
             </div>
-
           </div>
-
         </div>
-
-
 
         <div class="row">
-
-            <div class="col-md-6">
-
-                <div class="form-group">
-
-                  <label>Financial Assistance Identification Number</label>
-
-                  <input type="text" class="form-control" ng-model="c.reimbursement.financial_assistance_number">
-
-                </div>
-
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Financial Assistance Identification Number</label>
+              <input type="text" class="form-control" ng-model="c.reimbursement.financial_assistance_number">
             </div>
-
+          </div>
         </div>
-
-
 
         <hr class="modern-divider">
 
-
-
-      <div class="row" style="margin-left: 0; margin-right: 0;">
-
-  <div class="col-md-12" style="padding-left: 0; padding-right: 0;">
-
-    <label style="font-weight: 600; margin-bottom: 10px; display: block; color: #1e293b; font-size: 14px;">
-
-      Period Covered By This Request <span style="color: #ef4444; margin-left: 3px;">*</span>
-
-    </label>
-
-  </div>
-
-  
-
-  <div class="col-md-6" style="padding-left: 0;">
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-
-      <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 8px; display: block;">From:</label>
-
-      <input type="date" class="form-control" ng-model="c.reimbursement.period_from" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 8px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
-
-    </div>
-
-  </div>
-
-  
-
-  <div class="col-md-6" style="padding-right: 0;">
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-
-      <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 8px; display: block;">To:</label>
-
-      <input type="date" class="form-control" ng-model="c.reimbursement.period_to" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 8px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
-
-    </div>
-
-  </div>
-
-</div>
-
-
-
-      </div>
-
-    </div>
-
-
-
-    <div class="gpa-card modern-spacing">
-
-      <div class="gpa-card__header">
-
-        <h3><i class="fa fa-building-o"></i> Recipient Organization</h3>
-
-      </div>
-
-      <div class="gpa-card__body">
-
         <div class="row" style="margin-left: 0; margin-right: 0;">
+          <div class="col-md-12" style="padding-left: 0; padding-right: 0;">
+            <label style="font-weight: 600; margin-bottom: 10px; display: block; color: #1e293b; font-size: 14px;">
+              Period Covered By This Request <span style="color: #ef4444; margin-left: 3px;">*</span>
+            </label>
+          </div>
 
-  <div class="col-md-12" style="padding-left: 0; padding-right: 0;">
+          <div class="col-md-6" style="padding-left: 0;">
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 8px; display: block;">From:</label>
+              <input type="date" class="form-control" ng-model="c.reimbursement.period_from" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 8px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+            </div>
+          </div>
 
-    <div class="form-group" style="margin-bottom: 1.5rem;">
+          <div class="col-md-6" style="padding-right: 0;">
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 8px; display: block;">To:</label>
+              <input type="date" class="form-control" ng-model="c.reimbursement.period_to" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 8px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+            </div>
+          </div>
+        </div>
 
-      <label style="font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; display: block;">
+      </div>
+    </div>
 
-        Name <span style="color: #ef4444; margin-left: 3px;">*</span>
+   <div class="gpa-card modern-spacing">
+  <div class="gpa-card__header">
+    <h3><i class="fa fa-building-o"></i> Recipient Organization</h3>
+  </div>
+  <div class="gpa-card__body">
+    
+    <div class="row">
+      <div class="col-md-6">
+        <div class="form-group">
+          <label>Name <span class="required">*</span></label>
+          <input type="text" class="form-control" ng-model="c.reimbursement.name" required readonly style="background-color: #f8fafc;">
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
+          <label>Organization <span class="required">*</span></label>
+          <input type="text" class="form-control" ng-model="c.reimbursement.organization" required readonly style="background-color: #f8fafc;">
+        </div>
+      </div>
+    </div>
 
-      </label>
+    <div class="row">
+      <div class="col-md-8">
+        <div class="form-group">
+          <label>Street <span class="required">*</span></label>
+          <input type="text" class="form-control" ng-model="c.reimbursement.street" required readonly style="background-color: #f8fafc;">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="form-group">
+          <label>City <span class="required">*</span></label>
+          <input type="text" class="form-control" ng-model="c.reimbursement.city" required readonly style="background-color: #f8fafc;">
+        </div>
+      </div>
+    </div>
 
-      <input type="text" class="form-control" ng-model="c.reimbursement.name" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 8px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
-
+    <div class="row">
+      <div class="col-md-6">
+        <div class="form-group">
+          <label>Country <span class="required">*</span></label>
+          <input type="text" class="form-control" ng-model="c.reimbursement.country" required readonly style="background-color: #f8fafc;">
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
+          <label>ZIP / Postal Code <span class="required">*</span></label>
+          <input type="text" class="form-control" ng-model="c.reimbursement.zip" required readonly style="background-color: #f8fafc;">
+        </div>
+      </div>
     </div>
 
   </div>
-
 </div>
-
-        <div class="row">
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>Street 1 <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_street1" required>
-
-            </div>
-
-          </div>
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>Street 2</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_street2">
-
-            </div>
-
-          </div>
-
-        </div>
-
-        <div class="row">
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>City <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_city" required>
-
-            </div>
-
-          </div>
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>County</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_county">
-
-            </div>
-
-          </div>
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>State <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_state" required>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        <div class="row">
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>Province</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_province">
-
-            </div>
-
-          </div>
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>Country <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.recipient_country" required>
-
-            </div>
-
-          </div>
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>ZIP / Postal Code <span class="required">*</span></label>
-
-              <input type="integer" class="form-control" ng-model="c.reimbursement.recipient_zip" required>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-<div class="gpa-card modern-spacing">
-
-      <div class="gpa-card__header">
-
-        <h3><i class="fa fa-envelope-o"></i> Payee</h3>
-
-        <p class="text-muted">Where check is to be sent (fill out only if different than the Recipient Organization).</p>
-
-      </div>
-
-      <div class="gpa-card__body">
-
-       <div class="row" style="margin-left: 0; margin-right: 0;">
-
-  <div class="col-md-12" style="padding-left: 0; padding-right: 0;">
-
-    <div class="form-group" style="margin-bottom: 1.5rem;">
-
-      <label style="font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; display: block;">
-
-        Name
-
-      </label>
-
-      <input type="text" class="form-control" ng-model="c.reimbursement.payee_name" style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 8px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
-
-    </div>
-
-  </div>
-
-</div>
-
-        
-
-        <div class="row">
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>City</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.payee_city">
-
-            </div>
-
-          </div>
-
-          
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>State</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.payee_state">
-
-            </div>
-
-          </div>
-
-        </div>
-
-        <div class="row">
-
-          
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>Country</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.payee_country">
-
-            </div>
-
-          </div>
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>ZIP / Postal Code</label>
-
-              <input type="integer" class="form-control" ng-model="c.reimbursement.payee_zip">
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-
 
     <div class="gpa-card modern-spacing">
-
       <div class="gpa-card__header">
-
         <h3><i class="fa fa-calculator"></i> Computation of Amount</h3>
-
         <p class="text-muted">Enter financial outlays. Net and total values will calculate automatically.</p>
-
       </div>
-
       <div class="gpa-card__body">
-
-        
 
         <div class="financial-grid-modern">
-
           <div class="financial-row">
-
             <div class="fin-label">Total Program outlays to date</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_a" ng-change="c.calculateReimbursement()"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_a" ng-change="c.calculateReimbursement()"></div>
+            </div>
           </div>
 
-          
-
           <div class="financial-row">
-
             <div class="fin-label">Less: Cumulative Program income</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_b" ng-change="c.calculateReimbursement()"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_b" ng-change="c.calculateReimbursement()"></div>
+            </div>
           </div>
 
-          
-
           <div class="financial-row highlight-row">
-
             <div class="fin-label">Net Program Outlays <em>(Total Program outlays - Less: Cumulative Program income)</em></div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_c" readonly></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_c" readonly></div>
+            </div>
           </div>
 
-
-
           <div class="financial-row">
-
             <div class="fin-label">Estimated net cash outlays for advance period</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_d" ng-change="c.calculateReimbursement()"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_d" ng-change="c.calculateReimbursement()"></div>
+            </div>
           </div>
 
-
-
           <div class="financial-row highlight-row">
-
             <div class="fin-label">Total <em>(Sum of Net Program Outlays & Estimated cash outlays for advance period)</em></div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_e" readonly></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_e" readonly></div>
+            </div>
           </div>
-
-
 
           <div class="financial-row">
-
             <div class="fin-label">Non-Federal share of amount <em>(on Total)</em></div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_f" ng-change="c.calculateReimbursement()"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_f" ng-change="c.calculateReimbursement()"></div>
+            </div>
           </div>
-
-
 
           <div class="financial-row highlight-row">
-
             <div class="fin-label">Federal share of amount <em>(Total minus Non-Federal share)</em></div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_g" readonly></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_g" readonly></div>
+            </div>
           </div>
-
-
 
           <div class="financial-row">
-
             <div class="fin-label">Federal payments previously requested</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_h" ng-change="c.calculateReimbursement()"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_h" ng-change="c.calculateReimbursement()"></div>
+            </div>
           </div>
-
-
 
           <div class="financial-row final-total-row">
-
             <div class="fin-label">Federal share now requested</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon" style="font-weight:bold; color:#006d5b;">$</span><input type="text" class="form-control text-right final-calc" ng-value="c.reimbursement.line_i" readonly></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon" style="font-weight:bold; color:#006d5b;">$</span><input type="text" class="form-control text-right final-calc" ng-value="c.reimbursement.line_i" readonly></div>
+            </div>
           </div>
-
-
 
           <div class="financial-row" style="border-top: 3px solid #e2e8f0; margin-top: 5px;">
-
             <div class="fin-label">Request 1st Month</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_1st_month"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_1st_month"></div>
+            </div>
           </div>
 
-
-
           <div class="financial-row">
-
             <div class="fin-label">Request 2nd Month</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_2nd_month"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_2nd_month"></div>
+            </div>
           </div>
 
-
-
           <div class="financial-row">
-
             <div class="fin-label">Request 3rd Month</div>
-
-            <div class="fin-input"><div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_3rd_month"></div></div>
-
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_3rd_month"></div>
+            </div>
           </div>
-
         </div>
 
-
-
       </div>
-
     </div>
 
-    
-
     <div class="gpa-card modern-spacing">
-
       <div class="gpa-card__header">
-
         <h3><i class="fa fa-refresh"></i> Alternate Computation for Advances Only</h3>
-
       </div>
-
       <div class="gpa-card__body">
-
         <div class="financial-grid-modern">
-
           <div class="financial-row">
-
             <div class="fin-label">Estimated balance of Federal cash on hand as of beginning of Advance Period</div>
-
             <div class="fin-input">
-
               <div class="input-group">
-
                 <span class="input-group-addon">$</span>
-
                 <input type="number" class="form-control text-right" ng-model="c.reimbursement.alt_estimated_balance">
-
               </div>
-
             </div>
-
           </div>
-
           <div class="financial-row final-total-row">
-
             <div class="fin-label">Amount Requested</div>
-
             <div class="fin-input">
-
               <div class="input-group">
-
                 <span class="input-group-addon" style="font-weight:bold; color:#006d5b;">$</span>
-
                 <input type="number" class="form-control text-right final-calc" ng-model="c.reimbursement.alt_amount_requested">
-
               </div>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
 
-
-
-    
-
-    
-
-    
-
-    
-
     <div class="gpa-card modern-spacing">
-
       <div class="gpa-card__header">
-
         <h3><i class="fa fa-paperclip"></i> Supporting Documents</h3>
-
         <p class="text-muted">Attach receipts, invoices, or other documentation supporting this request.</p>
-
       </div>
-
       <div class="gpa-card__body">
-
         <div class="upload-dropzone" style="padding: 20px;">
-
-            <label class="upload-label" style="padding: 15px; margin: 0;">
-
-                <div class="upload-content">
-
-                    <i class="fa fa-cloud-upload upload-icon" style="font-size: 24px; margin-bottom: 5px;"></i>
-
-                    <span class="upload-text"><strong>Select a file</strong> to attach to this request</span>
-
-                </div>
-
-                <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onReimbursementFileSelect(this)">
-
-            </label>
-
+          <label class="upload-label" style="padding: 15px; margin: 0;">
+            <div class="upload-content">
+              <i class="fa fa-cloud-upload upload-icon" style="font-size: 24px; margin-bottom: 5px;"></i>
+              <span class="upload-text"><strong>Select a file</strong> to attach to this request</span>
+            </div>
+            <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onReimbursementFileSelect(this)">
+          </label>
         </div>
-
-        
 
         <div ng-if="c.reimbursementFile" class="file-card m-t-sm" style="background: #f0fdf4; border-color: #bbf7d0;">
-
-            <div class="file-icon-wrapper"><i class="fa fa-check-circle text-success"></i></div>
-
-            <div class="file-details">
-
-                <span class="file-name text-success">{{c.reimbursementFile.name}}</span>
-
-                <span class="file-meta">File staged for upload upon submission</span>
-
-            </div>
-
-            <div class="file-actions">
-
-                <button type="button" class="btn-action-icon text-danger" ng-click="c.removeReimbursementFile()" title="Remove">
-
-                    <i class="fa fa-trash"></i>
-
-                </button>
-
-            </div>
-
+          <div class="file-icon-wrapper"><i class="fa fa-check-circle text-success"></i></div>
+          <div class="file-details">
+            <span class="file-name text-success">{{c.reimbursementFile.name}}</span>
+            <span class="file-meta">File staged for upload upon submission</span>
+          </div>
+          <div class="file-actions">
+            <button type="button" class="btn-action-icon text-danger" ng-click="c.removeReimbursementFile()" title="Remove">
+              <i class="fa fa-trash"></i>
+            </button>
+          </div>
         </div>
-
       </div>
-
     </div>
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    <div class="gpa-card">
-
-      <div class="gpa-card__header">
-
-        <h3><i class="fa fa-check-square-o"></i> Certification</h3>
-
-      </div>
-
-      <div class="gpa-card__body">
-
-        <div class="alert alert-warning cert-alert">
-
-          <i class="fa fa-info-circle"></i> I certify that to the best of my knowledge and belief the data above are correct and that all outlays were made in accordance with the grant conditions or other agreement and that payment is due and has not been previously requested.
-
-        </div>
-
-        
-
-        <div class="row" style="margin-top: 20px;">
-
-
-          <div class="col-md-4">
-
-            <div class="form-group">
-
-              <label>Date Request Submitted <span class="required">*</span></label>
-
-              <input type="date" class="form-control" ng-model="c.reimbursement.date_submitted" required>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-
-        <h4 class="cert-section-title">Typed or Printed Name and Title</h4>
-
-
-
-        <div class="row">
-
-          <div class="col-md-2">
-
-            <div class="form-group">
-
-              <label>Prefix</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.prefix">
-
-            </div>
-
-          </div>
-
-          <div class="col-md-5">
-
-            <div class="form-group">
-
-              <label>First Name <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.first_name" required>
-
-            </div>
-
-          </div>
-
-          <div class="col-md-5">
-
-            <div class="form-group">
-
-              <label>Middle Name</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.middle_name">
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-
-        <div class="row">
-
-          <div class="col-md-5">
-
-            <div class="form-group">
-
-              <label>Last Name <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.last_name" required>
-
-            </div>
-
-          </div>
-
-          <div class="col-md-2">
-
-            <div class="form-group">
-
-              <label>Suffix</label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.suffix">
-
-            </div>
-
-          </div>
-
-          <div class="col-md-5">
-
-            <div class="form-group">
-
-              <label>Title <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.official_title" required>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-
-        <div class="row">
-
-          <div class="col-md-6">
-
-            <div class="form-group">
-
-              <label>Telephone (Area Code, Number, Extension) <span class="required">*</span></label>
-
-              <input type="text" class="form-control" ng-model="c.reimbursement.official_phone" required>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-
-        <div class="instruction-box">
-
-          <div class="instruction-header" ng-click="c.showInstructions = !c.showInstructions">
-
-            <div>
-
-              <h4 style="margin: 0; font-size: 14px; font-weight: 600;"><i class="fa fa-info-circle"></i> Need Help? View Form Instructions</h4>
-
-              <p class="text-muted" style="margin: 3px 0 0 0; font-size: 12px;" ng-show="!c.showInstructions">Click to expand detailed instructions for filling out this SF-270 form.</p>
-
-            </div>
-
-            <i class="fa" ng-class="c.showInstructions ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-
-          </div>
-
-          
-
-          <div ng-show="c.showInstructions" class="instruction-body">
-
-            <p style="font-size: 13px; color: #334155; margin-bottom: 15px;">
-
-              <strong>Please type or print legibly.</strong> Items 1, 3, 5, 9, 10, 11e, 11f, 11g, 11i, 12 and 13 are self-explanatory; specific instructions for other items are as follows:
-
-            </p>
-
-
-
-            <div class="row" style="margin-left: 0; margin-right: 0;">
-
-              <div class="col-md-6 pl-0">
-
-                <p><strong>Item 2:</strong> Indicate whether request is prepared on cash or accrued expenditure basis. All requests for advances shall be prepared on a cash basis.</p>
-
-                <p><strong>Item 4:</strong> Enter the Federal grant number, or other identifying number assigned by the Federal sponsoring agency. If the advance or reimbursement is for more than one grant or other agreement, insert N/A; then, show the aggregate amounts.</p>
-
-                <p><strong>Item 6:</strong> Enter the employer identification number assigned by the U.S. Internal Revenue Service, or the FICE (institution) code if requested by the Federal agency.</p>
-
-                <p><strong>Item 7:</strong> This space is reserved for an account number or other identifying number that may be assigned by the recipient.</p>
-
-                <p><strong>Item 8:</strong> Enter the month, day, and year for the beginning and ending of the period covered in this request. If the request is for an advance or for both an advance and reimbursement, show the period that the advance will cover.</p>
-
-                <div class="alert alert-info" style="padding: 8px; font-size: 11px; margin-top: 10px;">
-
-                  <strong>Note:</strong> The Federal sponsoring agencies have the option of requiring recipients to complete items 11 or 12, but not both. Item 12 should be used when only a minimum amount of information is needed to make an advance.
-
-                </div>
-
-                <p><strong>Item 11:</strong> The purpose of the vertical columns (a), (b), and (c) is to provide space for separate cost breakdowns when a project has been planned and budgeted by program, function, or activity.</p>
-
-              </div>
-
-
-
-              <div class="col-md-6 pr-0">
-
-                <p><strong>Item 11a:</strong> Enter program outlays to date (net of refunds, rebates, and discounts), in the appropriate columns. For requests prepared on a cash basis, outlays are the sum of actual cash disbursements for goods and services, the amount of indirect expenses charged, the value of in-kind contributions applied, and the amount of cash advances and payments made to subcontractors and subrecipients.</p>
-
-                <p><strong>Item 11b:</strong> Enter the cumulative cash income received to date, if requests are prepared on a cash basis. For requests prepared on an accrued expenditure basis, enter the cumulative income earned to date. Under either basis, enter only the amount applicable to program income that was required to be used for the project or program by the terms of the grant or other agreement.</p>
-
-                <p><strong>Item 11d:</strong> Only when making requests for advance payments, enter the total estimated amount of cash outlays that will be made during the period covered by the advance.</p>
-
-                <p><strong>Item 13:</strong> Complete the certification before submitting this request.</p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-
-        <div class="form-actions" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-
-          <button type="submit" class="btn btn-primary btn-lg" ng-disabled="reimbursementForm.$invalid || c.submitting">
-
-            <i class="fa fa-paper-plane"></i> 
-
-            <span ng-if="!c.submitting">Submit Reimbursement Request</span>
-
-            <span ng-if="c.submitting">Submitting...</span>
-
-          </button>
-
-        </div>
-
-      </div>
-
+    <div class="form-actions" style="margin-top: 20px; padding-top: 20px; margin-bottom: 30px;">
+      <button type="submit" class="btn btn-primary btn-lg" ng-disabled="reimbursementForm.$invalid || c.submitting">
+        <i class="fa fa-paper-plane"></i> 
+        <span ng-if="!c.submitting">Submit Reimbursement Request</span>
+        <span ng-if="c.submitting">Submitting...</span>
+      </button>
     </div>
 
   </form>
 
-</div>
-
-            
+</div>           
 
             
 
@@ -7455,7 +6778,7 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
 
       
 
-   <div class="modal fade modern-report-modal" id="reimbursementModal" tabindex="-1" role="dialog">
+  <div class="modal fade modern-report-modal" id="reimbursementModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-lg" role="document" style="max-width: 900px;">
     <div class="modal-content" ng-if="c.selectedReimbursement" style="border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
       
@@ -7475,7 +6798,6 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
       <div class="modal-body modern-body" style="background: #ffffff; padding: 30px;">
         
         <div style="display: flex; justify-content: space-between; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px; background: #fff;">
-          
           <div style="flex: 1; text-align: center; border-right: 1px solid #e2e8f0;">
             <label style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">STATUS</label>
             <span style="background-color: #f8fafc; color: #334155; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">{{c.selectedReimbursement.status}}</span>
@@ -7521,74 +6843,42 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
         </h4>
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 30px;">
           <div class="row">
-            
-            <div class="col-md-6" style="border-right: 1px solid #e2e8f0; padding-right: 24px;">
-              <h5 style="font-size: 14px; font-weight: 600; color: #334155; margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Recipient Organization</h5>
+            <div class="col-md-12" style="padding-left: 15px; padding-right: 15px;">
               
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Name</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.name}}</div>
-
               <div class="row">
-                <div class="col-xs-6">
-                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Street 1</label>
-                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.street1}}</div>
+                <div class="col-sm-6">
+                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Name</label>
+                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.name || c.project.applicant.first_name}}</div>
                 </div>
-                <div class="col-xs-6">
-                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Street 2</label>
-                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.street2 || '-'}}</div>
+                <div class="col-sm-6">
+                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Organization</label>
+                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.organization || c.project.applicant.organization}}</div>
                 </div>
               </div>
 
               <div class="row">
-                <div class="col-xs-5">
+                <div class="col-sm-12">
+                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Street</label>
+                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.street || c.project.applicant.street}}</div>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-sm-4">
                   <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">City</label>
-                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.city}}</div>
+                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.city || c.project.applicant.city}}</div>
                 </div>
-                <div class="col-xs-3">
-                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">State</label>
-                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.stat0}}</div>
+                <div class="col-sm-4">
+                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Country</label>
+                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.country || c.project.applicant.country}}</div>
                 </div>
-                <div class="col-xs-4">
-                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">ZIP Code</label>
-                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.zip_postal_code}}</div>
+                <div class="col-sm-4">
+                  <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">ZIP / Postal Code</label>
+                  <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.zip || c.project.applicant.zip_postal_code}}</div>
                 </div>
               </div>
 
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Country</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.country}}</div>
             </div>
-            
-            <div class="col-md-6" style="padding-left: 24px;">
-              <h5 style="font-size: 14px; font-weight: 600; color: #334155; margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Payee Information</h5>
-              
-              <div ng-if="!c.selectedReimbursement.nam0" style="padding: 20px 0; color: #94a3b8; font-style: italic;">
-                Same as Recipient Organization
-              </div>
-              
-              <div ng-if="c.selectedReimbursement.nam0">
-                <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Name</label>
-                <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.nam0}}</div>
-
-                <div class="row">
-                  <div class="col-xs-5">
-                    <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">City</label>
-                    <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.cit0}}</div>
-                  </div>
-                  <div class="col-xs-3">
-                    <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">State</label>
-                    <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.stat1}}</div>
-                  </div>
-                  <div class="col-xs-4">
-                    <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">ZIP Code</label>
-                    <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.zip_postal_cod0}}</div>
-                  </div>
-                </div>
-
-                <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Country</label>
-                <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.countr0}}</div>
-              </div>
-            </div>
-
           </div>
         </div>
 
@@ -7611,55 +6901,6 @@ h2 { font-size: 28px; letter-spacing: -0.5px; margin-bottom: 20px;}
           </table>
         </div>
 
-        <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">
-          <i class="fa fa-check-square-o" style="color: #6366f1; margin-right: 8px;"></i> Certification Details
-        </h4>
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 10px;">
-          
-          <div class="row">
-            <div class="col-sm-2">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Prefix</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.prefix || '-'}}</div>
-            </div>
-            <div class="col-sm-5">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">First Name</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.first_name}}</div>
-            </div>
-            <div class="col-sm-5">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Middle Name</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.middle_name || '-'}}</div>
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="col-sm-5">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Last Name</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.last_name}}</div>
-            </div>
-            <div class="col-sm-2">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Suffix</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.suffix || '-'}}</div>
-            </div>
-            <div class="col-sm-5">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Title</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 16px;">{{c.selectedReimbursement.title}}</div>
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="col-sm-8">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; display: block;">Telephone</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; color: #1e293b; font-size: 14px; margin-bottom: 0;">{{c.selectedReimbursement.telephon0}}</div>
-            </div>
-            <div class="col-sm-4">
-              <label style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block;">Date Submitted</label>
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; min-height: 42px; display: flex; align-items: center; font-size: 14px; color: #1e293b; font-weight: 700;">
-                <i class="fa fa-calendar" style="color: #94a3b8; margin-right: 8px;"></i> {{c.selectedReimbursement.date_request_submitted}}
-              </div>
-            </div>
-          </div>
-
-        </div>
         <h4 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 12px; margin-top: 30px;" ng-if="c.selectedReimbursement.attachments && c.selectedReimbursement.attachments.length > 0">
           <i class="fa fa-paperclip" style="color: #6366f1; margin-right: 8px;"></i> Attached Documents
         </h4>
