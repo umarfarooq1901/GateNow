@@ -1665,7 +1665,7 @@
   // ACTIVE PROJECTS  (KPI counter)
   // ══════════════════════════════════════════════════════
   try {
-    var projectGR = new GlideRecordSecure('pm_project');
+    var projectGR = new GlideRecordSecure('x_enno_gatenow_project');
     projectGR.addActiveQuery();
     projectGR.addQuery('x_enno_gatenow_applicant.user', userId);
     projectGR.query();
@@ -1703,7 +1703,7 @@
   // ══════════════════════════════════════════════════════
   var projectIds = [];
   try {
-    var pidGR = new GlideRecordSecure('pm_project');
+    var pidGR = new GlideRecordSecure('x_enno_gatenow_project');
     pidGR.addActiveQuery();
     pidGR.addQuery('x_enno_gatenow_applicant.user', userId);
     pidGR.query();
@@ -1734,7 +1734,7 @@
   // ══════════════════════════════════════════════════════
   // PROJECT STATUS HEALTH  (5 dimensions per report)
   // Table  : project_status
-  // Link   : project → pm_project
+  // Link   : project → x_enno_gatenow_project
   // Fields : overall_health | schedule | cost | resources | scope
   // Values : Green(1) | Yellow(2) | Red(3) | None → green
   // ══════════════════════════════════════════════════════
@@ -1879,7 +1879,7 @@ try {
 // PROJECT PROGRESS
 data.projectProgress = [];
 try {
-  var ppGR = new GlideRecordSecure('pm_project');
+  var ppGR = new GlideRecordSecure('x_enno_gatenow_project');
   ppGR.addActiveQuery();
   ppGR.addQuery('x_enno_gatenow_applicant.user', userId);
   ppGR.setLimit(8);
@@ -1901,7 +1901,7 @@ try {
   // ══════════════════════════════════════════════════════
   // REIMBURSEMENT STATS  (doughnut)
   // Table : x_enno_gatenow_reimbursement
-  // Link  : project → pm_project
+  // Link  : project → x_enno_gatenow_project
   // ══════════════════════════════════════════════════════
   data.reimbursementStats = { total: 0, items: [] };
   try {
@@ -1928,7 +1928,7 @@ try {
   // CHANGE REQUEST STATS  (priority doughnut + category
   //   horizontal bar + recent-records table)
   // Table : project_change_request
-  // Link  : parent → pm_project
+  // Link  : parent → x_enno_gatenow_project
   // ══════════════════════════════════════════════════════
   data.changeRequestStats = { total: 0, byPriority: [], byCategory: [], items: [], donutItems: [] };
   try {
@@ -1983,7 +1983,7 @@ try {
 
   // ══════════════════════════════════════════════════════
   // STATUS REPORTS BY MONTH  (area line chart)
-  // Table : project_status  |  Link: project → pm_project
+  // Table : project_status  |  Link: project → x_enno_gatenow_project
   // ══════════════════════════════════════════════════════
   data.statusReports = [];
   try {
@@ -2019,14 +2019,14 @@ try {
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-03-02 18:54:14</sys_created_on>
         <sys_id>00814d87ebd7b290520dfbdffdc0cd8d</sys_id>
-        <sys_mod_count>263</sys_mod_count>
+        <sys_mod_count>265</sys_mod_count>
         <sys_name>Applicant Dashboard Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_00814d87ebd7b290520dfbdffdc0cd8d</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-04-07 10:04:11</sys_updated_on>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-06-17 07:30:39</sys_updated_on>
         <template><![CDATA[<div class="gn-layout">
   <div class="sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
