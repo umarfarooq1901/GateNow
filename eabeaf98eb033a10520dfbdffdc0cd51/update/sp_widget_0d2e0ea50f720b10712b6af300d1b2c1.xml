@@ -1,0 +1,1028 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $filter, $timeout, $interval, spUtil, $rootScope) {
+	var c = this;
+	
+	// --- SIDEBAR COLLAPSE SYNC (listens to sidebar widget's broadcast) ---
+	c.sidebarCollapsed = false;
+	$scope.$on('sidebar.toggled', function(event, isCollapsed) {
+		c.sidebarCollapsed = isCollapsed;
+	});
+
+	// --- TIME FILTER LOGIC ---
+	c.timeFilterLabel = 'Last 12 months'; 
+	c.data.timeFilterMonths = 12;         
+
+	c.setTimeFilter = function(months, label) {
+		c.timeFilterLabel = label;
+		c.data.timeFilterMonths = months;
+
+		c.server.update().then(function() {
+			c.setFilter(c.activeFilter); 
+		});
+	};
+
+	c.showClaimModal = false;
+	c.activeFilter = 'all';
+	c.searchTerm = ''; 
+
+	c.setFilter = function(filter) {
+		c.activeFilter = filter;
+	};
+
+	c.filteredClaims = function() {
+		if (!c.data.claims) return [];
+		var results = c.data.claims;
+
+		if (c.activeFilter !== 'all') {
+			results = results.filter(function(claim) {
+				return claim.bucket === c.activeFilter;
+			});
+		}
+
+		if (c.searchTerm && c.searchTerm.trim() !== '') {
+			var term = c.searchTerm.toLowerCase().trim();
+
+			results = results.filter(function(claim) {
+				var matchNumber = claim.number && claim.number.toLowerCase().indexOf(term) > -1;
+				var matchProject = claim.project && claim.project.toLowerCase().indexOf(term) > -1;
+				var periodFrom = claim.period_from ? claim.period_from.toLowerCase() : '';
+				var periodTo = claim.period_to ? claim.period_to.toLowerCase() : '';
+				var matchPeriod = periodFrom.indexOf(term) > -1 || periodTo.indexOf(term) > -1;
+				var matchAmount = claim.amount_requested && claim.amount_requested.toString().toLowerCase().indexOf(term) > -1;
+				var matchSubmitted = claim.submitted_on && claim.submitted_on.toLowerCase().indexOf(term) > -1;
+				var matchState = claim.state_label && claim.state_label.toLowerCase().indexOf(term) > -1;
+
+				return matchNumber || matchProject || matchPeriod || matchAmount || matchSubmitted || matchState;
+			});
+		}
+		return results;
+	};
+
+	c.openCount = function() {
+		if (!c.data.claims) return 0;
+		return c.data.claims.filter(function(x) { return x.bucket === 'open'; }).length;
+	};
+
+	c.paidCount = function() {
+		if (!c.data.claims) return 0;
+		return c.data.claims.filter(function(x) { return x.bucket === 'paid'; }).length;
+	};
+
+	c.maxChartValue = function() {
+		if (!c.data.chartData || c.data.chartData.length === 0) return 1000;
+		var max = 0;
+		c.data.chartData.forEach(function(m) {
+			max = Math.max(max, m.claimed, m.paid);
+		});
+		return max > 0 ? max : 1000;
+	};
+
+	c.barHeight = function(value) {
+		if (!value || value <= 0) return 0;
+		var maxVal = c.maxChartValue() * 1.1;
+		return (value / maxVal) * 100;
+	};
+
+    // EXACT Y-Axis formatting (removed Math.round)
+	c.getYAxisLabel = function(multiplier) {
+		var val = (c.maxChartValue() * 1.1) * multiplier;
+		return c.formatCurrency(val);
+	};
+
+	c.maxStateAmount = function() {
+		if (!c.data.claimsByState || c.data.claimsByState.length === 0) return 1;
+		var max = 0;
+		c.data.claimsByState.forEach(function(s) { max = Math.max(max, s.amount); });
+		return max > 0 ? max : 1;
+	};
+
+	c.stateBarWidth = function(amount) {
+		return Math.min((amount / c.maxStateAmount()) * 100, 100);
+	};
+
+	// --- EXACT CALCULATION FORMATTERS (REMOVED 'K' ROUNDING OFF) ---
+	c.formatCurrency = function(val) {
+		if (val === undefined || val === null || val === '') return '$0.00';
+		var num = parseFloat(val);
+		if (isNaN(num)) return '$0.00';
+		// Removed K abbreviation to force perfectly exact numbers (e.g. $1,500.50)
+		return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	};
+
+	c.formatCurrencyExact = function(val) {
+		if (val === undefined || val === null || val === '') return '$0.00';
+		var num = parseFloat(val);
+		if (isNaN(num)) return '$0.00';
+		return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	};
+
+	c.startNewClaim = function() {
+		c.showClaimModal = true;
+	};
+
+	c.closeClaimModal = function() {
+		c.showClaimModal = false;
+	};
+
+	$scope.$on('claim_submitted_successfully', function() {
+		c.showClaimModal = false;
+		c.server.update().then(function() {
+			c.setFilter(c.activeFilter);
+			preFetchAllForms(); 
+		});
+	});
+
+	// --- BACKGROUND PRE-FETCHING ---
+	function preFetchAllForms() {
+		if (c.data.claims && c.data.claims.length > 0) {
+			c.data.claims.forEach(function(claim) {
+				if (!claim.cachedWidget) {
+					spUtil.get('widget-form', {
+						table: 'x_enno_gatenow_reimbursement',
+						sys_id: claim.sys_id,
+						hideRelatedLists: true,
+						disableUIActions: true
+					}).then(function(response) {
+						if (response && response.data && response.data.f) {
+							if (response.data.f._formatters) response.data.f._formatters = {};
+							if (response.data.f._fields) {
+								for (var key in response.data.f._fields) {
+									var fld = response.data.f._fields[key];
+									if (fld.type === 'formatter' || fld.type === 'journal' || fld.type === 'journal_input' || key.indexOf('activity') > -1) {
+										delete response.data.f._fields[key];
+									}
+								}
+							}
+						}
+						claim.cachedWidget = response;
+					});
+				}
+			});
+		}
+	}
+
+	preFetchAllForms();
+
+	// --- INSTANT VIEW MODAL LOGIC ---
+	c.showViewModal = false;
+	c.recordFormWidget = null;
+	c.viewClaimTitle = '';
+
+	c.viewClaim = function(claim) {
+		c.viewClaimTitle = claim.number;
+
+		if (claim.cachedWidget) {
+			c.recordFormWidget = claim.cachedWidget;
+			c.loadingForm = false;
+			c.showViewModal = true;
+		} else {
+			c.loadingForm = true;
+			c.recordFormWidget = null;
+			c.showViewModal = true;
+
+			spUtil.get('widget-form', {
+				table: 'x_enno_gatenow_reimbursement',
+				sys_id: claim.sys_id,
+				hideRelatedLists: true,
+				disableUIActions: true
+			}).then(function(response) {
+				if (response && response.data && response.data.f) {
+					if (response.data.f._formatters) response.data.f._formatters = {};
+					if (response.data.f._fields) {
+						for (var key in response.data.f._fields) {
+							var fld = response.data.f._fields[key];
+							if (fld.type === 'formatter' || fld.type === 'journal' || fld.type === 'journal_input' || key.indexOf('activity') > -1) {
+								delete response.data.f._fields[key];
+							}
+						}
+					}
+				}
+				claim.cachedWidget = response;
+				c.recordFormWidget = response;
+				c.loadingForm = false;
+			});
+		}
+
+		var cleanupCount = 0;
+		var cleanupInterval = $interval(function() {
+			var $wrapper = $('.read-only-form-wrapper');
+			
+			$wrapper.find('textarea[placeholder*="message"], sp-activity-stream, .ticket-conversation, sn-form-activity-stream')
+			        .closest('.panel, .form-group, fieldset, .row').remove();
+			
+			$wrapper.find('h1, h2, h3, h4, h5, h6, label, legend, div, span').filter(function() {
+				return $(this).text().trim() === 'Activity' && $(this).children().length === 0;
+			}).closest('.panel, .form-group, fieldset, .row, [ng-if]').hide().remove();
+			
+			cleanupCount++;
+			if (cleanupCount > 40) { 
+				$interval.cancel(cleanupInterval);
+			}
+		}, 50);
+	};
+
+	c.closeViewModal = function() {
+		c.showViewModal = false;
+		c.recordFormWidget = null;
+		c.viewClaimTitle = '';
+	};
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.reimb-kpi-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+
+  label { font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 8px;}
+  .kpi-value { font-size: 36px; font-weight: 800; color: #0f172a; margin: 4px 0 8px; letter-spacing: -1px;}
+  .kpi-value.kpi-green { color: #10b981; }
+  .kpi-sub { font-size: 13px; color: #64748b; }
+
+  &amp;.kpi-alert .kpi-value { color: #dc2626; }
+  &amp;.kpi-alert .kpi-sub { color: #64748b; }
+}
+
+.reimb-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 28px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+
+  &amp;__hdr {
+    margin-bottom: 12px;
+    h3 { margin: 0; font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;}
+    p  { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+  }
+}
+
+.chart-area { display: flex; align-items: flex-end; }
+.bar {
+  width: 20px !important;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+}
+.bar-claimed { background: #3730a3; }
+.bar-paid    { background: #10b981; }
+
+.reimb-chart-legend {
+  display: flex; gap: 16px; font-size: 12px; color: #475569; font-weight: 500;
+  .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  .dot-claimed { background:#3730a3; }
+  .dot-paid { background:#10b981; }
+}
+
+.state-list { margin-bottom: 24px; }
+.state-row {
+  margin-bottom: 16px;
+  &amp;__top { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:8px;
+    span:last-child { margin-left:auto; text-align:right; white-space:nowrap; }
+  }
+}
+.state-bar-bg { background:#f1f5f9; border-radius:8px; height:8px; overflow:hidden; }
+.state-bar-fill { height:100%; border-radius:8px; min-width: 6px; }
+.fill-green        { background: #249562; } 
+.fill-indigo       { background: #3542B1; } 
+.fill-indigo-light { background: #7A89F0; } 
+.fill-gray         { background: #ADC1FA; } 
+.fill-yellow       { background: #f59e0b; }
+.fill-red          { background: #dc2626; }
+
+.btn-new-claim {
+  width:100%; background:#4f46e5; color:#fff; border:none; border-radius:8px;
+  padding:14px; font-size:14px; font-weight:600; cursor:pointer; transition: 0.2s;
+  &amp;:hover { background:#4338ca; }
+}
+
+.filter-tabs {
+  display:flex; gap:8px;
+  button {
+    background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:6px 16px;
+    font-size:13px; font-weight:600; color:#475569; cursor:pointer; transition: 0.2s;
+    &amp;.active { background:#3730a3; color:#fff; border-color:#3730a3; }
+  }
+}
+
+.reimb-table {
+  width:100%; border-collapse:collapse; margin-top:24px; table-layout:fixed;
+  th { text-align:left; font-size:11px; font-weight:800; color:#475569; text-transform:uppercase; padding:12px 8px; border-bottom:1px solid #e2e8f0; letter-spacing: 0.5px;}
+  td { padding:16px 8px; border-bottom:1px solid #f1f5f9; font-size:14px; font-weight:500;}
+  .truncate-cell { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bold-text { font-weight:700; }
+  .text-right { text-align:right; }
+  .text-center { text-align:center; }
+  .state-col { text-align: center; padding-left: 0px; }
+  .lead-col { padding-left: 24px; }
+}
+
+.reimb-table th.state-hdr {
+  text-align: center;
+  padding-left: 0px; 
+}
+
+.state-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+}
+.pill-paid { background:#ecfdf5; color:#065f46; .pill-dot { background:#10b981; } }
+.pill-approved { background:#e0e7ff; color:#3730a3; .pill-dot { background:#4f46e5; } }
+.pill-in_review { background:#eef2ff; color:#4f46e5; .pill-dot { background:#6366f1; } }
+.pill-submitted { background:#f1f5f9; color:#475569; .pill-dot { background:#94a3b8; } }
+.pill-returned { background:#fef3c7; color:#92400e; .pill-dot { background:#f59e0b; } }
+.pill-rejected { background:#fee2e2; color:#dc2626; .pill-dot { background:#ef4444; } }
+
+.btn-action {
+  border-radius:8px; padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; transition: 0.2s;
+  display:inline-block; width:90px; box-sizing:border-box; text-align:center; border:1px solid transparent;
+}
+.btn-view    { background:#fff; color:#475569; border-color:#cbd5e1; }
+.btn-view:hover    { background:#f8fafc; }
+
+.custom-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10050;
+  padding: 40px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.custom-modal-container {
+  background: #ffffff;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh; 
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: scaleUp 0.2s ease-out;
+}
+
+.custom-modal-header {
+  padding: 24px 32px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.custom-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.custom-modal-header p {
+  margin: 4px 0 0;
+  font-size: 8px;
+  color: #64748b;
+}
+
+.btn-close-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close-circle:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.custom-modal-body {
+  background: #f8fafc;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+/* --- Enforce Read-Only on Embedded View Form --- */
+.read-only-form-wrapper form {
+  pointer-events: none; 
+  opacity: 0.95;
+}
+
+.read-only-form-wrapper .panel-footer,
+.read-only-form-wrapper .attachment-button,
+.read-only-form-wrapper [title="Add attachment"] {
+  display: none !important;
+}
+
+/* --- COMPLETELY REMOVE ACTIVITY &amp; TICKET CONVERSATION --- */
+.read-only-form-wrapper div[ng-if*="formatter"],
+.read-only-form-wrapper div[ng-if*="Formatter"],
+.read-only-form-wrapper div[ng-if*="is_formatter"],
+.read-only-form-wrapper div[ng-switch-when="formatter"],
+.read-only-form-wrapper div[ng-switch-when="formatters"],
+.read-only-form-wrapper sp-form-field[field*="activity"],
+.read-only-form-wrapper sp-widget[widget*="conversation"],
+.read-only-form-wrapper sp-widget[widget*="activity"],
+.read-only-form-wrapper sp-widget[widget*="ticket"],
+.read-only-form-wrapper .ticket-conversation,
+.read-only-form-wrapper .sp-ticket-conversation,
+.read-only-form-wrapper .timeline-container,
+.read-only-form-wrapper .timeline,
+.read-only-form-wrapper .activity-stream,
+.read-only-form-wrapper form div.panel:has(textarea),
+.read-only-form-wrapper form div.panel:has(button[type="submit"]) {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+
+
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id/>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Reimbursement</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
+        <script><![CDATA[(function() {
+	data.sideBar = $sp.getWidget('sidebar');
+	data.currentPage = 'reimbursements';
+
+	var loggedInUser = gs.getUserID();
+	var sessionUser = gs.getUser();
+	data.userName = sessionUser.getDisplayName() || 'Unknown User';
+
+	var fName = sessionUser.getFirstName() || '';
+	var lName = sessionUser.getLastName() || '';
+	var initials = '';
+
+	if (fName) initials += fName.charAt(0).toUpperCase();
+	if (lName) initials += lName.charAt(0).toUpperCase();
+
+	if (!initials && data.userName !== 'Unknown User') {
+		initials = data.userName.charAt(0).toUpperCase();
+	}
+
+	data.userInitials = initials || 'U';
+	var projectId = (input && input['sys_id']) ? input['sys_id'] : $sp.getParameter('sys_id');
+
+	data.claims = [];
+	data.summary = {};
+	data.chartData = [];
+	data.claimsByState = [];
+
+	var STATUS_CONFIG = {
+		paid:        { order: 1, breakdownLabel: 'Paid',                 color: 'green'  },
+		approved:    { order: 2, breakdownLabel: 'Approved for payment', color: 'indigo' },
+		'in review': { order: 3, breakdownLabel: 'In review',          color: 'indigo-light' }, 
+		submitted:   { order: 4, breakdownLabel: 'Submitted',            color: 'gray'   },
+		rejected:    { order: 5, breakdownLabel: 'Rejected',             color: 'red'    }
+	};
+
+	var CLAIMED_STATUSES = ['submitted', 'in review', 'approved', 'rejected', 'returned'];
+
+	var applicantId = "";
+	var appRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+	appRec.addQuery('user', loggedInUser);
+	appRec.query();
+	if (appRec.next()) {
+		applicantId = appRec.getUniqueValue();
+	}
+
+	var reimbRec = new GlideRecord('x_enno_gatenow_reimbursement');
+	var isAdmin = gs.getUserName() === 'admin';
+
+	if (projectId) {
+		reimbRec.addQuery('project', projectId);
+	} else if (isAdmin) {
+		// Admin bypass
+	} else if (applicantId) {
+		var projectIds = [];
+		var myProjects = new GlideRecord('x_enno_gatenow_project');
+		myProjects.addQuery('applicant', applicantId);
+		myProjects.query();
+		while (myProjects.next()) {
+			projectIds.push(myProjects.getUniqueValue());
+		}
+
+		if (projectIds.length > 0) {
+			reimbRec.addQuery('project', 'IN', projectIds.join(','));
+		} else {
+			reimbRec.addQuery('sys_created_by', gs.getUserName());
+		}
+	} else {
+		reimbRec.addQuery('sys_created_by', gs.getUserName());
+	}
+
+	var filterMonths = 12; // Default
+	if (input && input.timeFilterMonths !== undefined) {
+		filterMonths = parseInt(input.timeFilterMonths);
+	} else {
+		data.timeFilterMonths = 12;
+	}
+
+	if (filterMonths > 0) {
+		var gdtFilter = new GlideDateTime();
+		gdtFilter.addMonthsLocalTime(-filterMonths);
+		reimbRec.addQuery('sys_created_on', '>=', gdtFilter.getDate());
+	}
+
+	reimbRec.orderByDesc('sys_created_on');
+	reimbRec.query();
+
+	// --- GLIDEAGGREGATE FOR EXACT CALCULATIONS FROM DATABASE ---
+	var ga = new GlideAggregate('x_enno_gatenow_reimbursement');
+	ga.addEncodedQuery(reimbRec.getEncodedQuery());
+	ga.addAggregate('SUM', 'amount_requested');
+	ga.groupBy('status');
+	ga.query();
+
+	var claimedToDate = 0; 
+	var paidTotal = 0;
+
+	var monthMap = {};
+	var stateMap = {};
+	Object.keys(STATUS_CONFIG).forEach(function(k) {
+		stateMap[k] = { count: 0, amount: 0 };
+	});
+
+	// Populate EXACT sums using GlideAggregate
+	while (ga.next()) {
+		var rawStatusGa = ga.getValue('status');
+		var statusValGa = (rawStatusGa || '').toString().toLowerCase().trim();
+		if (!statusValGa || !STATUS_CONFIG[statusValGa]) {
+			statusValGa = 'submitted';
+		}
+		var sumAmount = parseFloat(ga.getAggregate('SUM', 'amount_requested')) || 0;
+
+		stateMap[statusValGa].amount += sumAmount;
+		claimedToDate += sumAmount;
+		if (statusValGa === 'paid') {
+			paidTotal += sumAmount;
+		}
+	}
+
+	var processingDaysSum = 0;
+	var paidCount = 0;
+	var needsActionCount = 0;
+	var needsActionLabel = "";
+	var uniqueProjectsMap = {};
+	var uniqueProjectCount = 0;
+	var primaryProjectName = "";
+
+	var paidRowsBySysId = {};
+	var paidSysIds = [];
+
+	var projectNameCache = {};
+	function getRealProjectName(projSysId, fallbackDisplayValue) {
+		if (!projSysId) return fallbackDisplayValue;
+		if (projectNameCache.hasOwnProperty(projSysId)) return projectNameCache[projSysId];
+
+		var resolvedName = fallbackDisplayValue;
+		var projGr = new GlideRecordSecure('x_enno_gatenow_project');
+		if (projGr.get(projSysId)) {
+			var candidateFields = ['name', 'title', 'short_description', 'project_name', 'u_name', 'label'];
+			for (var i = 0; i < candidateFields.length; i++) {
+				var fieldVal = projGr.getValue(candidateFields[i]);
+				if (fieldVal) {
+					resolvedName = fieldVal;
+					break;
+				}
+			}
+		}
+		projectNameCache[projSysId] = resolvedName;
+		return resolvedName;
+	}
+
+	while (reimbRec.next()) {
+		var claim = {};
+		claim.sys_id = reimbRec.getUniqueValue();
+		var projSysId = reimbRec.getValue('project');
+		if (projSysId && !uniqueProjectsMap[projSysId]) {
+			uniqueProjectsMap[projSysId] = true;
+			uniqueProjectCount++;
+		}
+		claim.record_id = claim.sys_id;
+		claim.number = reimbRec.getValue('number');
+		claim.project = getRealProjectName(projSysId, reimbRec.getDisplayValue('project'));
+		claim.period_from = reimbRec.getDisplayValue('from');
+		claim.period_to = reimbRec.getDisplayValue('to');
+
+		if (!primaryProjectName && claim.project) {
+			primaryProjectName = claim.project;
+		}
+
+		var rawAmount = reimbRec.getValue('amount_requested') || '';
+		if (rawAmount.indexOf(';') > -1) {
+			rawAmount = rawAmount.split(';')[1];
+		}
+		claim.amount_requested = parseFloat(rawAmount) || 0;
+
+		var submittedDisplay = reimbRec.getDisplayValue('sys_created_on');
+		claim.submitted_on = submittedDisplay ? submittedDisplay.split(' ')[0] : '';
+
+		var rawStatus = reimbRec.getValue('status');
+		var statusVal = (rawStatus || '').toString().toLowerCase().trim();
+
+		if (!statusVal || !STATUS_CONFIG[statusVal]) {
+			statusVal = 'submitted';
+		}
+
+		claim.state = statusVal;
+		claim.state_class = statusVal.replace(/\s+/g, '_'); 
+		claim.state_label = STATUS_CONFIG[statusVal].breakdownLabel;
+
+		if (statusVal === 'paid') {
+			paidCount++;
+			var createdGdt = reimbRec.getValue('sys_created_on');
+			var paidGdt = reimbRec.getValue('sys_updated_on');
+			if (createdGdt && paidGdt) {
+				var gdStart = new GlideDateTime(createdGdt);
+				var gdEnd = new GlideDateTime(paidGdt);
+				var diffDays = (gdEnd.getNumericValue() - gdStart.getNumericValue()) / 1000 / 60 / 60 / 24;
+				if (diffDays > 0) processingDaysSum += diffDays;
+			}
+			paidSysIds.push(claim.sys_id);
+			paidRowsBySysId[claim.sys_id] = claim;
+		}
+
+		if (statusVal === 'rejected' || statusVal === 'returned') {
+			needsActionCount++;
+			needsActionLabel = claim.number + " rejected";
+		}
+
+		stateMap[statusVal].count++;
+
+		// Calculate Monthly Exact Chart Calculations
+		var createdOn = reimbRec.getValue('sys_created_on');
+		if (createdOn) {
+			var gd = new GlideDateTime(createdOn);
+			var yyyy = gd.getYearLocalTime();
+			var mm = ('0' + gd.getMonthLocalTime()).slice(-2);
+			var monthKey = yyyy + '-' + mm;
+
+			if (!monthMap[monthKey]) {
+				monthMap[monthKey] = { claimed: 0, paid: 0 };
+			}
+
+			if (CLAIMED_STATUSES.indexOf(statusVal) > -1 || statusVal === 'paid') {
+				monthMap[monthKey].claimed = +(monthMap[monthKey].claimed + claim.amount_requested).toFixed(2);
+			}
+
+			if (statusVal === 'paid') {
+				monthMap[monthKey].paid = +(monthMap[monthKey].paid + claim.amount_requested).toFixed(2);
+			}
+		}
+
+		claim.action_type = 'view';
+		claim.bucket = (statusVal === 'paid') ? 'paid' : 'open';
+
+		data.claims.push(claim);
+	}
+
+	if (paidSysIds.length > 0) {
+		var attRec = new GlideRecordSecure('sys_attachment');
+		attRec.addQuery('table_name', 'x_enno_gatenow_reimbursement');
+		attRec.addQuery('table_sys_id', 'IN', paidSysIds.join(','));
+		attRec.orderByDesc('sys_created_on');
+		attRec.query();
+		while (attRec.next()) {
+			var ownerId = attRec.getValue('table_sys_id');
+			var ownerClaim = paidRowsBySysId[ownerId];
+			if (ownerClaim && !ownerClaim.receipt) {
+				ownerClaim.receipt = {
+					sys_id: attRec.getUniqueValue(),
+					file_name: attRec.getValue('file_name'),
+					size_bytes: attRec.getValue('size_bytes')
+				};
+			}
+		}
+	}
+
+	data.summary.claimed_to_date = claimedToDate;
+	data.summary.paid = paidTotal;
+	data.summary.paid_pct = claimedToDate > 0 ? parseFloat(((paidTotal / claimedToDate) * 100).toFixed(2)) : 0;
+
+	data.summary.needs_action_count = needsActionCount;
+	data.summary.needs_action_label = needsActionLabel;
+	data.summary.total_claims = data.claims.length;
+
+	// NEW: Approved claims count & exact dynamic percentage 
+	data.summary.approved_count = stateMap['approved'] ? stateMap['approved'].count : 0;
+	data.summary.approved_pct = data.summary.total_claims > 0 ? parseFloat(((data.summary.approved_count / data.summary.total_claims) * 100).toFixed(2)) : 0;
+	data.summary.unique_projects = uniqueProjectCount;
+	data.summary.primary_project_name = primaryProjectName || 'No projects yet'; 
+
+	data.chartData = [];
+	var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+	for (var i = 5; i >= 0; i--) {
+		var d = new GlideDateTime();
+		d.addMonthsLocalTime(-i);
+		var yyyy = d.getYearLocalTime();
+		var mm = ('0' + d.getMonthLocalTime()).slice(-2);
+		var mKey = yyyy + '-' + mm; 
+
+		data.chartData.push({
+			month: months[d.getMonthLocalTime() - 1],
+			claimed: monthMap[mKey] ? monthMap[mKey].claimed : 0,
+			paid: monthMap[mKey] ? monthMap[mKey].paid : 0
+		});
+	}
+
+	Object.keys(STATUS_CONFIG).sort(function(a, b) { 
+		return STATUS_CONFIG[a].order - STATUS_CONFIG[b].order; 
+	}).forEach(function(key) {
+		data.claimsByState.push({
+			key: key,
+			label: STATUS_CONFIG[key].breakdownLabel,
+			color: STATUS_CONFIG[key].color,
+			count: stateMap[key].count,
+			amount: stateMap[key].amount
+		});
+	});
+
+	data.reimbursementFormWidget = $sp.getWidget('reimbursement_form', { is_admin_mode: isAdmin });
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>Sheeba.showkat</sys_created_by>
+        <sys_created_on>2026-08-19 08:17:57</sys_created_on>
+        <sys_id>0d2e0ea50f720b10712b6af300d1b2c1</sys_id>
+        <sys_mod_count>160</sys_mod_count>
+        <sys_name>Reimbursement</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_0d2e0ea50f720b10712b6af300d1b2c1</sys_update_name>
+        <sys_updated_by>Sheeba.showkat</sys_updated_by>
+        <sys_updated_on>2026-08-24 10:33:12</sys_updated_on>
+        <template><![CDATA[<div class="reimb-dashboard" ng-cloak style="margin: 0 -15px -15px -15px; font-family: 'Inter', Roboto, sans-serif;">
+  <div class="main-layout-flex" style="display:flex; min-height:100vh; align-items:stretch;">
+
+  <div class="sidebar" ng-style="{width: c.sidebarCollapsed ? '64px' : '120px'}" style="flex-shrink:0; position:sticky; top:0; height:100vh; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+  <sp-widget widget="data.sideBar"></sp-widget>
+</div>
+
+    <div class="main-content-scroll" style="flex-grow:1; background:#f8fafc; padding: 0 40px 40px 40px;">
+
+      <!-- ADDED margin-top: 25px HERE -->
+      <div class="reimb-header-wrapper" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; margin-top:25px;">
+        <div class="reimb-header">
+          <h1 style="margin:0; font-size:32px; font-weight:700; color:#0f172a; letter-spacing:-0.5px;">Reimbursements</h1>
+          <p style="color:#64748b; margin-top:8px; font-size:14px; display:flex; align-items:center; gap:6px;">
+            <span style="color:#10b981; font-size:10px;">&#9679;</span>
+            <span>{{c.data.summary.total_claims}} claims across {{c.data.summary.unique_projects}} projects &middot; {{c.formatCurrencyExact(c.data.summary.claimed_to_date)}} claimed &middot; {{c.formatCurrency(c.data.summary.paid)}} paid</span>
+          </p>
+        </div>
+        <div class="header-controls" style="display:flex; gap:12px; align-items:center;">
+          <div class="search-box" style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; display:flex; align-items:center; width:250px;">
+            <i class="fa fa-search" style="color:#94a3b8; margin-right:8px;"></i>
+            <input type="text" ng-model="c.searchTerm" placeholder="Search claims, projects..." style="border:none; outline:none; background:transparent; width:100%; font-size:13px; color:#64748b;" />
+          </div>
+          <div class="btn-group" uib-dropdown>
+            <button id="timeFilterBtn" type="button" uib-dropdown-toggle style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; font-size:13px; color:#475569; font-weight:600; display:flex; align-items:center; gap:8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); cursor:pointer;">
+              <i class="fa fa-calendar-o" style="color:#818cf8;"></i> {{c.timeFilterLabel}} <i class="fa fa-chevron-down" style="font-size:10px; color:#94a3b8;"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-right" uib-dropdown-menu role="menu" aria-labelledby="timeFilterBtn" style="border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 4px; min-width: 160px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+              <li role="menuitem"><a href="javascript:void(0)" ng-click="c.setTimeFilter(6, 'Last 6 months')" style="padding: 8px 16px; font-size: 13px; color: #334155; font-weight:500;">Last 6 months</a></li>
+              <li role="menuitem"><a href="javascript:void(0)" ng-click="c.setTimeFilter(12, 'Last 12 months')" style="padding: 8px 16px; font-size: 13px; color: #334155; font-weight:500;">Last 12 months</a></li>
+              <li role="menuitem"><a href="javascript:void(0)" ng-click="c.setTimeFilter(0, 'All time')" style="padding: 8px 16px; font-size: 13px; color: #334155; font-weight:500;">All time</a></li>
+            </ul>
+          </div>
+          <div class="avatar" title="{{c.data.userName}}" style="width:40px; height:40px; background:#4f46e5; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">
+            {{c.data.userInitials}}
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="reimb-kpi-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-bottom:24px;">
+        <div class="reimb-kpi-card">
+          <label>CLAIMED TO DATE</label>
+          <div class="kpi-value">{{c.formatCurrencyExact(c.data.summary.claimed_to_date)}}</div>
+          <div class="kpi-sub">{{c.data.summary.total_claims}} claims across {{c.data.summary.unique_projects}} projects</div>
+        </div>
+        <div class="reimb-kpi-card">
+          <label>PAID</label>
+          <div class="kpi-value kpi-green">{{c.formatCurrency(c.data.summary.paid)}}</div>
+          <div class="kpi-sub">{{c.data.summary.paid_pct}}% of claimed value</div>
+        </div>
+        <div class="reimb-kpi-card">
+          <label>APPROVED CLAIMS</label>
+          <div class="kpi-value">{{c.data.summary.approved_count}}</div>
+          <div class="kpi-sub">{{c.data.summary.approved_pct}}% of total claims</div>
+        </div>
+        <div class="reimb-kpi-card" ng-class="{'kpi-alert': c.data.summary.needs_action_count > 0}">
+          <label>NEEDS YOUR ACTION</label>
+          <div class="kpi-value">{{c.data.summary.needs_action_count}}</div>
+          <div class="kpi-sub">{{c.data.summary.needs_action_label || 'All caught up'}}</div>
+        </div>
+      </div>
+
+      <!-- Chart & Claims by State -->
+      <div class="reimb-mid-grid" style="display:grid; grid-template-columns:1.35fr 1fr; gap:24px; margin-bottom:24px;">
+
+        <div class="reimb-card" style="display:flex; flex-direction:column;">
+          <div class="reimb-card__hdr" style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <h3>Claimed vs paid by month</h3>
+              <p style="color:#94a3b8; font-weight:400;">All projects &middot; last six months</p>
+            </div>
+            <div class="reimb-chart-legend">
+              <span style="display:flex; align-items:center;"><span class="legend-dot dot-claimed"></span> Claimed</span>
+              <span style="display:flex; align-items:center;"><span class="legend-dot dot-paid"></span> Paid</span>
+            </div>
+          </div>
+
+          <div class="chart-wrapper" style="display: flex; margin-top: 30px; flex-grow:1;">
+            <div class="y-axis" style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: #94a3b8; padding-right: 15px; height: 180px;">
+              <span>{{c.getYAxisLabel(1.0)}}</span>
+              <span>{{c.getYAxisLabel(0.66)}}</span>
+              <span>{{c.getYAxisLabel(0.33)}}</span>
+              <span>$0.00</span>
+            </div>
+            <div class="chart-area" style="flex-grow: 1; position: relative; height: 180px; border-bottom: 1px solid #e2e8f0;">
+              <div class="grid-line" style="position: absolute; top: 0; width: 100%; border-top: 1px solid #f1f5f9;"></div>
+              <div class="grid-line" style="position: absolute; top: 33.33%; width: 100%; border-top: 1px solid #f1f5f9;"></div>
+              <div class="grid-line" style="position: absolute; top: 66.66%; width: 100%; border-top: 1px solid #f1f5f9;"></div>
+
+              <div style="display: flex; position: absolute; width: 100%; height: 100%; top: 0; left: 0; align-items: flex-end; justify-content: space-around; padding: 0 10px;">
+                <div ng-repeat="m in c.data.chartData" style="height: 100%; display: flex; justify-content: center; align-items: flex-end; gap: 8px; width: 40px; z-index:1;">
+                  <div class="bar bar-claimed" ng-if="m.claimed > 0" ng-style="{height: c.barHeight(m.claimed) + '%'}" title="{{c.formatCurrency(m.claimed)}} claimed"></div>
+                  <div class="bar bar-paid" ng-if="m.paid > 0" ng-style="{height: c.barHeight(m.paid) + '%'}" title="{{c.formatCurrency(m.paid)}} paid"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; margin-top: 12px; padding-left: 45px; justify-content: space-around;">
+            <div ng-repeat="m in c.data.chartData" style="text-align: center; font-size: 12px; color: #64748b; font-weight:500; width:40px;">{{m.month}}</div>
+          </div>
+        </div>
+
+        <div class="reimb-card">
+          <div class="reimb-card__hdr">
+            <h3>Claims by state</h3>
+            <p style="color:#94a3b8; font-weight:400;">All projects, current cycle</p>
+          </div>
+          <div class="state-list" style="margin-top:20px;">
+            <div class="state-row" ng-repeat="s in c.data.claimsByState">
+              <div class="state-row__top" style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
+                <span style="font-weight:500; color:#0f172a;">{{s.label}}</span>
+                <span style="color:#64748b; margin-left:auto; text-align:right; white-space:nowrap;">{{s.count}} &middot; {{c.formatCurrency(s.amount)}}</span>
+              </div>
+              <div class="state-bar-bg">
+                <div class="state-bar-fill" ng-class="'fill-' + s.color" ng-style="{width: c.stateBarWidth(s.amount) + '%'}"></div>
+              </div>
+            </div>
+          </div>
+          <button class="btn-new-claim" ng-click="c.startNewClaim()">New reimbursement claim</button>
+        </div>
+      </div>
+
+      <!-- All Claims table with dynamic tabs -->
+      <div class="reimb-card">
+        <div class="reimb-card__hdr" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 style="font-weight:800;">All claims</h3>
+            <p style="color:#94a3b8; font-weight:400;">{{c.data.summary.primary_project_name}}<span ng-if="c.data.summary.unique_projects > 1"> and {{c.data.summary.unique_projects - 1}} other project{{c.data.summary.unique_projects > 2 ? 's' : ''}}</span></p>
+          </div>
+          <div class="filter-tabs">
+            <button ng-class="{active: c.activeFilter === 'all'}" ng-click="c.setFilter('all')">All ({{c.data.summary.total_claims}})</button>
+            <button ng-class="{active: c.activeFilter === 'open'}" ng-click="c.setFilter('open')">Open ({{c.openCount()}})</button>
+            <button ng-class="{active: c.activeFilter === 'paid'}" ng-click="c.setFilter('paid')">Paid ({{c.paidCount()}})</button>
+          </div>
+        </div>
+
+        <table class="reimb-table">
+          <colgroup>
+            <col style="width:12%">
+            <col style="width:20%">
+            <col style="width:16%">
+            <col style="width:10%">
+            <col style="width:16%">
+            <col style="width:16%">
+            <col style="width:10%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="lead-col">CLAIM</th>
+              <th class="lead-col">PROJECT</th>
+              <th class="lead-col">PERIOD</th>
+              <th class="lead-col">AMOUNT</th>
+              <th class="lead-col">SUBMITTED</th>
+              <th class="state-col state-hdr">STATE</th>
+              <th class="text-center">ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="claim in c.filteredClaims()">
+              <td class="lead-col bold-text" style="color:#0f172a;">{{claim.number}}</td>
+              <td class="lead-col truncate-cell" style="color:#475569;" title="{{claim.project}}">{{claim.project}}</td>
+              <td class="lead-col" style="color:#475569;">{{claim.period_from}} <span ng-if="claim.period_to">-</span> {{claim.period_to}}</td>
+              <td class="lead-col bold-text" style="color:#0f172a;">{{c.formatCurrency(claim.amount_requested)}}</td>
+              <td class="lead-col" style="color:#475569;">{{claim.submitted_on}}</td>
+              <td class="state-col">
+                <span class="state-pill" ng-class="'pill-' + claim.state_class">
+                  <span class="pill-dot"></span>{{claim.state_label}}
+                </span>
+              </td>
+              <td class="text-center">
+                <button class="btn-action btn-view" ng-click="c.viewClaim(claim)">View</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW CLAIM MODAL OVERLAY -->
+  <div class="custom-modal-backdrop" ng-if="c.showClaimModal" ng-cloak>
+    <div class="custom-modal-container">
+      <div class="custom-modal-header">
+        <div class="header-left">
+          <h2>New Reimbursement Claim</h2>
+          <p>Complete the details below to submit an advance or expense claim.</p>
+        </div>
+        <button type="button" class="btn-close-circle" ng-click="c.closeClaimModal()">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="custom-modal-body">
+        <sp-widget widget="data.reimbursementFormWidget"></sp-widget>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSTANT READ-ONLY VIEW MODAL (With Loader Fallback) -->
+  <div class="custom-modal-backdrop" ng-if="c.showViewModal" ng-cloak>
+    <div class="custom-modal-container">
+      <div class="custom-modal-header">
+        <div class="header-left">
+          <h2>Claim Details: {{c.viewClaimTitle}}</h2>
+          <p style="margin:4px 0 0; font-size:13px; color:#64748b;">Read-only view of the submitted record.</p>
+        </div>
+        <button type="button" class="btn-close-circle" ng-click="c.closeViewModal()">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+
+      <div class="custom-modal-body read-only-form-wrapper" style="position: relative; min-height: 250px; max-height: 75vh; overflow-y: auto;">
+
+        <div ng-if="c.loadingForm" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #94a3b8; width: 100%;">
+          <i class="fa fa-circle-o-notch fa-spin fa-3x" style="color: #4f46e5; margin-bottom: 12px;"></i>
+          <p style="font-size: 14px; font-weight: 500; margin: 0;">Retrieving record...</p>
+        </div>
+
+        <sp-widget ng-if="!c.loadingForm && c.recordFormWidget" widget="c.recordFormWidget"></sp-widget>
+
+      </div>
+
+      <div class="modal-footer-actions" style="padding: 16px 30px; background:#fff; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
+        <button type="button" class="btn btn-default" ng-click="c.closeViewModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>]]></template>
+    </sp_widget>
+</record_update>

@@ -1,0 +1,693 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function() {
+  /* widget controller */
+  var c = this;
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* =========================================================&#13;
+   GATENOW LANDING · CALL TO ACTION&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   Design notes worth keeping:&#13;
+&#13;
+   1. Two columns, left aligned. An earlier version centred&#13;
+      everything on an open band with a wide arc and a radial&#13;
+      glow behind it. The arc crossed the content, the glow read&#13;
+      as a grey oval rather than light, and the centred stack&#13;
+      had nothing holding it to the page. Both are gone.&#13;
+&#13;
+   2. The only structure here is a hairline rule at the top of&#13;
+      the section and one between the two columns. That is&#13;
+      enough. The page has already used cards and boxes, so the&#13;
+      close is deliberately plain.&#13;
+&#13;
+   3. The single solid blue button is the same blue as the&#13;
+      hero's primary action, which is what makes the page close&#13;
+      where it opened.&#13;
+&#13;
+   4. Nothing is held at opacity zero in a base rule. The&#13;
+      from-state comes from animation-fill-mode backwards, so if&#13;
+      animation is blocked the content still renders.&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- typeface ----------&#13;
+   Shared with the other landing widgets. If they sit on one&#13;
+   page, keep a single copy in a Style Sheet record attached to&#13;
+   the theme and delete this block from the widgets.&#13;
+   ------------------------------------------------------------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- palette ---------- */&#13;
+$gnc-navy:      #0a2540;&#13;
+$gnc-blue:      #1560e0;&#13;
+$gnc-blue-dk:   #0f4cbb;&#13;
+$gnc-blue-soft: #eef3fd;&#13;
+$gnc-body:      #55677f;&#13;
+$gnc-hair:      #e2e9f4;&#13;
+$gnc-white:     #ffffff;&#13;
+&#13;
+$gnc-ease:      cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$gnc-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BAND&#13;
+   ========================================================= */&#13;
+&#13;
+.gnc-cta {&#13;
+  position: relative;&#13;
+  width: 100%;&#13;
+  padding: 104px 24px 112px;&#13;
+  font-family: $gnc-font;&#13;
+  color: $gnc-navy;&#13;
+  background: $gnc-white;&#13;
+}&#13;
+&#13;
+.gnc-cta *,&#13;
+.gnc-cta *::before,&#13;
+.gnc-cta *::after { box-sizing: border-box; }&#13;
+&#13;
+.gnc-cta__inner {&#13;
+  position: relative;&#13;
+  max-width: 1120px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+/* the only line marking the start of the section */&#13;
+.gnc-cta__inner::before {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  top: -104px;&#13;
+  right: 0;&#13;
+  left: 0;&#13;
+  height: 1px;&#13;
+  background: $gnc-hair;&#13;
+}&#13;
+&#13;
+.gnc-grid {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);&#13;
+  gap: 72px;&#13;
+  align-items: center;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   LEAD&#13;
+   ========================================================= */&#13;
+&#13;
+.gnc-lead { min-width: 0; }&#13;
+&#13;
+.gnc-cta .gnc-eyebrow {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  padding: 8px 18px;&#13;
+  margin: 0 0 24px;&#13;
+  border-radius: 999px;&#13;
+  background: $gnc-blue-soft;&#13;
+  color: $gnc-blue;&#13;
+  font-size: 12px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.16em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gnc-cta .gnc-heading {&#13;
+  margin: 0;&#13;
+  max-width: 520px;&#13;
+  font-size: 46px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.14;&#13;
+  letter-spacing: -0.032em;&#13;
+  color: $gnc-navy;&#13;
+}&#13;
+&#13;
+@supports (font-size: clamp(30px, 3.6vw, 46px)) {&#13;
+  .gnc-cta .gnc-heading { font-size: clamp(30px, 3.6vw, 46px); }&#13;
+}&#13;
+&#13;
+.gnc-cta .gnc-sub {&#13;
+  max-width: 520px;&#13;
+  margin: 20px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 17.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.68;&#13;
+  color: $gnc-body;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   ACTION&#13;
+   ========================================================= */&#13;
+&#13;
+.gnc-actions {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 14px 28px;&#13;
+  margin-top: 34px;&#13;
+}&#13;
+&#13;
+.gnc-btn {&#13;
+  position: relative;&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 14px;&#13;
+  height: 62px;&#13;
+  padding: 0 20px 0 32px;&#13;
+  border-radius: 999px;&#13;
+  overflow: hidden;&#13;
+  background: $gnc-blue;&#13;
+  color: $gnc-white;&#13;
+  font-size: 17px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.01em;&#13;
+  text-decoration: none;&#13;
+  box-shadow: 0 14px 30px rgba(21, 96, 224, 0.26);&#13;
+  transition: transform 0.55s $gnc-ease,&#13;
+              background 0.55s $gnc-ease,&#13;
+              box-shadow 0.55s $gnc-ease;&#13;
+}&#13;
+&#13;
+.gnc-btn:hover,&#13;
+.gnc-btn:focus {&#13;
+  transform: translateY(-3px);&#13;
+  background: $gnc-blue-dk;&#13;
+  color: $gnc-white;&#13;
+  box-shadow: 0 22px 44px rgba(21, 96, 224, 0.34);&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gnc-btn__label { position: relative; z-index: 2; }&#13;
+&#13;
+.gnc-btn__arrow {&#13;
+  position: relative;&#13;
+  z-index: 2;&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 34px;&#13;
+  height: 34px;&#13;
+  border-radius: 50%;&#13;
+  background: rgba(255, 255, 255, 0.18);&#13;
+  color: $gnc-white;&#13;
+  font-size: 13px;&#13;
+  transition: transform 0.55s $gnc-ease, background 0.55s $gnc-ease;&#13;
+}&#13;
+&#13;
+.gnc-btn:hover .gnc-btn__arrow,&#13;
+.gnc-btn:focus .gnc-btn__arrow {&#13;
+  transform: translateX(4px);&#13;
+  background: rgba(255, 255, 255, 0.28);&#13;
+}&#13;
+&#13;
+/* a single pass of light across the face on hover */&#13;
+.gnc-btn__shine {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  bottom: 0;&#13;
+  left: -60%;&#13;
+  z-index: 1;&#13;
+  width: 45%;&#13;
+  transform: skewX(-18deg);&#13;
+  background: linear-gradient(90deg,&#13;
+              rgba(255, 255, 255, 0) 0%,&#13;
+              rgba(255, 255, 255, 0.22) 50%,&#13;
+              rgba(255, 255, 255, 0) 100%);&#13;
+  transition: left 0.75s $gnc-ease;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnc-btn:hover .gnc-btn__shine,&#13;
+.gnc-btn:focus .gnc-btn__shine { left: 115%; }&#13;
+&#13;
+.gnc-link {&#13;
+  position: relative;&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  padding: 4px 0 6px;&#13;
+  color: $gnc-body;&#13;
+  font-size: 16px;&#13;
+  font-weight: 500;&#13;
+  text-decoration: none;&#13;
+  transition: color 0.55s $gnc-ease;&#13;
+}&#13;
+&#13;
+.gnc-link:hover,&#13;
+.gnc-link:focus {&#13;
+  color: $gnc-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gnc-link__rule {&#13;
+  position: absolute;&#13;
+  right: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  height: 1px;&#13;
+  background: currentColor;&#13;
+  transform: scaleX(0);&#13;
+  transform-origin: left center;&#13;
+  transition: transform 0.55s $gnc-ease;&#13;
+}&#13;
+&#13;
+.gnc-link:hover .gnc-link__rule,&#13;
+.gnc-link:focus .gnc-link__rule { transform: scaleX(1); }&#13;
+&#13;
+.gnc-cta .gnc-note {&#13;
+  margin: 26px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 14.5px;&#13;
+  color: rgba(85, 103, 127, 0.82);&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   ASIDE&#13;
+   What is on the page the button opens.&#13;
+   ========================================================= */&#13;
+&#13;
+.gnc-aside {&#13;
+  position: relative;&#13;
+  min-width: 0;&#13;
+  padding-left: 72px;&#13;
+}&#13;
+&#13;
+/* the rule between the columns, not a box around them */&#13;
+.gnc-aside::before {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  top: 4px;&#13;
+  bottom: 4px;&#13;
+  left: 0;&#13;
+  width: 1px;&#13;
+  background: $gnc-hair;&#13;
+}&#13;
+&#13;
+.gnc-cta .gnc-aside__label {&#13;
+  margin: 0 0 22px;&#13;
+  padding: 0;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.15em;&#13;
+  text-transform: uppercase;&#13;
+  color: rgba(85, 103, 127, 0.72);&#13;
+}&#13;
+&#13;
+.gnc-cta .gnc-facts {&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gnc-fact {&#13;
+  display: grid;&#13;
+  grid-template-columns: 42px minmax(0, 1fr);&#13;
+  gap: 16px;&#13;
+  padding: 18px 0;&#13;
+  border-bottom: 1px solid $gnc-hair;&#13;
+}&#13;
+&#13;
+.gnc-fact--1 { padding-top: 0; }&#13;
+&#13;
+.gnc-fact:last-child {&#13;
+  padding-bottom: 0;&#13;
+  border-bottom: 0;&#13;
+}&#13;
+&#13;
+.gnc-fact__icon {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 42px;&#13;
+  height: 42px;&#13;
+  border-radius: 13px;&#13;
+  background: $gnc-blue-soft;&#13;
+  color: $gnc-blue;&#13;
+  font-size: 15px;&#13;
+  flex-shrink: 0;&#13;
+  transition: background 0.55s $gnc-ease, color 0.55s $gnc-ease;&#13;
+}&#13;
+&#13;
+.gnc-fact:hover .gnc-fact__icon {&#13;
+  background: $gnc-blue;&#13;
+  color: $gnc-white;&#13;
+}&#13;
+&#13;
+.gnc-fact__copy {&#13;
+  display: block;&#13;
+  min-width: 0;&#13;
+  padding-top: 1px;&#13;
+}&#13;
+&#13;
+.gnc-fact__label {&#13;
+  display: block;&#13;
+  font-size: 16px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.015em;&#13;
+  color: $gnc-navy;&#13;
+}&#13;
+&#13;
+.gnc-fact__detail {&#13;
+  display: block;&#13;
+  margin-top: 5px;&#13;
+  font-size: 14.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $gnc-body;&#13;
+}&#13;
+&#13;
+.gnc-cta a:focus-visible {&#13;
+  outline: 2px solid $gnc-blue;&#13;
+  outline-offset: 4px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gncRise {&#13;
+    from { opacity: 0; transform: translateY(18px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  .gnc-cta .gnc-eyebrow,&#13;
+  .gnc-cta .gnc-heading,&#13;
+  .gnc-cta .gnc-sub,&#13;
+  .gnc-actions,&#13;
+  .gnc-cta .gnc-note,&#13;
+  .gnc-cta .gnc-aside__label {&#13;
+    animation: gncRise 0.7s $gnc-ease backwards;&#13;
+  }&#13;
+&#13;
+  .gnc-cta .gnc-eyebrow     { animation-delay: 0.06s; }&#13;
+  .gnc-cta .gnc-heading     { animation-delay: 0.13s; }&#13;
+  .gnc-cta .gnc-sub         { animation-delay: 0.20s; }&#13;
+  .gnc-actions              { animation-delay: 0.27s; }&#13;
+  .gnc-cta .gnc-note        { animation-delay: 0.34s; }&#13;
+  .gnc-cta .gnc-aside__label { animation-delay: 0.24s; }&#13;
+&#13;
+  .gnc-fact {&#13;
+    animation: gncRise 0.66s $gnc-ease backwards;&#13;
+  }&#13;
+&#13;
+  .gnc-fact--1 { animation-delay: 0.32s; }&#13;
+  .gnc-fact--2 { animation-delay: 0.40s; }&#13;
+  .gnc-fact--3 { animation-delay: 0.48s; }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1024px) {&#13;
+&#13;
+  .gnc-cta { padding: 84px 20px 92px; }&#13;
+&#13;
+  .gnc-cta__inner::before { top: -84px; }&#13;
+&#13;
+  .gnc-grid {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 46px;&#13;
+  }&#13;
+&#13;
+  .gnc-aside {&#13;
+    padding-left: 0;&#13;
+    padding-top: 40px;&#13;
+  }&#13;
+&#13;
+  /* the rule turns and sits above the column instead of beside it */&#13;
+  .gnc-aside::before {&#13;
+    top: 0;&#13;
+    right: 0;&#13;
+    bottom: auto;&#13;
+    left: 0;&#13;
+    width: auto;&#13;
+    height: 1px;&#13;
+  }&#13;
+&#13;
+  .gnc-cta .gnc-heading,&#13;
+  .gnc-cta .gnc-sub { max-width: 620px; }&#13;
+}&#13;
+&#13;
+@media (max-width: 620px) {&#13;
+&#13;
+  .gnc-cta { padding: 64px 16px 72px; }&#13;
+&#13;
+  .gnc-cta__inner::before { top: -64px; }&#13;
+&#13;
+  .gnc-actions {&#13;
+    flex-direction: column;&#13;
+    align-items: stretch;&#13;
+    gap: 16px;&#13;
+  }&#13;
+&#13;
+  .gnc-btn {&#13;
+    width: 100%;&#13;
+    height: 58px;&#13;
+    justify-content: center;&#13;
+    font-size: 16px;&#13;
+  }&#13;
+&#13;
+  .gnc-link { justify-content: center; }&#13;
+&#13;
+  .gnc-fact {&#13;
+    grid-template-columns: 36px minmax(0, 1fr);&#13;
+    gap: 13px;&#13;
+  }&#13;
+&#13;
+  .gnc-fact__icon {&#13;
+    width: 36px;&#13;
+    height: 36px;&#13;
+    border-radius: 11px;&#13;
+    font-size: 13px;&#13;
+  }&#13;
+&#13;
+  .gnc-cta .gnc-sub { font-size: 16px; }&#13;
+  .gnc-fact__detail { font-size: 14px; }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gnc-cta * { transition: none; }&#13;
+  .gnc-btn:hover { transform: none; }&#13;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>cta_section</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>CTA Section</name>
+        <option_schema/>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW LANDING · CALL TO ACTION
+     Service Portal widget · Server script
+
+     Copy lives here rather than in the template so every string
+     passes through gs.getMessage and stays translatable. No
+     table access, so no ACL considerations apply.
+
+     Note on option names: every widget instance already has a
+     built in "title" field, so options.title returns the
+     instance title rather than anything you set. The heading
+     option is named heading for that reason. The same applies
+     to color, glyph and size.
+     ========================================================= */
+
+  function opt(name, fallback) {
+    var value = options[name];
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    return value.toString();
+  }
+
+  data.regionLabel = opt('region_label', gs.getMessage('Explore open programs'));
+
+  data.eyebrow = opt('eyebrow', gs.getMessage('Open programs'));
+  data.heading = opt('heading', gs.getMessage('Start with the list, not the blank page'));
+
+  data.subhead = opt('subhead', gs.getMessage(
+    'Open programs sit in one place, each with its criteria, its funding range ' +
+    'and its closing date. Twenty minutes with that list will tell you more ' +
+    'than a week of guessing, and it is the difference between a bid that fits ' +
+    'and one that never stood a chance.'));
+
+  data.primaryLabel = opt('primary_label', gs.getMessage('Explore programs'));
+  data.primaryUrl   = opt('primary_url', '?id=opportunities');
+
+  /* One action only. The hero already carries the link to the process
+     section, and repeating it here would split the attention of a
+     reader who has just finished reading that section. Set these two
+     options if a second action is ever needed. */
+  data.secondaryLabel = opt('secondary_label', '');
+  data.secondaryUrl   = opt('secondary_url', '');
+
+  /* The right hand column. These are the three things every
+     program record actually carries, so the reader knows what
+     they are opening rather than being sold it again. */
+  data.factsLabel = opt('facts_label', gs.getMessage('What each program tells you'));
+
+  data.facts = [
+    {
+      icon  : 'fa-bullseye',
+      label : gs.getMessage('What it funds'),
+      detail: gs.getMessage('The categories in scope, the costs you can claim against, and the size of award on offer.')
+    },
+    {
+      icon  : 'fa-users',
+      label : gs.getMessage('Who can apply'),
+      detail: gs.getMessage('Organisation types, the area it covers, and any restriction that would rule you out.')
+    },
+    {
+      icon  : 'fa-calendar-o',
+      label : gs.getMessage('When it closes'),
+      detail: gs.getMessage('Opening and closing dates, so a deadline never arrives without warning.')
+    }
+  ];
+
+  data.note = opt('note', gs.getMessage(
+    'Nothing to fill in yet. Have a look first, apply when something fits.'));
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-08-21 11:09:27</sys_created_on>
+        <sys_id>c398c51e0f7a0f10712b6af300d1b21a</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_name>CTA Section</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_c398c51e0f7a0f10712b6af300d1b21a</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-24 10:04:00</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW LANDING · CALL TO ACTION
+     Service Portal widget · HTML template
+
+     Two columns, left aligned. The argument sits on the left
+     with the one action, and the right column answers the
+     question that action raises: what is actually on the page
+     you are about to open.
+
+     No client script. All display text arrives from the server
+     script, which resolves each string through gs.getMessage.
+     ========================================================= -->
+
+<section class="gnc-cta" role="region" aria-label="{{c.data.regionLabel}}">
+
+  <div class="gnc-cta__inner">
+
+    <div class="gnc-grid">
+
+      <div class="gnc-lead">
+
+        <span class="gnc-eyebrow" ng-if="c.data.eyebrow">{{c.data.eyebrow}}</span>
+
+        <h2 class="gnc-heading">{{c.data.heading}}</h2>
+
+        <p class="gnc-sub">{{c.data.subhead}}</p>
+
+        <div class="gnc-actions">
+
+          <a class="gnc-btn" ng-href="{{c.data.primaryUrl}}">
+            <span class="gnc-btn__shine" aria-hidden="true"></span>
+            <span class="gnc-btn__label">{{c.data.primaryLabel}}</span>
+            <span class="gnc-btn__arrow" aria-hidden="true"><i class="fa fa-arrow-right"></i></span>
+          </a>
+
+          <a class="gnc-link"
+             ng-if="c.data.secondaryLabel"
+             ng-href="{{c.data.secondaryUrl}}">
+            {{c.data.secondaryLabel}}
+            <span class="gnc-link__rule" aria-hidden="true"></span>
+          </a>
+
+        </div>
+
+        <p class="gnc-note" ng-if="c.data.note">{{c.data.note}}</p>
+
+      </div>
+
+
+      <div class="gnc-aside">
+
+        <p class="gnc-aside__label">{{c.data.factsLabel}}</p>
+
+        <ul class="gnc-facts">
+          <li class="gnc-fact"
+              ng-repeat="f in c.data.facts track by $index"
+              ng-class="'gnc-fact--' + ($index + 1)">
+
+            <span class="gnc-fact__icon" aria-hidden="true"><i class="fa" ng-class="f.icon"></i></span>
+
+            <span class="gnc-fact__copy">
+              <span class="gnc-fact__label">{{f.label}}</span>
+              <span class="gnc-fact__detail">{{f.detail}}</span>
+            </span>
+
+          </li>
+        </ul>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>]]></template>
+    </sp_widget>
+</record_update>

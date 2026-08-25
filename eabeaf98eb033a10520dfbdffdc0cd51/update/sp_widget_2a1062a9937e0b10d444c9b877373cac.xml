@@ -1,0 +1,2579 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function($scope) {
+
+  /* =========================================================
+     GATENOW · APPLICANT OVERVIEW · Client script
+     ========================================================= */
+
+  var c = this;
+
+  c.searchText = '';
+
+  /* period selector (display only, cycles the label) */
+  var PERIODS = ['Last 12 months', 'Last 6 months', 'Last 90 days', 'This year'];
+  c.period = PERIODS[0];
+
+  c.nextPeriod = function() {
+    var i = PERIODS.indexOf(c.period);
+    c.period = PERIODS[(i + 1) % PERIODS.length];
+    /* Hook a server refresh here if the period should filter data:
+       c.server.get({ action: 'setPeriod', period: c.period }).then(function(r) {
+         c.data = r.data;
+         c.init();
+       });
+    */
+  };
+
+
+  /* =====================================================
+     GENERIC HELPERS
+     ===================================================== */
+
+  c.pct = function(value, total) {
+    if (!total) return 0;
+    return Math.round((Number(value) / Number(total)) * 100);
+  };
+
+  c.money = function(value) {
+    var n = Number(value) || 0;
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(2).replace(/\.00$/, '') + 'M';
+    if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
+    return '$' + n;
+  };
+
+  c.tone = function(percent) {
+    var p = Number(percent) || 0;
+    if (p >= 70) return 'green';
+    if (p >= 40) return 'amber';
+    return 'red';
+  };
+
+
+  /* =====================================================
+     SPARKLINES
+     Builds a polyline plus an area polygon in a 100 x 34 viewBox.
+     ===================================================== */
+
+  function buildSpark(series) {
+
+    var s = (series || []).map(Number).filter(function(n) {
+      return !isNaN(n);
+    });
+
+    if (s.length < 2) s = [0, 0];
+
+    var max = Math.max.apply(null, s);
+    var min = Math.min.apply(null, s);
+    var span = (max - min) || 1;
+    var step = 100 / (s.length - 1);
+
+    var pts = s.map(function(v, i) {
+      var x = +(i * step).toFixed(2);
+      var y = +(30 - ((v - min) / span) * 25).toFixed(2);
+      return x + ',' + y;
+    });
+
+    var lastY = parseFloat(pts[pts.length - 1].split(',')[1]);
+
+    return {
+      line: pts.join(' '),
+      area: '0,34 ' + pts.join(' ') + ' 100,34',
+      dotTop: +((lastY / 34) * 100).toFixed(2)
+    };
+  }
+
+
+  /* =====================================================
+     MILESTONE MINI BARS
+     ===================================================== */
+
+  c.milestoneH = function(value) {
+    var list = (c.data.projects && c.data.projects.milestonesPerMonth) || [];
+    var max = Math.max.apply(null, list.map(Number).concat([1]));
+    return Math.max(30, Math.round((Number(value) || 0) / max * 100));
+  };
+
+
+  /* =====================================================
+     ACTIONS DUE SEGMENTED BAR
+     ===================================================== */
+
+  c.actionPct = function(value) {
+    var a = c.data.actions || {};
+    var total = (Number(a.overdue) || 0) + (Number(a.thisWeek) || 0) + (Number(a.later) || 0);
+    if (!total) return 0;
+    return (Number(value) || 0) / total * 100;
+  };
+
+
+  /* =====================================================
+     AXES
+     Pipeline uses four labels in thirds.
+     Monthly chart uses whole number steps.
+     ===================================================== */
+
+  function thirdsAxis(max) {
+    var top = Math.max(3, Math.ceil(max / 3) * 3);
+    return { top: top, ticks: [top, (top / 3) * 2, top / 3, 0] };
+  }
+
+  function stepAxis(max) {
+    var top = Math.max(4, Math.ceil(max));
+    if (top > 6) return thirdsAxis(top);
+    var ticks = [];
+    for (var i = top; i >= 0; i--) ticks.push(i);
+    return { top: top, ticks: ticks };
+  }
+
+  c.pipeH = function(value) {
+    if (!c.pipeTop) return 0;
+    return Math.max(2, ((Number(value) || 0) / c.pipeTop) * 100);
+  };
+
+  c.monthH = function(value) {
+    if (!c.monthTop) return 0;
+    return Math.max(2, ((Number(value) || 0) / c.monthTop) * 100);
+  };
+
+
+  /* =====================================================
+     PROJECT HEALTH
+     ===================================================== */
+
+  c.healthPct = function(key) {
+    var h = c.data.health || {};
+    var total = (Number(h.green) || 0) + (Number(h.yellow) || 0) + (Number(h.red) || 0);
+    if (!total) return 0;
+    return (Number(h[key]) || 0) / total * 100;
+  };
+
+
+  /* =====================================================
+     INIT
+     ===================================================== */
+
+  c.init = function() {
+
+    c.sparkApps = buildSpark((c.data.applications || {}).trend);
+    c.sparkAwards = buildSpark((c.data.awards || {}).trend);
+
+    var counts = (c.data.pipeline || []).map(function(s) {
+      return Number(s.count) || 0;
+    });
+
+    var pipe = thirdsAxis(Math.max.apply(null, counts.concat([0])));
+    c.pipeTop = pipe.top;
+    c.pipeAxis = pipe.ticks;
+
+    var monthMax = 0;
+
+    ((c.data.postAward || {}).months || []).forEach(function(m) {
+      monthMax = Math.max(
+        monthMax,
+        Number(m.statusReports) || 0,
+        Number(m.changeRequests) || 0,
+        Number(m.reimbursements) || 0
+      );
+    });
+
+    var month = stepAxis(monthMax);
+    c.monthTop = month.top;
+    c.monthAxis = month.ticks;
+  };
+
+  c.init();
+
+}]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* =========================================================
+   GATENOW · APPLICANT OVERVIEW
+   Service Portal widget · CSS / SCSS
+
+   Written with fully expanded selectors on purpose.
+   The Service Portal Sass compiler does not support parent
+   selector concatenation (&amp;__head, &amp;--green), so every rule
+   below is written out in full.
+   ========================================================= */
+
+$gn-bg:          #f4f6fb;
+$gn-card:        #ffffff;
+$gn-line:        #e7eaf2;
+$gn-line-soft:   #eff2f7;
+
+$gn-ink:         #16203a;
+$gn-ink-2:       #3f4a63;
+$gn-muted:       #7b8598;
+$gn-muted-2:     #9aa3b4;
+
+$gn-indigo:      #4457c9;
+$gn-indigo-dk:   #3a4bb3;
+$gn-indigo-mid:  #7b90ee;
+$gn-indigo-soft: #aebcf5;
+$gn-violet:      #6f5fd0;
+$gn-green:       #1f9d6d;
+$gn-sage:        #93c8ae;
+$gn-amber:       #e2a233;
+$gn-red:         #e0525f;
+$gn-slate:       #c9d2e3;
+
+$gn-font: "Poppins", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+
+
+/* =========================================================
+   SHELL
+   ========================================================= */
+
+.gn-dash {
+  background: $gn-bg;
+  font-family: $gn-font;
+  color: $gn-ink;
+  padding: 26px 30px 46px;
+  min-height: 100vh;
+}
+
+.gn-dash *,
+.gn-dash *::before,
+.gn-dash *::after { box-sizing: border-box; }
+
+.gn-dash h1,
+.gn-dash h2,
+.gn-dash p { margin: 0; }
+
+.gn-dash a { text-decoration: none; }
+.gn-dash a:hover,
+.gn-dash a:focus { text-decoration: none; }
+
+.gn-dash :focus-visible {
+  outline: 2px solid $gn-indigo;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.gn-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.gn-head__left { min-width: 0; }
+
+.gn-head__title {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+  color: $gn-ink;
+}
+
+.gn-head__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: $gn-muted;
+}
+
+.gn-head__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.gn-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $gn-green;
+  flex-shrink: 0;
+}
+
+.gn-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 300px;
+  height: 44px;
+  padding: 0 15px;
+  margin: 0;
+  background: $gn-card;
+  border: 1px solid $gn-line;
+  border-radius: 12px;
+  font-weight: 400;
+}
+
+.gn-search i {
+  color: $gn-muted-2;
+  font-size: 13px;
+}
+
+.gn-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 13.5px;
+  color: $gn-ink-2;
+}
+
+.gn-search input::placeholder { color: $gn-muted-2; }
+
+.gn-select {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 15px;
+  background: $gn-card;
+  border: 1px solid $gn-line;
+  border-radius: 12px;
+  color: $gn-ink-2;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-select:hover { border-color: $gn-indigo-soft; }
+.gn-select__lead { color: $gn-indigo; font-size: 13px; }
+.gn-select__caret { color: $gn-muted-2; font-size: 12px; }
+
+.gn-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: $gn-indigo;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   KPI CARDS
+   ========================================================= */
+
+.gn-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* Portal columns are narrower than the viewport, so the grid also
+   reflows on its own container width, not just on media queries. */
+@supports (grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))) {
+  .gn-kpis { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+}
+
+.gn-kpi {
+  display: flex;
+  flex-direction: column;
+  background: $gn-card;
+  border: 1px solid $gn-line;
+  border-radius: 16px;
+  padding: 20px 22px 16px;
+  min-height: 212px;
+  box-shadow: 0 1px 2px rgba(22, 32, 58, 0.04), 0 8px 20px rgba(22, 32, 58, 0.04);
+}
+
+.gn-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gn-kpi__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: $gn-muted;
+}
+
+.gn-kpi__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.gn-kpi__icon--indigo { color: $gn-indigo; background: #edf1ff; }
+.gn-kpi__icon--violet { color: $gn-violet; background: #f0edfd; }
+.gn-kpi__icon--amber  { color: #c98a1c;    background: #fdf4e2; }
+
+.gn-kpi__figure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.gn-kpi__value {
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -1.4px;
+  color: $gn-ink;
+}
+
+.gn-kpi__desc {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: $gn-muted;
+}
+
+.gn-kpi__caption {
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 11px;
+  color: $gn-muted-2;
+}
+
+
+/* ---------- chips ---------- */
+
+.gn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #f1f3f8;
+  color: $gn-ink-2;
+}
+
+.gn-chip--green { background: #e6f6ef; color: #178a5e; }
+.gn-chip--amber { background: #fdf1dd; color: #b9801a; }
+.gn-chip--red   { background: #fdecee; color: #cf4351; }
+
+
+/* ---------- sparkline ---------- */
+
+.gn-spark {
+  position: relative;
+  height: 34px;
+  margin-top: 16px;
+}
+
+.gn-spark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.gn-spark__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.gn-spark__area {
+  stroke: none;
+  fill: rgba(68, 87, 201, 0.10);
+}
+
+.gn-spark__dot {
+  position: absolute;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(1px, -50%);
+  background: $gn-indigo;
+}
+
+.gn-spark--indigo .gn-spark__line { stroke: $gn-indigo; }
+.gn-spark--indigo .gn-spark__area { fill: rgba(68, 87, 201, 0.10); }
+.gn-spark--indigo .gn-spark__dot  { background: $gn-indigo; }
+
+.gn-spark--green .gn-spark__line { stroke: $gn-green; }
+.gn-spark--green .gn-spark__area { fill: rgba(31, 157, 109, 0.12); }
+.gn-spark--green .gn-spark__dot  { background: $gn-green; }
+
+
+/* ---------- milestone bars ---------- */
+
+.gn-milestones {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 34px;
+  margin-top: 16px;
+}
+
+.gn-milestone {
+  flex: 1;
+  min-height: 30%;
+  border-radius: 4px;
+  background: #dde3f5;
+  transition: height 0.4s ease;
+}
+
+.gn-milestone.is-current { background: $gn-indigo; }
+
+
+/* ---------- segmented bar ---------- */
+
+.gn-segbar {
+  display: flex;
+  height: 7px;
+  margin-top: 22px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e9edf4;
+}
+
+.gn-seg { height: 100%; transition: width 0.4s ease; }
+.gn-seg--red   { background: $gn-red; }
+.gn-seg--amber { background: $gn-amber; }
+.gn-seg--grey  { background: #dfe4ee; }
+
+
+/* =========================================================
+   CARD SYSTEM
+   ========================================================= */
+
+.gn-row {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.gn-row--wide {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.gn-card {
+  display: flex;
+  flex-direction: column;
+  background: $gn-card;
+  border: 1px solid $gn-line;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(22, 32, 58, 0.04), 0 8px 20px rgba(22, 32, 58, 0.04);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gn-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 4px;
+}
+
+.gn-card__head h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+  color: $gn-ink;
+}
+
+.gn-card__head p {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: $gn-muted;
+}
+
+.gn-card__body {
+  padding: 18px 24px 22px;
+  flex: 1;
+}
+
+.gn-card__body--tight { padding: 12px 16px 16px; }
+
+.gn-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 24px;
+  padding: 14px 0 18px;
+  border-top: 1px solid $gn-line-soft;
+  font-size: 12px;
+  color: $gn-muted;
+}
+
+.gn-link {
+  color: $gn-indigo;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-link:hover { color: $gn-indigo-dk; }
+
+.gn-note {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid $gn-line-soft;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $gn-muted-2;
+}
+
+.gn-empty {
+  padding: 34px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: $gn-muted-2;
+}
+
+.gn-total {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.gn-total strong {
+  display: block;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: $gn-ink;
+}
+
+.gn-total span {
+  font-size: 11px;
+  color: $gn-muted-2;
+}
+
+
+/* =========================================================
+   CHARTS
+   ========================================================= */
+
+.gn-chart {
+  display: flex;
+  gap: 12px;
+}
+
+.gn-chart__axis {
+  width: 22px;
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 11px;
+  line-height: 1;
+  color: $gn-muted-2;
+  flex-shrink: 0;
+}
+
+.gn-chart__plot {
+  position: relative;
+  flex: 1;
+  height: 220px;
+  min-width: 0;
+}
+
+.gn-grid {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.gn-grid__line {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: $gn-line-soft;
+}
+
+.gn-grid__line:last-child { background: $gn-line; }
+
+.gn-cols {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 10px;
+}
+
+.gn-col {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.gn-col__track {
+  width: 62px;
+  max-width: 72%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.gn-col__bar {
+  position: relative;
+  width: 100%;
+  min-height: 3px;
+  border-radius: 6px 6px 0 0;
+  background: $gn-indigo-soft;
+  transition: height 0.45s ease;
+}
+
+.gn-col__value {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 7px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: $gn-ink-2;
+}
+
+.gn-col__bar--draft     { background: $gn-slate; }
+.gn-col__bar--submitted { background: $gn-indigo-mid; }
+.gn-col__bar--review    { background: $gn-indigo; }
+.gn-col__bar--awarded   { background: $gn-green; }
+.gn-col__bar--declined  { background: $gn-red; }
+.gn-col__bar--other     { background: $gn-indigo-soft; }
+
+.gn-col__cluster {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+}
+
+.gn-gbar {
+  width: 14px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.45s ease;
+}
+
+.gn-gbar--indigo     { background: $gn-indigo; }
+.gn-gbar--periwinkle { background: $gn-indigo-mid; }
+.gn-gbar--sage       { background: $gn-sage; }
+
+.gn-tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, 2px);
+  min-width: 150px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: $gn-ink;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 5;
+}
+
+.gn-tip strong {
+  display: block;
+  font-weight: 600;
+}
+
+.gn-col:hover .gn-tip {
+  opacity: 1;
+  transform: translate(-50%, -6px);
+}
+
+.gn-labels {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  padding-left: 34px;
+  margin-top: 10px;
+}
+
+.gn-labels span {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: $gn-ink-2;
+}
+
+.gn-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-width: 300px;
+  font-size: 12px;
+  color: $gn-ink-2;
+}
+
+.gn-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gn-key {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.gn-key--indigo     { background: $gn-indigo; }
+.gn-key--periwinkle { background: $gn-indigo-mid; }
+.gn-key--sage       { background: $gn-sage; }
+
+
+/* =========================================================
+   PROJECT HEALTH
+   ========================================================= */
+
+.gn-health {
+  display: flex;
+  height: 46px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #eef1f6;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.gn-health__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  white-space: nowrap;
+  transition: width 0.45s ease;
+}
+
+.gn-health__seg--green { background: #1f9d6d; }
+.gn-health__seg--amber { background: #dfa227; }
+.gn-health__seg--red   { background: $gn-red; }
+
+.gn-health__rest {
+  flex: 0 0 auto;
+  min-width: 52px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $gn-muted;
+  font-size: 12.5px;
+}
+
+.gn-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid $gn-line-soft;
+}
+
+.gn-legend__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #f4f6fa;
+  font-size: 12px;
+  color: $gn-ink-2;
+}
+
+.gn-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: $gn-slate;
+}
+
+.gn-dot--green { background: $gn-green; }
+.gn-dot--amber { background: $gn-amber; }
+.gn-dot--red   { background: $gn-red; }
+
+.gn-projects { padding-top: 6px; }
+
+.gn-project {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 14px 0 10px;
+  border-bottom: 1px solid $gn-line-soft;
+}
+
+.gn-project:last-child { border-bottom: 0; }
+
+.gn-project__name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $gn-ink;
+}
+
+.gn-project__name span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gn-project__pct {
+  font-size: 13px;
+  color: $gn-ink-2;
+}
+
+.gn-project__track {
+  grid-column: 1 / -1;
+  height: 5px;
+  border-radius: 999px;
+  background: #edf0f6;
+  overflow: hidden;
+}
+
+.gn-project__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: $gn-slate;
+  transition: width 0.45s ease;
+}
+
+.gn-project__fill--green { background: $gn-green; }
+.gn-project__fill--amber { background: $gn-amber; }
+.gn-project__fill--red   { background: $gn-red; }
+
+
+/* =========================================================
+   REIMBURSEMENTS
+   ========================================================= */
+
+.gn-claim { margin-bottom: 18px; }
+.gn-claim:last-child { margin-bottom: 0; }
+
+.gn-claim__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.gn-claim__label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $gn-ink;
+}
+
+.gn-claim__value {
+  font-size: 12.5px;
+  color: $gn-muted;
+}
+
+.gn-claim__track {
+  height: 8px;
+  border-radius: 999px;
+  background: #edf0f6;
+  overflow: hidden;
+}
+
+.gn-claim__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: $gn-indigo-soft;
+  transition: width 0.45s ease;
+}
+
+.gn-claim__fill--green      { background: $gn-green; }
+.gn-claim__fill--indigo     { background: $gn-indigo; }
+.gn-claim__fill--periwinkle { background: $gn-indigo-mid; }
+.gn-claim__fill--soft       { background: $gn-indigo-soft; }
+.gn-claim__fill--amber      { background: $gn-amber; }
+.gn-claim__fill--red        { background: $gn-red; }
+
+
+/* =========================================================
+   MY ITEMS TABLE
+   ========================================================= */
+
+.gn-table {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.gn-table__head,
+.gn-table__row {
+  display: grid;
+  grid-template-columns: 1.55fr 0.8fr 1.15fr 0.8fr 0.85fr 0.8fr;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+}
+
+.gn-table__head {
+  height: 40px;
+  background: #f7f9fc;
+  border-top: 1px solid $gn-line-soft;
+  border-bottom: 1px solid $gn-line-soft;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: $gn-muted;
+}
+
+.gn-table__row {
+  min-height: 66px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid $gn-line-soft;
+}
+
+.gn-table__row:last-child { border-bottom: 0; }
+.gn-table__row:hover { background: #fafbfe; }
+
+.gn-cell {
+  font-size: 13px;
+  min-width: 0;
+}
+
+.gn-cell--name {
+  font-weight: 500;
+  color: $gn-ink;
+  line-height: 1.4;
+}
+
+.gn-cell--related {
+  color: $gn-indigo;
+  line-height: 1.4;
+}
+
+.gn-cell--date {
+  color: $gn-ink-2;
+  line-height: 1.4;
+}
+
+.gn-tag {
+  display: inline-flex;
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: #edf1ff;
+  color: $gn-indigo;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f2f4f8;
+  color: $gn-ink-2;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-state--red   { background: #fdecee; color: #cf4351; }
+.gn-state--amber { background: #fdf3e0; color: #b9801a; }
+.gn-state--green { background: #e6f6ef; color: #178a5e; }
+.gn-state--grey  { background: #f2f4f8; color: $gn-muted; }
+
+.gn-state--red .gn-dot   { background: $gn-red; }
+.gn-state--amber .gn-dot { background: $gn-amber; }
+.gn-state--green .gn-dot { background: $gn-green; }
+.gn-state--grey .gn-dot  { background: $gn-muted-2; }
+
+.gn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid $gn-line;
+  border-radius: 9px;
+  background: $gn-card;
+  color: $gn-ink-2;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.gn-btn:hover {
+  border-color: $gn-indigo-soft;
+  color: $gn-indigo;
+}
+
+.gn-btn--primary {
+  background: $gn-indigo;
+  border-color: $gn-indigo;
+  color: #ffffff;
+}
+
+.gn-btn--primary:hover {
+  background: $gn-indigo-dk;
+  border-color: $gn-indigo-dk;
+  color: #ffffff;
+}
+
+
+/* =========================================================
+   FUNDING PROGRAMS
+   ========================================================= */
+
+.gn-program {
+  display: block;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid $gn-line;
+  border-radius: 12px;
+  color: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gn-program:last-child { margin-bottom: 0; }
+
+.gn-program:hover {
+  border-color: $gn-indigo-soft;
+  box-shadow: 0 6px 16px rgba(22, 32, 58, 0.06);
+}
+
+.gn-program__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gn-program__top strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: $gn-ink;
+}
+
+.gn-program__desc {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: $gn-indigo;
+}
+
+.gn-program__foot {
+  margin-top: 12px;
+  font-size: 12px;
+  color: $gn-muted;
+}
+
+.gn-program__foot i { margin-right: 6px; }
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1024px) {
+  .gn-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gn-row--wide { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .gn-dash { padding: 20px 16px 36px; }
+
+  .gn-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gn-head__right { flex-wrap: wrap; }
+
+  .gn-search {
+    width: 100%;
+    flex: 1 1 200px;
+  }
+
+  .gn-table__head { display: none; }
+
+  .gn-table__row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 16px 20px;
+  }
+
+  .gn-table__row .gn-cell::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10.5px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: $gn-muted-2;
+  }
+
+  .gn-btn { width: 100%; }
+}
+
+@media (max-width: 620px) {
+  .gn-kpis { grid-template-columns: minmax(0, 1fr); }
+  .gn-head__title { font-size: 25px; }
+  .gn-col__track { width: 100%; }
+  .gn-labels span { font-size: 10.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gn-dash * { transition: none; }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description>Applicant Dashboard</description>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>applicant_dashboard</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Applicant Dashboard</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW · APPLICANT OVERVIEW · Server script
+     Wired to the live GateNow data model.
+     ========================================================= */
+
+  /* ---------- tables ---------- */
+  var TBL = {
+    application  : 'x_enno_gatenow_service_applicants',
+    program      : 'x_enno_gatenow_grant_program',
+    project      : 'x_enno_gatenow_project',
+    statusReport : 'x_enno_gatenow_status_report',
+    changeRequest: 'x_enno_gatenow_change_request',
+    reimbursement: 'x_enno_gatenow_reimbursement'
+  };
+
+  /* ---------- portal page ids ---------- */
+  var PAGE = {
+    applications : 'my_application_page',
+    items        : 'my_items',
+    claims       : 'my_reimbursements',
+    application  : 'application_detail',
+    project      : 'project_detail',
+    report       : 'status_report_detail',
+    claim        : 'reimbursement_detail',
+    change       : 'change_request_detail',
+    programDetail: 'program_detail'
+  };
+
+  /* ---------- tunables ---------- */
+  var ACK_WINDOW_DAYS      = 14;  // days an applicant gets to acknowledge an award
+  var FEEDBACK_WINDOW_DAYS = 14;  // days to respond after review completes
+  var CR_WINDOW_DAYS       = 14;  // days to progress a change request
+  var CLAIM_FIX_DAYS       = 7;   // days to fix and resubmit a rejected claim
+  var DUE_SOON_DAYS        = 7;   // amber threshold
+
+  var userId    = gs.getUserID();
+  var userLogin = gs.getUserName();
+  var userName  = gs.getUserDisplayName() || 'User';
+
+  data.sideBar = $sp.getWidget('sidebar_dashboard');
+
+
+  /* =========================================================
+     HELPERS
+     ========================================================= */
+
+  var portalSuffix = '/applicant';
+  try {
+    var pr = $sp.getPortalRecord();
+    if (pr) portalSuffix = '/' + pr.getValue('url_suffix');
+  } catch (e) { /* keep default */ }
+
+  function link(page, sysId) {
+    return portalSuffix + '?id=' + page + (sysId ? '&sys_id=' + sysId : '');
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  // currency fields come back as "USD;1500.00", plain fields as "1500"
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // returns the first field on the record that exists and has a value
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next candidate */ }
+    }
+    return '';
+  }
+
+  function stripHtml(html) {
+    if (!html) return '';
+    return ('' + html).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+                      .replace(/\s+/g, ' ').trim();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDateTime(gdt) {
+    try {
+      return gdt.getDate().getByFormat('d MMM yyyy') + ', ' + gdt.getTime().getByFormat('h:mm a');
+    } catch (e) { return gs.nowDateTime(); }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  // positive = in the future, negative = overdue
+  function daysFromNow(value) {
+    var g = toGDT(value);
+    if (!g) return 9999;
+    try {
+      var ms = GlideDateTime.subtract(new GlideDateTime(), g).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return 9999; }
+  }
+
+  function addDays(value, days) {
+    var g = toGDT(value) || new GlideDateTime();
+    g.addDaysLocalTime(days);
+    return g.getValue();
+  }
+
+  function initials(name) {
+    var parts = ('' + name).trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function monthKeyOf(gdt) {
+    return gdt.getYearLocalTime() + '-' + gdt.getMonthLocalTime();
+  }
+
+  function monthsAgo(gdt) {
+    var now = new GlideDateTime();
+    return (now.getYearLocalTime() - gdt.getYearLocalTime()) * 12 +
+           (now.getMonthLocalTime() - gdt.getMonthLocalTime());
+  }
+
+  data.user = { name: userName, initials: initials(userName) };
+  data.lastUpdated = fmtDateTime(new GlideDateTime());
+
+  data.links = {
+    applications : link(PAGE.applications),
+    items        : link(PAGE.items),
+    claims       : link(PAGE.claims)
+  };
+
+
+  /* =========================================================
+     1 · APPLICATIONS AND PIPELINE
+     Backend state values map onto five lifecycle stages.
+     Cancelled is counted under Declined.
+     ========================================================= */
+
+  var STAGE_BY_STATE = {
+    'new'                  : 'draft',
+    'ready_for_review'     : 'submitted',
+    'review_in_progress'   : 'review',
+    'review_completed'     : 'review',
+    'award_pending'        : 'awarded',
+    'award_acknowledged'   : 'awarded',
+    'project_in_progress'  : 'awarded',
+    'project_completed'    : 'awarded',
+    'declined_by_agency'   : 'declined',
+    'declined_by_applicant': 'declined',
+    'cancelled'            : 'declined'
+  };
+
+  var STAGES = [
+    { key: 'draft',     label: 'Draft' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'review',    label: 'Under review' },
+    { key: 'awarded',   label: 'Awarded' },
+    { key: 'declined',  label: 'Declined' }
+  ];
+
+  var stageCount   = { draft: 0, submitted: 0, review: 0, awarded: 0, declined: 0 };
+  var appTrend     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var applicantIds = [];
+  var appTotal     = 0;
+  var appNew       = 0;
+
+  // award figures come from application state, there is no separate award table
+  var awardPending = 0, awardAck = 0, awardValueYTD = 0;
+  var awardTrend   = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+  // rows that feed My items
+  var pendingAwards   = [];
+  var feedbackPending = [];
+
+
+  try {
+    var thisYear = new GlideDateTime().getYearLocalTime();
+
+    var monthAgo = new GlideDateTime();
+    monthAgo.addMonthsLocalTime(-1);
+
+    var appGR = new GlideRecordSecure(TBL.application);
+    var qc = appGR.addQuery('user', userId);
+    qc.addOrCondition('sys_created_by', userLogin);
+    appGR.orderByDesc('sys_created_on');
+    appGR.query();
+
+    while (appGR.next()) {
+
+      appTotal++;
+      applicantIds.push(appGR.getUniqueValue());
+
+      var stateValue = lower(appGR.getValue('state'));
+      var stage = STAGE_BY_STATE[stateValue] || 'submitted';
+      stageCount[stage]++;
+
+      var created = new GlideDateTime(appGR.getValue('sys_created_on'));
+      if (created.compareTo(monthAgo) > 0) appNew++;
+
+      var ago = monthsAgo(created);
+      if (ago >= 0 && ago < 12) appTrend[11 - ago]++;
+
+      // award side of the same record
+      var budget = num(pick(appGR, ['requested_budget', 'budget', 'amount_requested']));
+
+      if (stateValue === 'award_pending') {
+        awardPending++;
+        pendingAwards.push({
+          sysId  : appGR.getUniqueValue(),
+          number : appGR.getValue('number'),
+          program: appGR.getDisplayValue('program'),
+          since  : appGR.getValue('sys_updated_on')
+        });
+      }
+
+      if (stateValue === 'award_acknowledged' ||
+          stateValue === 'project_in_progress' ||
+          stateValue === 'project_completed') {
+        awardAck++;
+      }
+
+      if (stage === 'awarded') {
+        if (created.getYearLocalTime() === thisYear) awardValueYTD += budget;
+        if (ago >= 0 && ago < 12) awardTrend[11 - ago] += budget;
+      }
+
+      if (stateValue === 'review_completed') {
+        feedbackPending.push({
+          sysId  : appGR.getUniqueValue(),
+          number : appGR.getValue('number'),
+          program: appGR.getDisplayValue('program'),
+          since  : appGR.getValue('sys_updated_on')
+        });
+      }
+
+    }
+  } catch (e) {
+    gs.error('GateNow overview · applications: ' + e.message);
+  }
+
+  // running totals so both sparklines read as a trend, not a spiky count
+  for (var ai = 1; ai < appTrend.length; ai++)   appTrend[ai]   += appTrend[ai - 1];
+  for (var wi = 1; wi < awardTrend.length; wi++) awardTrend[wi] += awardTrend[wi - 1];
+
+  data.applications = {
+    total       : appTotal,
+    newThisMonth: appNew,
+    submitted   : stageCount.submitted,
+    review      : stageCount.review,
+    awarded     : stageCount.awarded,
+    declined    : stageCount.declined,
+    trend       : appTrend
+  };
+
+  data.pipeline = STAGES.map(function (s) {
+    return { key: s.key, label: s.label, count: stageCount[s.key] };
+  });
+
+  data.awards = {
+    active       : awardPending + awardAck,
+    toAcknowledge: awardPending,
+    acknowledged : awardAck,
+    valueThisYear: awardValueYTD,
+    trend        : awardTrend
+  };
+
+
+  /* =========================================================
+     2 · PROJECTS
+     Scoped to this applicant's records, closed and cancelled
+     phases excluded from the active count.
+     ========================================================= */
+
+  var projectIds  = [];
+  var projectList = [];
+  var health      = { green: 0, yellow: 0, red: 0 };
+
+  function toneOfStatus(raw) {
+    var v = lower(raw);
+    if (v.indexOf('red') !== -1)    return 'red';
+    if (v.indexOf('yellow') !== -1) return 'amber';
+    return 'green';
+  }
+
+  try {
+    if (applicantIds.length) {
+
+      var prGR = new GlideRecordSecure(TBL.project);
+      prGR.addQuery('applicant', 'IN', applicantIds.join(','));
+      prGR.orderByDesc('sys_updated_on');
+      prGR.query();
+
+      while (prGR.next()) {
+
+        var phase = lower(prGR.getDisplayValue('phase'));
+        if (phase.indexOf('closed') !== -1 || phase.indexOf('cancel') !== -1) continue;
+
+        var tone = toneOfStatus(prGR.getDisplayValue('status'));
+
+        projectIds.push(prGR.getUniqueValue());
+
+        projectList.push({
+          sysId  : prGR.getUniqueValue(),
+          name   : (pick(prGR, ['project_name', 'short_description']) || 'Project').substring(0, 44),
+          number : prGR.getValue('number'),
+          phase  : prGR.getDisplayValue('phase'),
+          percent: parseInt(prGR.getValue('percent_complete') || 0, 10),
+          tone   : tone
+        });
+      }
+    }
+  } catch (e) {
+    gs.error('GateNow overview · projects: ' + e.message);
+  }
+
+  /* latest status report per project overrides the project status field,
+     because that is the self reported health for the current period */
+  var reportedTone = {};
+
+  try {
+    if (projectIds.length) {
+      var seen = {};
+      var srGR = new GlideRecordSecure(TBL.statusReport);
+      srGR.addQuery('project', 'IN', projectIds.join(','));
+      srGR.orderByDesc('status_date');
+      srGR.orderByDesc('sys_created_on');
+      srGR.query();
+
+      while (srGR.next()) {
+        var pid = srGR.getValue('project');
+        if (seen[pid]) continue;
+        seen[pid] = true;
+        reportedTone[pid] = toneOfStatus(srGR.getDisplayValue('overall_health'));
+      }
+    }
+  } catch (e) {
+    gs.error('GateNow overview · latest status report: ' + e.message);
+  }
+
+  projectList.forEach(function (p) {
+    if (reportedTone[p.sysId]) p.tone = reportedTone[p.sysId];
+    if (p.tone === 'green') health.green++;
+    else if (p.tone === 'amber') health.yellow++;
+    else health.red++;
+  });
+
+  data.health = health;
+
+  data.projects = {
+    active    : projectList.length,
+    list      : projectList.slice(0, 3),
+    onTrack   : health.green,
+    atRisk    : health.yellow,
+    critical  : health.red,
+    onTrackPct: projectList.length ? Math.round((health.green / projectList.length) * 100) : 0,
+    milestonesPerMonth: []
+  };
+
+
+
+  /* =========================================================
+     3 · POST-AWARD SUBMISSIONS, LAST 6 MONTHS
+     Plus status reports per month for the KPI mini chart.
+     ========================================================= */
+
+  var months = [];
+  var index  = {};
+
+  for (var mi = 5; mi >= 0; mi--) {
+    var gm = new GlideDateTime();
+    gm.addMonthsLocalTime(-mi);
+    var row = {
+      key           : monthKeyOf(gm),
+      label         : MONTHS[gm.getMonthLocalTime() - 1],
+      statusReports : 0,
+      changeRequests: 0,
+      reimbursements: 0
+    };
+    index[row.key] = row;
+    months.push(row);
+  }
+
+  var reportsByMonth = {};
+
+  function bucket(table, field, dateField) {
+    try {
+      if (!projectIds.length) return;
+
+      var gr = new GlideRecordSecure(table);
+      gr.addQuery('project', 'IN', projectIds.join(','));
+      gr.query();
+
+      while (gr.next()) {
+        var raw = dateField ? pick(gr, [dateField, 'sys_created_on']) : gr.getValue('sys_created_on');
+        var g   = toGDT(raw);
+        if (!g) continue;
+
+        var key = monthKeyOf(g);
+        if (index[key]) index[key][field]++;
+
+        if (field === 'statusReports') {
+          var ago2 = monthsAgo(g);
+          if (ago2 >= 0 && ago2 < 8) reportsByMonth[ago2] = (reportsByMonth[ago2] || 0) + 1;
+        }
+      }
+    } catch (e) {
+      gs.error('GateNow overview · ' + table + ': ' + e.message);
+    }
+  }
+
+  bucket(TBL.statusReport,  'statusReports',  'status_date');
+  bucket(TBL.changeRequest, 'changeRequests', null);
+  bucket(TBL.reimbursement, 'reimbursements', null);
+
+  for (var b = 7; b >= 0; b--) {
+    data.projects.milestonesPerMonth.push(reportsByMonth[b] || 0);
+  }
+
+  data.postAward = {
+    months: months,
+    totals: {
+      statusReports : months.reduce(function (s, m) { return s + m.statusReports; }, 0),
+      changeRequests: months.reduce(function (s, m) { return s + m.changeRequests; }, 0),
+      reimbursements: months.reduce(function (s, m) { return s + m.reimbursements; }, 0)
+    }
+  };
+
+
+  /* =========================================================
+     4 · REIMBURSEMENTS BY STATE
+     ========================================================= */
+
+  var CLAIM_STATES = [
+    { match: 'paid',      label: 'Paid',      tone: 'green' },
+    { match: 'approved',  label: 'Approved',  tone: 'indigo' },
+    { match: 'in review', label: 'In review', tone: 'periwinkle' },
+    { match: 'submitted', label: 'Submitted', tone: 'soft' },
+    { match: 'rejected',  label: 'Rejected',  tone: 'red' }
+  ];
+
+  var claimMap = {};
+  var claimTotal = 0, claimValue = 0, claimRejected = 0;
+  var rejectedClaims = [];
+
+  try {
+    if (projectIds.length) {
+
+      var rGR = new GlideRecordSecure(TBL.reimbursement);
+      rGR.addQuery('project', 'IN', projectIds.join(','));
+      rGR.orderByDesc('sys_created_on');
+      rGR.query();
+
+      while (rGR.next()) {
+
+        var statusLabel = rGR.getDisplayValue('status') || 'Submitted';
+        var amount = num(pick(rGR, [
+          'amount_requested',
+          'federal_share_now_requested',
+          'total',
+          'net_program_outlays'
+        ]));
+
+        var slot = null;
+        for (var ci = 0; ci < CLAIM_STATES.length; ci++) {
+          if (lower(statusLabel).indexOf(CLAIM_STATES[ci].match) !== -1) { slot = CLAIM_STATES[ci]; break; }
+        }
+        if (!slot) slot = { label: statusLabel, tone: 'soft' };
+
+        if (!claimMap[slot.label]) {
+          claimMap[slot.label] = { label: slot.label, tone: slot.tone, count: 0, amount: 0 };
+        }
+        claimMap[slot.label].count++;
+        claimMap[slot.label].amount += amount;
+
+        claimTotal++;
+        claimValue += amount;
+
+        if (lower(statusLabel).indexOf('rejected') !== -1) {
+          claimRejected++;
+          rejectedClaims.push({
+            sysId  : rGR.getUniqueValue(),
+            number : rGR.getValue('number'),
+            project: rGR.getDisplayValue('project'),
+            since  : rGR.getValue('sys_updated_on')
+          });
+        }
+      }
+    }
+  } catch (e) {
+    gs.error('GateNow overview · reimbursements: ' + e.message);
+  }
+
+  var claimItems = [];
+  CLAIM_STATES.forEach(function (s) { if (claimMap[s.label]) claimItems.push(claimMap[s.label]); });
+  for (var extra in claimMap) {
+    if (claimItems.indexOf(claimMap[extra]) === -1) claimItems.push(claimMap[extra]);
+  }
+
+  data.reimbursements = {
+    total       : claimTotal,
+    claimedValue: claimValue,
+    items       : claimItems,
+    context     : projectList.length ? (projectList[0].name + ' · current project') : 'All projects',
+    footnote    : claimRejected
+      ? (claimRejected + ' claim' + (claimRejected === 1 ? '' : 's') + ' need attention')
+      : 'All claims are progressing'
+  };
+
+
+  /* =========================================================
+     5 · MY ITEMS AND ACTIONS DUE
+     ========================================================= */
+
+  var items = [];
+
+  function toneFor(days) {
+    if (days < 0) return { tone: 'red', status: 'Overdue', action: 'Start' };
+    if (days <= DUE_SOON_DAYS) return { tone: 'amber', status: 'Due soon', action: 'Continue' };
+    return { tone: 'grey', status: 'Open', action: 'View' };
+  }
+
+  function push(name, type, related, due, url, forced) {
+    var t = forced || toneFor(daysFromNow(due));
+    items.push({
+      name   : name,
+      type   : type,
+      related: related || '',
+      dueDate: fmtDate(due),
+      dueSort: due || '',
+      status : t.status,
+      tone   : t.tone,
+      action : t.action,
+      url    : url
+    });
+  }
+
+  // awards waiting on acknowledgement
+  pendingAwards.forEach(function (a) {
+    push('Acknowledge award ' + (a.number || ''), 'Award', a.program,
+         addDays(a.since, ACK_WINDOW_DAYS), link(PAGE.application, a.sysId));
+  });
+
+  // applications where review finished and feedback needs a response
+  feedbackPending.forEach(function (f) {
+    push('Respond to review feedback', 'Application', f.program,
+         addDays(f.since, FEEDBACK_WINDOW_DAYS), link(PAGE.application, f.sysId));
+  });
+
+  // monthly status report not yet filed for the current month
+  try {
+    if (projectIds.length) {
+
+      var filed = {};
+      var nowKey = monthKeyOf(new GlideDateTime());
+
+      var filedGR = new GlideRecordSecure(TBL.statusReport);
+      filedGR.addQuery('project', 'IN', projectIds.join(','));
+      filedGR.query();
+
+      while (filedGR.next()) {
+        var fg = toGDT(pick(filedGR, ['status_date', 'sys_created_on']));
+        if (fg && monthKeyOf(fg) === nowKey) filed[filedGR.getValue('project')] = true;
+      }
+
+      var endOfMonth = new GlideDateTime();
+      endOfMonth.setDayOfMonthLocalTime(1);
+      endOfMonth.addMonthsLocalTime(1);
+      endOfMonth.addDaysLocalTime(-1);
+      var monthName = MONTHS[new GlideDateTime().getMonthLocalTime() - 1];
+
+      projectList.forEach(function (p) {
+        if (filed[p.sysId]) return;
+        push('Submit ' + monthName + ' status report', 'Report', p.name,
+             endOfMonth.getValue(), link(PAGE.report) + '&project=' + p.sysId);
+      });
+    }
+  } catch (e) {
+    gs.error('GateNow overview · status report due: ' + e.message);
+  }
+
+  // rejected claims that need correcting
+  rejectedClaims.forEach(function (r) {
+    push('Update and resubmit claim ' + (r.number || ''), 'Reimb.', r.project,
+         addDays(r.since, CLAIM_FIX_DAYS), link(PAGE.claim, r.sysId));
+  });
+
+  // change requests still awaiting approval, plus recently closed ones
+  try {
+    if (projectIds.length) {
+
+      var crGR = new GlideRecordSecure(TBL.changeRequest);
+      crGR.addQuery('project', 'IN', projectIds.join(','));
+      crGR.orderByDesc('sys_updated_on');
+      crGR.setLimit(10);
+      crGR.query();
+
+      while (crGR.next()) {
+
+        var approval = lower(crGR.getValue('approval'));
+        var crName   = 'Change request ' + (crGR.getValue('number') || '');
+
+        if (approval.indexOf('approved') !== -1) {
+          push(crName + ' approved', 'Change req.', crGR.getDisplayValue('project'),
+               crGR.getValue('sys_updated_on'), link(PAGE.change, crGR.getUniqueValue()),
+               { tone: 'green', status: 'Done', action: 'View' });
+        } else if (approval.indexOf('rejected') !== -1) {
+          push('Revise ' + crName, 'Change req.', crGR.getDisplayValue('project'),
+               addDays(crGR.getValue('sys_updated_on'), CR_WINDOW_DAYS),
+               link(PAGE.change, crGR.getUniqueValue()));
+        } else {
+          push(crName + ' awaiting approval', 'Change req.', crGR.getDisplayValue('project'),
+               addDays(crGR.getValue('sys_created_on'), CR_WINDOW_DAYS),
+               link(PAGE.change, crGR.getUniqueValue()));
+        }
+      }
+    }
+  } catch (e) {
+    gs.error('GateNow overview · change requests: ' + e.message);
+  }
+
+  // overdue first, then soonest due, done rows last
+  var RANK = { red: 0, amber: 1, grey: 2, green: 3 };
+  items.sort(function (a, b) {
+    if (RANK[a.tone] !== RANK[b.tone]) return RANK[a.tone] - RANK[b.tone];
+    return ('' + a.dueSort).localeCompare('' + b.dueSort);
+  });
+
+  data.myItems = items.slice(0, 6);
+
+  var overdue  = items.filter(function (i) { return i.tone === 'red'; }).length;
+  var thisWeek = items.filter(function (i) { return i.tone === 'amber'; }).length;
+  var later    = items.filter(function (i) { return i.tone === 'grey'; }).length;
+
+  data.actions = {
+    total   : overdue + thisWeek + later,
+    overdue : overdue,
+    thisWeek: thisWeek,
+    later   : later
+  };
+
+
+  /* =========================================================
+     6 · OPEN FUNDING PROGRAMS
+     ========================================================= */
+
+  var programs = [];
+  var programDiag = { scanned: 0, accepting: 0, readable: true };
+
+  try {
+
+    var pgGR = new GlideRecordSecure(TBL.program);
+    pgGR.orderBy('proposal_close_date');
+    pgGR.setLimit(50);
+    pgGR.query();
+
+    while (pgGR.next()) {
+
+      programDiag.scanned++;
+
+      /* Match on both the stored value and the display label, so
+         accepting_proposals, Accepting Proposals and any relabelled
+         choice all resolve the same way. */
+      var statusValue = lower(pgGR.getValue('status')) + ' ' + lower(pgGR.getDisplayValue('status'));
+      if (statusValue.indexOf('accepting') === -1) continue;
+
+      /* Only exclude a program when active is explicitly false. */
+      var activeRaw = pgGR.isValidField('active') ? ('' + pgGR.getValue('active')) : '';
+      if (activeRaw === 'false' || activeRaw === '0') continue;
+
+      programDiag.accepting++;
+
+      var closes = pgGR.getValue('proposal_close_date');
+      var left = closes ? daysFromNow(closes) : null;
+
+      /* Past its close date, so it is no longer open for applications. */
+      if (left !== null && left < 0) continue;
+
+      var soon = left !== null && left <= 14;
+
+      var budget = num(pick(pgGR, ['program_budget', 'budget']));
+      var range = '';
+      if (budget) {
+        range = 'up to ' + (budget >= 1000000
+          ? '$' + (budget / 1000000).toFixed(2).replace(/\.00$/, '') + 'M'
+          : '$' + Math.round(budget / 1000) + 'K');
+      }
+
+      programs.push({
+        name       : pick(pgGR, ['program_name', 'short_description', 'number']),
+        description: stripHtml(pick(pgGR, ['synopsis', 'summary_statement', 'program_description', 'announcement'])).substring(0, 130),
+        closes     : closes ? fmtDate(closes) : 'No close date set',
+        range      : range,
+        badge      : soon ? (left + ' day' + (left === 1 ? '' : 's') + ' left') : 'Open',
+        closingSoon: soon,
+        url        : link(PAGE.programDetail, pgGR.getUniqueValue())
+      });
+    }
+
+    /* Zero rows scanned means the read ACL on the program table does not
+       grant this user access. The list stays empty on purpose, the ACL is
+       the thing to fix, not the query. */
+    if (programDiag.scanned === 0) {
+      programDiag.readable = false;
+      gs.info('GateNow overview: no readable records on ' + TBL.program + ' for ' + userLogin + ', check the read ACL.');
+    }
+
+  } catch (e) {
+    gs.error('GateNow overview · programs: ' + e.message);
+  }
+
+  data.programs = programs.slice(0, 3);
+
+  data.diag = {
+    applications: appTotal,
+    projects    : projectList.length,
+    claims      : claimTotal,
+    items       : items.length,
+    programs    : programDiag
+  };
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>muneesa.majid</sys_created_by>
+        <sys_created_on>2026-08-19 09:37:24</sys_created_on>
+        <sys_id>2a1062a9937e0b10d444c9b877373cac</sys_id>
+        <sys_mod_count>32</sys_mod_count>
+        <sys_name>Applicant Dashboard</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_2a1062a9937e0b10d444c9b877373cac</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-24 09:52:39</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · APPLICANT OVERVIEW
+     Service Portal widget · HTML template
+     ========================================================= -->
+
+<div class="gn-dash">
+
+  <!-- ═════════════════════════════ HEADER ═════════════════════════════ -->
+  <header class="gn-head">
+
+    <div class="gn-head__left">
+      <h1 class="gn-head__title">Overview</h1>
+      <p class="gn-head__meta">
+        <span class="gn-live"></span>
+        Last updated {{c.data.lastUpdated}} · data refreshes hourly
+      </p>
+    </div>
+
+    <div class="gn-head__right">
+
+      <label class="gn-search">
+        <i class="fa fa-search"></i>
+        <input type="text"
+               ng-model="c.searchText"
+               placeholder="Search programs, applications...">
+      </label>
+
+      <button type="button" class="gn-select" ng-click="c.nextPeriod()">
+        <i class="fa fa-calendar-o gn-select__lead"></i>
+        <span>{{c.period}}</span>
+        <i class="fa fa-angle-down gn-select__caret"></i>
+      </button>
+
+      <div class="gn-avatar" title="{{c.data.user.name}}">{{c.data.user.initials}}</div>
+
+    </div>
+
+  </header>
+
+
+  <!-- ═════════════════════════════ KPI CARDS ═════════════════════════════ -->
+  <section class="gn-kpis">
+
+    <!-- Applications -->
+    <article class="gn-kpi">
+
+      <div class="gn-kpi__top">
+        <span class="gn-kpi__label">Applications</span>
+        <span class="gn-kpi__icon gn-kpi__icon--indigo"><i class="fa fa-file-o"></i></span>
+      </div>
+
+      <div class="gn-kpi__figure">
+        <span class="gn-kpi__value">{{c.data.applications.total}}</span>
+        <span class="gn-chip gn-chip--green" ng-if="c.data.applications.newThisMonth">
+          <i class="fa fa-caret-up"></i>+{{c.data.applications.newThisMonth}}
+        </span>
+      </div>
+
+      <p class="gn-kpi__desc">
+        {{c.data.applications.submitted}} submitted ·
+        {{c.data.applications.review}} under review ·
+        {{c.data.applications.awarded}} awarded ·
+        {{c.data.applications.declined}} declined
+      </p>
+
+      <div class="gn-spark gn-spark--indigo">
+        <svg viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true">
+          <polygon  class="gn-spark__area" ng-attr-points="{{c.sparkApps.area}}"></polygon>
+          <polyline class="gn-spark__line" ng-attr-points="{{c.sparkApps.line}}"></polyline>
+        </svg>
+        <span class="gn-spark__dot" ng-style="{top: c.sparkApps.dotTop + '%'}"></span>
+      </div>
+
+      <p class="gn-kpi__caption">Cumulative submissions, 12 months</p>
+
+    </article>
+
+
+    <!-- Active awards -->
+    <article class="gn-kpi">
+
+      <div class="gn-kpi__top">
+        <span class="gn-kpi__label">Active awards</span>
+        <span class="gn-kpi__icon gn-kpi__icon--violet"><i class="fa fa-certificate"></i></span>
+      </div>
+
+      <div class="gn-kpi__figure">
+        <span class="gn-kpi__value">{{c.data.awards.active}}</span>
+        <span class="gn-chip gn-chip--amber" ng-if="c.data.awards.toAcknowledge">
+          {{c.data.awards.toAcknowledge}} to acknowledge
+        </span>
+      </div>
+
+      <p class="gn-kpi__desc">
+        {{c.money(c.data.awards.valueThisYear)}} awarded this year ·
+        {{c.data.awards.acknowledged}} acknowledged
+      </p>
+
+      <div class="gn-spark gn-spark--green">
+        <svg viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true">
+          <polygon  class="gn-spark__area" ng-attr-points="{{c.sparkAwards.area}}"></polygon>
+          <polyline class="gn-spark__line" ng-attr-points="{{c.sparkAwards.line}}"></polyline>
+        </svg>
+        <span class="gn-spark__dot" ng-style="{top: c.sparkAwards.dotTop + '%'}"></span>
+      </div>
+
+      <p class="gn-kpi__caption">Cumulative awarded value</p>
+
+    </article>
+
+
+    <!-- Active projects -->
+    <article class="gn-kpi">
+
+      <div class="gn-kpi__top">
+        <span class="gn-kpi__label">Active projects</span>
+        <span class="gn-kpi__icon gn-kpi__icon--indigo"><i class="fa fa-briefcase"></i></span>
+      </div>
+
+      <div class="gn-kpi__figure">
+        <span class="gn-kpi__value">{{c.data.projects.active}}</span>
+        <span class="gn-chip gn-chip--green">{{c.data.projects.onTrackPct}}% on track</span>
+      </div>
+
+      <p class="gn-kpi__desc">
+        {{c.data.projects.onTrack}} on track ·
+        {{c.data.projects.atRisk}} at risk ·
+        {{c.data.projects.critical}} critical
+      </p>
+
+      <div class="gn-milestones">
+        <span class="gn-milestone"
+              ng-repeat="m in c.data.projects.milestonesPerMonth track by $index"
+              ng-class="{'is-current': $last}"
+              ng-style="{height: c.milestoneH(m) + '%'}"
+              title="{{m}} status reports"></span>
+      </div>
+
+      <p class="gn-kpi__caption">Status reports submitted per month</p>
+
+    </article>
+
+
+    <!-- Actions due -->
+    <article class="gn-kpi">
+
+      <div class="gn-kpi__top">
+        <span class="gn-kpi__label">Actions due</span>
+        <span class="gn-kpi__icon gn-kpi__icon--amber"><i class="fa fa-clock-o"></i></span>
+      </div>
+
+      <div class="gn-kpi__figure">
+        <span class="gn-kpi__value">{{c.data.actions.total}}</span>
+        <span class="gn-chip gn-chip--red" ng-if="c.data.actions.overdue">
+          {{c.data.actions.overdue}} overdue
+        </span>
+      </div>
+
+      <p class="gn-kpi__desc">
+        Reports, reimbursements &amp; acknowledgements due in 30 days
+      </p>
+
+      <div class="gn-segbar">
+        <span class="gn-seg gn-seg--red"
+              ng-style="{width: c.actionPct(c.data.actions.overdue) + '%'}"></span>
+        <span class="gn-seg gn-seg--amber"
+              ng-style="{width: c.actionPct(c.data.actions.thisWeek) + '%'}"></span>
+        <span class="gn-seg gn-seg--grey"
+              ng-style="{width: c.actionPct(c.data.actions.later) + '%'}"></span>
+      </div>
+
+      <p class="gn-kpi__caption">
+        {{c.data.actions.overdue}} overdue ·
+        {{c.data.actions.thisWeek}} due this week ·
+        {{c.data.actions.later}} later
+      </p>
+
+    </article>
+
+  </section>
+
+
+  <!-- ═════════════════ ROW 1 · PIPELINE + PROJECT HEALTH ═════════════════ -->
+  <section class="gn-row gn-row--wide">
+
+    <!-- Application pipeline -->
+    <article class="gn-card">
+
+      <div class="gn-card__head">
+        <div>
+          <h2>Application pipeline</h2>
+          <p>{{c.data.applications.total}} applications · {{c.period | lowercase}} · hover a bar for detail</p>
+        </div>
+        <a class="gn-link" ng-href="{{c.data.links.applications}}">View applications →</a>
+      </div>
+
+      <div class="gn-card__body">
+
+        <div class="gn-chart">
+
+          <div class="gn-chart__axis">
+            <span ng-repeat="t in c.pipeAxis track by $index">{{t}}</span>
+          </div>
+
+          <div class="gn-chart__plot">
+
+            <div class="gn-grid">
+              <span class="gn-grid__line" ng-repeat="t in c.pipeAxis track by $index"></span>
+            </div>
+
+            <div class="gn-cols">
+              <div class="gn-col" ng-repeat="s in c.data.pipeline track by s.key">
+
+                <div class="gn-col__track">
+                  <div class="gn-col__bar"
+                       ng-class="'gn-col__bar--' + s.key"
+                       ng-style="{height: c.pipeH(s.count) + '%'}">
+                    <span class="gn-col__value">{{s.count}}</span>
+                  </div>
+                </div>
+
+                <div class="gn-tip">
+                  <strong>{{s.label}}</strong>
+                  {{s.count}} of {{c.data.applications.total}} · {{c.pct(s.count, c.data.applications.total)}}%
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="gn-labels">
+          <span ng-repeat="s in c.data.pipeline track by s.key">{{s.label}}</span>
+        </div>
+
+        <p class="gn-note">Distribution of your applications by lifecycle stage. Y axis shows number of applications.</p>
+
+      </div>
+
+    </article>
+
+
+    <!-- Project status health -->
+    <article class="gn-card">
+
+      <div class="gn-card__head">
+        <div>
+          <h2>Project status health</h2>
+          <p>Self-reported health, current period</p>
+        </div>
+      </div>
+
+      <div class="gn-card__body">
+
+        <div class="gn-health">
+          <span class="gn-health__seg gn-health__seg--green"
+                ng-style="{width: c.healthPct('green') + '%'}"
+                ng-if="c.data.health.green">{{c.data.health.green}} on track</span>
+          <span class="gn-health__seg gn-health__seg--amber"
+                ng-style="{width: c.healthPct('yellow') + '%'}"
+                ng-if="c.data.health.yellow">{{c.data.health.yellow}} at risk</span>
+          <span class="gn-health__seg gn-health__seg--red"
+                ng-style="{width: c.healthPct('red') + '%'}"
+                ng-if="c.data.health.red">{{c.data.health.red}}</span>
+          <span class="gn-health__rest" ng-if="!c.data.health.red">0</span>
+        </div>
+
+        <div class="gn-legend">
+          <span class="gn-legend__pill"><i class="gn-dot gn-dot--green"></i>On track {{c.data.health.green}}</span>
+          <span class="gn-legend__pill"><i class="gn-dot gn-dot--amber"></i>At risk {{c.data.health.yellow}}</span>
+          <span class="gn-legend__pill"><i class="gn-dot gn-dot--red"></i>Critical {{c.data.health.red}}</span>
+        </div>
+
+        <div class="gn-projects">
+          <div class="gn-project" ng-repeat="p in c.data.projects.list track by $index">
+
+            <span class="gn-project__name">
+              <i class="gn-dot" ng-class="'gn-dot--' + p.tone"></i>
+              <span title="{{p.name}}">{{p.name}}</span>
+            </span>
+
+            <span class="gn-project__pct">{{p.percent}}%</span>
+
+            <div class="gn-project__track">
+              <div class="gn-project__fill"
+                   ng-class="'gn-project__fill--' + p.tone"
+                   ng-style="{width: p.percent + '%'}"></div>
+            </div>
+
+          </div>
+
+          <p class="gn-empty" ng-if="!c.data.projects.list.length">
+            No active projects yet. Awarded applications appear here once a project starts.
+          </p>
+        </div>
+
+      </div>
+
+    </article>
+
+  </section>
+
+
+  <!-- ═════════════════ ROW 2 · POST-AWARD + REIMBURSEMENTS ═════════════════ -->
+  <section class="gn-row gn-row--wide">
+
+    <!-- Post-award submissions -->
+    <article class="gn-card">
+
+      <div class="gn-card__head">
+        <div>
+          <h2>Post-award submissions</h2>
+          <p>Status reports, change requests &amp; reimbursements per month</p>
+        </div>
+        <div class="gn-keys">
+          <span><i class="gn-key gn-key--indigo"></i>Status reports</span>
+          <span><i class="gn-key gn-key--periwinkle"></i>Change requests</span>
+          <span><i class="gn-key gn-key--sage"></i>Reimbursements</span>
+        </div>
+      </div>
+
+      <div class="gn-card__body">
+
+        <div class="gn-chart">
+
+          <div class="gn-chart__axis">
+            <span ng-repeat="t in c.monthAxis track by $index">{{t}}</span>
+          </div>
+
+          <div class="gn-chart__plot">
+
+            <div class="gn-grid">
+              <span class="gn-grid__line" ng-repeat="t in c.monthAxis track by $index"></span>
+            </div>
+
+            <div class="gn-cols gn-cols--group">
+              <div class="gn-col" ng-repeat="m in c.data.postAward.months track by $index">
+
+                <div class="gn-col__cluster">
+                  <span class="gn-gbar gn-gbar--indigo"
+                        ng-style="{height: c.monthH(m.statusReports) + '%'}"
+                        title="Status reports: {{m.statusReports}}"></span>
+                  <span class="gn-gbar gn-gbar--periwinkle"
+                        ng-style="{height: c.monthH(m.changeRequests) + '%'}"
+                        title="Change requests: {{m.changeRequests}}"></span>
+                  <span class="gn-gbar gn-gbar--sage"
+                        ng-style="{height: c.monthH(m.reimbursements) + '%'}"
+                        title="Reimbursements: {{m.reimbursements}}"></span>
+                </div>
+
+                <div class="gn-tip">
+                  <strong>{{m.label}}</strong>
+                  {{m.statusReports}} reports · {{m.changeRequests}} change requests · {{m.reimbursements}} reimbursements
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="gn-labels">
+          <span ng-repeat="m in c.data.postAward.months track by $index">{{m.label}}</span>
+        </div>
+
+        <p class="gn-note">
+          {{c.data.postAward.totals.statusReports}} monthly status reports,
+          {{c.data.postAward.totals.changeRequests}} change requests and
+          {{c.data.postAward.totals.reimbursements}} reimbursements submitted across
+          {{c.data.projects.active}} projects. Y axis shows submissions per month.
+        </p>
+
+      </div>
+
+    </article>
+
+
+    <!-- Reimbursements by state -->
+    <article class="gn-card">
+
+      <div class="gn-card__head">
+        <div>
+          <h2>Reimbursements by state</h2>
+          <p>{{c.data.reimbursements.context}}</p>
+        </div>
+        <div class="gn-total">
+          <strong>{{c.money(c.data.reimbursements.claimedValue)}}</strong>
+          <span>claimed to date</span>
+        </div>
+      </div>
+
+      <div class="gn-card__body">
+
+        <p class="gn-empty" ng-if="!c.data.reimbursements.total">
+          No reimbursement claims yet. Start a claim from any active project.
+        </p>
+
+        <div class="gn-claims" ng-if="c.data.reimbursements.total">
+          <div class="gn-claim" ng-repeat="r in c.data.reimbursements.items track by $index">
+
+            <div class="gn-claim__meta">
+              <span class="gn-claim__label">{{r.label}}</span>
+              <span class="gn-claim__value">{{r.count}} · {{c.money(r.amount)}}</span>
+            </div>
+
+            <div class="gn-claim__track">
+              <div class="gn-claim__fill"
+                   ng-class="'gn-claim__fill--' + r.tone"
+                   ng-style="{width: c.pct(r.count, c.data.reimbursements.total) + '%'}"></div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="gn-card__foot" ng-if="c.data.reimbursements.total">
+        <span>{{c.data.reimbursements.footnote}}</span>
+        <a class="gn-link" ng-href="{{c.data.links.claims}}">Open claims →</a>
+      </div>
+
+    </article>
+
+  </section>
+
+
+  <!-- ═════════════════ ROW 3 · MY ITEMS + PROGRAMS ═════════════════ -->
+  <section class="gn-row gn-row--wide">
+
+    <!-- My items -->
+    <article class="gn-card">
+
+      <div class="gn-card__head">
+        <div>
+          <h2>My items</h2>
+          <p>Upcoming and in-progress actions across your grants</p>
+        </div>
+        <a class="gn-link" ng-href="{{c.data.links.items}}">View all items →</a>
+      </div>
+
+      <div class="gn-table">
+
+        <div class="gn-table__head">
+          <span>Item</span>
+          <span>Type</span>
+          <span>Related</span>
+          <span>Due date</span>
+          <span>Status</span>
+          <span>Action</span>
+        </div>
+
+        <div class="gn-table__row"
+             ng-repeat="i in c.data.myItems | filter:c.searchText track by $index">
+
+          <span class="gn-cell gn-cell--name" data-label="Item">{{i.name}}</span>
+
+          <span class="gn-cell" data-label="Type">
+            <span class="gn-tag">{{i.type}}</span>
+          </span>
+
+          <span class="gn-cell gn-cell--related" data-label="Related">{{i.related}}</span>
+
+          <span class="gn-cell gn-cell--date" data-label="Due date">{{i.dueDate}}</span>
+
+          <span class="gn-cell" data-label="Status">
+            <span class="gn-state" ng-class="'gn-state--' + i.tone">
+              <i class="gn-dot"></i>{{i.status}}
+            </span>
+          </span>
+
+          <span class="gn-cell" data-label="Action">
+            <a ng-href="{{i.url}}"
+               class="gn-btn"
+               ng-class="{'gn-btn--primary': i.tone === 'red'}">{{i.action}}</a>
+          </span>
+
+        </div>
+
+        <p class="gn-empty" ng-if="!c.data.myItems.length">
+          Nothing needs your attention. New reports and claims land here when they open.
+        </p>
+
+      </div>
+
+    </article>
+
+
+    <!-- Open funding programs -->
+    <article class="gn-card">
+
+      <div class="gn-card__head">
+        <div>
+          <h2>Open funding programs</h2>
+          <p>Accepting applications now</p>
+        </div>
+      </div>
+
+      <div class="gn-card__body gn-card__body--tight">
+
+        <a class="gn-program"
+           ng-repeat="p in c.data.programs track by $index"
+           ng-href="{{p.url}}">
+
+          <div class="gn-program__top">
+            <strong>{{p.name}}</strong>
+            <span class="gn-chip" ng-class="p.closingSoon ? 'gn-chip--amber' : 'gn-chip--green'">
+              {{p.badge}}
+            </span>
+          </div>
+
+          <p class="gn-program__desc">{{p.description}}</p>
+
+          <div class="gn-program__foot">
+            <i class="fa fa-clock-o"></i>
+            Closes {{p.closes}} · {{p.range}}
+          </div>
+
+        </a>
+
+        <p class="gn-empty" ng-if="!c.data.programs.length">
+          No programs are open right now. Check back after the next funding cycle opens.
+        </p>
+
+      </div>
+
+    </article>
+
+  </section>
+
+</div>]]></template>
+    </sp_widget>
+</record_update>

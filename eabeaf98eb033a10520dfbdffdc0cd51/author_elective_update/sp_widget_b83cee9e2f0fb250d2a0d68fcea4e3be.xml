@@ -1,0 +1,1718 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $window, spUtil, $location) {
+  var c = this;
+
+  c.tab = 'overview';
+
+  c.applyForGrant = function() {
+    if (!c.data.program || !c.data.program) return;
+    
+    // 2. Use $location.search to update parameters safely
+    $location.search({
+      id: 'grant_application',
+      program: c.data.program// Ensure parameter name matches your application logic
+    });
+  };
+
+  c.goBack = function() {
+    $window.history.back();
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.grant-detail-page {
+  background: #f5f7fa;
+  min-height: 100vh;
+  
+  // Hero Section - CLEAN IMAGE ONLY
+  .hero-section {
+    width: 100%;
+    height: 320px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    
+    .hero-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 100%);
+    }
+  }
+  
+  // Simple Hero (No Image)
+  .hero-section-simple {
+    width: 100%;
+    height: 80px;
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  }
+  
+  // Main Content
+  .detail-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 40px 60px;
+    position: relative;
+  }
+  
+  // Program Title (NO BREADCRUMB)
+  .program-title {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: #1f2937;
+    margin: 0 0 16px 0;
+    line-height: 1.2;
+  }
+  
+  // Status Badges
+  .status-badges {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    
+    .status-badge, .active-badge {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+      background: #e5e7eb;
+      color: #6b7280;
+      
+      &amp;.published {
+        background: #d1fae5;
+        color: #059669;
+      }
+    }
+    
+    .active-badge {
+      background: #dbeafe;
+      color: #2563eb;
+      
+      i {
+        margin-right: 4px;
+      }
+    }
+  }
+  
+  // Quick Info Grid
+  .quick-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  
+  .info-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s;
+    
+    &amp;:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    
+    .info-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5em;
+      flex-shrink: 0;
+      
+      &amp;.budget-icon {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #fff;
+      }
+      &amp;.date-icon {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #fff;
+      }
+      &amp;.close-icon {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: #fff;
+      }
+      &amp;.category-icon {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: #fff;
+      }
+    }
+    
+    .info-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      
+      .info-label {
+        font-size: 0.85em;
+        color: #6b7280;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      
+      .info-value {
+        font-size: 1.15em;
+        font-weight: 700;
+        color: #1f2937;
+      }
+    }
+  }
+  
+  // Tabs
+  .tabs-nav {
+    display: flex;
+    gap: 8px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .tab-btn {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-size: 0.95em;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    
+    i {
+      font-size: 1.1em;
+    }
+    
+    &amp;:hover {
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+    
+    &amp;.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    }
+  }
+  
+  // Tab Content
+  .tab-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 32px;
+  }
+  
+  .tab-panel {
+    animation: fadeIn 0.3s ease-in;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .content-section {
+    margin-bottom: 32px;
+    
+    &amp;:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .section-title {
+    font-size: 1.35em;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e5e7eb;
+    
+    i {
+      color: #3b82f6;
+      font-size: 0.9em;
+    }
+  }
+  
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .field-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f4f6;
+    
+    &amp;:last-child {
+      border-bottom: none;
+    }
+    
+    .field-label {
+      font-weight: 600;
+      color: #6b7280;
+      font-size: 0.95em;
+    }
+    
+    .field-value {
+      color: #1f2937;
+      font-weight: 500;
+      
+      &amp;.highlight {
+        color: #059669;
+        font-size: 1.15em;
+        font-weight: 700;
+      }
+    }
+  }
+  
+  .description-text {
+    color: #4b5563;
+    font-size: 1.02em;
+    line-height: 1.7;
+    margin: 0;
+  }
+  
+  // Action Section
+  .action-section {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .back-btn {
+    padding: 14px 32px;
+    border-radius: 10px;
+    font-size: 1.05em;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s;
+    
+    i {
+      font-size: 1.1em;
+    }
+    
+    &amp;:hover {
+      background: #f9fafb;
+      border-color: #d1d5db;
+      color: #1f2937;
+      transform: translateX(-4px);
+    }
+  }
+  
+  // Loading &amp; Error States
+  .loading-state, .error-state {
+    text-align: center;
+    padding: 100px 20px;
+    
+    i {
+      font-size: 3em;
+      color: #3b82f6;
+      margin-bottom: 20px;
+      display: block;
+    }
+    
+    p {
+      font-size: 1.2em;
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+  }
+  
+  .error-state i {
+    color: #ef4444;
+  }
+  
+  // Responsive
+  @media (max-width: 768px) {
+    .hero-section {
+      height: 240px;
+    }
+    
+    .detail-container {
+      padding: 24px 20px 40px;
+    }
+    
+    .program-title {
+      font-size: 2em;
+    }
+    
+    .quick-info-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .tab-content {
+      padding: 20px;
+    }
+    
+    .field-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    
+    .tabs-nav {
+      flex-direction: column;
+    }
+    
+    .tab-btn {
+      min-width: auto;
+    }
+  }
+  // Documents Tab
+.no-docs {
+  text-align: center;
+  padding: 48px 20px;
+  color: #9ca3af;
+
+  i {
+    font-size: 3em;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  p {
+    font-size: 1em;
+    margin: 0;
+  }
+}
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  transition: all 0.2s;
+
+  &amp;:hover {
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+    border-color: #d1d5db;
+  }
+
+  .doc-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3em;
+    flex-shrink: 0;
+  }
+
+  .doc-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+
+    .doc-name {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 0.97em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .doc-meta {
+      font-size: 0.82em;
+      color: #9ca3af;
+    }
+  }
+
+  .doc-download {
+    padding: 8px 18px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1.5px solid #3b82f6;
+    color: #3b82f6;
+    font-size: 0.88em;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+
+    &amp;:hover {
+      background: #3b82f6;
+      color: #fff;
+    }
+  }
+}
+}
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>published_program_details</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Published Program Details</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
+        <script><![CDATA[(function() {
+    data.loaded  = false;
+    data.program = null;
+
+    var programId = $sp.getParameter('sys_id') || $sp.getParameter('program_id');
+
+    if (!programId) {
+        data.loaded = true; 
+        return;
+    }
+
+    // --- Fetch Grant Program ---
+    var grantProgramGR = new GlideRecordSecure('x_enno_gatenow_grant_program');
+    grantProgramGR.addQuery('sys_id', programId);
+    grantProgramGR.addQuery('active', true);
+    grantProgramGR.setLimit(1);
+    grantProgramGR.query();
+
+    if (!grantProgramGR.next()) {
+        data.loaded = true;
+        return;
+    }
+
+    data.program = {
+        sys_id:                     grantProgramGR.getUniqueValue(),
+        number:                     grantProgramGR.getValue('number'),
+        name:                       grantProgramGR.getDisplayValue('program_name'),
+        lead:                       grantProgramGR.getDisplayValue('program_lead'),
+        manager:                    grantProgramGR.getDisplayValue('program_manager'),
+        status:                     grantProgramGR.getDisplayValue('status'),
+        active:                     grantProgramGR.getValue('active') === '1',
+        start_date:                 grantProgramGR.getDisplayValue('start_date'),
+        end_date:                   grantProgramGR.getDisplayValue('end_date'),
+        proposal_open:              grantProgramGR.getDisplayValue('proposal_open_date'),
+        proposal_close:             grantProgramGR.getDisplayValue('proposal_close_date'),
+        priority:                   grantProgramGR.getDisplayValue('priority'),
+        budget:                     grantProgramGR.getDisplayValue('program_budget'),
+        currency:                   '',
+        disbursement_schedule:      grantProgramGR.getDisplayValue('disbursement_schedule'),
+        disbursement_type:          grantProgramGR.getDisplayValue('disbursement_type'),
+        category:                   grantProgramGR.getDisplayValue('category'),
+        award_type:                 grantProgramGR.getDisplayValue('award_type'),
+        description:                grantProgramGR.getValue('program_description'),
+        image:                      grantProgramGR.getDisplayValue('image'),
+        synopsis:                   grantProgramGR.getValue('synopsis'),
+        assistance_listing_number:  grantProgramGR.getDisplayValue('assistance_listing_number'),
+        funding_opportunity_number: grantProgramGR.getDisplayValue('funding_opportunity_number'),
+        summary_statement:          grantProgramGR.getValue('summary_statement'),
+        eligibility_summary:        grantProgramGR.getValue('eligibility_summary'),
+        terms:                      grantProgramGR.getValue('terms_and_conditions')
+    };
+
+    // --- Fetch Attachments ---
+    var attachments = [];
+    var programAttachmentGR = new GlideRecordSecure('sys_attachment');
+    programAttachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_program');
+    programAttachmentGR.addQuery('table_sys_id', grantProgramGR.getUniqueValue());
+    programAttachmentGR.orderBy('file_name');
+    programAttachmentGR.query();
+    
+    while (programAttachmentGR.next()) {
+        var bytes = parseInt(programAttachmentGR.getValue('size_bytes')) || 0;
+        var sizeFmt = bytes < 1024 ? bytes + ' B'
+                    : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB'
+                    : (bytes / 1048576).toFixed(1) + ' MB';
+                    
+        attachments.push({
+            sys_id:          programAttachmentGR.getUniqueValue(),
+            name:            programAttachmentGR.getValue('file_name'),
+            type:            programAttachmentGR.getValue('content_type') || 'application/octet-stream',
+            size_bytes:      bytes,
+            size_formatted:  sizeFmt,
+            url:             '/sys_attachment.do?sys_id=' + programAttachmentGR.getUniqueValue()
+        });
+    }
+    
+    data.program.attachments = attachments;
+    data.loaded = true;
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-02-16 08:29:06</sys_created_on>
+        <sys_id>b83cee9e2f0fb250d2a0d68fcea4e3be</sys_id>
+        <sys_mod_count>31</sys_mod_count>
+        <sys_name>Published Program Details</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-05-20 07:35:56</sys_updated_on>
+        <template><![CDATA[<div class="grant-detail-page" ng-if="data.loaded && data.program">
+  
+  <!-- Hero Section with Clean Image (NO TEXT OVERLAY) -->
+  <div class="hero-section" ng-if="data.program.image" ng-style="{'background-image': 'url(' + data.program.image + ')'}">
+    <div class="hero-overlay"></div>
+  </div>
+
+  <!-- No Image Hero (Fallback) -->
+  <div class="hero-section-simple" ng-if="!data.program.image"></div>
+
+  <!-- Main Content Container -->
+  <div class="detail-container">
+
+    <!-- Program Title (NO BREADCRUMB) -->
+    <h1 class="program-title">{{data.program.name || 'Grant Program'}}</h1>
+
+    <!-- Status Badges -->
+    <div class="status-badges">
+      <span class="status-badge" ng-class="{'published': data.program.status === 'Published'}">
+        {{data.program.status || 'Draft'}}
+      </span>
+      <span class="active-badge" ng-if="data.program.active">
+        <i class="fa fa-check-circle"></i> Active
+      </span>
+    </div>
+    
+    <!-- Quick Info Cards -->
+    <div class="quick-info-grid">
+      <div class="info-card">
+        <div class="info-icon budget-icon"><i class="fa fa-money"></i></div>
+        <div class="info-content">
+          <span class="info-label">Total Budget</span>
+          <span class="info-value">{{data.program.budget || '$0.00'}}</span>
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-icon date-icon"><i class="fa fa-calendar"></i></div>
+        <div class="info-content">
+          <span class="info-label">Proposals Open</span>
+          <span class="info-value">{{data.program.proposal_open || 'TBD'}}</span>
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-icon close-icon"><i class="fa fa-calendar-times-o"></i></div>
+        <div class="info-content">
+          <span class="info-label">Proposals Close</span>
+          <span class="info-value">{{data.program.proposal_close || 'TBD'}}</span>
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-icon category-icon"><i class="fa fa-tag"></i></div>
+        <div class="info-content">
+          <span class="info-label">Category</span>
+          <span class="info-value">{{data.program.category || 'General'}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-nav">
+      <button class="tab-btn" ng-class="{active: c.tab==='overview'}" ng-click="c.tab='overview'">
+        <i class="fa fa-info-circle"></i> Overview
+      </button>
+      <button class="tab-btn" ng-class="{active: c.tab==='financial'}" ng-click="c.tab='financial'">
+        <i class="fa fa-calculator"></i> Financial Details
+      </button>
+      <button class="tab-btn" ng-class="{active: c.tab==='eligibility'}" ng-click="c.tab='eligibility'">
+        <i class="fa fa-users"></i> Eligibility
+      </button>
+      <button class="tab-btn" ng-class="{active: c.tab==='documents'}" ng-click="c.tab='documents'">
+        <i class="fa fa-paperclip"></i> Program Documents
+      </button>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+      
+      <!-- OVERVIEW TAB -->
+      <div ng-if="c.tab==='overview'" class="tab-panel">
+        <div class="content-section">
+          <h2 class="section-title"><i class="fa fa-file-text-o"></i> Program Overview</h2>
+          <div class="field-group">
+            <div class="field-row">
+              <span class="field-label">Program Name:</span>
+              <span class="field-value">{{data.program.name || '-'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Award Type:</span>
+              <span class="field-value">{{data.program.award_type || '-'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Priority:</span>
+              <span class="field-value">{{data.program.priority || 'Standard'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Program Lead:</span>
+              <span class="field-value">{{data.program.lead || '-'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Program Manager:</span>
+              <span class="field-value">{{data.program.manager || '-'}}</span>
+            </div>
+            <div class="field-row">
+  <span class="field-label">Assistance Listing Number:</span>
+  <span class="field-value">{{data.program.assistance_listing_number || '-'}}</span>
+</div>
+<div class="field-row">
+  <span class="field-label">Funding Opportunity Number:</span>
+  <span class="field-value">{{data.program.funding_opportunity_number || '-'}}</span>
+</div>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h2 class="section-title"><i class="fa fa-align-left"></i> Description</h2>
+          <p class="description-text">{{data.program.description || 'No description available.'}}</p>
+        </div>
+
+        <div class="content-section" ng-if="data.program.synopsis">
+          <h2 class="section-title"><i class="fa fa-bookmark-o"></i> Synopsis</h2>
+          <p class="description-text">{{data.program.synopsis}}</p>
+        </div>
+
+        <div class="content-section" ng-if="data.program.summary_statement">
+          <h2 class="section-title"><i class="fa fa-list-alt"></i> Summary Statement</h2>
+          <p class="description-text">{{data.program.summary_statement}}</p>
+        </div>
+      </div>
+
+      <!-- FINANCIAL TAB -->
+      <div ng-if="c.tab==='financial'" class="tab-panel">
+        <div class="content-section">
+          <h2 class="section-title"><i class="fa fa-usd"></i> Financial Information</h2>
+          <div class="field-group">
+            <div class="field-row">
+              <span class="field-label">Total Budget:</span>
+              <span class="field-value highlight">{{data.program.budget || '0.00'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Disbursement Type:</span>
+              <span class="field-value">{{data.program.disbursement_type || '-'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Disbursement Schedule:</span>
+              <span class="field-value">{{data.program.disbursement_schedule || '-'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Program Start Date:</span>
+              <span class="field-value">{{data.program.start_date || '-'}}</span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Program End Date:</span>
+              <span class="field-value">{{data.program.end_date || '-'}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ELIGIBILITY TAB -->
+      <div ng-if="c.tab==='eligibility'" class="tab-panel">
+        <div class="content-section">
+          <h2 class="section-title"><i class="fa fa-check-square-o"></i> Eligibility Requirements</h2>
+          <p class="description-text">{{data.program.eligibility_summary || 'No eligibility information available.'}}</p>
+        </div>
+
+        <div class="content-section" ng-if="data.program.terms">
+          <h2 class="section-title"><i class="fa fa-gavel"></i> Terms & Conditions</h2>
+          <p class="description-text">{{data.program.terms}}</p>
+        </div>
+      </div>
+
+      <!-- DOCUMENTS TAB -->
+      <div ng-if="c.tab==='documents'" class="tab-panel">
+        <div class="content-section">
+          <h2 class="section-title"><i class="fa fa-paperclip"></i> Attachments</h2>
+
+          <!-- No attachments -->
+          <div ng-if="!data.program.attachments || data.program.attachments.length === 0" class="no-docs">
+            <i class="fa fa-folder-open-o"></i>
+            <p>No documents attached to this program.</p>
+          </div>
+
+          <!-- Attachments list -->
+          <div ng-if="data.program.attachments && data.program.attachments.length > 0" class="doc-list">
+            <div class="doc-item" ng-repeat="att in data.program.attachments">
+              <div class="doc-icon">
+                <i class="fa" ng-class="{
+                  'fa-file-pdf-o':   att.type.indexOf('pdf') > -1,
+                  'fa-file-image-o': att.type.indexOf('image') > -1,
+                  'fa-file-excel-o': att.type.indexOf('excel') > -1 || att.type.indexOf('spreadsheet') > -1,
+                  'fa-file-word-o':  att.type.indexOf('word') > -1,
+                  'fa-file-text-o':  att.type.indexOf('text') > -1,
+                  'fa-file-o':       true
+                }"></i>
+              </div>
+              <div class="doc-info">
+                <span class="doc-name">{{att.name}}</span>
+                <span class="doc-meta">{{att.size_formatted}} &bull; {{att.type}}</span>
+              </div>
+              <a class="doc-download" ng-href="{{att.url}}" target="_blank">
+                <i class="fa fa-download"></i> Download
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Back Button ONLY -->
+    <div class="action-section">
+      <button class="back-btn" ng-click="c.goBack()">
+        <i class="fa fa-arrow-left"></i> Back to Grants
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Loading State -->
+<div ng-if="!data.loaded" class="loading-state">
+  <i class="fa fa-spinner fa-spin"></i>
+  <p>Loading grant program details...</p>
+</div>
+
+<!-- Error State -->
+<div ng-if="data.loaded && !data.program" class="error-state">
+  <i class="fa fa-exclamation-circle"></i>
+  <p>Program not found</p>
+  <button class="back-btn" ng-click="c.goBack()">
+    <i class="fa fa-arrow-left"></i> Back to Grants
+  </button>
+</div>]]></template>
+    </sp_widget>
+<sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;
+    &lt;sp_widget action="INSERT_OR_UPDATE"&gt;
+        &lt;category&gt;custom&lt;/category&gt;
+        &lt;client_script&gt;&lt;![CDATA[api.controller = function($scope, $window, spUtil, $location) {
+  var c = this;
+
+  c.tab = 'overview';
+
+  c.applyForGrant = function() {
+    if (!c.data.program || !c.data.program) return;
+    
+    // 2. Use $location.search to update parameters safely
+    $location.search({
+      id: 'grant_application',
+      program: c.data.program// Ensure parameter name matches your application logic
+    });
+  };
+
+  c.goBack = function() {
+    $window.history.back();
+  };
+};]]&gt;&lt;/client_script&gt;
+        &lt;controller_as&gt;c&lt;/controller_as&gt;
+        &lt;css&gt;.grant-detail-page {
+  background: #f5f7fa;
+  min-height: 100vh;
+  
+  // Hero Section - CLEAN IMAGE ONLY
+  .hero-section {
+    width: 100%;
+    height: 320px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    
+    .hero-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 100%);
+    }
+  }
+  
+  // Simple Hero (No Image)
+  .hero-section-simple {
+    width: 100%;
+    height: 80px;
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  }
+  
+  // Main Content
+  .detail-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 40px 60px;
+    position: relative;
+  }
+  
+  // Program Title (NO BREADCRUMB)
+  .program-title {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: #1f2937;
+    margin: 0 0 16px 0;
+    line-height: 1.2;
+  }
+  
+  // Status Badges
+  .status-badges {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    
+    .status-badge, .active-badge {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+      background: #e5e7eb;
+      color: #6b7280;
+      
+      &amp;amp;.published {
+        background: #d1fae5;
+        color: #059669;
+      }
+    }
+    
+    .active-badge {
+      background: #dbeafe;
+      color: #2563eb;
+      
+      i {
+        margin-right: 4px;
+      }
+    }
+  }
+  
+  // Quick Info Grid
+  .quick-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  
+  .info-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s;
+    
+    &amp;amp;:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    
+    .info-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5em;
+      flex-shrink: 0;
+      
+      &amp;amp;.budget-icon {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #fff;
+      }
+      &amp;amp;.date-icon {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #fff;
+      }
+      &amp;amp;.close-icon {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: #fff;
+      }
+      &amp;amp;.category-icon {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: #fff;
+      }
+    }
+    
+    .info-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      
+      .info-label {
+        font-size: 0.85em;
+        color: #6b7280;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      
+      .info-value {
+        font-size: 1.15em;
+        font-weight: 700;
+        color: #1f2937;
+      }
+    }
+  }
+  
+  // Tabs
+  .tabs-nav {
+    display: flex;
+    gap: 8px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .tab-btn {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-size: 0.95em;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    
+    i {
+      font-size: 1.1em;
+    }
+    
+    &amp;amp;:hover {
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+    
+    &amp;amp;.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    }
+  }
+  
+  // Tab Content
+  .tab-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 32px;
+  }
+  
+  .tab-panel {
+    animation: fadeIn 0.3s ease-in;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .content-section {
+    margin-bottom: 32px;
+    
+    &amp;amp;:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .section-title {
+    font-size: 1.35em;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e5e7eb;
+    
+    i {
+      color: #3b82f6;
+      font-size: 0.9em;
+    }
+  }
+  
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .field-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f4f6;
+    
+    &amp;amp;:last-child {
+      border-bottom: none;
+    }
+    
+    .field-label {
+      font-weight: 600;
+      color: #6b7280;
+      font-size: 0.95em;
+    }
+    
+    .field-value {
+      color: #1f2937;
+      font-weight: 500;
+      
+      &amp;amp;.highlight {
+        color: #059669;
+        font-size: 1.15em;
+        font-weight: 700;
+      }
+    }
+  }
+  
+  .description-text {
+    color: #4b5563;
+    font-size: 1.02em;
+    line-height: 1.7;
+    margin: 0;
+  }
+  
+  // Action Section
+  .action-section {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .back-btn {
+    padding: 14px 32px;
+    border-radius: 10px;
+    font-size: 1.05em;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s;
+    
+    i {
+      font-size: 1.1em;
+    }
+    
+    &amp;amp;:hover {
+      background: #f9fafb;
+      border-color: #d1d5db;
+      color: #1f2937;
+      transform: translateX(-4px);
+    }
+  }
+  
+  // Loading &amp;amp; Error States
+  .loading-state, .error-state {
+    text-align: center;
+    padding: 100px 20px;
+    
+    i {
+      font-size: 3em;
+      color: #3b82f6;
+      margin-bottom: 20px;
+      display: block;
+    }
+    
+    p {
+      font-size: 1.2em;
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+  }
+  
+  .error-state i {
+    color: #ef4444;
+  }
+  
+  // Responsive
+  @media (max-width: 768px) {
+    .hero-section {
+      height: 240px;
+    }
+    
+    .detail-container {
+      padding: 24px 20px 40px;
+    }
+    
+    .program-title {
+      font-size: 2em;
+    }
+    
+    .quick-info-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .tab-content {
+      padding: 20px;
+    }
+    
+    .field-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    
+    .tabs-nav {
+      flex-direction: column;
+    }
+    
+    .tab-btn {
+      min-width: auto;
+    }
+  }
+  // Documents Tab
+.no-docs {
+  text-align: center;
+  padding: 48px 20px;
+  color: #9ca3af;
+
+  i {
+    font-size: 3em;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  p {
+    font-size: 1em;
+    margin: 0;
+  }
+}
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  transition: all 0.2s;
+
+  &amp;amp;:hover {
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+    border-color: #d1d5db;
+  }
+
+  .doc-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3em;
+    flex-shrink: 0;
+  }
+
+  .doc-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+
+    .doc-name {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 0.97em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .doc-meta {
+      font-size: 0.82em;
+      color: #9ca3af;
+    }
+  }
+
+  .doc-download {
+    padding: 8px 18px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1.5px solid #3b82f6;
+    color: #3b82f6;
+    font-size: 0.88em;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+
+    &amp;amp;:hover {
+      background: #3b82f6;
+      color: #fff;
+    }
+  }
+}
+}
+&lt;/css&gt;
+        &lt;data_table&gt;sp_instance&lt;/data_table&gt;
+        &lt;demo_data/&gt;
+        &lt;description/&gt;
+        &lt;docs/&gt;
+        &lt;field_list/&gt;
+        &lt;has_preview&gt;true&lt;/has_preview&gt;
+        &lt;id&gt;published_program_details&lt;/id&gt;
+        &lt;internal&gt;false&lt;/internal&gt;
+        &lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;
+        &lt;name&gt;Published Program Details&lt;/name&gt;
+        &lt;option_schema/&gt;
+        &lt;public&gt;false&lt;/public&gt;
+        &lt;roles&gt;x_enno_gatenow.service_applicant_user&lt;/roles&gt;
+        &lt;script&gt;&lt;![CDATA[(function() {
+    data.loaded  = false;
+    data.program = null;
+
+    var programId = $sp.getParameter('sys_id') || $sp.getParameter('program_id');
+
+    if (!programId) {
+        data.loaded = true; 
+        return;
+    }
+
+    // --- Fetch Grant Program ---
+    var grantProgramGR = new GlideRecordSecure('x_enno_gatenow_grant_program');
+    grantProgramGR.addQuery('sys_id', programId);
+    grantProgramGR.addQuery('active', true);
+    grantProgramGR.setLimit(1);
+    grantProgramGR.query();
+
+    if (!grantProgramGR.next()) {
+        data.loaded = true;
+        return;
+    }
+
+    data.program = {
+        sys_id:                     grantProgramGR.getUniqueValue(),
+        number:                     grantProgramGR.getValue('number'),
+        name:                       grantProgramGR.getDisplayValue('program_name'),
+        lead:                       grantProgramGR.getDisplayValue('program_lead'),
+        manager:                    grantProgramGR.getDisplayValue('program_manager'),
+        status:                     grantProgramGR.getDisplayValue('status'),
+        active:                     grantProgramGR.getValue('active') === '1',
+        start_date:                 grantProgramGR.getDisplayValue('start_date'),
+        end_date:                   grantProgramGR.getDisplayValue('end_date'),
+        proposal_open:              grantProgramGR.getDisplayValue('proposal_open_date'),
+        proposal_close:             grantProgramGR.getDisplayValue('proposal_close_date'),
+        priority:                   grantProgramGR.getDisplayValue('priority'),
+        budget:                     grantProgramGR.getDisplayValue('program_budget'),
+        currency:                   '',
+        disbursement_schedule:      grantProgramGR.getDisplayValue('disbursement_schedule'),
+        disbursement_type:          grantProgramGR.getDisplayValue('disbursement_type'),
+        category:                   grantProgramGR.getDisplayValue('category'),
+        award_type:                 grantProgramGR.getDisplayValue('award_type'),
+        description:                grantProgramGR.getValue('program_description'),
+        image:                      grantProgramGR.getDisplayValue('image'),
+        synopsis:                   grantProgramGR.getValue('synopsis'),
+        assistance_listing_number:  grantProgramGR.getDisplayValue('assistance_listing_number'),
+        funding_opportunity_number: grantProgramGR.getDisplayValue('funding_opportunity_number'),
+        summary_statement:          grantProgramGR.getValue('summary_statement'),
+        eligibility_summary:        grantProgramGR.getValue('eligibility_summary'),
+        terms:                      grantProgramGR.getValue('terms_and_conditions')
+    };
+
+    // --- Fetch Attachments ---
+    var attachments = [];
+    var programAttachmentGR = new GlideRecordSecure('sys_attachment');
+    programAttachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_program');
+    programAttachmentGR.addQuery('table_sys_id', grantProgramGR.getUniqueValue());
+    programAttachmentGR.orderBy('file_name');
+    programAttachmentGR.query();
+    
+    while (programAttachmentGR.next()) {
+        var bytes = parseInt(programAttachmentGR.getValue('size_bytes')) || 0;
+        var sizeFmt = bytes &lt; 1024 ? bytes + ' B'
+                    : bytes &lt; 1048576 ? (bytes / 1024).toFixed(1) + ' KB'
+                    : (bytes / 1048576).toFixed(1) + ' MB';
+                    
+        attachments.push({
+            sys_id:          programAttachmentGR.getUniqueValue(),
+            name:            programAttachmentGR.getValue('file_name'),
+            type:            programAttachmentGR.getValue('content_type') || 'application/octet-stream',
+            size_bytes:      bytes,
+            size_formatted:  sizeFmt,
+            url:             '/sys_attachment.do?sys_id=' + programAttachmentGR.getUniqueValue()
+        });
+    }
+    
+    data.program.attachments = attachments;
+    data.loaded = true;
+
+})();]]&gt;&lt;/script&gt;
+        &lt;servicenow&gt;false&lt;/servicenow&gt;
+        &lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;
+        &lt;sys_created_by&gt;adnan.tariq&lt;/sys_created_by&gt;
+        &lt;sys_created_on&gt;2026-02-16 08:29:06&lt;/sys_created_on&gt;
+        &lt;sys_id&gt;b83cee9e2f0fb250d2a0d68fcea4e3be&lt;/sys_id&gt;
+        &lt;sys_mod_count&gt;31&lt;/sys_mod_count&gt;
+        &lt;sys_name&gt;Published Program Details&lt;/sys_name&gt;
+        &lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;
+        &lt;sys_policy/&gt;
+        &lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;
+        &lt;sys_update_name&gt;sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be&lt;/sys_update_name&gt;
+        &lt;sys_updated_by&gt;admin&lt;/sys_updated_by&gt;
+        &lt;sys_updated_on&gt;2026-05-20 07:35:56&lt;/sys_updated_on&gt;
+        &lt;template&gt;&lt;![CDATA[&lt;div class="grant-detail-page" ng-if="data.loaded &amp;&amp; data.program"&gt;
+  
+  &lt;!-- Hero Section with Clean Image (NO TEXT OVERLAY) --&gt;
+  &lt;div class="hero-section" ng-if="data.program.image" ng-style="{'background-image': 'url(' + data.program.image + ')'}"&gt;
+    &lt;div class="hero-overlay"&gt;&lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- No Image Hero (Fallback) --&gt;
+  &lt;div class="hero-section-simple" ng-if="!data.program.image"&gt;&lt;/div&gt;
+
+  &lt;!-- Main Content Container --&gt;
+  &lt;div class="detail-container"&gt;
+
+    &lt;!-- Program Title (NO BREADCRUMB) --&gt;
+    &lt;h1 class="program-title"&gt;{{data.program.name || 'Grant Program'}}&lt;/h1&gt;
+
+    &lt;!-- Status Badges --&gt;
+    &lt;div class="status-badges"&gt;
+      &lt;span class="status-badge" ng-class="{'published': data.program.status === 'Published'}"&gt;
+        {{data.program.status || 'Draft'}}
+      &lt;/span&gt;
+      &lt;span class="active-badge" ng-if="data.program.active"&gt;
+        &lt;i class="fa fa-check-circle"&gt;&lt;/i&gt; Active
+      &lt;/span&gt;
+    &lt;/div&gt;
+    
+    &lt;!-- Quick Info Cards --&gt;
+    &lt;div class="quick-info-grid"&gt;
+      &lt;div class="info-card"&gt;
+        &lt;div class="info-icon budget-icon"&gt;&lt;i class="fa fa-money"&gt;&lt;/i&gt;&lt;/div&gt;
+        &lt;div class="info-content"&gt;
+          &lt;span class="info-label"&gt;Total Budget&lt;/span&gt;
+          &lt;span class="info-value"&gt;{{data.program.budget || '$0.00'}}&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class="info-card"&gt;
+        &lt;div class="info-icon date-icon"&gt;&lt;i class="fa fa-calendar"&gt;&lt;/i&gt;&lt;/div&gt;
+        &lt;div class="info-content"&gt;
+          &lt;span class="info-label"&gt;Proposals Open&lt;/span&gt;
+          &lt;span class="info-value"&gt;{{data.program.proposal_open || 'TBD'}}&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class="info-card"&gt;
+        &lt;div class="info-icon close-icon"&gt;&lt;i class="fa fa-calendar-times-o"&gt;&lt;/i&gt;&lt;/div&gt;
+        &lt;div class="info-content"&gt;
+          &lt;span class="info-label"&gt;Proposals Close&lt;/span&gt;
+          &lt;span class="info-value"&gt;{{data.program.proposal_close || 'TBD'}}&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class="info-card"&gt;
+        &lt;div class="info-icon category-icon"&gt;&lt;i class="fa fa-tag"&gt;&lt;/i&gt;&lt;/div&gt;
+        &lt;div class="info-content"&gt;
+          &lt;span class="info-label"&gt;Category&lt;/span&gt;
+          &lt;span class="info-value"&gt;{{data.program.category || 'General'}}&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Tabs Navigation --&gt;
+    &lt;div class="tabs-nav"&gt;
+      &lt;button class="tab-btn" ng-class="{active: c.tab==='overview'}" ng-click="c.tab='overview'"&gt;
+        &lt;i class="fa fa-info-circle"&gt;&lt;/i&gt; Overview
+      &lt;/button&gt;
+      &lt;button class="tab-btn" ng-class="{active: c.tab==='financial'}" ng-click="c.tab='financial'"&gt;
+        &lt;i class="fa fa-calculator"&gt;&lt;/i&gt; Financial Details
+      &lt;/button&gt;
+      &lt;button class="tab-btn" ng-class="{active: c.tab==='eligibility'}" ng-click="c.tab='eligibility'"&gt;
+        &lt;i class="fa fa-users"&gt;&lt;/i&gt; Eligibility
+      &lt;/button&gt;
+      &lt;button class="tab-btn" ng-class="{active: c.tab==='documents'}" ng-click="c.tab='documents'"&gt;
+        &lt;i class="fa fa-paperclip"&gt;&lt;/i&gt; Program Documents
+      &lt;/button&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Tab Content --&gt;
+    &lt;div class="tab-content"&gt;
+      
+      &lt;!-- OVERVIEW TAB --&gt;
+      &lt;div ng-if="c.tab==='overview'" class="tab-panel"&gt;
+        &lt;div class="content-section"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-file-text-o"&gt;&lt;/i&gt; Program Overview&lt;/h2&gt;
+          &lt;div class="field-group"&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Program Name:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.name || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Award Type:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.award_type || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Priority:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.priority || 'Standard'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Program Lead:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.lead || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Program Manager:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.manager || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+  &lt;span class="field-label"&gt;Assistance Listing Number:&lt;/span&gt;
+  &lt;span class="field-value"&gt;{{data.program.assistance_listing_number || '-'}}&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="field-row"&gt;
+  &lt;span class="field-label"&gt;Funding Opportunity Number:&lt;/span&gt;
+  &lt;span class="field-value"&gt;{{data.program.funding_opportunity_number || '-'}}&lt;/span&gt;
+&lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div class="content-section"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-align-left"&gt;&lt;/i&gt; Description&lt;/h2&gt;
+          &lt;p class="description-text"&gt;{{data.program.description || 'No description available.'}}&lt;/p&gt;
+        &lt;/div&gt;
+
+        &lt;div class="content-section" ng-if="data.program.synopsis"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-bookmark-o"&gt;&lt;/i&gt; Synopsis&lt;/h2&gt;
+          &lt;p class="description-text"&gt;{{data.program.synopsis}}&lt;/p&gt;
+        &lt;/div&gt;
+
+        &lt;div class="content-section" ng-if="data.program.summary_statement"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-list-alt"&gt;&lt;/i&gt; Summary Statement&lt;/h2&gt;
+          &lt;p class="description-text"&gt;{{data.program.summary_statement}}&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- FINANCIAL TAB --&gt;
+      &lt;div ng-if="c.tab==='financial'" class="tab-panel"&gt;
+        &lt;div class="content-section"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-usd"&gt;&lt;/i&gt; Financial Information&lt;/h2&gt;
+          &lt;div class="field-group"&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Total Budget:&lt;/span&gt;
+              &lt;span class="field-value highlight"&gt;{{data.program.budget || '0.00'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Disbursement Type:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.disbursement_type || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Disbursement Schedule:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.disbursement_schedule || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Program Start Date:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.start_date || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div class="field-row"&gt;
+              &lt;span class="field-label"&gt;Program End Date:&lt;/span&gt;
+              &lt;span class="field-value"&gt;{{data.program.end_date || '-'}}&lt;/span&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- ELIGIBILITY TAB --&gt;
+      &lt;div ng-if="c.tab==='eligibility'" class="tab-panel"&gt;
+        &lt;div class="content-section"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-check-square-o"&gt;&lt;/i&gt; Eligibility Requirements&lt;/h2&gt;
+          &lt;p class="description-text"&gt;{{data.program.eligibility_summary || 'No eligibility information available.'}}&lt;/p&gt;
+        &lt;/div&gt;
+
+        &lt;div class="content-section" ng-if="data.program.terms"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-gavel"&gt;&lt;/i&gt; Terms &amp; Conditions&lt;/h2&gt;
+          &lt;p class="description-text"&gt;{{data.program.terms}}&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- DOCUMENTS TAB --&gt;
+      &lt;div ng-if="c.tab==='documents'" class="tab-panel"&gt;
+        &lt;div class="content-section"&gt;
+          &lt;h2 class="section-title"&gt;&lt;i class="fa fa-paperclip"&gt;&lt;/i&gt; Attachments&lt;/h2&gt;
+
+          &lt;!-- No attachments --&gt;
+          &lt;div ng-if="!data.program.attachments || data.program.attachments.length === 0" class="no-docs"&gt;
+            &lt;i class="fa fa-folder-open-o"&gt;&lt;/i&gt;
+            &lt;p&gt;No documents attached to this program.&lt;/p&gt;
+          &lt;/div&gt;
+
+          &lt;!-- Attachments list --&gt;
+          &lt;div ng-if="data.program.attachments &amp;&amp; data.program.attachments.length &gt; 0" class="doc-list"&gt;
+            &lt;div class="doc-item" ng-repeat="att in data.program.attachments"&gt;
+              &lt;div class="doc-icon"&gt;
+                &lt;i class="fa" ng-class="{
+                  'fa-file-pdf-o':   att.type.indexOf('pdf') &gt; -1,
+                  'fa-file-image-o': att.type.indexOf('image') &gt; -1,
+                  'fa-file-excel-o': att.type.indexOf('excel') &gt; -1 || att.type.indexOf('spreadsheet') &gt; -1,
+                  'fa-file-word-o':  att.type.indexOf('word') &gt; -1,
+                  'fa-file-text-o':  att.type.indexOf('text') &gt; -1,
+                  'fa-file-o':       true
+                }"&gt;&lt;/i&gt;
+              &lt;/div&gt;
+              &lt;div class="doc-info"&gt;
+                &lt;span class="doc-name"&gt;{{att.name}}&lt;/span&gt;
+                &lt;span class="doc-meta"&gt;{{att.size_formatted}} &amp;bull; {{att.type}}&lt;/span&gt;
+              &lt;/div&gt;
+              &lt;a class="doc-download" ng-href="{{att.url}}" target="_blank"&gt;
+                &lt;i class="fa fa-download"&gt;&lt;/i&gt; Download
+              &lt;/a&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+    &lt;/div&gt;
+
+    &lt;!-- Back Button ONLY --&gt;
+    &lt;div class="action-section"&gt;
+      &lt;button class="back-btn" ng-click="c.goBack()"&gt;
+        &lt;i class="fa fa-arrow-left"&gt;&lt;/i&gt; Back to Grants
+      &lt;/button&gt;
+    &lt;/div&gt;
+
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;!-- Loading State --&gt;
+&lt;div ng-if="!data.loaded" class="loading-state"&gt;
+  &lt;i class="fa fa-spinner fa-spin"&gt;&lt;/i&gt;
+  &lt;p&gt;Loading grant program details...&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;!-- Error State --&gt;
+&lt;div ng-if="data.loaded &amp;&amp; !data.program" class="error-state"&gt;
+  &lt;i class="fa fa-exclamation-circle"&gt;&lt;/i&gt;
+  &lt;p&gt;Program not found&lt;/p&gt;
+  &lt;button class="back-btn" ng-click="c.goBack()"&gt;
+    &lt;i class="fa fa-arrow-left"&gt;&lt;/i&gt; Back to Grants
+  &lt;/button&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;
+    &lt;/sp_widget&gt;
+&lt;/record_update&gt;</payload>
+        <payload_hash>-1178406197</payload_hash>
+        <record_name>Published Program Details</record_name>
+        <reverted_from/>
+        <source>78ec0e490f41c710712b6af300d1b2f2</source>
+        <source_table>sys_upgrade_history</source_table>
+        <state>previous</state>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-05-22 19:05:49</sys_created_on>
+        <sys_id>172d0e4d0f41c710712b6af300d1b22b</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>19e51145bca0000001</sys_recorded_at>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-05-22 19:05:49</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>5f2d0e4db941c710daff6bf0df8bea2a</update_guid>
+        <update_guid_history>5f2d0e4db941c710daff6bf0df8bea2a:0,91dbca450741c710e3e24e8fef907753:482615127,b6e70a85d6cd8710fb20c2a6ad02ce3e:0,9fe4fbd122f8c310488df9f104ea67a9:0,b744ff9d5db8c310ce4db0dfc516fbf1:0,d103b8db45e003107bb123140a9be8aa:2104637296</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Published Program Details">eabacc930f760710712b6af300d1b2c2</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-08-24 09:12:05</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>1335a310c07a4663821a3237d988ced1</sys_id>
+        <sys_metadata>b83cee9e2f0fb250d2a0d68fcea4e3be</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Published Program Details</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be</sys_update_name>
+        <sys_update_version display_value="sp_widget_b83cee9e2f0fb250d2a0d68fcea4e3be">172d0e4d0f41c710712b6af300d1b22b</sys_update_version>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-08-24 09:12:05</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

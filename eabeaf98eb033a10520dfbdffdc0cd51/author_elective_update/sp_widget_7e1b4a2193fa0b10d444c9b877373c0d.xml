@@ -1,0 +1,1761 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function ($scope, $location, $sce) {
+	var c = this;
+	c.acking = {};
+	c.activeLetter = null;
+	c.searchQuery = '';
+	c.timeFilter = 'last12';
+
+	// Dynamically calculates total awarded amount based on currently filtered cards
+	c.getTotalAwarded = function () {
+		var list = c.filteredAwards();
+		var sum = 0;
+		for (var i = 0; i < list.length; i++) {
+			sum += parseFloat(list[i].award_amount || 0);
+		}
+		return sum;
+	};
+
+	c.activeAwardCount = function () {
+		return c.filteredAwards().length;
+	};
+
+	c.awaitingAckCount = function () {
+		if (!c.data.awards) return 0;
+		return c.data.awards.filter(function (a) {
+			return a.applicant_response === 'pending';
+		}).length;
+	};
+
+	c.acknowledgedCount = function () {
+		if (!c.data.awards) return 0;
+		return c.data.awards.filter(function (a) {
+			return a.applicant_response === 'acknowledged';
+		}).length;
+	};
+
+	// Search + time-range filtering, applied client-side over the existing dataset
+	c.filteredAwards = function () {
+		if (!c.data.awards) return [];
+		var list = c.data.awards;
+
+		if (c.searchQuery && c.searchQuery.trim() !== '') {
+			var q = c.searchQuery.toLowerCase();
+			list = list.filter(function (a) {
+				return (a.number || '').toLowerCase().indexOf(q) > -1 ||
+					(a.program_name || '').toLowerCase().indexOf(q) > -1;
+			});
+		}
+
+		if (c.timeFilter === 'last12') {
+			var cutoff = new Date();
+			cutoff.setMonth(cutoff.getMonth() - 12);
+
+			list = list.filter(function (a) {
+				var dateStr = a.award_start_date || a.sys_created_on || a.award_end_date;
+				if (!dateStr) return false;
+				var d = new Date(dateStr);
+				return isNaN(d.getTime()) ? false : d >= cutoff;
+			});
+		}
+
+		return list;
+	};
+
+	c.amountPercent = function (award) {
+		if (!c.data.awards || c.data.awards.length === 0) return 0;
+		var max = Math.max.apply(null, c.data.awards.map(function (a) { return a.award_amount || 0; }));
+		return max > 0 ? Math.round((award.award_amount / max) * 100) : 0;
+	};
+
+	c.displayStatus = function (award) {
+		if (!award) return '';
+		if (award.applicant_response === 'pending') return 'Acknowledgement pending';
+		return award.applicant_response_display || 'Acknowledged';
+	};
+
+	// Handles acknowledgement with robust server action and automatic widget refresh
+	c.acknowledgeAward = function (award, $event) {
+		if ($event) $event.stopPropagation();
+		if (!award || !award.sys_id) return;
+		
+		c.acking[award.sys_id] = true;
+
+		c.server.get({
+			action: 'acknowledge_award',
+			sys_id: award.sys_id
+		}).then(function (response) {
+			c.acking[award.sys_id] = false;
+			// Forces server script re-evaluation to update summary counts and banners instantly
+			c.server.update();
+		}, function (error) {
+			c.acking[award.sys_id] = false;
+			alert('Unable to process award acknowledgement.');
+		});
+	};
+
+	c.openAwardLetter = function (award, $event) {
+		if ($event) $event.stopPropagation();
+
+		if (!award.award_letter) {
+			alert('No award letter is available yet for ' + award.number + '.');
+			return;
+		}
+
+		c.activeLetter = {
+			sys_id: award.sys_id,
+			number: award.number,
+			program_name: award.program_name,
+			award_amount: award.award_amount,
+			award_end_date: award.award_end_date,
+			reporting_frequency: award.reporting_frequency,
+			applicant_response: award.applicant_response,
+			applicant_response_display: award.applicant_response_display,
+			award_letter: award.award_letter, 
+			html: $sce.trustAsHtml(award.award_letter)
+		};
+	};
+
+	c.closeAwardLetter = function () {
+		c.activeLetter = null;
+	};
+
+	// Handles downloading the letter cleanly as a text file format
+	c.downloadAwardLetter = function (award, $event) {
+		if ($event) {
+			$event.stopPropagation();
+		}
+
+		if (!award) return;
+
+		if (award.attachment_sys_id) {
+			window.open('/sys_attachment.do?sys_id=' + award.attachment_sys_id, '_blank');
+			return;
+		}
+
+		var tempDiv = document.createElement('div');
+		tempDiv.innerHTML = award.award_letter || '';
+		var cleanText = tempDiv.innerText || tempDiv.textContent || '';
+
+		var fileContent = 'OFFICIAL AWARD LETTER: ' + award.number + '\n';
+		if (award.program_name) {
+			fileContent += 'Program: ' + award.program_name + '\n';
+		}
+		fileContent += '--------------------------------------------------\n\n';
+		fileContent += cleanText;
+
+		var blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+		var link = document.createElement('a');
+		link.href = window.URL.createObjectURL(blob);
+		link.download = 'Award_Letter_' + award.number + '.txt';
+		
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
+
+	c.openProject = function () {
+		alert('Project link is not available yet for this award.');
+	};
+
+	c.openAward = function (award) {
+		if (!award) return;
+		$location.search({ id: c.data.detail_page || 'my_award_detail', sys_id: award.sys_id });
+	};
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ══ RESET &amp; VARS ══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --brand:      #312782;
+  --brand-lt:   #ede9fe;
+  --green:      #059669; --green-lt: #dcfce7;
+  --amber:      #d97706; --amber-lt: #fef3c7;
+  --red:        #e11d48; --red-lt:   #fee2e2;
+  --slate-900:  #0f172a; --slate-700: #334155; --slate-500: #64748b;
+  --slate-300:  #cbd5e1; --slate-200: #e2e8f0; --slate-100: #f1f5f9; --slate-50: #f8fafc;
+  --white:      #ffffff;
+  --r-md: 16px; 
+  --r-lg: 24px;
+}
+  
+/* ══ LAYOUT ═════════════════════════════════════════════════ */
+.gn-layout {
+  margin: 35px -15px 0 -15px;
+  width: calc(100% + 30px);
+  display: flex;
+  align-items: stretch;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+  
+.aw-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--brand);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 10;
+}
+  
+.aw-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 40px 72px;
+  background: #f8f9fa;
+}
+  
+/* ══ PAGE HEADER ═════════════════════════════════════════════ */
+.aw-ph {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.aw-ph-left { display: flex; align-items: center; gap: 16px; }
+.aw-ph-title { font-size: 26px; font-weight: 800; color: var(--slate-900); margin-bottom: 4px; letter-spacing: -0.5px; }
+.aw-ph-sub { font-size: 13px; color: var(--slate-500); }
+.aw-sub-highlight { font-weight: 600; color: var(--slate-700); }
+  
+.aw-ph-right { display: flex; align-items: center; gap: 16px; }
+.aw-search-box, .aw-filter-group {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--white); border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 99px;
+  padding: 8px 16px; 
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+.aw-search-box { min-width: 240px; }
+.aw-search-box i, .aw-filter-group i { color: var(--slate-500); font-size: 12px; }
+.aw-search-box input { border: none; outline: none; font-size: 13px; width: 100%; background: transparent; }
+.aw-time-filter { border: none; outline: none; font-size: 13px; font-weight: 500; color: var(--slate-700); background: transparent; cursor: pointer; }
+  
+.aw-icon-btn, .aw-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.aw-icon-btn { border: 1px solid rgba(226, 232, 240, 0.8); background: var(--white); color: var(--slate-500); font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02); }
+.aw-avatar { background: var(--brand); color: #fff; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  
+/* ══ GLASS CARD STYLES ══════════════════════════════════════ */
+.aw-stat-tile, .aw-card {
+  background: #ffffff;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01);
+}
+  
+/* ══ SUMMARY TILES ROW ══════════════════════════════════════ */
+.aw-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+  width: 100%;
+}
+.aw-stat-tile {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 24px;
+}
+.aw-tile-lbl { font-size: 11px; font-weight: 600; color: var(--slate-500); letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
+.aw-tile-val { font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 8px; letter-spacing: -1px; }
+.aw-tile-sub { font-size: 12px; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  
+/* Color classes for tiles &amp; highlights */
+.aw-text-indigo { color: #312782 !important; }
+.aw-text-dark { color: #0f172a !important; }
+.aw-text-amber { color: #d97706 !important; }
+  
+/* ══ ACKNOWLEDGEMENT ALERT BANNER ══════════════════════════ */
+.aw-ack-alert {
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between;
+  padding: 20px 24px; 
+  margin-bottom: 24px;
+  width: 100%;
+  background: #fff5f5 !important;
+  border: 1px solid #fed7d7 !important;
+  border-left: 6px solid #e11d48 !important;
+  border-radius: var(--r-md);
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.04);
+}
+.aw-ack-alert-left { display: flex; align-items: center; gap: 16px; }
+.aw-ack-alert-icon {
+  width: 40px; height: 40px; border-radius: 12px;
+  background: var(--red-lt); color: var(--red);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+}
+.aw-ack-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.aw-ack-title-row strong { font-size: 15px; font-weight: 700; color: var(--slate-900); }
+.aw-badge {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px;
+}
+.aw-badge--red { background: var(--red-lt); color: var(--red); }
+.aw-ack-alert-sub { font-size: 13px; color: var(--slate-500); }
+.aw-text-dark-bold { font-weight: 700; color: #0f172a; }
+  
+.aw-cta--solid {
+  background: #312782 !important; 
+  color: #ffffff !important; 
+  border: none !important;
+  padding: 12px 24px !important; 
+  border-radius: 99px !important; 
+  font-size: 13px !important; 
+  font-weight: 600 !important; 
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow: 0 4px 12px rgba(49, 39, 130, 0.15);
+  transition: all 0.2s ease;
+}
+.aw-cta--solid span { color: #ffffff !important; }
+.aw-cta--solid:hover { background: #251d66 !important; transform: translateY(-1px); }
+  
+/* ══ EXECUTIVE AWARD LETTER MODAL REDESIGN ══════════════════ */
+.aw-letter-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+  animation: awFadeIn .2s ease both;
+}
+  
+.aw-letter-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  animation: awModalIn .25s cubic-bezier(.16, 1, .3, 1) both;
+}
+  
+/* Header Strip */
+.aw-letter-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  background: linear-gradient(135deg, var(--brand) 0%, #4338ca 100%);
+  border-bottom: 3px solid var(--amber);
+  flex-shrink: 0;
+}
+.aw-letter-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.aw-letter-badge {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.aw-letter-eyebrow {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.aw-letter-modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.aw-letter-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 20px;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease;
+}
+.aw-letter-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+  
+/* Quick-facts strip */
+.aw-letter-facts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 20px 32px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.aw-letter-fact { 
+  background: #ffffff;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  display: flex; 
+  flex-direction: column; 
+  gap: 4px; 
+}
+.aw-letter-fact-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  font-weight: 700;
+}
+.aw-letter-fact-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--slate-900);
+}
+  
+.aw-letter-modal-body {
+  padding: 32px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #334155;
+  background: #ffffff;
+}
+.aw-letter-modal-body p { margin-bottom: 16px; }
+.aw-letter-modal-body p:last-child { margin-bottom: 0; }
+.aw-letter-modal-body strong { color: var(--brand); font-weight: 600; }
+.aw-letter-modal-body ul { margin: 0 0 16px 0; padding-left: 20px; }
+.aw-letter-modal-body li { margin-bottom: 6px; }
+  
+/* Footer actions */
+.aw-letter-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 32px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+.aw-letter-btn-secondary {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.aw-letter-btn-secondary:hover { 
+  background: #f1f5f9; 
+  border-color: #94a3b8;
+}
+  
+/* DEFINITIVE FIX: Guaranteed Solid Visibility Download Button */
+.aw-letter-btn-primary {
+  background-color: #312782 !important;
+  background-image: none !important;
+  border: 1px solid #312782 !important;
+  color: #ffffff !important;
+  padding: 10px 22px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  
+  /* Force render attributes to prevent hover invisibility */
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 4px 12px rgba(49, 39, 130, 0.25) !important;
+  transition: background-color 0.15s ease, transform 0.1s ease !important;
+}
+
+.aw-letter-btn-primary i, 
+.aw-letter-btn-primary span {
+  color: #ffffff !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.aw-letter-btn-primary:hover {
+  background-color: #251d66 !important;
+  border-color: #251d66 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+  
+@keyframes awFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes awModalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+  
+/* ══ CARDS GRID (2 Columns) ═════════════════════════════════ */
+.aw-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  width: 100%;
+}
+  
+.aw-card {
+  padding: 24px; 
+  display: flex; 
+  flex-direction: column; 
+  cursor: pointer;
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.aw-card:hover { 
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06); 
+  transform: translateY(-2px);
+}
+  
+.aw-card-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.aw-card-num { font-size: 12px; font-weight: 500; color: var(--slate-500); }
+  
+.aw-status-pill { font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 12px; }
+.status-green { background: #dcfce7; color: #059669; }
+.status-amber { background: #fef3c7; color: #d97706; }
+  
+.aw-card-title { font-size: 18px; font-weight: 800; color: var(--slate-900); margin-bottom: 24px; min-height: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; letter-spacing: -0.3px; }
+  
+.aw-card-meta-grid {
+  display: grid; 
+  grid-template-columns: repeat(3, 1fr); 
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.aw-meta-col { display: flex; flex-direction: column; gap: 6px; }
+.aw-meta-lbl { font-size: 10px; font-weight: 600; color: var(--slate-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.aw-meta-val { font-size: 14px; font-weight: 700; color: var(--slate-900); }
+.aw-card-amount-colored { color: #0f172a; font-weight: 700; }
+  
+.aw-card-foot {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: auto;
+}
+.aw-btn-ghost-dark {
+  background: transparent; border: 1px solid rgba(226, 232, 240, 0.8);
+  color: var(--slate-700); border-radius: 99px; padding: 8px 16px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+}
+.aw-btn-ghost-dark:hover { background: var(--slate-50); }
+  
+.aw-btn-ghost-blue {
+  background: #eff6ff; border: 1px solid #bfdbfe;
+  color: #2563eb; border-radius: 99px; padding: 8px 16px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+}
+.aw-btn-ghost-blue:hover { background: #dbeafe; }
+.aw-btn-ghost-blue[disabled] { opacity: 0.5; cursor: not-allowed; background: transparent; border-color: #e2e8f0; color: #94a3b8; }
+  
+/* ══ RESPONSIVE ══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .aw-summary-row { grid-template-columns: 1fr; }
+  .aw-cards { grid-template-columns: 1fr; }
+  .aw-ph-right { flex-wrap: wrap; }
+}
+  
+@media (max-width: 560px) {
+  .aw-letter-facts { grid-template-columns: repeat(2, 1fr); }
+  .aw-letter-modal-header,
+  .aw-letter-modal-body,
+  .aw-letter-modal-footer { padding: 18px 20px; }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id/>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>My Award</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function () {
+    data.detail_page = options.detail_page_id || 'my_award_detail';
+    data.sideBar = $sp.getWidget('sidebar_dashboard');
+
+    // Handle incoming widget server action when "Acknowledge award" is clicked
+    if (input && input.action === 'acknowledge_award' && input.sys_id) {
+        var updateGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+        if (updateGr.get(input.sys_id)) {
+            updateGr.setValue('applicant_response', 'acknowledged');
+            updateGr.update();
+        }
+    }
+
+    data.awards = [];
+    data.totalAwarded = 0;
+    data.activeAwardCount = 0;
+    data.awaitingAckCount = 0;
+    
+    data.closingSoonestDate = '';
+    data.closingSoonestProgram = '';
+
+    var currentUser = gs.getUserID();
+    var currentUserObj = gs.getUser();
+    data.userInitials = (currentUserObj.getFirstName().charAt(0) + currentUserObj.getLastName().charAt(0)).toUpperCase();
+    data.userDisplayName = currentUserObj.getDisplayName();
+
+    var applicantIds = [];
+    var applicantGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    applicantGr.addQuery('user', currentUser);
+    applicantGr.query();
+    while (applicantGr.next()) {
+        applicantIds.push(applicantGr.getUniqueValue());
+    }
+
+    if (applicantIds.length === 0) {
+        return;
+    }
+
+    var applicantIdList = applicantIds.join(',');
+    var responseFilter = 'pending,acknowledged,rejected';
+
+    var awardGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+    awardGr.addQuery('applicant_response', 'IN', responseFilter);
+    awardGr.addQuery('applicant', 'IN', applicantIdList);
+    awardGr.orderByDesc('sys_created_on');
+    awardGr.query();
+
+    var nearestDateMs = null;
+
+    while (awardGr.next()) {
+        var responseValue = String(awardGr.getValue('applicant_response') || '').toLowerCase();
+        var amount = parseFloat(awardGr.getValue('build_grant_amount') || 0);
+
+        if (responseValue === 'pending') {
+            data.awaitingAckCount++;
+        }
+
+        data.totalAwarded += amount;
+        data.activeAwardCount++;
+
+        var endDateStr = awardGr.getValue('award_end_date');
+        if (endDateStr && responseValue !== 'rejected') {
+            var gdt = new GlideDateTime(endDateStr);
+            var currentEdMs = gdt.getNumericValue();
+            
+            if (!nearestDateMs || currentEdMs < nearestDateMs) {
+                nearestDateMs = currentEdMs;
+                var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                var monthIndex = gdt.getMonthUTC() - 1;
+                data.closingSoonestDate = months[monthIndex] + ' ' + gdt.getYearUTC();
+                data.closingSoonestProgram = awardGr.getDisplayValue('program_name');
+            }
+        }
+
+        data.awards.push({
+            sys_id: awardGr.getUniqueValue(),
+            number: awardGr.getDisplayValue('number'),
+            program_name: awardGr.getDisplayValue('program_name'),
+            award_start_date: awardGr.getDisplayValue('award_start_date'),
+            award_end_date: awardGr.getDisplayValue('award_end_date'),
+            award_amount: amount,
+            applicant_response: responseValue,
+            applicant_response_display: awardGr.getDisplayValue('applicant_response'),
+            grant_program_id: awardGr.getDisplayValue('grant_program'),
+            award_letter: awardGr.getValue('award_letter') || ''
+        });
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-19 08:10:09</sys_created_on>
+        <sys_id>7e1b4a2193fa0b10d444c9b877373c0d</sys_id>
+        <sys_mod_count>80</sys_mod_count>
+        <sys_name>My Award</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_7e1b4a2193fa0b10d444c9b877373c0d</sys_update_name>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 08:05:26</sys_updated_on>
+        <template><![CDATA[<div class="gn-layout">
+  <div class="aw-sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+  <main class="aw-main">
+    <div class="aw-ph">
+      <div class="aw-ph-left">
+        <div>
+          <h1 class="aw-ph-title">My Awards</h1>
+          <p class="aw-ph-sub" ng-if="data.awards.length > 0">
+            &bull; {{c.filteredAwards().length}} active awards &middot; <span class="aw-sub-highlight">{{c.getTotalAwarded() | currency:'$':0}}</span> awarded
+          </p>
+        </div>
+      </div>
+
+      <div class="aw-ph-right">
+        <div class="aw-search-box">
+          <i class="fa fa-search"></i>
+          <input type="text" ng-model="c.searchQuery" placeholder="Search programs, applications...">
+        </div>
+        <div class="aw-filter-group">
+          <i class="fa fa-calendar-o"></i>
+          <select class="aw-time-filter" ng-model="c.timeFilter">
+            <option value="last12">Last 12 months</option>
+            <option value="all">All time</option>
+          </select>
+        </div>
+        <button class="aw-icon-btn" title="Notifications">
+          <i class="fa fa-bell-o"></i>
+        </button>
+        <div class="aw-avatar" title="{{data.userDisplayName}}">{{data.userInitials}}</div>
+      </div>
+    </div>
+
+    <!-- ===== Summary Tiles ===== -->
+    <div class="aw-summary-row" ng-if="data.awards.length > 0">
+      <div class="aw-stat-tile">
+        <span class="aw-tile-lbl">TOTAL AWARDED</span>
+        <span class="aw-tile-val aw-text-indigo">{{c.getTotalAwarded() | currency:'$':0}}</span>
+        <span class="aw-tile-sub">Across {{c.filteredAwards().length}} active awards</span>
+      </div>
+
+      <div class="aw-stat-tile">
+        <span class="aw-tile-lbl">AWAITING ACKNOWLEDGEMENT</span>
+        <span class="aw-tile-val aw-text-amber">{{c.awaitingAckCount() || 0}}</span>
+        <span class="aw-tile-sub">Action required</span>
+      </div>
+
+      <div class="aw-stat-tile">
+        <span class="aw-tile-lbl">CLOSING SOONEST</span>
+        <span class="aw-tile-val aw-text-dark">{{data.closingSoonestDate || 'N/A'}}</span>
+        <span class="aw-tile-sub">{{data.closingSoonestProgram || 'No upcoming closures'}}</span>
+      </div>
+    </div>
+
+    <!-- ===== Acknowledgement Alert Banner ===== -->
+    <div class="aw-ack-alert" ng-repeat="award in data.awards" ng-if="award.applicant_response === 'pending'">
+      <div class="aw-ack-alert-left">
+        <div class="aw-ack-alert-icon"><i class="fa fa-lock"></i></div>
+        <div>
+          <div class="aw-ack-title-row">
+            <strong>{{award.number}} - {{award.program_name}}</strong>
+            <span class="aw-badge aw-badge--red">Acknowledgement overdue</span>
+          </div>
+          <div class="aw-ack-alert-sub">
+            <span class="aw-text-dark-bold">{{award.award_amount | currency:'$':0}}</span> awarded &middot; funds release after acknowledgement
+          </div>
+        </div>
+      </div>
+      <button class="aw-cta--solid" ng-click="c.acknowledgeAward(award, $event)" ng-disabled="c.acking[award.sys_id]">
+        <span style="display: inline-block; color: #ffffff !important; visibility: visible !important; opacity: 1 !important;" ng-if="!c.acking[award.sys_id]">Acknowledge award</span>
+        <span style="display: inline-block; color: #ffffff !important; visibility: visible !important; opacity: 1 !important;" ng-if="c.acking[award.sys_id]">Processing...</span>
+      </button>
+    </div>
+
+    <!-- ===== Award Cards Grid ===== -->
+    <div class="aw-cards" ng-if="c.filteredAwards().length > 0">
+      <div class="aw-card" ng-repeat="award in c.filteredAwards()" ng-click="c.openAward(award)">
+        <div class="aw-card-row1">
+          <span class="aw-card-num">{{award.number}}</span>
+          <span class="aw-status-pill"
+                ng-class="{'status-green': award.applicant_response === 'acknowledged', 'status-amber': award.applicant_response === 'pending'}">
+            {{c.displayStatus(award)}}
+          </span>
+        </div>
+
+        <h3 class="aw-card-title">{{award.program_name}}</h3>
+
+        <div class="aw-card-meta-grid">
+          <div class="aw-meta-col">
+            <span class="aw-meta-lbl">Award value</span>
+            <span class="aw-meta-val aw-card-amount-colored">{{award.award_amount | currency:'$':0}}</span>
+          </div>
+          <div class="aw-meta-col">
+            <span class="aw-meta-lbl">Term ends</span>
+            <span class="aw-meta-val">{{award.award_end_date || '—'}}</span>
+          </div>
+          <div class="aw-meta-col">
+            <span class="aw-meta-lbl">Reporting</span>
+            <span class="aw-meta-val">{{award.reporting_frequency || 'Monthly'}}</span>
+          </div>
+        </div>
+
+        <div class="aw-card-foot">
+          <button class="aw-btn-ghost-blue"
+                  ng-disabled="!award.award_letter"
+                  ng-click="c.openAwardLetter(award, $event); $event.stopPropagation()">
+            Award letter
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Award Letter Modal (Cleaned Single-Source Render) ===== -->
+    <div class="aw-letter-overlay" ng-if="c.activeLetter" ng-click="c.closeAwardLetter()">
+      <div class="aw-letter-modal" ng-click="$event.stopPropagation()">
+
+        <!-- Header Strip -->
+        <div class="aw-letter-modal-header">
+          <div class="aw-letter-header-left">
+            <div class="aw-letter-badge"><i class="fa fa-file-text-o"></i></div>
+            <div>
+              <span class="aw-letter-eyebrow">Official Award Document</span>
+              <h3>{{c.activeLetter.number}} <span ng-if="c.activeLetter.program_name">&middot; {{c.activeLetter.program_name}}</span></h3>
+            </div>
+          </div>
+          <button class="aw-letter-close" ng-click="c.closeAwardLetter()" title="Close">&times;</button>
+        </div>
+
+        <!-- Quick-facts strip -->
+        <div class="aw-letter-facts">
+          <div class="aw-letter-fact">
+            <span class="aw-letter-fact-lbl">Award value</span>
+            <span class="aw-letter-fact-val">{{c.activeLetter.award_amount | currency:'$':0}}</span>
+          </div>
+          <div class="aw-letter-fact">
+            <span class="aw-letter-fact-lbl">Term ends</span>
+            <span class="aw-letter-fact-val">{{c.activeLetter.award_end_date || '—'}}</span>
+          </div>
+          <div class="aw-letter-fact">
+            <span class="aw-letter-fact-lbl">Reporting</span>
+            <span class="aw-letter-fact-val">{{c.activeLetter.reporting_frequency || 'Monthly'}}</span>
+          </div>
+          <div class="aw-letter-fact">
+            <span class="aw-letter-fact-lbl">Status</span>
+            <span class="aw-letter-fact-val">{{c.displayStatus(c.activeLetter)}}</span>
+          </div>
+        </div>
+
+        <!-- Body Content -->
+        <div class="aw-letter-modal-body" ng-bind-html="c.activeLetter.html"></div>
+
+        <!-- Footer Actions -->
+        <div class="aw-letter-modal-footer">
+          <button class="aw-letter-btn-secondary" ng-click="c.closeAwardLetter()">Close</button>
+          <button class="aw-letter-btn-primary" ng-click="c.downloadAwardLetter(c.activeLetter, $event)">
+            <i class="fa fa-download"></i> Download PDF
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_7e1b4a2193fa0b10d444c9b877373c0d</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function ($scope, $location, $sce) {
+	var c = this;
+	c.acking = {};
+	c.activeLetter = null;
+	c.searchQuery = '';
+	c.timeFilter = 'last12';
+
+	// Dynamically calculates total awarded amount based on currently filtered cards
+	c.getTotalAwarded = function () {
+		var list = c.filteredAwards();
+		var sum = 0;
+		for (var i = 0; i &lt; list.length; i++) {
+			sum += parseFloat(list[i].award_amount || 0);
+		}
+		return sum;
+	};
+
+	c.activeAwardCount = function () {
+		return c.filteredAwards().length;
+	};
+
+	c.awaitingAckCount = function () {
+		if (!c.data.awards) return 0;
+		return c.data.awards.filter(function (a) {
+			return a.applicant_response === 'pending';
+		}).length;
+	};
+
+	c.acknowledgedCount = function () {
+		if (!c.data.awards) return 0;
+		return c.data.awards.filter(function (a) {
+			return a.applicant_response === 'acknowledged';
+		}).length;
+	};
+
+	// Search + time-range filtering, applied client-side over the existing dataset
+	c.filteredAwards = function () {
+		if (!c.data.awards) return [];
+		var list = c.data.awards;
+
+		if (c.searchQuery &amp;&amp; c.searchQuery.trim() !== '') {
+			var q = c.searchQuery.toLowerCase();
+			list = list.filter(function (a) {
+				return (a.number || '').toLowerCase().indexOf(q) &gt; -1 ||
+					(a.program_name || '').toLowerCase().indexOf(q) &gt; -1;
+			});
+		}
+
+		if (c.timeFilter === 'last12') {
+			var cutoff = new Date();
+			cutoff.setMonth(cutoff.getMonth() - 12);
+
+			list = list.filter(function (a) {
+				var dateStr = a.award_start_date || a.sys_created_on || a.award_end_date;
+				if (!dateStr) return false;
+				var d = new Date(dateStr);
+				return isNaN(d.getTime()) ? false : d &gt;= cutoff;
+			});
+		}
+
+		return list;
+	};
+
+	c.amountPercent = function (award) {
+		if (!c.data.awards || c.data.awards.length === 0) return 0;
+		var max = Math.max.apply(null, c.data.awards.map(function (a) { return a.award_amount || 0; }));
+		return max &gt; 0 ? Math.round((award.award_amount / max) * 100) : 0;
+	};
+
+	c.displayStatus = function (award) {
+		if (!award) return '';
+		if (award.applicant_response === 'pending') return 'Acknowledgement pending';
+		return award.applicant_response_display || 'Acknowledged';
+	};
+
+	// Handles acknowledgement with robust server action and automatic widget refresh
+	c.acknowledgeAward = function (award, $event) {
+		if ($event) $event.stopPropagation();
+		if (!award || !award.sys_id) return;
+		
+		c.acking[award.sys_id] = true;
+
+		c.server.get({
+			action: 'acknowledge_award',
+			sys_id: award.sys_id
+		}).then(function (response) {
+			c.acking[award.sys_id] = false;
+			// Forces server script re-evaluation to update summary counts and banners instantly
+			c.server.update();
+		}, function (error) {
+			c.acking[award.sys_id] = false;
+			alert('Unable to process award acknowledgement.');
+		});
+	};
+
+	c.openAwardLetter = function (award, $event) {
+		if ($event) $event.stopPropagation();
+
+		if (!award.award_letter) {
+			alert('No award letter is available yet for ' + award.number + '.');
+			return;
+		}
+
+		c.activeLetter = {
+			sys_id: award.sys_id,
+			number: award.number,
+			program_name: award.program_name,
+			award_amount: award.award_amount,
+			award_end_date: award.award_end_date,
+			reporting_frequency: award.reporting_frequency,
+			applicant_response: award.applicant_response,
+			applicant_response_display: award.applicant_response_display,
+			award_letter: award.award_letter, 
+			html: $sce.trustAsHtml(award.award_letter)
+		};
+	};
+
+	c.closeAwardLetter = function () {
+		c.activeLetter = null;
+	};
+
+	// Handles downloading the letter cleanly as a text file format
+	c.downloadAwardLetter = function (award, $event) {
+		if ($event) {
+			$event.stopPropagation();
+		}
+
+		if (!award) return;
+
+		if (award.attachment_sys_id) {
+			window.open('/sys_attachment.do?sys_id=' + award.attachment_sys_id, '_blank');
+			return;
+		}
+
+		var tempDiv = document.createElement('div');
+		tempDiv.innerHTML = award.award_letter || '';
+		var cleanText = tempDiv.innerText || tempDiv.textContent || '';
+
+		var fileContent = 'OFFICIAL AWARD LETTER: ' + award.number + '\n';
+		if (award.program_name) {
+			fileContent += 'Program: ' + award.program_name + '\n';
+		}
+		fileContent += '--------------------------------------------------\n\n';
+		fileContent += cleanText;
+
+		var blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+		var link = document.createElement('a');
+		link.href = window.URL.createObjectURL(blob);
+		link.download = 'Award_Letter_' + award.number + '.txt';
+		
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
+
+	c.openProject = function () {
+		alert('Project link is not available yet for this award.');
+	};
+
+	c.openAward = function (award) {
+		if (!award) return;
+		$location.search({ id: c.data.detail_page || 'my_award_detail', sys_id: award.sys_id });
+	};
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;/* ══ RESET &amp;amp; VARS ══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --brand:      #312782;
+  --brand-lt:   #ede9fe;
+  --green:      #059669; --green-lt: #dcfce7;
+  --amber:      #d97706; --amber-lt: #fef3c7;
+  --red:        #e11d48; --red-lt:   #fee2e2;
+  --slate-900:  #0f172a; --slate-700: #334155; --slate-500: #64748b;
+  --slate-300:  #cbd5e1; --slate-200: #e2e8f0; --slate-100: #f1f5f9; --slate-50: #f8fafc;
+  --white:      #ffffff;
+  --r-md: 16px; 
+  --r-lg: 24px;
+}
+  
+/* ══ LAYOUT ═════════════════════════════════════════════════ */
+.gn-layout {
+  margin: 35px -15px 0 -15px;
+  width: calc(100% + 30px);
+  display: flex;
+  align-items: stretch;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+  
+.aw-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--brand);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 10;
+}
+  
+.aw-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 40px 72px;
+  background: #f8f9fa;
+}
+  
+/* ══ PAGE HEADER ═════════════════════════════════════════════ */
+.aw-ph {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.aw-ph-left { display: flex; align-items: center; gap: 16px; }
+.aw-ph-title { font-size: 26px; font-weight: 800; color: var(--slate-900); margin-bottom: 4px; letter-spacing: -0.5px; }
+.aw-ph-sub { font-size: 13px; color: var(--slate-500); }
+.aw-sub-highlight { font-weight: 600; color: var(--slate-700); }
+  
+.aw-ph-right { display: flex; align-items: center; gap: 16px; }
+.aw-search-box, .aw-filter-group {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--white); border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 99px;
+  padding: 8px 16px; 
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+.aw-search-box { min-width: 240px; }
+.aw-search-box i, .aw-filter-group i { color: var(--slate-500); font-size: 12px; }
+.aw-search-box input { border: none; outline: none; font-size: 13px; width: 100%; background: transparent; }
+.aw-time-filter { border: none; outline: none; font-size: 13px; font-weight: 500; color: var(--slate-700); background: transparent; cursor: pointer; }
+  
+.aw-icon-btn, .aw-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.aw-icon-btn { border: 1px solid rgba(226, 232, 240, 0.8); background: var(--white); color: var(--slate-500); font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02); }
+.aw-avatar { background: var(--brand); color: #fff; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  
+/* ══ GLASS CARD STYLES ══════════════════════════════════════ */
+.aw-stat-tile, .aw-card {
+  background: #ffffff;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01);
+}
+  
+/* ══ SUMMARY TILES ROW ══════════════════════════════════════ */
+.aw-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+  width: 100%;
+}
+.aw-stat-tile {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 24px;
+}
+.aw-tile-lbl { font-size: 11px; font-weight: 600; color: var(--slate-500); letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
+.aw-tile-val { font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 8px; letter-spacing: -1px; }
+.aw-tile-sub { font-size: 12px; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  
+/* Color classes for tiles &amp;amp; highlights */
+.aw-text-indigo { color: #312782 !important; }
+.aw-text-dark { color: #0f172a !important; }
+.aw-text-amber { color: #d97706 !important; }
+  
+/* ══ ACKNOWLEDGEMENT ALERT BANNER ══════════════════════════ */
+.aw-ack-alert {
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between;
+  padding: 20px 24px; 
+  margin-bottom: 24px;
+  width: 100%;
+  background: #fff5f5 !important;
+  border: 1px solid #fed7d7 !important;
+  border-left: 6px solid #e11d48 !important;
+  border-radius: var(--r-md);
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.04);
+}
+.aw-ack-alert-left { display: flex; align-items: center; gap: 16px; }
+.aw-ack-alert-icon {
+  width: 40px; height: 40px; border-radius: 12px;
+  background: var(--red-lt); color: var(--red);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+}
+.aw-ack-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.aw-ack-title-row strong { font-size: 15px; font-weight: 700; color: var(--slate-900); }
+.aw-badge {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px;
+}
+.aw-badge--red { background: var(--red-lt); color: var(--red); }
+.aw-ack-alert-sub { font-size: 13px; color: var(--slate-500); }
+.aw-text-dark-bold { font-weight: 700; color: #0f172a; }
+  
+.aw-cta--solid {
+  background: #312782 !important; 
+  color: #ffffff !important; 
+  border: none !important;
+  padding: 12px 24px !important; 
+  border-radius: 99px !important; 
+  font-size: 13px !important; 
+  font-weight: 600 !important; 
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow: 0 4px 12px rgba(49, 39, 130, 0.15);
+  transition: all 0.2s ease;
+}
+.aw-cta--solid span { color: #ffffff !important; }
+.aw-cta--solid:hover { background: #251d66 !important; transform: translateY(-1px); }
+  
+/* ══ EXECUTIVE AWARD LETTER MODAL REDESIGN ══════════════════ */
+.aw-letter-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+  animation: awFadeIn .2s ease both;
+}
+  
+.aw-letter-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  animation: awModalIn .25s cubic-bezier(.16, 1, .3, 1) both;
+}
+  
+/* Header Strip */
+.aw-letter-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  background: linear-gradient(135deg, var(--brand) 0%, #4338ca 100%);
+  border-bottom: 3px solid var(--amber);
+  flex-shrink: 0;
+}
+.aw-letter-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.aw-letter-badge {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.aw-letter-eyebrow {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.aw-letter-modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.aw-letter-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 20px;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease;
+}
+.aw-letter-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+  
+/* Quick-facts strip */
+.aw-letter-facts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 20px 32px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.aw-letter-fact { 
+  background: #ffffff;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  display: flex; 
+  flex-direction: column; 
+  gap: 4px; 
+}
+.aw-letter-fact-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  font-weight: 700;
+}
+.aw-letter-fact-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--slate-900);
+}
+  
+.aw-letter-modal-body {
+  padding: 32px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #334155;
+  background: #ffffff;
+}
+.aw-letter-modal-body p { margin-bottom: 16px; }
+.aw-letter-modal-body p:last-child { margin-bottom: 0; }
+.aw-letter-modal-body strong { color: var(--brand); font-weight: 600; }
+.aw-letter-modal-body ul { margin: 0 0 16px 0; padding-left: 20px; }
+.aw-letter-modal-body li { margin-bottom: 6px; }
+  
+/* Footer actions */
+.aw-letter-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 32px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+.aw-letter-btn-secondary {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.aw-letter-btn-secondary:hover { 
+  background: #f1f5f9; 
+  border-color: #94a3b8;
+}
+  
+/* DEFINITIVE FIX: Guaranteed Solid Visibility Download Button */
+.aw-letter-btn-primary {
+  background-color: #312782 !important;
+  background-image: none !important;
+  border: 1px solid #312782 !important;
+  color: #ffffff !important;
+  padding: 10px 22px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  
+  /* Force render attributes to prevent hover invisibility */
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 4px 12px rgba(49, 39, 130, 0.25) !important;
+  transition: background-color 0.15s ease, transform 0.1s ease !important;
+}
+
+.aw-letter-btn-primary i, 
+.aw-letter-btn-primary span {
+  color: #ffffff !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.aw-letter-btn-primary:hover {
+  background-color: #251d66 !important;
+  border-color: #251d66 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+  
+@keyframes awFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes awModalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+  
+/* ══ CARDS GRID (2 Columns) ═════════════════════════════════ */
+.aw-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  width: 100%;
+}
+  
+.aw-card {
+  padding: 24px; 
+  display: flex; 
+  flex-direction: column; 
+  cursor: pointer;
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.aw-card:hover { 
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06); 
+  transform: translateY(-2px);
+}
+  
+.aw-card-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.aw-card-num { font-size: 12px; font-weight: 500; color: var(--slate-500); }
+  
+.aw-status-pill { font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 12px; }
+.status-green { background: #dcfce7; color: #059669; }
+.status-amber { background: #fef3c7; color: #d97706; }
+  
+.aw-card-title { font-size: 18px; font-weight: 800; color: var(--slate-900); margin-bottom: 24px; min-height: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; letter-spacing: -0.3px; }
+  
+.aw-card-meta-grid {
+  display: grid; 
+  grid-template-columns: repeat(3, 1fr); 
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.aw-meta-col { display: flex; flex-direction: column; gap: 6px; }
+.aw-meta-lbl { font-size: 10px; font-weight: 600; color: var(--slate-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.aw-meta-val { font-size: 14px; font-weight: 700; color: var(--slate-900); }
+.aw-card-amount-colored { color: #0f172a; font-weight: 700; }
+  
+.aw-card-foot {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: auto;
+}
+.aw-btn-ghost-dark {
+  background: transparent; border: 1px solid rgba(226, 232, 240, 0.8);
+  color: var(--slate-700); border-radius: 99px; padding: 8px 16px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+}
+.aw-btn-ghost-dark:hover { background: var(--slate-50); }
+  
+.aw-btn-ghost-blue {
+  background: #eff6ff; border: 1px solid #bfdbfe;
+  color: #2563eb; border-radius: 99px; padding: 8px 16px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+}
+.aw-btn-ghost-blue:hover { background: #dbeafe; }
+.aw-btn-ghost-blue[disabled] { opacity: 0.5; cursor: not-allowed; background: transparent; border-color: #e2e8f0; color: #94a3b8; }
+  
+/* ══ RESPONSIVE ══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .aw-summary-row { grid-template-columns: 1fr; }
+  .aw-cards { grid-template-columns: 1fr; }
+  .aw-ph-right { flex-wrap: wrap; }
+}
+  
+@media (max-width: 560px) {
+  .aw-letter-facts { grid-template-columns: repeat(2, 1fr); }
+  .aw-letter-modal-header,
+  .aw-letter-modal-body,
+  .aw-letter-modal-footer { padding: 18px 20px; }
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;true&lt;/has_preview&gt;&lt;id/&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;My Award&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles/&gt;&lt;script&gt;&lt;![CDATA[(function () {
+    data.detail_page = options.detail_page_id || 'my_award_detail';
+    data.sideBar = $sp.getWidget('sidebar_dashboard');
+
+    // Handle incoming widget server action when "Acknowledge award" is clicked
+    if (input &amp;&amp; input.action === 'acknowledge_award' &amp;&amp; input.sys_id) {
+        var updateGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+        if (updateGr.get(input.sys_id)) {
+            updateGr.setValue('applicant_response', 'acknowledged');
+            updateGr.update();
+        }
+    }
+
+    data.awards = [];
+    data.totalAwarded = 0;
+    data.activeAwardCount = 0;
+    data.awaitingAckCount = 0;
+    
+    data.closingSoonestDate = '';
+    data.closingSoonestProgram = '';
+
+    var currentUser = gs.getUserID();
+    var currentUserObj = gs.getUser();
+    data.userInitials = (currentUserObj.getFirstName().charAt(0) + currentUserObj.getLastName().charAt(0)).toUpperCase();
+    data.userDisplayName = currentUserObj.getDisplayName();
+
+    var applicantIds = [];
+    var applicantGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    applicantGr.addQuery('user', currentUser);
+    applicantGr.query();
+    while (applicantGr.next()) {
+        applicantIds.push(applicantGr.getUniqueValue());
+    }
+
+    if (applicantIds.length === 0) {
+        return;
+    }
+
+    var applicantIdList = applicantIds.join(',');
+    var responseFilter = 'pending,acknowledged,rejected';
+
+    var awardGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
+    awardGr.addQuery('applicant_response', 'IN', responseFilter);
+    awardGr.addQuery('applicant', 'IN', applicantIdList);
+    awardGr.orderByDesc('sys_created_on');
+    awardGr.query();
+
+    var nearestDateMs = null;
+
+    while (awardGr.next()) {
+        var responseValue = String(awardGr.getValue('applicant_response') || '').toLowerCase();
+        var amount = parseFloat(awardGr.getValue('build_grant_amount') || 0);
+
+        if (responseValue === 'pending') {
+            data.awaitingAckCount++;
+        }
+
+        data.totalAwarded += amount;
+        data.activeAwardCount++;
+
+        var endDateStr = awardGr.getValue('award_end_date');
+        if (endDateStr &amp;&amp; responseValue !== 'rejected') {
+            var gdt = new GlideDateTime(endDateStr);
+            var currentEdMs = gdt.getNumericValue();
+            
+            if (!nearestDateMs || currentEdMs &lt; nearestDateMs) {
+                nearestDateMs = currentEdMs;
+                var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                var monthIndex = gdt.getMonthUTC() - 1;
+                data.closingSoonestDate = months[monthIndex] + ' ' + gdt.getYearUTC();
+                data.closingSoonestProgram = awardGr.getDisplayValue('program_name');
+            }
+        }
+
+        data.awards.push({
+            sys_id: awardGr.getUniqueValue(),
+            number: awardGr.getDisplayValue('number'),
+            program_name: awardGr.getDisplayValue('program_name'),
+            award_start_date: awardGr.getDisplayValue('award_start_date'),
+            award_end_date: awardGr.getDisplayValue('award_end_date'),
+            award_amount: amount,
+            applicant_response: responseValue,
+            applicant_response_display: awardGr.getDisplayValue('applicant_response'),
+            grant_program_id: awardGr.getDisplayValue('grant_program'),
+            award_letter: awardGr.getValue('award_letter') || ''
+        });
+    }
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;farheen.maqbool&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-08-19 08:10:09&lt;/sys_created_on&gt;&lt;sys_id&gt;7e1b4a2193fa0b10d444c9b877373c0d&lt;/sys_id&gt;&lt;sys_mod_count&gt;80&lt;/sys_mod_count&gt;&lt;sys_name&gt;My Award&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_7e1b4a2193fa0b10d444c9b877373c0d&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;farheen.maqbool&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-08-20 08:05:26&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="gn-layout"&gt;
+  &lt;div class="aw-sidebar"&gt;
+    &lt;sp-widget widget="data.sideBar"&gt;&lt;/sp-widget&gt;
+  &lt;/div&gt;
+
+  &lt;main class="aw-main"&gt;
+    &lt;div class="aw-ph"&gt;
+      &lt;div class="aw-ph-left"&gt;
+        &lt;div&gt;
+          &lt;h1 class="aw-ph-title"&gt;My Awards&lt;/h1&gt;
+          &lt;p class="aw-ph-sub" ng-if="data.awards.length &gt; 0"&gt;
+            &amp;bull; {{c.filteredAwards().length}} active awards &amp;middot; &lt;span class="aw-sub-highlight"&gt;{{c.getTotalAwarded() | currency:'$':0}}&lt;/span&gt; awarded
+          &lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div class="aw-ph-right"&gt;
+        &lt;div class="aw-search-box"&gt;
+          &lt;i class="fa fa-search"&gt;&lt;/i&gt;
+          &lt;input type="text" ng-model="c.searchQuery" placeholder="Search programs, applications..."&gt;
+        &lt;/div&gt;
+        &lt;div class="aw-filter-group"&gt;
+          &lt;i class="fa fa-calendar-o"&gt;&lt;/i&gt;
+          &lt;select class="aw-time-filter" ng-model="c.timeFilter"&gt;
+            &lt;option value="last12"&gt;Last 12 months&lt;/option&gt;
+            &lt;option value="all"&gt;All time&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;button class="aw-icon-btn" title="Notifications"&gt;
+          &lt;i class="fa fa-bell-o"&gt;&lt;/i&gt;
+        &lt;/button&gt;
+        &lt;div class="aw-avatar" title="{{data.userDisplayName}}"&gt;{{data.userInitials}}&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- ===== Summary Tiles ===== --&gt;
+    &lt;div class="aw-summary-row" ng-if="data.awards.length &gt; 0"&gt;
+      &lt;div class="aw-stat-tile"&gt;
+        &lt;span class="aw-tile-lbl"&gt;TOTAL AWARDED&lt;/span&gt;
+        &lt;span class="aw-tile-val aw-text-indigo"&gt;{{c.getTotalAwarded() | currency:'$':0}}&lt;/span&gt;
+        &lt;span class="aw-tile-sub"&gt;Across {{c.filteredAwards().length}} active awards&lt;/span&gt;
+      &lt;/div&gt;
+
+      &lt;div class="aw-stat-tile"&gt;
+        &lt;span class="aw-tile-lbl"&gt;AWAITING ACKNOWLEDGEMENT&lt;/span&gt;
+        &lt;span class="aw-tile-val aw-text-amber"&gt;{{c.awaitingAckCount() || 0}}&lt;/span&gt;
+        &lt;span class="aw-tile-sub"&gt;Action required&lt;/span&gt;
+      &lt;/div&gt;
+
+      &lt;div class="aw-stat-tile"&gt;
+        &lt;span class="aw-tile-lbl"&gt;CLOSING SOONEST&lt;/span&gt;
+        &lt;span class="aw-tile-val aw-text-dark"&gt;{{data.closingSoonestDate || 'N/A'}}&lt;/span&gt;
+        &lt;span class="aw-tile-sub"&gt;{{data.closingSoonestProgram || 'No upcoming closures'}}&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- ===== Acknowledgement Alert Banner ===== --&gt;
+    &lt;div class="aw-ack-alert" ng-repeat="award in data.awards" ng-if="award.applicant_response === 'pending'"&gt;
+      &lt;div class="aw-ack-alert-left"&gt;
+        &lt;div class="aw-ack-alert-icon"&gt;&lt;i class="fa fa-lock"&gt;&lt;/i&gt;&lt;/div&gt;
+        &lt;div&gt;
+          &lt;div class="aw-ack-title-row"&gt;
+            &lt;strong&gt;{{award.number}} - {{award.program_name}}&lt;/strong&gt;
+            &lt;span class="aw-badge aw-badge--red"&gt;Acknowledgement overdue&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="aw-ack-alert-sub"&gt;
+            &lt;span class="aw-text-dark-bold"&gt;{{award.award_amount | currency:'$':0}}&lt;/span&gt; awarded &amp;middot; funds release after acknowledgement
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+      &lt;button class="aw-cta--solid" ng-click="c.acknowledgeAward(award, $event)" ng-disabled="c.acking[award.sys_id]"&gt;
+        &lt;span style="display: inline-block; color: #ffffff !important; visibility: visible !important; opacity: 1 !important;" ng-if="!c.acking[award.sys_id]"&gt;Acknowledge award&lt;/span&gt;
+        &lt;span style="display: inline-block; color: #ffffff !important; visibility: visible !important; opacity: 1 !important;" ng-if="c.acking[award.sys_id]"&gt;Processing...&lt;/span&gt;
+      &lt;/button&gt;
+    &lt;/div&gt;
+
+    &lt;!-- ===== Award Cards Grid ===== --&gt;
+    &lt;div class="aw-cards" ng-if="c.filteredAwards().length &gt; 0"&gt;
+      &lt;div class="aw-card" ng-repeat="award in c.filteredAwards()" ng-click="c.openAward(award)"&gt;
+        &lt;div class="aw-card-row1"&gt;
+          &lt;span class="aw-card-num"&gt;{{award.number}}&lt;/span&gt;
+          &lt;span class="aw-status-pill"
+                ng-class="{'status-green': award.applicant_response === 'acknowledged', 'status-amber': award.applicant_response === 'pending'}"&gt;
+            {{c.displayStatus(award)}}
+          &lt;/span&gt;
+        &lt;/div&gt;
+
+        &lt;h3 class="aw-card-title"&gt;{{award.program_name}}&lt;/h3&gt;
+
+        &lt;div class="aw-card-meta-grid"&gt;
+          &lt;div class="aw-meta-col"&gt;
+            &lt;span class="aw-meta-lbl"&gt;Award value&lt;/span&gt;
+            &lt;span class="aw-meta-val aw-card-amount-colored"&gt;{{award.award_amount | currency:'$':0}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="aw-meta-col"&gt;
+            &lt;span class="aw-meta-lbl"&gt;Term ends&lt;/span&gt;
+            &lt;span class="aw-meta-val"&gt;{{award.award_end_date || '—'}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="aw-meta-col"&gt;
+            &lt;span class="aw-meta-lbl"&gt;Reporting&lt;/span&gt;
+            &lt;span class="aw-meta-val"&gt;{{award.reporting_frequency || 'Monthly'}}&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div class="aw-card-foot"&gt;
+          &lt;button class="aw-btn-ghost-blue"
+                  ng-disabled="!award.award_letter"
+                  ng-click="c.openAwardLetter(award, $event); $event.stopPropagation()"&gt;
+            Award letter
+          &lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- ===== Award Letter Modal (Cleaned Single-Source Render) ===== --&gt;
+    &lt;div class="aw-letter-overlay" ng-if="c.activeLetter" ng-click="c.closeAwardLetter()"&gt;
+      &lt;div class="aw-letter-modal" ng-click="$event.stopPropagation()"&gt;
+
+        &lt;!-- Header Strip --&gt;
+        &lt;div class="aw-letter-modal-header"&gt;
+          &lt;div class="aw-letter-header-left"&gt;
+            &lt;div class="aw-letter-badge"&gt;&lt;i class="fa fa-file-text-o"&gt;&lt;/i&gt;&lt;/div&gt;
+            &lt;div&gt;
+              &lt;span class="aw-letter-eyebrow"&gt;Official Award Document&lt;/span&gt;
+              &lt;h3&gt;{{c.activeLetter.number}} &lt;span ng-if="c.activeLetter.program_name"&gt;&amp;middot; {{c.activeLetter.program_name}}&lt;/span&gt;&lt;/h3&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;button class="aw-letter-close" ng-click="c.closeAwardLetter()" title="Close"&gt;&amp;times;&lt;/button&gt;
+        &lt;/div&gt;
+
+        &lt;!-- Quick-facts strip --&gt;
+        &lt;div class="aw-letter-facts"&gt;
+          &lt;div class="aw-letter-fact"&gt;
+            &lt;span class="aw-letter-fact-lbl"&gt;Award value&lt;/span&gt;
+            &lt;span class="aw-letter-fact-val"&gt;{{c.activeLetter.award_amount | currency:'$':0}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="aw-letter-fact"&gt;
+            &lt;span class="aw-letter-fact-lbl"&gt;Term ends&lt;/span&gt;
+            &lt;span class="aw-letter-fact-val"&gt;{{c.activeLetter.award_end_date || '—'}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="aw-letter-fact"&gt;
+            &lt;span class="aw-letter-fact-lbl"&gt;Reporting&lt;/span&gt;
+            &lt;span class="aw-letter-fact-val"&gt;{{c.activeLetter.reporting_frequency || 'Monthly'}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="aw-letter-fact"&gt;
+            &lt;span class="aw-letter-fact-lbl"&gt;Status&lt;/span&gt;
+            &lt;span class="aw-letter-fact-val"&gt;{{c.displayStatus(c.activeLetter)}}&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;!-- Body Content --&gt;
+        &lt;div class="aw-letter-modal-body" ng-bind-html="c.activeLetter.html"&gt;&lt;/div&gt;
+
+        &lt;!-- Footer Actions --&gt;
+        &lt;div class="aw-letter-modal-footer"&gt;
+          &lt;button class="aw-letter-btn-secondary" ng-click="c.closeAwardLetter()"&gt;Close&lt;/button&gt;
+          &lt;button class="aw-letter-btn-primary" ng-click="c.downloadAwardLetter(c.activeLetter, $event)"&gt;
+            &lt;i class="fa fa-download"&gt;&lt;/i&gt; Download PDF
+          &lt;/button&gt;
+        &lt;/div&gt;
+
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+  &lt;/main&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>634101164</payload_hash>
+        <record_name>My Award</record_name>
+        <reverted_from/>
+        <source>629c0ae193fa0b10d444c9b877373cfb</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-20 08:05:26</sys_created_on>
+        <sys_id>171557310ff28b10712b6af300d1b2d9</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a01e341c2e0000001</sys_recorded_at>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 08:05:26</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>531557315df28b1011aa7c7f5227ded8</update_guid>
+        <update_guid_history>531557315df28b1011aa7c7f5227ded8:634101164,1d549fbdeab28b10a5d4dcb1ce097671:-1071256327,db9f873512b28b10b590503696609f7b:846463114,0e1f07f18db28b10e75327dc0ee28b34:25070852,438e03b1e7b28b10b020a8b9ec46c361:-246276956,f1edc7fdfb728b103da13f81fd9bcea9:1352948594,545dc7fda0728b108479ce332b125c26:-798361497,3a5c4b7dfb728b10c475a335bb334487:-458024139,5a7bc779e0728b102356b4f8706fa05a:2098139973,ee1a877912728b10463b4ac8e1242d69:-1304099562,52490ff53a728b1083665151957a3ca7:1617851879,cb974f35b2728b109049efbc3fa7ffd4:1265581973,0e13c479c87a4b105bfdf9ab21cd22ea:1383347807,72420cf53c7a4b1022bc4a5a8035b7c5:2136819158,b6e1c8b5077a4b107e621afc27e1b3d3:1922890163,95210075217a4b10abae1d4c6c77431e:2136819158,57bfb3a1d87a4b104c25419cd04e001d:1497761679,3d3eb7ed473a4b1041922ad8b882fbed:828652715,ded9ffa5163a4b1074324775aadaf82d:875505388,5649bba5f03a4b104027ba803d2b7961:-998439739,29e4ef6153b64b10785f56847860a026:-724138340,8294e36184b64b1043682765581c34b2:-2146445358,b452636d56764b1071f66d06ee237724:160474918,02122b2d58764b10a6f0e2dad9dd56ff:1772457831,35f067a983764b105f29b05b7b540d8d:1377153464,f8038f254ab24b10fd31d46b8410d439:-966547474,85a1c3a153b24b109ce6982cebe19b1b:1738321843,ba01cf219eb24b10dee013beb3026616:939414237,e2508bedcd724b102e4a744e55a3e1a9:551917543,84affe6dfe724b10f8604c8ae057d696:26029018,616f766d3e724b102472c807a6b95e69:-1050945935,86ce722dfd724b100d5ca9868948cf39:26029018,e23ebea925724b10f45dfaabb0e2b610:-1137419247,dffd72a907724b10d2a598f1363ee5ec:162843594,8e2df62988724b10de81bb68b79259f9:-1728704547,426cfea5fc724b10cfa604ed30f7ce4c:2123460746,34dbfa65db724b1097305bd30e663f24:-1056790567,539b3265fa724b101843adf561a6b96b:666309339,e85abaed93324b10a617842740fb7ac9:412282267,8a8932ad61324b10bb7b8a83465e7fd2:-968960410,2319326d5c324b109ca11926fe351211:952796763,c898fae912324b10719e788fdb89ed72:528707331,aa48bea9d3324b100359483fe1d3a0f3:-351310945,0cd7be6915324b10aeca2a937fd5f936:-20699465,9477726956324b10b85bf6882a62fd1c:457076698,6d943ee1f0324b10fb8cd4962b581526:-957068220,8574f6e191324b10779de90d3de378a8:-720882814,96c372a1da324b1011c063f0399baf6a:-352360678,9d83366186324b10bb5ed0756368e9ad:1547723955,0a337a21ee324b10e7e7c5a23f96e74e:-1120408686,d723f621c0324b105a6133ddd31f82cf:-790066235,38a27eadb6fe0b10dfcbb5166bdcd873:340886182,b02276adf6fe0b10126f0bbca219fb92:-1734395181,10e1ba6d06fe0b10f4761c5340cb91ad:1866188822,8121722dc6fe0b10bce54cddb6ee15bc:-1516164282,73603ea969fe0b1086360c9118987751:-1851329747,318f226905fe0b10538d7777e8fc8a00:-41701252,9a4fe629bafe0b101addd85acb8e2d03:1895770281,4c8e6ea5c5fe0b109c7ac5f8851af635:1857992797,db5d2a250efe0b10fe6855ee56adfe8e:1734637981,571ce2a13dfe0b1023f0ab0e1616899c:1607113681,cc1b2221e1fe0b10474dc05cff95a328:-1019473879,66fa6eeda6be0b10786a8aea843f1b73:-1330309130,6d99626d09be0b10a410eca2fa456a7c:-626348311,5b69a62d57be0b104b10c5794e44bc4b:283557610,b9f8622d44be0b10a7529ccb58ec25d2:-2111784974,c51562e150be0b10bc0f954b04aa7cbe:-1550048376,8984e2a10fbe0b10b9aec8156e0f36a1:-2110341580,e2d226ed137e0b109433591f189c0434:-1278315057,85b2eead917e0b10a38f3669ee66a0ec:366957297,89d1e66d4b7e0b10fc09f77b94627b4a:-106820683,d2112ee9aa7e0b10c295bf2a502a62a3:-2124404857,2bd026e9637e0b1041ac39a3f883447e:1302651088,8a7d92e1197e0b10b12011a16cb889fa:2120827868,48db1221327e0b103b5471a544790fbf:-1264118551,d08bd6eddc3e0b109eaf33041737c5f7:316294387,356b92edf23e0b102d31cac9cf6cf2ed:-730631965,8cf91a2dd73e0b102b5388624e1d60f2:27848031,4d2d0e25c7fa0b10e1b6665488e015e7:-167365315,6d1d8a2567fa0b104397096b734f16cd:1343106908,ae9c0ae1e8fa0b10e2b33cf7f2c0bcfe:873615704</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="My Award">b4d27b030fb20710712b6af300d1b2f1</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-24 07:27:39</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>5152ef6d330349bf80a0a9919c78db99</sys_id>
+        <sys_metadata>7e1b4a2193fa0b10d444c9b877373c0d</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>My Award</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_7e1b4a2193fa0b10d444c9b877373c0d</sys_update_name>
+        <sys_update_version display_value="sp_widget_7e1b4a2193fa0b10d444c9b877373c0d">171557310ff28b10712b6af300d1b2d9</sys_update_version>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-24 07:27:39</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

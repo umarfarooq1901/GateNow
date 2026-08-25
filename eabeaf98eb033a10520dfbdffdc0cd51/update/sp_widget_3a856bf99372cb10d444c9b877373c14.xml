@@ -1,0 +1,856 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($rootScope, spUtil) {
+  var c = this;
+
+  // Back button to close project details
+  c.goBack = function() {
+    $rootScope.$emit('gn_close_project_details');
+  };
+
+  // State variables for the inline form view
+  c.showActionForm = false;
+  c.actionFormWidget = null;
+
+  // Generic function to fetch and embed the form widget inline
+  c.openFormInline = function(widgetId) {
+    spUtil.get(widgetId, { project_id: c.data.project.sys_id }).then(function(response) {
+      c.actionFormWidget = response;
+      c.showActionForm = true;
+      // EMIT EVENT: Tell Widget 1 that a child form is open
+      $rootScope.$emit('gn_child_form_toggled', true);
+    });
+  };
+
+  // Close the form and return to project details
+  c.closeActionForm = function() {
+    c.showActionForm = false;
+    c.actionFormWidget = null;
+    // EMIT EVENT: Tell Widget 1 that the child form is closed
+    $rootScope.$emit('gn_child_form_toggled', false);
+    c.server.update(); 
+  };
+
+  $rootScope.$on('gn_close_action_form', function() {
+    c.closeActionForm();
+  });
+
+  // Action Button Triggers
+  c.submitReport = function() {
+    c.openFormInline('new_status_report');
+  };
+  
+  c.raiseClaim = function() {
+    c.openFormInline('reimbursement_form');
+  };
+  
+  c.raiseChange = function() {
+    c.openFormInline('new_change_request');
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.gn-proj-details {&#13;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;&#13;
+  color: #1e293b;&#13;
+  padding: 10px 0;&#13;
+}&#13;
+&#13;
+/* Breadcrumb */&#13;
+.gn-breadcrumb {&#13;
+  margin-bottom: 24px;&#13;
+  font-size: 15px;&#13;
+  font-weight: 500;&#13;
+}&#13;
+.gn-breadcrumb a {&#13;
+  color: #4f46e5;&#13;
+  text-decoration: none;&#13;
+  transition: color 0.2s ease;&#13;
+}&#13;
+.gn-breadcrumb a:hover {&#13;
+  color: #3730a3;&#13;
+  text-decoration: underline;&#13;
+}&#13;
+.gn-breadcrumb .divider {&#13;
+  margin: 0 10px;&#13;
+  color: #94a3b8;&#13;
+}&#13;
+.gn-breadcrumb .current {&#13;
+  color: #64748b;&#13;
+}&#13;
+&#13;
+/* Base Card Style (Modern Soft Shadows) */&#13;
+.gn-card {&#13;
+  background: #ffffff;&#13;
+  border-radius: 16px;&#13;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.02);&#13;
+  padding: 24px;&#13;
+  border: 1px solid rgba(226, 232, 240, 0.6);&#13;
+}&#13;
+&#13;
+h2 {&#13;
+  font-size: 18px;&#13;
+  font-weight: 700;&#13;
+  margin: 0 0 6px 0;&#13;
+  color: #0f172a;&#13;
+  letter-spacing: -0.01em;&#13;
+}&#13;
+&#13;
+/* Utility classes */&#13;
+.flex-between { display: flex; justify-content: space-between; align-items: flex-start; }&#13;
+.text-muted { color: #64748b !important; }&#13;
+.font-bold { font-weight: 600; color: #0f172a; }&#13;
+.text-right { text-align: right; }&#13;
+.text-orange { color: #b45309 !important; }&#13;
+.text-blue { color: #4f46e5 !important; }&#13;
+&#13;
+/* KPI Row */&#13;
+.gn-kpi-row {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, 1fr);&#13;
+  gap: 20px;&#13;
+  margin-bottom: 24px;&#13;
+}&#13;
+.kpi-box {&#13;
+  padding: 24px;&#13;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;&#13;
+}&#13;
+.kpi-box:hover {&#13;
+  transform: translateY(-2px);&#13;
+  box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.03);&#13;
+}&#13;
+.kpi-title {&#13;
+  font-size: 11px;&#13;
+  font-weight: 700;&#13;
+  color: #64748b;&#13;
+  letter-spacing: 0.8px;&#13;
+  text-transform: uppercase;&#13;
+  margin-bottom: 12px;&#13;
+}&#13;
+.kpi-value {&#13;
+  font-size: 36px;&#13;
+  font-weight: 800;&#13;
+  color: #0f172a;&#13;
+  line-height: 1;&#13;
+  margin-bottom: 12px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  letter-spacing: -0.02em;&#13;
+}&#13;
+.health-val { font-size: 28px; }&#13;
+.status-dot {&#13;
+  width: 14px;&#13;
+  height: 14px;&#13;
+  border-radius: 50%;&#13;
+  display: inline-block;&#13;
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.03);&#13;
+}&#13;
+.status-dot.green { background-color: #10b981; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15); }&#13;
+.status-dot.yellow { background-color: #f59e0b; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }&#13;
+.status-dot.red { background-color: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }&#13;
+.status-dot.grey { background-color: #cbd5e1; }&#13;
+.kpi-subtext {&#13;
+  font-size: 13px;&#13;
+  color: #64748b;&#13;
+}&#13;
+&#13;
+/* Main Grid */&#13;
+.gn-main-grid {&#13;
+  display: grid;&#13;
+  grid-template-columns: 2fr 1fr;&#13;
+  gap: 24px;&#13;
+}&#13;
+.left-col, .right-col {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 24px;&#13;
+}&#13;
+&#13;
+/* Spend Curve Chart */&#13;
+.chart-card p {&#13;
+  margin: 0; color: #64748b; font-size: 14px;&#13;
+}&#13;
+.chart-legend {&#13;
+  display: flex; gap: 16px; font-size: 13px; color: #475569;&#13;
+}&#13;
+.chart-legend span { display: flex; align-items: center; gap: 6px; }&#13;
+.chart-legend .line { width: 16px; height: 3px; border-radius: 2px; }&#13;
+.line.actual { background: #4f46e5; }&#13;
+.line.planned { background: #cbd5e1; border-top: 2px dashed #94a3b8; height: 0; }&#13;
+.chart-area {&#13;
+  margin-top: 30px;&#13;
+  position: relative;&#13;
+}&#13;
+.curve-svg {&#13;
+  width: 100%;&#13;
+  height: auto;&#13;
+  display: block;&#13;
+}&#13;
+.axis-label {&#13;
+  font-size: 11px;&#13;
+  fill: #94a3b8;&#13;
+  font-weight: 500;&#13;
+}&#13;
+.x-axis {&#13;
+  display: flex;&#13;
+  justify-content: space-between;&#13;
+  padding-left: 50px;&#13;
+  margin-top: -10px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 500;&#13;
+  color: #94a3b8;&#13;
+}&#13;
+.chart-footer {&#13;
+  margin-top: 30px;&#13;
+  padding-top: 20px;&#13;
+  border-top: 1px solid #f1f5f9;&#13;
+  font-size: 13px;&#13;
+  color: #64748b;&#13;
+  line-height: 1.5;&#13;
+}&#13;
+&#13;
+/* Reports Table */&#13;
+.reports-card p { margin: 0; color: #64748b; font-size: 14px; }&#13;
+.btn-primary {&#13;
+  background: #4f46e5;&#13;
+  border: 1px solid #4f46e5;&#13;
+  color: white;&#13;
+  padding: 10px 18px;&#13;
+  border-radius: 8px;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.2s ease;&#13;
+  box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);&#13;
+}&#13;
+.btn-primary:hover {&#13;
+  background: #4338ca;&#13;
+  box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.3);&#13;
+  transform: translateY(-1px);&#13;
+}&#13;
+.gn-table {&#13;
+  width: 100%;&#13;
+  border-collapse: collapse;&#13;
+  margin-top: 20px;&#13;
+}&#13;
+.gn-table th {&#13;
+  text-align: left;&#13;
+  padding: 14px 10px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 700;&#13;
+  color: #94a3b8;&#13;
+  text-transform: uppercase;&#13;
+  border-bottom: 1px solid #e2e8f0;&#13;
+  letter-spacing: 0.5px;&#13;
+}&#13;
+.gn-table td {&#13;
+  padding: 18px 10px;&#13;
+  font-size: 14px;&#13;
+  color: #334155;&#13;
+  border-bottom: 1px solid #f8fafc;&#13;
+}&#13;
+.health-text { font-weight: 600; }&#13;
+.text-green { color: #10b981; }&#13;
+.text-yellow { color: #d97706; }&#13;
+.text-red { color: #ef4444; }&#13;
+.state-pill {&#13;
+  padding: 6px 14px;&#13;
+  border-radius: 20px;&#13;
+  font-size: 12px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+.pill-yellow { background: #fef3c7; color: #b45309; }&#13;
+.pill-green { background: #dcfce7; color: #15803d; }&#13;
+.pill-grey { background: #f1f5f9; color: #475569; }&#13;
+&#13;
+/* Dynamic Timeline (Modernized with Pulse) */&#13;
+.timeline {&#13;
+  margin-top: 24px;&#13;
+  position: relative;&#13;
+  padding-left: 10px;&#13;
+}&#13;
+.timeline::before {&#13;
+  content: '';&#13;
+  position: absolute;&#13;
+  left: 14px;&#13;
+  top: 6px;&#13;
+  bottom: 20px;&#13;
+  width: 2px;&#13;
+  background: #e2e8f0;&#13;
+}&#13;
+.tl-item {&#13;
+  position: relative;&#13;
+  padding-left: 28px;&#13;
+  margin-bottom: 28px;&#13;
+}&#13;
+.tl-dot {&#13;
+  position: absolute;&#13;
+  left: 0;&#13;
+  top: 4px;&#13;
+  width: 10px;&#13;
+  height: 10px;&#13;
+  border-radius: 50%;&#13;
+  background: #cbd5e1;&#13;
+  border: 2px solid #ffffff;&#13;
+  box-shadow: 0 0 0 1px #cbd5e1;&#13;
+  z-index: 2;&#13;
+}&#13;
+.tl-dot.green { background: #10b981; box-shadow: 0 0 0 1px #10b981; }&#13;
+&#13;
+/* Pulse animation for the active step */&#13;
+@keyframes pulse-blue {&#13;
+  0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }&#13;
+  70% { box-shadow: 0 0 0 6px rgba(79, 70, 229, 0); }&#13;
+  100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }&#13;
+}&#13;
+.tl-dot.blue { &#13;
+  background: #4f46e5; &#13;
+  box-shadow: 0 0 0 1px #4f46e5;&#13;
+  animation: pulse-blue 2s infinite;&#13;
+}&#13;
+&#13;
+.tl-content h3 {&#13;
+  margin: 0 0 6px 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 700;&#13;
+  color: #1e293b;&#13;
+}&#13;
+.tl-content p {&#13;
+  margin: 0;&#13;
+  font-size: 13px;&#13;
+  color: #64748b;&#13;
+}&#13;
+&#13;
+/* Quick Actions */&#13;
+.action-list {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 12px;&#13;
+  margin-top: 20px;&#13;
+}&#13;
+.action-list button {&#13;
+  background: #ffffff;&#13;
+  border: 1px solid #e2e8f0;&#13;
+  border-radius: 10px;&#13;
+  padding: 14px 16px;&#13;
+  text-align: left;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  color: #1e293b;&#13;
+  cursor: pointer;&#13;
+  transition: all 0.2s ease;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+}&#13;
+.action-list button i {&#13;
+  color: #4f46e5;&#13;
+  font-size: 16px;&#13;
+}&#13;
+.action-list button:hover {&#13;
+  border-color: #cbd5e1;&#13;
+  background: #f8fafc;&#13;
+  transform: translateX(4px);&#13;
+}&#13;
+&#13;
+/* Facts */&#13;
+.facts-card {&#13;
+  padding: 24px;&#13;
+}&#13;
+.fact-row {&#13;
+  display: flex;&#13;
+  justify-content: space-between;&#13;
+  padding: 14px 0;&#13;
+  border-bottom: 1px solid #f1f5f9;&#13;
+  font-size: 13px;&#13;
+}&#13;
+.fact-row:last-child {&#13;
+  border-bottom: none;&#13;
+  padding-bottom: 0;&#13;
+}&#13;
+.fact-lbl { color: #64748b; font-weight: 500; }&#13;
+.fact-val { text-align: right; }</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>each_project_detail</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Each Project Detail</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    // Get the sys_id passed from the parent widget
+    var sysId = input.sys_id || options.sys_id;
+    if (!sysId) return;
+
+    data.project = {};
+    data.kpis = {};
+    data.reports = [];
+    data.facts = {};
+
+    var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    // 1. FETCH PROJECT & FINANCIALS
+    var grProj = new GlideRecord('x_enno_gatenow_project');
+    if (grProj.get(sysId)) {
+        data.project.sys_id = sysId;
+        data.project.name = grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name');
+        
+        var pct = parseFloat(grProj.getValue('percent_complete')) || 0;
+        var awardedRaw = 0;
+        
+        var awardSid = grProj.getValue('award');
+        if (awardSid) {
+            var awardRec = new GlideRecord('x_enno_gatenow_grant_awards');
+            if (awardRec.get(awardSid)) {
+                awardedRaw = parseFloat(awardRec.getValue('build_grant_amount')) || 0;
+                data.facts.award = awardRec.getValue('number') || 'AW-2026-001';
+            }
+        }
+        
+        if (awardedRaw === 0) {
+            var appSid = grProj.getValue('applicant');
+            if(appSid) {
+                var appRec = new GlideRecord('x_enno_gatenow_service_applicants');
+                if(appRec.get(appSid)) {
+                    awardedRaw = parseFloat(appRec.getValue('requested_budget')) || 0;
+                }
+            }
+        }
+        
+        var spentRaw = awardedRaw * (pct / 100); 
+        data.kpis.budgetPct = awardedRaw > 0 ? Math.round((spentRaw / awardedRaw) * 100) : 0;
+        data.kpis.awardedFormatted = formatShortCurrency(awardedRaw);
+        data.kpis.spentFormatted = formatShortCurrency(spentRaw);
+        
+        // Facts setup
+        data.facts.award = data.facts.award || 'ENB-2025-088';
+        data.facts.term = 'Jan 2026 – Dec 2027';
+        data.facts.manager = grProj.getDisplayValue('program_manager') || 'T. Okonkwo';
+        data.facts.beneficiaries = '640 students';
+        data.facts.claims = '1 · $22K';
+
+        data.kpis.spendInsight = "Actual spend of " + data.kpis.spentFormatted + " is 4% behind the approved profile at end of " + shortMonths[new GlideDateTime().getMonthLocalTime() - 1] + " — within the 10% tolerance.";
+    }
+
+    // 2. CALCULATE DATES & NEXT REPORT
+    var gdtNow = new GlideDateTime();
+    var currentMonthIdx = gdtNow.getMonthLocalTime() - 1; 
+    var currentYear = gdtNow.getYearLocalTime();
+    
+    var gdtEnd = new GlideDateTime();
+    gdtEnd.setYearLocalTime(currentYear);
+    gdtEnd.setMonthLocalTime(gdtNow.getMonthLocalTime());
+    var daysInMonth = gdtEnd.getDaysInMonthLocalTime();
+    
+    data.kpis.currentMonth = monthNames[currentMonthIdx];
+    data.kpis.reportDueDate = daysInMonth + ' ' + shortMonths[currentMonthIdx] + ' ' + currentYear;
+    
+    data.kpis.daysUntilReport = daysInMonth - gdtNow.getDayOfMonthLocalTime();
+    if (data.kpis.daysUntilReport < 0) data.kpis.daysUntilReport = 0;
+
+    // 3. FETCH STATUS REPORTS
+    var grRep = new GlideRecord('x_enno_gatenow_status_report');
+    grRep.addQuery('project', sysId);
+    grRep.orderByDesc('status_date');
+    grRep.query();
+
+    var totalRep = 0;
+    var lateRep = 0;
+    var isFirst = true;
+
+    data.reports.push({
+        period: data.kpis.currentMonth + ' ' + currentYear,
+        submittedDate: '',
+        health: '',
+        healthColor: 'grey',
+        state: 'Due ' + data.kpis.reportDueDate.split(' ')[0] + ' ' + shortMonths[currentMonthIdx],
+        stateColor: 'yellow'
+    });
+
+    while(grRep.next()) {
+        totalRep++;
+        var dateVal = grRep.getValue('status_date') || grRep.getValue('sys_created_on');
+        var pFormatted = dateVal ? getMonthYear(dateVal) : 'Unknown';
+        
+        var hVal = grRep.getValue('overall_health') || 'green';
+        var sVal = (grRep.getDisplayValue('report_status') || 'Submitted').toLowerCase();
+        var sColor = 'grey';
+        
+        if (sVal.indexOf('accept') > -1) sColor = 'green';
+        if (sVal.indexOf('late') > -1) { sColor = 'grey'; lateRep++; }
+
+        data.reports.push({
+            period: pFormatted,
+            submittedDate: formatDate(grRep.getValue('sys_created_on')),
+            health: grRep.getDisplayValue('overall_health') || 'On track',
+            healthColor: hVal.toLowerCase(),
+            state: grRep.getDisplayValue('report_status') || 'Accepted',
+            stateColor: sColor
+        });
+
+        if (isFirst) {
+            data.kpis.healthLabel = grRep.getDisplayValue('overall_health') || 'On track';
+            data.kpis.healthColor = hVal.toLowerCase();
+            data.kpis.healthDate = formatDate(grRep.getValue('sys_created_on'));
+            isFirst = false;
+        }
+    }
+    
+    if (isFirst) {
+        data.kpis.healthLabel = 'No Status';
+        data.kpis.healthColor = 'grey';
+        data.kpis.healthDate = 'Not reported';
+    }
+
+    data.reportsTotal = totalRep;
+    data.reportsOnTime = totalRep > 0 ? Math.round(((totalRep - lateRep) / totalRep) * 100) : 100;
+
+    // 4. PROJECT SCHEDULE TIMELINE (Dynamic from Dates tab)
+    data.milestones = [];
+    
+    var pStart = grProj.getValue('planned_start_date') || grProj.getValue('start_date');
+    var aStart = grProj.getValue('actual_start_date');
+    var pEnd = grProj.getValue('planned_end_date') || grProj.getValue('end_date');
+    var aEnd = grProj.getValue('actual_end_date');
+    var phase = grProj.getDisplayValue('phase') || 'Executing';
+
+    var completedSteps = 0;
+    var totalSteps = 4;
+
+    // Step 1: Planned Start
+    if (pStart) {
+        var isStarted = (aStart != null && aStart != '');
+        if (isStarted) completedSteps++;
+        data.milestones.push({
+            name: 'Planned Start',
+            statusText: isStarted ? 'Target was ' + formatDate(pStart) : 'Target: ' + formatDate(pStart),
+            stateColor: isStarted ? 'green' : 'blue' 
+        });
+    }
+
+    // Step 2: Actual Start (Execution)
+    if (aStart) {
+        completedSteps++;
+        data.milestones.push({
+            name: 'Execution Started',
+            statusText: 'Started ' + formatDate(aStart),
+            stateColor: 'green'
+        });
+    } else {
+        data.milestones.push({
+            name: 'Execution Started',
+            statusText: 'Pending actual start',
+            stateColor: 'grey'
+        });
+    }
+    
+    // Step 3: Current Phase
+    data.milestones.push({
+        name: 'Phase: ' + phase,
+        statusText: aEnd ? 'Completed' : 'In Progress',
+        stateColor: aEnd ? 'green' : 'blue'
+    });
+
+    // Step 4: Planned End
+    if (pEnd) {
+        data.milestones.push({
+            name: 'Target Completion',
+            statusText: 'Due ' + formatDate(pEnd),
+            stateColor: aEnd ? 'green' : 'grey'
+        });
+    }
+
+    // Step 5: Actual End (Closure)
+    if (aEnd) {
+        completedSteps = totalSteps; 
+        data.milestones.push({
+            name: 'Project Closed',
+            statusText: 'Closed ' + formatDate(aEnd),
+            stateColor: 'green'
+        });
+    } else {
+        data.milestones.push({
+            name: 'Project Closed',
+            statusText: 'Pending actual end date',
+            stateColor: 'grey'
+        });
+    }
+
+    data.kpis.milestonesTotal = totalSteps;
+    data.kpis.milestonesCompleted = completedSteps;
+    data.kpis.milestonesInProgress = aEnd ? 0 : 1;
+    data.kpis.milestonesNotStarted = totalSteps - completedSteps - (aEnd ? 0 : 1);
+    if (data.kpis.milestonesNotStarted < 0) data.kpis.milestonesNotStarted = 0;
+
+    /* ==========================================
+       FORMATTING HELPER FUNCTIONS
+       ========================================== */
+    function formatShortCurrency(amount) {
+        if (!amount || isNaN(amount)) return '$0';
+        if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (amount >= 1000) return '$' + (amount / 1000).toFixed(0) + 'K';
+        return '$' + amount.toString();
+    }
+    
+    function getMonthYear(dateString) {
+        if (!dateString) return '';
+        var parts = dateString.split('-'); 
+        if (parts.length >= 2) {
+            var mIdx = parseInt(parts[1], 10) - 1;
+            return monthNames[mIdx] + ' ' + parts[0];
+        }
+        return dateString;
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        var parts = dateString.split(' ')[0].split('-'); 
+        if (parts.length === 3) {
+            var d = parseInt(parts[2], 10); 
+            var m = parseInt(parts[1], 10) - 1;
+            return d + ' ' + shortMonths[m] + ' ' + parts[0];
+        }
+        return dateString;
+    }
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-20 09:22:18</sys_created_on>
+        <sys_id>3a856bf99372cb10d444c9b877373c14</sys_id>
+        <sys_mod_count>8</sys_mod_count>
+        <sys_name>Each Project Detail</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_3a856bf99372cb10d444c9b877373c14</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-20 10:23:31</sys_updated_on>
+        <template><![CDATA[<div class="gn-proj-details" ng-cloak>
+  
+  <!-- === DYNAMIC FORM CONTAINER (Shows when an action button is clicked) === -->
+  <div ng-if="c.showActionForm" class="gn-action-form-container" style="margin-top: 20px;">
+    <div style="margin-bottom: 15px;">
+      <button class="btn btn-default" ng-click="c.closeActionForm()">
+        <i class="fa fa-chevron-left"></i> Back to Dashboard
+      </button>
+    </div>
+    <!-- This renders the widget fetched by spUtil.get() -->
+    <sp-widget widget="c.actionFormWidget"></sp-widget>
+  </div>
+
+  <!-- === MAIN DASHBOARD CONTAINER (Hides when a form is active) === -->
+  <div ng-if="!c.showActionForm">
+    
+    <!-- MOVED: Breadcrumb Navigation now only shows when Dashboard is visible -->
+    <div class="gn-breadcrumb">
+      <a href="javascript:void(0)" ng-click="c.goBack()">My Projects</a>
+      <span class="divider">/</span>
+      <span class="current">{{c.data.project.name}}</span>
+    </div>
+
+    <!-- Top KPI Cards -->
+    <div class="gn-kpi-row">
+      
+      <!-- Health -->
+      <div class="gn-card kpi-box">
+        <div class="kpi-title">HEALTH</div>
+        <div class="kpi-value health-val">
+          <span class="status-dot" ng-class="c.data.kpis.healthColor"></span>
+          {{c.data.kpis.healthLabel}}
+        </div>
+        <div class="kpi-subtext">Self-reported {{c.data.kpis.healthDate}}</div>
+      </div>
+
+      <!-- Budget Spent -->
+      <div class="gn-card kpi-box">
+        <div class="kpi-title">BUDGET SPENT</div>
+        <div class="kpi-value">{{c.data.kpis.budgetPct}}%</div>
+        <div class="kpi-subtext">{{c.data.kpis.spentFormatted}} of {{c.data.kpis.awardedFormatted}} awarded</div>
+      </div>
+
+      <!-- Project Schedule -->
+      <div class="gn-card kpi-box">
+        <div class="kpi-title">SCHEDULE</div>
+        <div class="kpi-value">{{c.data.kpis.milestonesCompleted}} / {{c.data.kpis.milestonesTotal}}</div>
+        <div class="kpi-subtext">Key phases completed</div>
+      </div>
+
+      <!-- Next Report -->
+      <div class="gn-card kpi-box">
+        <div class="kpi-title">NEXT REPORT</div>
+        <div class="kpi-value text-orange">{{c.data.kpis.daysUntilReport}} days</div>
+        <div class="kpi-subtext">{{c.data.kpis.currentMonth}} report due {{c.data.kpis.reportDueDate}}</div>
+      </div>
+      
+    </div>
+
+    <!-- Main Content Layout (2 Columns) -->
+    <div class="gn-main-grid">
+      
+      <!-- LEFT COLUMN -->
+      <div class="left-col">
+        
+        <!-- Spend Curve Chart -->
+        <div class="gn-card chart-card">
+          <div class="chart-header flex-between">
+            <div>
+              <h2>Spend curve</h2>
+              <p>Cumulative expenditure against the approved profile</p>
+            </div>
+            <div class="chart-legend">
+              <span><div class="line actual"></div> Actual</span>
+              <span><div class="line planned"></div> Planned</span>
+            </div>
+          </div>
+          
+          <div class="chart-area">
+            <svg viewBox="0 0 600 200" class="curve-svg">
+              <!-- Grid Lines -->
+              <line x1="40" y1="20" x2="600" y2="20" stroke="#f1f5f9" />
+              <text x="30" y="25" class="axis-label text-right">$900K</text>
+              
+              <line x1="40" y1="80" x2="600" y2="80" stroke="#f1f5f9" />
+              <text x="30" y="85" class="axis-label text-right">$600K</text>
+              
+              <line x1="40" y1="140" x2="600" y2="140" stroke="#f1f5f9" />
+              <text x="30" y="145" class="axis-label text-right">$300K</text>
+              
+              <line x1="40" y1="190" x2="600" y2="190" stroke="#e2e8f0" />
+              <text x="30" y="195" class="axis-label text-right">$0</text>
+
+              <!-- Planned Line (Dashed) -->
+              <path d="M 40 190 Q 250 140 600 20" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6,4" />
+
+              <!-- Actual Spend Area & Line -->
+              <path d="M 40 190 Q 200 150 350 90 L 350 190 Z" fill="rgba(79, 70, 229, 0.08)" />
+              <path d="M 40 190 Q 200 150 350 90" fill="none" stroke="#4f46e5" stroke-width="3" />
+              
+              <!-- Current Plot Point -->
+              <circle cx="350" cy="90" r="5" fill="#4f46e5" />
+            </svg>
+            
+            <div class="x-axis">
+              <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span>
+            </div>
+          </div>
+          
+          <div class="chart-footer">
+            {{c.data.kpis.spendInsight}}
+          </div>
+        </div>
+
+        <!-- Recent Status Reports -->
+        <div class="gn-card reports-card">
+          <div class="card-header flex-between">
+            <div>
+              <h2>Recent status reports</h2>
+              <p>{{c.data.reportsTotal}} submitted &middot; {{c.data.reportsOnTime}}% on time</p>
+            </div>
+            <button class="btn-primary" ng-click="c.submitReport()">Submit report</button>
+          </div>
+          
+          <table class="gn-table">
+            <thead>
+              <tr>
+                <th>PERIOD</th>
+                <th>SUBMITTED</th>
+                <th>HEALTH REPORTED</th>
+                <th class="text-right">STATE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="rep in c.data.reports">
+                <td class="font-bold">{{rep.period}}</td>
+                <td ng-class="{'text-muted': !rep.submittedDate}">{{rep.submittedDate || 'Not started'}}</td>
+                <td>
+                  <span class="health-text" ng-class="'text-' + rep.healthColor" ng-if="rep.health">{{rep.health}}</span>
+                  <span class="text-muted" ng-if="!rep.health">&mdash;</span>
+                </td>
+                <td class="text-right">
+                  <span class="state-pill" ng-class="'pill-' + rep.stateColor">{{rep.state}}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div> <!-- End Left Column -->
+
+      <!-- RIGHT COLUMN -->
+      <div class="right-col">
+        
+        <!-- Schedule Timeline -->
+        <div class="gn-card timeline-card">
+          <h2>Project Schedule</h2>
+          <div class="timeline">
+            <div class="tl-item" ng-repeat="ms in c.data.milestones">
+              <div class="tl-dot" ng-class="ms.stateColor"></div>
+              <div class="tl-content">
+                <h3>{{ms.name}}</h3>
+                <p ng-class="{'text-blue font-bold': ms.stateColor === 'blue'}">{{ms.statusText}}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="gn-card actions-card">
+          <h2>Quick actions</h2>
+          <div class="action-list">
+            <button ng-click="c.submitReport()">
+              <i class="fa fa-file-text-o"></i> Submit monthly status report
+            </button>
+            <button ng-click="c.raiseClaim()">
+              <i class="fa fa-money"></i> Create reimbursement claim
+            </button>
+            <button ng-click="c.raiseChange()">
+              <i class="fa fa-exchange"></i> Raise a change request
+            </button>
+          </div>
+        </div>
+
+        <!-- Project Facts -->
+        <div class="gn-card facts-card">
+          <h2>Project facts</h2>
+          <div class="fact-row">
+            <span class="fact-lbl">Award</span>
+            <span class="fact-val font-bold">{{c.data.facts.award}}</span>
+          </div>
+          <div class="fact-row">
+            <span class="fact-lbl">Term</span>
+            <span class="fact-val font-bold">{{c.data.facts.term}}</span>
+          </div>
+          <div class="fact-row">
+            <span class="fact-lbl">Grant manager</span>
+            <span class="fact-val font-bold">{{c.data.facts.manager}}</span>
+          </div>
+          <div class="fact-row">
+            <span class="fact-lbl">Beneficiaries</span>
+            <span class="fact-val font-bold">{{c.data.facts.beneficiaries}}</span>
+          </div>
+          <div class="fact-row">
+            <span class="fact-lbl">Open claims</span>
+            <span class="fact-val font-bold">{{c.data.facts.claims}}</span>
+          </div>
+        </div>
+
+      </div> <!-- End Right Column -->
+
+    </div>
+  </div>
+</div>]]></template>
+    </sp_widget>
+</record_update>

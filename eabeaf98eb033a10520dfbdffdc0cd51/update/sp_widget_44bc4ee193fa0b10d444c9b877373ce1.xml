@@ -1,0 +1,708 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $rootScope, $window, $timeout, spUtil) {
+  var c = this;
+  
+  // --- SIDEBAR COLLAPSE SYNC ---
+  c.isSidebarCollapsed = ($window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true');
+
+  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
+    c.isSidebarCollapsed = isCollapsed;
+    $timeout(function(){}); // Forces a safe UI digest cycle
+  });
+  // -----------------------------
+  
+  c.activeTab = 'reports';
+  c.searchText = '';
+  
+  c.showForm = false;
+  c.childWidget = null;
+
+  c.setTab = function(tab) { c.activeTab = tab; };
+  c.updateFilter = function() { c.server.update(); };
+
+  c.closeForm = function() {
+    c.showForm = false;
+    c.childWidget = null;
+    c.server.update();
+  };
+
+  $rootScope.$on('gn_close_embedded_form', function() {
+    c.closeForm(); 
+  });
+
+  c.newChangeRequest = function() {
+    spUtil.get('new_change_request', { actionType: 'Start' }).then(function(response) {
+      c.childWidget = response;
+      c.showForm = true;
+    });
+  };
+	
+  c.startNewReport = function() {
+    spUtil.get('new_status_report', { actionType: 'Start' }).then(function(response) {
+      c.childWidget = response;
+      c.showForm = true;
+    });
+  };
+	
+  c.openReport = function(row) {
+    var widgetInput = {
+      actionType: row.action, 
+      project_id: row.project_id,
+      period: row.period,
+      sys_id: row.sys_id,
+      view: row.action === 'View' ? 'true' : 'false'
+    };
+    spUtil.get('status_report_details', widgetInput).then(function(response) {
+      c.childWidget = response;
+      c.showForm = true;
+    });
+  };
+
+  c.openChange = function(row) {
+    var widgetInput = {
+      sys_id: row.sys_id,
+      actionType: 'View',
+      view: 'true'
+    };
+    spUtil.get('change_request_details', widgetInput).then(function(response) {
+      c.childWidget = response;
+      c.showForm = true;
+    });
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ==========================================
+   LAYOUT — sidebar + main content
+   ========================================== */
+.gn-layout {
+  margin-left: -15px;
+  margin-right: -15px;
+  margin-top: 35px;
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: #f8fafc;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  position: relative;
+}
+
+.gn-layout *,
+.gn-layout *::before,
+.gn-layout *::after {
+  box-sizing: border-box;
+}
+
+/* ==========================================
+   SIDEBAR (Default Open State)
+   ========================================== */
+.sidebar {
+  width: 96px;
+  min-width: 96px;
+  flex: 0 0 96px;
+  border-right: 1px solid #e5e7eb;
+  position: sticky;
+  top: 58px; 
+  height: calc(100vh - 58px); 
+  align-self: flex-start;
+  overflow-y: auto;
+  overflow: visible !important; /* Lets Tooltips escape */
+  overscroll-behavior: contain;
+  z-index: 10;
+  scrollbar-width: none;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar::-webkit-scrollbar { display: none; }
+
+/* --- THE SHRINK TRIGGER --- */
+.sidebar.sidebar-collapsed {
+  width: 60px !important;
+  min-width: 60px !important;
+  flex: 0 0 60px !important;
+}
+
+/* ==========================================
+   MAIN CONTENT WRAPPER
+   ========================================== */
+.gn-dashboard-wrapper {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f4f7f9;
+  padding: 30px;
+  min-height: 100vh;
+  color: #1e293b;
+  transition: all 0.35s ease;
+}
+
+/* Typography &amp; Colors */
+.text-green { color: #10b981 !important; }
+.text-orange { color: #d97706 !important; }
+.text-muted { color: #64748b !important; }
+.text-right { text-align: right !important; } 
+.font-bold { font-weight: 600; color: #0f172a; }
+
+/* Global Cards */
+.gn-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  margin-bottom: 24px;
+}
+
+/* Header */
+.gn-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+
+  h1 { font-size: 28px; font-weight: 800; margin: 0 0 8px 0; color: #111827; }
+  p { margin: 0; color: #64748b; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; &amp;.green { background-color: #10b981; } }
+
+  .gn-header-actions {
+    display: flex; gap: 16px;
+    .search-bar, .date-filter {
+      background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px;
+      display: flex; align-items: center; gap: 10px; color: #475569; font-size: 14px; font-weight: 500;
+    }
+    .search-bar input { border: none; outline: none; width: 220px; background: transparent; &amp;::placeholder { color: #94a3b8; } }
+    .date-dropdown { border: none; background: transparent; outline: none; cursor: pointer; font-family: inherit; font-size: inherit; color: inherit; font-weight: inherit; padding: 0; }
+  }
+}
+
+/* KPI Grid */
+.gn-kpi-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px;
+  .kpi-card {
+    padding: 24px; margin-bottom: 0;
+    .kpi-label { font-size: 11px; font-weight: 700; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px; }
+    .kpi-value { font-size: 36px; font-weight: 800; color: #0f172a; line-height: 1; margin-bottom: 12px; }
+    .kpi-subtext { font-size: 13px; color: #64748b; }
+  }
+}
+
+/* Compliance Card */
+.compliance-card {
+  padding: 24px;
+  .compliance-header {
+    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;
+    h2 { margin: 0 0 6px 0; font-size: 18px; font-weight: 700; }
+    p { margin: 0; color: #64748b; font-size: 14px; }
+    .compliance-legend {
+      display: flex; gap: 16px; font-size: 13px; color: #475569;
+      span { display: flex; align-items: center; gap: 6px; }
+      .legend-box { width: 12px; height: 12px; border-radius: 3px; &amp;.green { background: #10b981; } &amp;.orange { background: #f59e0b; } &amp;.grey { background: #e2e8f0; } }
+    }
+  }
+
+  .compliance-grid .cg-row {
+    display: grid; grid-template-columns: 200px repeat(6, 1fr); gap: 10px; align-items: center; margin-bottom: 12px;
+    &amp;.cg-header { margin-bottom: 16px; .cg-cell { color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; text-align: center; } }
+    .project-name { text-align: left; color: #1e293b; font-weight: 500; font-size: 14px; }
+    .status-block { height: 32px; border-radius: 6px; width: 100%; &amp;.green { background: #10b981; } &amp;.orange { background: #f59e0b; } &amp;.grey { background: #f1f5f9; border: 1px dashed #cbd5e1; } }
+  }
+}
+
+/* Table Card */
+.table-card {
+  padding: 24px;
+  .table-header-controls {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    .gn-tabs {
+      display: flex; gap: 10px;
+      .gn-tab {
+        background: transparent; border: 1px solid transparent; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; color: #475569; cursor: pointer;
+        &amp;.active { background: #4f46e5; color: white; }
+      }
+    }
+    .table-actions {
+      display: flex; gap: 12px;
+      button {
+        padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+        &amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }
+        &amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }
+      }
+    }
+  }
+
+  .gn-table {
+    width: 100%; border-collapse: collapse;
+    th { text-align: left; padding: 16px; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 16px; font-size: 14px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .health-text { font-weight: 600; }
+    .state-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; &amp;.pill-yellow { background: #fef3c7; color: #b45309; } &amp;.pill-green { background: #dcfce7; color: #15803d; } &amp;.pill-blue { background: #e0f2fe; color: #0369a1; } &amp;.pill-grey { background: #f1f5f9; color: #475569; } }
+    .btn-action-primary { background: #4f46e5; color: white; border: none; padding: 6px 20px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .btn-action-outline { background: transparent; color: #475569; border: 1px solid #cbd5e1; padding: 6px 20px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; }
+  }
+}
+
+/* Responsive Adjustments for Layout Wrapper */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .gn-dashboard-wrapper { padding: 16px; }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>report___change_request</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Reprot &amp; Change Request</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    // 1. LOAD SIDEBAR WIDGET
+    data.sideBar = $sp.getWidget('sidebar');
+
+    var currentUser = gs.getUserID();
+    
+    // Read the dropdown value from the Client (Default to 3 if loading for the first time)
+    data.filterMonths = (input && input.filterMonths) ? input.filterMonths : '3';
+
+    data.kpis = {
+        totalReports: 0,
+        projectCount: 0,
+        onTimeRate: 100, 
+        totalChanges: 0,
+        approvedChanges: 0,
+        openChanges: 0,
+        dueThisMonth: 0
+    };
+    data.reports = [];
+    data.changes = [];
+    data.compliance = { months: [], projects: [] };
+
+    /* ==========================================
+       1. GET APPLICANT RECORD FOR CURRENT USER
+       ========================================== */
+    var myApplicantIds = [];
+    var grApp = new GlideRecord('x_enno_gatenow_service_applicants');
+    grApp.addQuery('user', currentUser);
+    grApp.query();
+    while (grApp.next()) {
+        myApplicantIds.push(grApp.getUniqueValue());
+    }
+
+    /* ==========================================
+       2. GET PROJECTS FOR THOSE APPLICANT IDS
+       ========================================== */
+    var myProjects = [];
+    var projectMap = {};
+    
+    var grProjects = new GlideRecord('x_enno_gatenow_project');
+    var qcP = grProjects.addQuery('applicant', 'IN', myApplicantIds.join(','));
+    qcP.addOrCondition('applicant.user', currentUser); 
+    grProjects.orderByDesc('sys_created_on');
+    grProjects.query();
+    
+    while (grProjects.next()) {
+        var pId = grProjects.getUniqueValue();
+        myProjects.push(pId);
+        projectMap[pId] = grProjects.getValue('project_name') || grProjects.getValue('name') || grProjects.getValue('number');
+    }
+    
+    data.kpis.projectCount = myProjects.length;
+
+    /* ==========================================
+       3. BUILD COMPLIANCE GRID (LAST 6 MONTHS)
+       ========================================== */
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var monthKeys = []; 
+    var compMap = {};   
+    
+    for (var i = 5; i >= 0; i--) {
+        var gdt = new GlideDateTime();
+        gdt.addMonthsLocalTime(-i);
+        var mIdx = gdt.getMonthLocalTime() - 1; 
+        var yyyy = gdt.getYearLocalTime();
+        var mm = ('0' + (mIdx + 1)).slice(-2); 
+        
+        data.compliance.months.push(monthNames[mIdx]);
+        monthKeys.push(yyyy + '-' + mm);
+    }
+
+    for (var p = 0; p < myProjects.length; p++) {
+        var projId = myProjects[p];
+        compMap[projId] = { name: projectMap[projId], map: {} };
+    }
+
+    /* ==========================================
+       4. FETCH REPORTS & CHANGES (WITH DATE FILTER)
+       ========================================== */
+    var lateReportsCount = 0;
+    var reportsThisMonthCount = 0;
+    
+    var gdtNow = new GlideDateTime();
+    var currentMonthPrefix = gdtNow.getYearLocalTime() + '-' + ('0' + gdtNow.getMonthLocalTime()).slice(-2);
+
+    // Build the dynamic Date Filter string
+    var dateFilterQuery = '';
+    if (data.filterMonths !== 'all') {
+        // Creates a native ServiceNow query (e.g., sys_created_on >= Last 3 Months)
+        dateFilterQuery = 'sys_created_on>=javascript:gs.monthsAgoStart(' + data.filterMonths + ')';
+    }
+
+    if (myProjects.length > 0) {
+        
+        // --- FETCH STATUS REPORTS ---
+        var grReport = new GlideRecord('x_enno_gatenow_status_report');
+        grReport.addQuery('project', 'IN', myProjects.join(','));
+        if (dateFilterQuery) grReport.addEncodedQuery(dateFilterQuery); // Apply Dropdown Filter
+        grReport.orderByDesc('status_date');
+        grReport.query();
+
+        while(grReport.next()) {
+            var rawDate = grReport.getValue('status_date');
+            var dateToUse = rawDate || grReport.getValue('sys_created_on'); 
+            var periodFormatted = dateToUse ? getMonthYear(dateToUse) : 'Unknown Period';
+            
+            var healthVal = grReport.getValue('overall_health');
+            var healthLabel = grReport.getDisplayValue('overall_health');
+            var stateLabel = grReport.getDisplayValue('report_status') || 'Submitted';
+            var proj_id = grReport.getValue('project');
+
+            if (dateToUse) {
+                var monthKey = dateToUse.substring(0, 7); 
+                if (monthKey === currentMonthPrefix) reportsThisMonthCount++;
+
+                if (compMap[proj_id]) {
+                    var boxColor = 'green'; 
+                    if (stateLabel.toLowerCase().indexOf('late') > -1) {
+                        boxColor = 'orange';
+                        lateReportsCount++; 
+                    }
+                    compMap[proj_id].map[monthKey] = boxColor;
+                }
+            }
+
+            data.reports.push({
+                sys_id: grReport.getUniqueValue(),
+                project_id: proj_id,
+                period: periodFormatted,
+                project_name: projectMap[proj_id],
+                submitted: grReport.getDisplayValue('sys_created_on').split(' ')[0],
+                health: healthLabel,
+                health_color: healthVal ? healthVal.toLowerCase() : 'grey',
+                state: stateLabel,
+                state_color: mapStateColor(stateLabel),
+                action: 'View'
+            });
+        }
+        data.kpis.totalReports = data.reports.length;
+
+        if (data.kpis.totalReports > 0) {
+            data.kpis.onTimeRate = Math.round(((data.kpis.totalReports - lateReportsCount) / data.kpis.totalReports) * 100);
+        }
+
+        data.kpis.dueThisMonth = data.kpis.projectCount - reportsThisMonthCount;
+        if (data.kpis.dueThisMonth < 0) data.kpis.dueThisMonth = 0;
+
+        // --- FETCH CHANGE REQUESTS ---
+        var grChange = new GlideRecord('x_enno_gatenow_request_change');
+        var qcC = grChange.addQuery('project', 'IN', myProjects.join(','));
+        qcC.addOrCondition('parent', 'IN', myProjects.join(','));
+        if (dateFilterQuery) grChange.addEncodedQuery(dateFilterQuery); // Apply Dropdown Filter
+        grChange.orderByDesc('sys_created_on');
+        grChange.query();
+
+        while(grChange.next()) {
+            var changeState = grChange.getDisplayValue('approval') || grChange.getDisplayValue('state');
+            var stLower = changeState.toLowerCase();
+            
+            if (stLower.indexOf('approve') > -1) {
+                data.kpis.approvedChanges++;
+            } else if (stLower.indexOf('open') > -1 || stLower.indexOf('request') > -1 || stLower.indexOf('review') > -1) {
+                data.kpis.openChanges++;
+            }
+            
+            var linkedProjectId = grChange.getValue('project') || grChange.getValue('parent');
+            
+            var actionBtn = 'View';
+            if (stLower.indexOf('info requested') > -1) actionBtn = 'Update';
+            else if (stLower.indexOf('review') > -1) actionBtn = 'Open';
+
+            data.changes.push({
+                sys_id: grChange.getUniqueValue(),
+                number: grChange.getValue('number') || '', 
+                project_id: linkedProjectId,
+                project_name: projectMap[linkedProjectId],
+                type: grChange.getDisplayValue('type') || grChange.getDisplayValue('category'),
+                raised: formatDateShort(grChange.getValue('sys_created_on')), 
+                state: changeState,
+                state_color: mapStateColor(changeState),
+                action: actionBtn
+            });
+        }
+        data.kpis.totalChanges = data.changes.length;
+    }
+
+    /* ==========================================
+       5. FINALIZE HEAT MAP ARRAYS FOR HTML
+       ========================================== */
+    for (var key in compMap) {
+        var projHistory = [];
+        for (var k = 0; k < monthKeys.length; k++) {
+            projHistory.push(compMap[key].map[monthKeys[k]] || 'grey');
+        }
+        data.compliance.projects.push({
+            name: compMap[key].name,
+            history: projHistory
+        });
+    }
+
+    /* ==========================================
+       FORMATTING HELPER FUNCTIONS
+       ========================================== */
+    function getMonthYear(dateString) {
+        if (!dateString) return '';
+        var parts = dateString.split('-'); 
+        if (parts.length >= 2) {
+            var mIdx = parseInt(parts[1], 10) - 1;
+            return monthNames[mIdx] + ' ' + parts[0];
+        }
+        return dateString;
+    }
+
+    function formatDateShort(dateString) {
+        if (!dateString) return '';
+        var parts = dateString.split(' ')[0].split('-'); 
+        if (parts.length === 3) {
+            var d = parseInt(parts[2], 10); 
+            var m = parseInt(parts[1], 10) - 1;
+            return d + ' ' + monthNames[m] + ' ' + parts[0];
+        }
+        return dateString;
+    }
+
+    function mapStateColor(stateStr) {
+        var s = (stateStr || '').toLowerCase();
+        if (s.indexOf('accept') > -1 || s.indexOf('approve') > -1) return 'green';
+        if (s.indexOf('review') > -1) return 'blue';
+        if (s.indexOf('info') > -1 || s.indexOf('late') > -1 || s.indexOf('due') > -1) return 'yellow';
+        return 'grey';
+    }
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-19 08:10:57</sys_created_on>
+        <sys_id>44bc4ee193fa0b10d444c9b877373ce1</sys_id>
+        <sys_mod_count>23</sys_mod_count>
+        <sys_name>Reprot &amp; Change Request</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_44bc4ee193fa0b10d444c9b877373ce1</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-24 09:21:40</sys_updated_on>
+        <template><![CDATA[<!-- Master Flexbox Layout Container -->
+<div class="gn-layout">
+
+  <!-- DYNAMIC SIDEBAR WRAPPER: Now uses a clean CSS class to trigger the shrink -->
+  <div class="sidebar" ng-class="{'sidebar-collapsed': c.isSidebarCollapsed}">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+  <!-- ==========================================
+       MAIN CONTENT: DASHBOARD
+       ========================================== -->
+  <div class="gn-dashboard-wrapper" ng-cloak>
+    
+    <!-- ==========================================
+         DASHBOARD VIEW (Hides when a form is open)
+         ========================================== -->
+    <div ng-if="!c.showForm">
+      
+      <!-- Header -->
+      <div class="gn-header">
+        <div class="gn-header-title">
+          <h1>Reports & Change Requests</h1>
+          <p>
+            <span class="status-dot green"></span>
+            {{c.data.kpis.totalReports}} status reports &middot; {{c.data.kpis.totalChanges}} change requests &middot; {{c.data.kpis.onTimeRate}}% on-time
+          </p>
+        </div>
+        <div class="gn-header-actions">
+          <div class="search-bar">
+            <i class="fa fa-search"></i>
+            <input type="text" placeholder="Search programs, applications..." ng-model="c.searchText">
+          </div>
+          <div class="date-filter">
+            <i class="fa fa-calendar-o"></i> 
+            <select ng-model="c.data.filterMonths" ng-change="c.updateFilter()" class="date-dropdown">
+              <option value="3">Last 3 months</option>
+              <option value="6">Last 6 months</option>
+              <option value="12">Last 12 months</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Grid -->
+      <div class="gn-kpi-grid">
+        <div class="gn-card kpi-card">
+          <div class="kpi-label">REPORTS SUBMITTED</div>
+          <div class="kpi-value">{{c.data.kpis.totalReports}}</div>
+          <div class="kpi-subtext">Across {{c.data.kpis.projectCount}} projects</div>
+        </div>
+        <div class="gn-card kpi-card">
+          <div class="kpi-label">ON-TIME RATE</div>
+          <div class="kpi-value text-green">{{c.data.kpis.onTimeRate}}%</div>
+        </div>
+        <div class="gn-card kpi-card">
+          <div class="kpi-label">CHANGE REQUESTS</div>
+          <div class="kpi-value">{{c.data.kpis.totalChanges}}</div>
+          <div class="kpi-subtext">{{c.data.kpis.approvedChanges}} approved &middot; {{c.data.kpis.openChanges}} open</div>
+        </div>
+        <div class="gn-card kpi-card">
+          <div class="kpi-label">DUE THIS MONTH</div>
+          <div class="kpi-value text-orange">{{c.data.kpis.dueThisMonth}}</div>
+        </div>
+      </div>
+
+      <!-- Reporting Compliance -->
+      <div class="gn-card compliance-card">
+        <div class="compliance-header">
+          <div>
+            <h2>Reporting compliance</h2>
+            <p>Monthly status report per project, last six periods</p>
+          </div>
+          <div class="compliance-legend">
+            <span><div class="legend-box green"></div> On time</span>
+            <span><div class="legend-box orange"></div> Late</span>
+            <span><div class="legend-box grey"></div> Due / not required</span>
+          </div>
+        </div>
+
+        <div class="compliance-grid">
+          <!-- Months Header -->
+          <div class="cg-row cg-header">
+            <div class="cg-cell project-name"></div>
+            <div class="cg-cell" ng-repeat="month in c.data.compliance.months">{{month}}</div>
+          </div>
+          
+          <!-- Project Rows -->
+          <div class="cg-row" ng-repeat="proj in c.data.compliance.projects">
+            <div class="cg-cell project-name">{{proj.name}}</div>
+            <div class="cg-cell" ng-repeat="status in proj.history track by $index">
+              <div class="status-block" ng-class="status"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="gn-card table-card">
+        <div class="table-header-controls">
+          <div class="gn-tabs">
+            <button class="gn-tab" ng-class="{'active': c.activeTab === 'reports'}" ng-click="c.setTab('reports')">
+              Status reports ({{c.data.reports.length}})
+            </button>
+            <button class="gn-tab" ng-class="{'active': c.activeTab === 'changes'}" ng-click="c.setTab('changes')">
+              Change requests ({{c.data.changes.length}})
+            </button>
+          </div>
+          <div class="table-actions">
+            <button class="btn-outline" ng-click="c.newChangeRequest()">New change request</button>
+            <button class="btn-primary" ng-click="c.startNewReport()">Submit report</button>
+          </div>
+        </div>
+
+        <!-- STATUS REPORTS TABLE -->
+        <table class="gn-table" ng-if="c.activeTab === 'reports'">
+          <thead>
+            <tr>
+              <th>PERIOD</th>
+              <th>PROJECT</th>
+              <th>SUBMITTED</th>
+              <th>HEALTH</th>
+              <th>STATE</th>
+              <th class="text-center action-col">ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="row in c.data.reports | filter:c.searchText">
+              <td class="font-bold">{{row.period}}</td>
+              <td>{{row.project_name}}</td>
+              <td class="text-muted">{{row.submitted || '&mdash;'}}</td>
+              <td>
+                <span ng-if="row.health" class="health-text" ng-class="'text-' + row.health_color">{{row.health}}</span>
+                <span ng-if="!row.health" class="text-muted">&mdash;</span>
+              </td>
+              <td>
+                <span class="state-pill" ng-class="'pill-' + row.state_color">{{row.state}}</span>
+              </td>
+              <td class="text-center action-col">
+                <button ng-if="row.action === 'Start'" class="btn-action-primary" ng-click="c.openReport(row)">Start</button>
+                <button ng-if="row.action === 'View'" class="btn-action-outline" ng-click="c.openReport(row)">View</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- CHANGE REQUESTS TABLE -->
+        <table class="gn-table" ng-if="c.activeTab === 'changes'">
+          <thead>
+            <tr>
+              <th>REFERENCE</th>
+              <th>PROJECT</th>
+              <th>TYPE</th>
+              <th>RAISED</th>
+              <th>STATE</th>
+              <th class="text-center action-col">ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="row in c.data.changes | filter:c.searchText">
+              <td class="font-bold">{{row.number}}</td>
+              <td>{{row.project_name}}</td>
+              <td class="text-muted">{{row.type || '&mdash;'}}</td>
+              <td>{{row.raised}}</td>
+              <td>
+                <span class="state-pill" ng-class="'pill-' + row.state_color">{{row.state}}</span>
+              </td>
+              <td class="text-center action-col">
+                <button ng-class="row.action === 'Update' ? 'btn-action-primary' : 'btn-action-outline'" ng-click="c.openChange(row)">
+                  {{row.action}}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div> <!-- End of Dashboard View -->
+
+    <!-- ==========================================
+         EMBEDDED FORM VIEW (Shows when a button is clicked)
+         ========================================== -->
+    <div ng-if="c.showForm" class="gn-embedded-form">
+      
+      <!-- Back Button -->
+      <button class="btn-outline" ng-click="c.closeForm()" style="margin-bottom: 24px; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+        <i class="fa fa-arrow-left"></i> Back to Dashboard
+      </button>
+      
+      <!-- Child Widget Rendered Here -->
+      <sp-widget widget="c.childWidget"></sp-widget>
+      
+    </div>
+
+  </div> <!-- End of Dashboard Wrapper -->
+
+</div>]]></template>
+    </sp_widget>
+</record_update>

@@ -3,206 +3,440 @@
         <category>custom</category>
         <client_script><![CDATA[api.controller = function($scope) {
   var c = this;
-
-  c.faqs = [
-    {
-      q: 'What is GateNow?',
-      a: 'GateNow is a federal grant management platform that simplifies the entire grant lifecycle — from discovering open programs and confirming eligibility, to submitting compliant applications and tracking award status — all within a single secure, guided platform.'
-    },
-    {
-      q: 'Who can apply for grants through GateNow?',
-      a: 'GateNow is open to eligible applicants including state and local government agencies, tribal governments, transit authorities, metropolitan planning organizations (MPOs), and other public entities seeking federal transportation funding.'
-    },
-    {
-      q: 'What types of projects are eligible for funding?',
-      a: 'Eligible projects typically include transportation infrastructure improvements, highway safety enhancements, public transit expansions, climate resilience initiatives, and innovation projects aligned with federal transportation priorities under programs such as FHWA and FTA grant programs.'
-    },
-    {
-      q: 'How do I apply for a grant?',
-      a: 'Start by exploring available programs under the "Grant Programs" section. Once you find a program that matches your needs, confirm your eligibility, complete the guided application form, attach required documentation, and submit. GateNow will notify you of status updates at each stage.'
-    },
-    {
-      q: 'Can I save my application and finish it later?',
-      a: 'Yes. GateNow automatically saves your progress as you complete each section of the application. You can return at any time, pick up where you left off, and submit when you are ready before the program deadline.'
-    },
-    {
-      q: 'How long does the grant review process take?',
-      a: 'Review timelines vary by program and funding agency. Once you submit your application, GateNow will display the estimated review period for that specific program. You can monitor your application status in real time from your dashboard.'
-    },
-    {
-      q: 'What documents are typically required?',
-      a: 'Required documents vary by program but commonly include a project narrative, budget breakdown, organizational certifications, environmental review documentation, and proof of matching funds where applicable. Each program listing in GateNow specifies its exact requirements.'
-    },
-    {
-      q: 'Is my data secure on GateNow?',
-      a: 'Yes. GateNow is built on the ServiceNow platform which is FedRAMP-authorized and complies with federal security standards. All data is encrypted in transit and at rest, and access is controlled through role-based permissions.'
-    }
-  ];
-
-  c.toggle = function(item) {
-    item.open = !item.open;
-  };
 };
 ]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ─── Reset ───────────────────────────────────────────── */&#13;
-.faq-wrapper *,&#13;
-.faq-wrapper *::before,&#13;
-.faq-wrapper *::after {&#13;
-  box-sizing: border-box;&#13;
-  margin: 0;&#13;
-  padding: 0;&#13;
-}&#13;
+        <css>/* =========================================================&#13;
+   GATENOW LANDING · FAQ&#13;
+   Service Portal widget · CSS / SCSS&#13;
 &#13;
-/* ─── Outer wrapper ───────────────────────────────────── */&#13;
-.faq-wrapper {&#13;
-  font-family: 'Inter', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;&#13;
-  background: #f0f0f2;&#13;
-  width: calc(100% + 30px);&#13;
-  margin-left: -15px;&#13;
-  margin-right: -15px;&#13;
-   padding: 52px 0 60px; &#13;
-}&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
 &#13;
-/* ─── Two-column inner ────────────────────────────────── */&#13;
-.faq-inner {&#13;
-  max-width: 1200px;&#13;
-  margin: 0 auto;&#13;
-  padding: 0 60px;&#13;
-  display: grid;&#13;
-  grid-template-columns: 340px 1fr;&#13;
-  gap: 0 160px;&#13;
-  align-items: start; &#13;
-}&#13;
+   Design notes worth keeping:&#13;
 &#13;
-/* ─── LEFT column ─────────────────────────────────────── */&#13;
-.faq-left {&#13;
-  display: flex;&#13;
-  flex-direction: column;&#13;
-  gap: 0;&#13;
-  position: sticky;&#13;
-  top: 100px;&#13;
-}&#13;
+   1. Three columns by two rows. Three earlier versions stacked&#13;
+      the questions and every one of them ran long, because six&#13;
+      questions in a column is six questions tall whatever the&#13;
+      styling. Across the width, the same content is about one&#13;
+      screen.&#13;
 &#13;
-.faq-eyebrow {&#13;
-  font-size: 13px;&#13;
-  font-weight: 500;&#13;
-  color: #5443ad;&#13;
-  letter-spacing: 0.01em;&#13;
-  margin-bottom: 8px; &#13;
-}&#13;
+   2. Cells are separated by hairlines, not boxes. The page&#13;
+      already uses panels for About and a sheet for the process,&#13;
+      so this reads as a printed column of questions rather than&#13;
+      six more cards.&#13;
 &#13;
-.faq-rule {&#13;
-  border: none;&#13;
-  border-top: 1.5px solid #d1d5db;&#13;
-  margin-bottom: 16px;&#13;
-}&#13;
+   3. The wash on hover rises from the bottom of the cell and&#13;
+      the accent rule draws across the top, so a hovered cell is&#13;
+      framed by the two movements rather than simply tinted.&#13;
 &#13;
-.faq-heading {&#13;
-  font-size: 26px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1.3;&#13;
-  color: #0f172a;&#13;
- margin-bottom: 10px;&#13;
-}&#13;
+   4. Nothing is held at opacity zero in a base rule. The&#13;
+      from-state comes from animation-fill-mode backwards, so if&#13;
+      animation is blocked the content still renders.&#13;
+   ========================================================= */&#13;
 &#13;
-.faq-subtext {&#13;
-  font-size: 13px;&#13;
+/* ---------- typeface ----------&#13;
+   Shared with the other landing widgets. If they sit on one&#13;
+   page, keep a single copy in a Style Sheet record attached to&#13;
+   the theme and delete this block from the widgets.&#13;
+   ------------------------------------------------------------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
   font-weight: 400;&#13;
-  line-height: 1.65;&#13;
-  color: #6b7280;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
 }&#13;
 &#13;
-/* ─── RIGHT column: accordion ─────────────────────────── */&#13;
-.faq-right {&#13;
-  display: flex;&#13;
-  flex-direction: column;&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
 }&#13;
 &#13;
-/* ─── Each FAQ item ───────────────────────────────────── */&#13;
-.faq-item {&#13;
-  border-bottom: 1px solid #d1d5db;&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
 }&#13;
 &#13;
-.faq-item:first-child {&#13;
-  border-top: 1px solid #d1d5db;&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
 }&#13;
 &#13;
-/* ─── Question row ────────────────────────────────────── */&#13;
-.faq-question {&#13;
+&#13;
+/* ---------- palette ---------- */&#13;
+$gnf-navy:      #0a2540;&#13;
+$gnf-blue:      #1560e0;&#13;
+$gnf-blue-dk:   #0f4cbb;&#13;
+$gnf-blue-soft: #eef3fd;&#13;
+$gnf-body:      #55677f;&#13;
+$gnf-hair:      #dfe7f3;&#13;
+$gnf-white:     #ffffff;&#13;
+&#13;
+$gnf-ease:      cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$gnf-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BAND&#13;
+   ========================================================= */&#13;
+&#13;
+.gnf-faq {&#13;
+  position: relative;&#13;
   width: 100%;&#13;
+  padding: 100px 24px 108px;&#13;
+  font-family: $gnf-font;&#13;
+  color: $gnf-navy;&#13;
+  background: linear-gradient(180deg, #eef4fd 0%, #f6fafe 56%, #ffffff 100%);&#13;
+}&#13;
+&#13;
+.gnf-faq *,&#13;
+.gnf-faq *::before,&#13;
+.gnf-faq *::after { box-sizing: border-box; }&#13;
+&#13;
+.gnf-faq__inner {&#13;
+  position: relative;&#13;
+  max-width: 1140px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEADER&#13;
+   ========================================================= */&#13;
+&#13;
+.gnf-head {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);&#13;
+  align-items: end;&#13;
+  gap: 20px 56px;&#13;
+  margin-bottom: 44px;&#13;
+}&#13;
+&#13;
+.gnf-head__lead { min-width: 0; }&#13;
+.gnf-head__aside { min-width: 0; }&#13;
+&#13;
+.gnf-faq .gnf-eyebrow {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  padding: 8px 18px;&#13;
+  margin: 0 0 22px;&#13;
+  border-radius: 999px;&#13;
+  background: $gnf-blue-soft;&#13;
+  color: $gnf-blue;&#13;
+  font-size: 12px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.16em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gnf-faq .gnf-heading {&#13;
+  margin: 0;&#13;
+  max-width: 520px;&#13;
+  font-size: 46px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.13;&#13;
+  letter-spacing: -0.032em;&#13;
+  color: $gnf-navy;&#13;
+}&#13;
+&#13;
+@supports (font-size: clamp(30px, 3.6vw, 46px)) {&#13;
+  .gnf-faq .gnf-heading { font-size: clamp(30px, 3.6vw, 46px); }&#13;
+}&#13;
+&#13;
+.gnf-faq .gnf-sub {&#13;
+  margin: 0;&#13;
+  padding: 0 0 0 22px;&#13;
+  border-left: 2px solid rgba(21, 96, 224, 0.22);&#13;
+  font-size: 16.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.64;&#13;
+  color: $gnf-body;&#13;
+}&#13;
+&#13;
+.gnf-headlink {&#13;
+  position: relative;&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  margin: 14px 0 0 22px;&#13;
+  padding: 2px 0 5px;&#13;
+  color: $gnf-blue;&#13;
+  font-size: 15px;&#13;
+  font-weight: 600;&#13;
+  text-decoration: none;&#13;
+  transition: color 0.55s $gnf-ease;&#13;
+}&#13;
+&#13;
+.gnf-headlink:hover,&#13;
+.gnf-headlink:focus {&#13;
+  color: $gnf-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gnf-headlink__rule {&#13;
+  position: absolute;&#13;
+  right: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  height: 1px;&#13;
+  background: currentColor;&#13;
+  transform: scaleX(0);&#13;
+  transform-origin: left center;&#13;
+  transition: transform 0.55s $gnf-ease;&#13;
+}&#13;
+&#13;
+.gnf-headlink:hover .gnf-headlink__rule,&#13;
+.gnf-headlink:focus .gnf-headlink__rule { transform: scaleX(1); }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   GRID&#13;
+   Hairlines between cells rather than a border around each, so&#13;
+   the block reads as one field of questions.&#13;
+   ========================================================= */&#13;
+&#13;
+.gnf-grid {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(3, minmax(0, 1fr));&#13;
+  border-top: 1px solid $gnf-hair;&#13;
+  border-bottom: 1px solid $gnf-hair;&#13;
+}&#13;
+&#13;
+.gnf-cell {&#13;
+  position: relative;&#13;
+  padding: 34px 32px 36px;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+/* vertical rules between columns only */&#13;
+.gnf-cell--2,&#13;
+.gnf-cell--3,&#13;
+.gnf-cell--5,&#13;
+.gnf-cell--6 { border-left: 1px solid $gnf-hair; }&#13;
+&#13;
+/* horizontal rule between the two rows */&#13;
+.gnf-cell--4,&#13;
+.gnf-cell--5,&#13;
+.gnf-cell--6 { border-top: 1px solid $gnf-hair; }&#13;
+&#13;
+/* the wash rises from the foot of the cell */&#13;
+.gnf-cell__wash {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  background: linear-gradient(0deg, rgba(21, 96, 224, 0.09) 0%, rgba(21, 96, 224, 0) 72%);&#13;
+  transform: scaleY(0);&#13;
+  transform-origin: center bottom;&#13;
+  transition: transform 0.6s $gnf-ease;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+/* the rule draws across the head of it */&#13;
+.gnf-cell__accent {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  left: 0;&#13;
+  height: 2px;&#13;
+  background: linear-gradient(90deg, $gnf-blue 0%, rgba(21, 96, 224, 0.25) 100%);&#13;
+  transform: scaleX(0);&#13;
+  transform-origin: left center;&#13;
+  transition: transform 0.6s $gnf-ease;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnf-cell:hover .gnf-cell__wash { transform: scaleY(1); }&#13;
+.gnf-cell:hover .gnf-cell__accent { transform: scaleX(1); }&#13;
+&#13;
+.gnf-cell__body {&#13;
+  position: relative;&#13;
+  z-index: 2;&#13;
+}&#13;
+&#13;
+.gnf-cell__meta {&#13;
   display: flex;&#13;
   align-items: center;&#13;
-  justify-content: space-between;&#13;
-  gap: 20px;&#13;
-  padding: 12px 0;&#13;
-  background: none;&#13;
-  border: none;&#13;
-  cursor: pointer;&#13;
-  text-align: left;&#13;
+  gap: 10px;&#13;
+  margin-bottom: 14px;&#13;
 }&#13;
 &#13;
-.faq-question-text {&#13;
-  font-size: 12px;&#13;
+.gnf-cell__num {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 30px;&#13;
+  height: 24px;&#13;
+  border-radius: 7px;&#13;
+  background: rgba(21, 96, 224, 0.1);&#13;
+  color: $gnf-blue;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.06em;&#13;
+  transition: background 0.55s $gnf-ease, color 0.55s $gnf-ease;&#13;
+}&#13;
+&#13;
+.gnf-cell:hover .gnf-cell__num {&#13;
+  background: $gnf-blue;&#13;
+  color: $gnf-white;&#13;
+}&#13;
+&#13;
+.gnf-cell__topic {&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.15em;&#13;
+  text-transform: uppercase;&#13;
+  color: rgba(85, 103, 127, 0.66);&#13;
+  transition: color 0.55s $gnf-ease;&#13;
+}&#13;
+&#13;
+.gnf-cell:hover .gnf-cell__topic { color: $gnf-blue; }&#13;
+&#13;
+.gnf-faq .gnf-cell__q {&#13;
+  margin: 0;&#13;
+  font-size: 19px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.34;&#13;
+  letter-spacing: -0.02em;&#13;
+  color: $gnf-navy;&#13;
+  transition: color 0.55s $gnf-ease;&#13;
+}&#13;
+&#13;
+.gnf-cell:hover .gnf-cell__q { color: $gnf-blue-dk; }&#13;
+&#13;
+.gnf-faq .gnf-cell__a {&#13;
+  margin: 12px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 15.5px;&#13;
   font-weight: 400;&#13;
-  color: #1f2937;&#13;
-  line-height: 1.5;&#13;
-  transition: color 0.2s ease;&#13;
+  line-height: 1.7;&#13;
+  color: $gnf-body;&#13;
 }&#13;
 &#13;
-.faq-item--open .faq-question-text {&#13;
-  color: #5443ad;&#13;
-  font-weight: 500;&#13;
+.gnf-faq a:focus-visible {&#13;
+  outline: 2px solid $gnf-blue;&#13;
+  outline-offset: 4px;&#13;
 }&#13;
 &#13;
-.faq-icon {&#13;
-  font-size: 22px;&#13;
-  font-weight: 300;&#13;
-  color: #4b5563;&#13;
-  line-height: 1;&#13;
-  flex-shrink: 0;&#13;
-  width: 24px;&#13;
-  text-align: center;&#13;
-  transition: color 0.2s ease, transform 0.2s ease;&#13;
-}&#13;
 &#13;
-.faq-item--open .faq-icon {&#13;
-  color: #5443ad;&#13;
-}&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   Cells arrive along the reading order, so the block fills in&#13;
+   left to right rather than all at once.&#13;
+   ========================================================= */&#13;
 &#13;
-/* ─── Answer panel ────────────────────────────────────── */&#13;
-.faq-answer {&#13;
-  padding: 0 40px 20px 0;&#13;
-}&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
 &#13;
-.faq-answer p {&#13;
-  font-size: 14px;&#13;
-  font-weight: 400;&#13;
-  line-height: 1.75;&#13;
-  color: #6b7280;&#13;
-}&#13;
-&#13;
-/* ─── Responsive ──────────────────────────────────────── */&#13;
-@media (max-width: 1024px) {&#13;
-  .faq-inner { padding: 0 40px; gap: 0 48px; }&#13;
-}&#13;
-&#13;
-@media (max-width: 820px) {&#13;
-  .faq-inner {&#13;
-    grid-template-columns: 1fr;&#13;
-    gap: 40px 0;&#13;
-    padding: 0 32px;&#13;
+  @keyframes gnfRise {&#13;
+    from { opacity: 0; transform: translateY(18px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
   }&#13;
-  .faq-left { position: static; }&#13;
+&#13;
+  .gnf-faq .gnf-eyebrow,&#13;
+  .gnf-faq .gnf-heading,&#13;
+  .gnf-faq .gnf-sub,&#13;
+  .gnf-headlink,&#13;
+  .gnf-cell__body {&#13;
+    animation: gnfRise 0.68s $gnf-ease backwards;&#13;
+  }&#13;
+&#13;
+  .gnf-faq .gnf-heading { animation-delay: 0.07s; }&#13;
+  .gnf-faq .gnf-sub     { animation-delay: 0.14s; }&#13;
+  .gnf-headlink         { animation-delay: 0.20s; }&#13;
+&#13;
+  .gnf-cell--1 .gnf-cell__body { animation-delay: 0.26s; }&#13;
+  .gnf-cell--2 .gnf-cell__body { animation-delay: 0.33s; }&#13;
+  .gnf-cell--3 .gnf-cell__body { animation-delay: 0.40s; }&#13;
+  .gnf-cell--4 .gnf-cell__body { animation-delay: 0.47s; }&#13;
+  .gnf-cell--5 .gnf-cell__body { animation-delay: 0.54s; }&#13;
+  .gnf-cell--6 .gnf-cell__body { animation-delay: 0.61s; }&#13;
 }&#13;
 &#13;
-@media (max-width: 520px) {&#13;
-  .faq-wrapper   { padding: 48px 0 56px; }&#13;
-  .faq-inner     { padding: 0 20px; }&#13;
-  .faq-heading   { font-size: 22px; }&#13;
-  .faq-question-text { font-size: 14px; }&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   The dividers are rebuilt at each breakpoint, since which&#13;
+   cell needs which rule depends on the column count.&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1024px) {&#13;
+&#13;
+  .gnf-faq { padding: 84px 20px 92px; }&#13;
+&#13;
+  .gnf-head {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 24px;&#13;
+    margin-bottom: 34px;&#13;
+  }&#13;
+&#13;
+  .gnf-faq .gnf-heading { max-width: 620px; }&#13;
+  .gnf-faq .gnf-sub { max-width: 600px; }&#13;
+&#13;
+  .gnf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gnf-cell { padding: 30px 26px 32px; }&#13;
+&#13;
+  .gnf-cell--2,&#13;
+  .gnf-cell--3,&#13;
+  .gnf-cell--5,&#13;
+  .gnf-cell--6 { border-left: 0; }&#13;
+&#13;
+  .gnf-cell--2,&#13;
+  .gnf-cell--4,&#13;
+  .gnf-cell--6 { border-left: 1px solid $gnf-hair; }&#13;
+&#13;
+  .gnf-cell--4,&#13;
+  .gnf-cell--5,&#13;
+  .gnf-cell--6 { border-top: 0; }&#13;
+&#13;
+  .gnf-cell--3,&#13;
+  .gnf-cell--4,&#13;
+  .gnf-cell--5,&#13;
+  .gnf-cell--6 { border-top: 1px solid $gnf-hair; }&#13;
 }&#13;
-</css>
+&#13;
+@media (max-width: 620px) {&#13;
+&#13;
+  .gnf-faq { padding: 62px 16px 70px; }&#13;
+&#13;
+  .gnf-grid { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+  .gnf-cell {&#13;
+    padding: 26px 4px 28px;&#13;
+    border-left: 0;&#13;
+  }&#13;
+&#13;
+  .gnf-cell--2,&#13;
+  .gnf-cell--4,&#13;
+  .gnf-cell--6 { border-left: 0; }&#13;
+&#13;
+  .gnf-cell--2,&#13;
+  .gnf-cell--3,&#13;
+  .gnf-cell--4,&#13;
+  .gnf-cell--5,&#13;
+  .gnf-cell--6 { border-top: 1px solid $gnf-hair; }&#13;
+&#13;
+  .gnf-faq .gnf-cell__q { font-size: 18px; }&#13;
+  .gnf-faq .gnf-cell__a { font-size: 15px; }&#13;
+  .gnf-faq .gnf-sub { font-size: 15.5px; padding-left: 18px; }&#13;
+  .gnf-headlink { margin-left: 18px; }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gnf-faq * { transition: none; }&#13;
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -218,9 +452,104 @@
         <option_schema/>
         <public>true</public>
         <roles/>
-        <script><![CDATA[(function() {
-  /* populate the 'data' object */
-  /* e.g., data.table = $sp.getValue('table'); */
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW LANDING · FAQ
+     Service Portal widget · Server script
+
+     Copy lives here rather than in the template so every string
+     passes through gs.getMessage and stays translatable. No
+     table access, so no ACL considerations apply.
+
+     Nothing is hidden behind a click, so each answer is kept to
+     two or three short sentences and sits in its own cell. Anything program specific is pushed back to the
+     program page on purpose, because it genuinely varies and a
+     landing page should not pretend otherwise.
+
+     Note on option names: every widget instance already has a
+     built in "title" field, so options.title returns the
+     instance title rather than anything you set. The heading
+     option is named heading for that reason. The same applies
+     to color, glyph and size.
+     ========================================================= */
+
+  function opt(name, fallback) {
+    var value = options[name];
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    return value.toString();
+  }
+
+  data.regionLabel = opt('region_label', gs.getMessage('Frequently asked questions'));
+  data.eyebrow     = opt('eyebrow', gs.getMessage('Questions'));
+  data.heading     = opt('heading', gs.getMessage('The first call, in writing'));
+
+  data.subhead = opt('subhead', gs.getMessage(
+    'Six questions come up in almost every conversation before an application ' +
+    'starts. Here they are answered, so you can skip the call if you would ' +
+    'rather just get on with it.'));
+
+  data.endLink = opt('end_link', gs.getMessage('Read the full process'));
+  data.endUrl  = opt('end_url', '#how-applying-works');
+
+  data.questions = [
+    {
+      index   : '01',
+      topic   : gs.getMessage('Eligibility'),
+      question: gs.getMessage('Do we need to be a registered charity?'),
+      answer  : gs.getMessage(
+        'Not always. Programs set their own eligibility, and some are open to ' +
+        'constituted community groups, schools and councils as well as ' +
+        'registered charities. The program page lists exactly who qualifies.')
+    },
+    {
+      index   : '02',
+      topic   : gs.getMessage('Eligibility'),
+      question: gs.getMessage('Can we apply to more than one program?'),
+      answer  : gs.getMessage(
+        'Yes, and plenty of organisations do. Each application is assessed on ' +
+        'its own merits, so a second one does not weaken the first.')
+    },
+    {
+      index   : '03',
+      topic   : gs.getMessage('Applying'),
+      question: gs.getMessage('Do we have to finish it in one sitting?'),
+      answer  : gs.getMessage(
+        'No. It saves as you go, so you can start on Tuesday, chase the finance ' +
+        'officer for a figure on Wednesday, and finish on Friday without losing ' +
+        'a word.')
+    },
+    {
+      index   : '04',
+      topic   : gs.getMessage('Assessment'),
+      question: gs.getMessage('When will we hear back?'),
+      answer  : gs.getMessage(
+        'That depends on the program, and each one publishes its own timeline. ' +
+        'What does not vary is seeing the stage your application has reached, ' +
+        'so the wait is a visible one rather than a silence you have to read ' +
+        'something into.')
+    },
+    {
+      index   : '05',
+      topic   : gs.getMessage('Assessment'),
+      question: gs.getMessage('We were declined last time. Worth trying again?'),
+      answer  : gs.getMessage(
+        'Usually yes. Declines come with the reason attached, and nothing ' +
+        'carries into the next cycle. The same idea against the right program ' +
+        'is a different application.')
+    },
+    {
+      index   : '06',
+      topic   : gs.getMessage('After the award'),
+      question: gs.getMessage('What if the project changes once we have won?'),
+      answer  : gs.getMessage(
+        'Raise a change request and get it approved at the time. A change ' +
+        'agreed in month four is administration. The same change found in the ' +
+        'final report is a problem.')
+    }
+  ];
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -228,44 +557,78 @@
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-23 10:22:52</sys_created_on>
         <sys_id>1f7983602f93ba10d2a0d68fcea4e3a9</sys_id>
-        <sys_mod_count>6</sys_mod_count>
+        <sys_mod_count>10</sys_mod_count>
         <sys_name>FAQ Applicant</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_1f7983602f93ba10d2a0d68fcea4e3a9</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-02-23 10:35:33</sys_updated_on>
-        <template><![CDATA[<div class="faq-wrapper">
-  <div class="faq-inner">
+        <sys_updated_on>2026-08-24 08:12:06</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW LANDING · FAQ
+     Service Portal widget · HTML template
 
-    <!-- LEFT -->
-    <div class="faq-left">
-      <p class="faq-eyebrow">FAQ</p>
-      <hr class="faq-rule" />
-      <h2 class="faq-heading">Some Of The Frequently Asked Questions</h2>
-      <p class="faq-subtext">
-        If you don't find your answer here, feel free to reach out to our support team for assistance.
-      </p>
-    </div>
+     A three by two grid rather than a stack. Six answers of two
+     or three sentences fit across the width, which puts the
+     whole section in roughly one screen instead of six.
 
-    <!-- RIGHT: Accordion -->
-    <div class="faq-right">
+     Nothing is hidden, so there is no accordion, no client
+     script and no form inputs.
 
-      <div class="faq-item" ng-repeat="item in c.faqs" ng-class="{'faq-item--open': item.open}">
-        <button class="faq-question" ng-click="c.toggle(item)" type="button">
-          <span class="faq-question-text">{{item.q}}</span>
-          <span class="faq-icon">{{item.open ? '×' : '+'}}</span>
-        </button>
-        <div class="faq-answer" ng-show="item.open">
-          <p>{{item.a}}</p>
-        </div>
+     All display text arrives from the server script, which
+     resolves each string through gs.getMessage.
+     ========================================================= -->
+
+<section class="gnf-faq" id="faq" role="region" aria-label="{{c.data.regionLabel}}">
+
+  <div class="gnf-faq__inner">
+
+    <header class="gnf-head">
+
+      <div class="gnf-head__lead">
+        <span class="gnf-eyebrow" ng-if="c.data.eyebrow">{{c.data.eyebrow}}</span>
+        <h2 class="gnf-heading">{{c.data.heading}}</h2>
       </div>
+
+      <div class="gnf-head__aside">
+        <p class="gnf-sub">{{c.data.subhead}}</p>
+        <a class="gnf-headlink" ng-href="{{c.data.endUrl}}">
+          {{c.data.endLink}}
+          <span class="gnf-headlink__rule" aria-hidden="true"></span>
+        </a>
+      </div>
+
+    </header>
+
+
+    <div class="gnf-grid">
+
+      <article class="gnf-cell"
+               ng-repeat="q in c.data.questions track by $index"
+               ng-class="'gnf-cell--' + ($index + 1)">
+
+        <span class="gnf-cell__wash" aria-hidden="true"></span>
+        <span class="gnf-cell__accent" aria-hidden="true"></span>
+
+        <div class="gnf-cell__body">
+
+          <span class="gnf-cell__meta">
+            <span class="gnf-cell__num">{{q.index}}</span>
+            <span class="gnf-cell__topic">{{q.topic}}</span>
+          </span>
+
+          <h3 class="gnf-cell__q">{{q.question}}</h3>
+          <p class="gnf-cell__a">{{q.answer}}</p>
+
+        </div>
+
+      </article>
 
     </div>
 
   </div>
-</div>
-]]></template>
+
+</section>]]></template>
     </sp_widget>
 </record_update>

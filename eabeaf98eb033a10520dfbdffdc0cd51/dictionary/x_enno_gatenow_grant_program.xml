@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?><database>
     <element audit="true" db_object_id="3051e9822f308310d2a0d68fcea4e379" label="Grant Program" max_length="40" name="x_enno_gatenow_grant_program" type="collection">
+        <element label="Funding Cycle" max_length="40" name="funding_cycle" type="string"/>
+        <element label="Max Award" max_length="20" name="max_award" type="currency"/>
         <element choice="1" label="Award Type" mandatory="true" max_length="40" name="award_type" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Multiple Award" sequence="1" value="multiple_award"/>
                 <element inactive_on_update="false" label="Single Award" sequence="0" value="Single Award"/>
             </choice>
         </element>
-        <element label="Summary Statement" max_length="40" name="summary_statement" type="string"/>
+        <element label="Additional Information" max_length="40" name="summary_statement" type="string"/>
         <element default="javascript:gs.getUserID();" dependent="sys_created_by" dependent_on_field="sys_created_by" dynamic_default_value="2fd8e97bef3221002841f7f775c0fbc1" label="Program User" max_length="32" name="program_lead" read_only="true" reference="sys_user" type="reference" use_dependent_field="true" use_dynamic_default="true"/>
         <element choice="1" label="Status" max_length="40" name="status" type="choice">
             <choice>
@@ -32,6 +34,7 @@
         <element label="Program Description" max_length="40" name="program_description" type="string"/>
         <element label="Proposal Open Date" mandatory="true" max_length="255" name="proposal_open_date" type="glide_date"/>
         <element label="Active" max_length="255" name="active" type="boolean"/>
+        <element label="Min Award" max_length="20" name="min_award" type="currency"/>
         <element label="Program Name" mandatory="true" max_length="40" name="program_name" type="string"/>
         <element label="Image" mandatory="true" max_length="255" name="image" type="user_image"/>
         <element label="End Date" mandatory="true" max_length="255" name="end_date" type="glide_date"/>
@@ -60,6 +63,6 @@
         <element label="Assistance Listing Number" max_length="40" name="assistance_listing_number" type="string"/>
         <element label="Start Date" mandatory="true" max_length="255" name="start_date" type="glide_date"/>
         <element label="Program Manager" mandatory="true" max_length="32" name="program_manager" reference="sys_user" type="reference"/>
-        <element label="Program Budget" max_length="20" name="program_budget" type="currency"/>
+        <element label="Program Funding" max_length="20" name="program_budget" type="currency"/>
     </element>
 </database>

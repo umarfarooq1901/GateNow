@@ -18,7 +18,6 @@
     initials: $window.NOW && $window.NOW.user_initials
               ? $window.NOW.user_initials : ''
   };
-
   if ($window.NOW && $window.NOW.user_avatar)
     $scope.avatarProfile.userImage = $window.NOW.user_avatar;
 
@@ -31,20 +30,14 @@
   } catch(e) {}
 
   // ── Build logoutUrl ONCE on init and bind to scope ──
-  // Using ng-href instead of ng-click avoids ALL navbar flicker issues
   (function buildLogoutUrl() {
     var url = null;
-
-    // 1. Try portal.logoutUrl from current scope
     try { url = $scope.portal && $scope.portal.logoutUrl; } catch(e) {}
-
-    // 2. Walk parent scopes
     if (!url || url === '/logout.do' || url.trim() === '') {
       try {
         var s = $scope.$parent;
         while (s) {
-          if (s.portal && s.portal.logoutUrl &&
-              s.portal.logoutUrl !== '/logout.do') {
+          if (s.portal && s.portal.logoutUrl && s.portal.logoutUrl !== '/logout.do') {
             url = s.portal.logoutUrl;
             break;
           }
@@ -52,12 +45,9 @@
         }
       } catch(e) {}
     }
-
-    // 3. Hardcoded fallback using sysparm_logout=true (native SP logout)
     if (!url || url === '/logout.do' || url.trim() === '') {
       url = '/applicant?id=login&sysparm_logout=true';
     }
-
     $scope.logoutUrl = url;
   })();
 
@@ -89,11 +79,9 @@
 
   // ── Responsive avatar logic ──
   var nav = document.getElementById('responsiveNav');
-
   function isMDScreenSize() {
     return nav ? nav.classList.contains('responsive-tablet') : false;
   }
-
   function updateResponsiveClasses(width) {
     if (!nav) return;
     if (width <= 992) {
@@ -106,9 +94,26 @@
     $scope.showSMAvatar = isMDScreenSize();
     $scope.showAvatar   = !isMDScreenSize();
   }
-
   $scope.showSMAvatar = isMDScreenSize();
   $scope.showAvatar   = !isMDScreenSize();
+
+  // ── Reserve space for the fixed pill so page content never
+  //    scrolls underneath it, regardless of page template ──
+  function updateNavOffset() {
+    if (!nav) return;
+    var rect = nav.getBoundingClientRect();
+    // gap above the pill (from .gn-navbar's `top`) + pill height + a little breathing room
+    var topGap = parseFloat(getComputedStyle(nav).top) || 20;
+    var offset = Math.ceil(rect.height + topGap + 20);
+    document.documentElement.style.setProperty('--gn-navbar-offset', offset + 'px');
+  }
+  // Run after layout settles (fonts/images can still shift height on first paint)
+  $timeout(updateNavOffset, 0);
+  $timeout(updateNavOffset, 300);
+  window.addEventListener('resize', updateNavOffset);
+  $scope.$on('$destroy', function() {
+    window.removeEventListener('resize', updateNavOffset);
+  });
 
   try {
     $scope.isAgentChatConfigured =
@@ -123,6 +128,8 @@
       new ResizeObserver(function(entries) {
         if (entries && entries[0])
           updateResponsiveClasses(entries[0].contentRect.width);
+        // Mobile menu opening/closing changes the pill's real height too
+        updateNavOffset();
       }).observe(nav);
     } catch(e) {}
   }
@@ -141,272 +148,366 @@
     if (!$scope.page || !$scope.page.id) return true;
     return $scope.page.id === $scope.portal.homepage_dv;
   };
-};
-]]></client_script>
+};]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ═══════════════════════════════════════════════════════&#13;
-   GateNow Header Widget Styles&#13;
-═══════════════════════════════════════════════════════ */&#13;
-&#13;
-/* ─── Navbar base ────────────────────────────────────── */&#13;
-.gn-navbar {&#13;
-  position: fixed !important;&#13;
-  top: 0;&#13;
-  left: 0;&#13;
-  right: 0;&#13;
-  z-index: 1050;&#13;
-  background: linear-gradient(114.089deg, rgb(84, 60, 168) 17.665%, rgb(88, 107, 199) 114.38%) !important;&#13;
-  border: none !important;&#13;
-&#13;
-  min-height: 61px !important;&#13;
-  margin-bottom: 0 !important;&#13;
-  border-radius: 0 !important;&#13;
-}&#13;
-.gn-portal-logo {&#13;
-  height: 36px;&#13;
-  width: auto;&#13;
-  max-width: 180px;&#13;
-  object-fit: contain;&#13;
-  display: block;&#13;
-  filter: brightness(0) invert(1);&#13;
-}&#13;
-&#13;
-/* ─── Inner container (max 1440px, centered) ─────────── */&#13;
-.gn-navbar-inner {&#13;
-  max-width: 1440px;&#13;
-  width: 100%;&#13;
-  margin: 0 auto;&#13;
-  padding: 0 36px;&#13;
-  height: 61px;&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: space-between;&#13;
-  position: relative;&#13;
-}&#13;
-&#13;
-/* ─── Brand / Logo ───────────────────────────────────── */&#13;
-.navbar-header.gn-navbar-brand-wrap {&#13;
-  float: none !important;&#13;
-  height: 61px;&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-}&#13;
-&#13;
-.gn-brand {&#13;
-  display: flex !important;&#13;
-  align-items: center;&#13;
-  gap: 8px;&#13;
-  padding: 0 !important;&#13;
-  height: 61px !important;&#13;
-  line-height: 61px;&#13;
-  text-decoration: none !important;&#13;
-}&#13;
-&#13;
-.gn-brand:hover {&#13;
-  background: transparent !important;&#13;
-  opacity: 0.88;&#13;
-}&#13;
-&#13;
-/* Dot-grid icon */&#13;
-.gn-logo-icon {&#13;
-  width: 22px;&#13;
-  height: 22px;&#13;
-  flex-shrink: 0;&#13;
-  display: block;&#13;
-}&#13;
-&#13;
-/* Wordmark */&#13;
-.gn-brand-text {&#13;
-  font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', sans-serif;&#13;
-  font-size: 21px;&#13;
-  font-weight: 500;&#13;
-  color: #ffffff;&#13;
-  letter-spacing: -0.5px;&#13;
-  line-height: 1;&#13;
-}&#13;
-&#13;
-.gn-brand-gate { letter-spacing: -0.6px; }&#13;
-.gn-brand-now  { letter-spacing: 0; }&#13;
-&#13;
-/* ─── Right-side nav ─────────────────────────────────── */&#13;
-.gn-navbar-right {&#13;
-  display: flex !important;&#13;
-  align-items: center;&#13;
-  float: none !important;&#13;
-  margin: 0 !important;&#13;
-  height: 61px;&#13;
-}&#13;
-&#13;
-.gn-nav-actions {&#13;
-  list-style: none;&#13;
-  margin: 0;&#13;
-  padding: 0;&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-}&#13;
-&#13;
-/* ─── Login link (logged-out state) ──────────────────── */&#13;
-.gn-login-link {&#13;
-  display: flex !important;&#13;
-  align-items: center;&#13;
-  gap: 7px;&#13;
-  padding: 0 4px !important;&#13;
-  height: 61px;&#13;
-  color: #ffffff !important;&#13;
-  text-decoration: none !important;&#13;
-  font-family: 'Inter', 'Segoe UI', sans-serif;&#13;
-  font-size: 14px;&#13;
-  font-weight: 400;&#13;
-  transition: opacity 0.18s ease;&#13;
-  background: transparent !important;&#13;
-}&#13;
-&#13;
-.gn-login-link:hover {&#13;
-  opacity: 0.78;&#13;
-  background: transparent !important;&#13;
-  color: #ffffff !important;&#13;
-}&#13;
-&#13;
-.gn-login-icon {&#13;
-  width: 21px;&#13;
-  height: 21px;&#13;
-  flex-shrink: 0;&#13;
-  display: block;&#13;
-}&#13;
-&#13;
-.gn-login-text {&#13;
-  color: #ffffff;&#13;
-  font-size: 14px;&#13;
-}&#13;
-&#13;
-/* ─── Generic nav link ───────────────────────────────── */&#13;
-.gn-nav-link {&#13;
-  display: flex !important;&#13;
-  align-items: center;&#13;
-  height: 61px;&#13;
-  padding: 0 14px !important;&#13;
-  color: rgba(255, 255, 255, 0.82) !important;&#13;
-  font-size: 14px;&#13;
-  text-decoration: none !important;&#13;
-  transition: color 0.18s ease;&#13;
-}&#13;
-.gn-nav-link:hover { color: #ffffff !important; }&#13;
-&#13;
-/* ─── Avatar dropdown button ─────────────────────────── */&#13;
-.gn-avatar-dropdown { position: relative; }&#13;
-&#13;
-.gn-avatar-btn {&#13;
-  display: flex !important;&#13;
-  align-items: center;&#13;
-  gap: 8px;&#13;
-  height: 61px;&#13;
-  padding: 0 8px !important;&#13;
-  color: #ffffff !important;&#13;
-  text-decoration: none !important;&#13;
-  font-size: 14px;&#13;
-  transition: opacity 0.18s ease;&#13;
-  cursor: pointer;&#13;
-  background: transparent !important;&#13;
-}&#13;
-.gn-avatar-btn:hover { opacity: 0.82; background: transparent !important; }&#13;
-&#13;
-.gn-user-name {&#13;
-  color: #ffffff;&#13;
-  font-size: 14px;&#13;
-  font-family: 'Inter', sans-serif;&#13;
-}&#13;
-&#13;
-.gn-chevron {&#13;
-  width: 12px;&#13;
-  height: 12px;&#13;
-  flex-shrink: 0;&#13;
-  margin-left: 2px;&#13;
-  transition: transform 0.2s ease;&#13;
-}&#13;
-.gn-avatar-dropdown.open .gn-chevron { transform: rotate(180deg); }&#13;
-&#13;
-/* ─── Dropdown menu ──────────────────────────────────── */&#13;
-.gn-dropdown-menu {&#13;
-  border: none !important;&#13;
-  border-radius: 10px !important;&#13;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0,0,0,0.08) !important;&#13;
-  padding: 6px !important;&#13;
-  min-width: 160px !important;&#13;
-  background: #ffffff !important;&#13;
-  top: calc(100% + 4px) !important;&#13;
-  right: 0 !important;&#13;
-  left: auto !important;&#13;
-}&#13;
-&#13;
-.gn-dropdown-item {&#13;
-  display: flex !important;&#13;
-  align-items: center;&#13;
-  gap: 8px;&#13;
-  padding: 9px 14px !important;&#13;
-  border-radius: 7px !important;&#13;
-  color: #1D1D2E !important;&#13;
-  font-size: 13.5px !important;&#13;
-  font-family: 'Inter', sans-serif;&#13;
-  transition: background 0.15s ease !important;&#13;
-  text-decoration: none !important;&#13;
-}&#13;
-.gn-dropdown-item:hover {&#13;
-  background: #EEEDFB !important;&#13;
-  color: #5443AD !important;&#13;
-}&#13;
-.gn-dropdown-item:hover svg path,&#13;
-.gn-dropdown-item:hover svg circle { stroke: #5443AD !important; }&#13;
-&#13;
-.gn-dropdown-logout:hover {&#13;
-  background: #FEE2E2 !important;&#13;
-  color: #EF4444 !important;&#13;
-}&#13;
-.gn-dropdown-logout:hover svg path { stroke: #EF4444 !important; }&#13;
-&#13;
-/* ─── Bottom separator line ──────────────────────────── */&#13;
-.gn-navbar-separator {&#13;
-  position: absolute;&#13;
-  bottom: 0;&#13;
-  left: 36px;&#13;
-  right: 36px;&#13;
-  height: 1px;&#13;
-  background: rgba(255, 255, 255, 0.23);&#13;
-  pointer-events: none;&#13;
-}&#13;
-&#13;
-/* ─── Mobile hamburger ───────────────────────────────── */&#13;
-.gn-hamburger {&#13;
-  border: 1.5px solid rgba(255, 255, 255, 0.5) !important;&#13;
-  border-radius: 6px !important;&#13;
-  margin-top: 13px !important;&#13;
-  margin-right: 0 !important;&#13;
-  background: transparent !important;&#13;
-  padding: 7px 10px !important;&#13;
-  transition: background 0.18s ease;&#13;
-}&#13;
-.gn-hamburger:hover { background: rgba(255,255,255,0.1) !important; }&#13;
-.gn-hamburger .icon-bar { background: #ffffff !important; }&#13;
-&#13;
-/* ─── Responsive ─────────────────────────────────────── */&#13;
-@media (max-width: 992px) {&#13;
-  .gn-navbar-inner { padding: 0 20px; }&#13;
-  .gn-navbar-separator { left: 20px; right: 20px; }&#13;
-}&#13;
-&#13;
-@media (max-width: 768px) {&#13;
-  .gn-navbar-right {&#13;
-    height: auto !important;&#13;
-    flex-direction: column;&#13;
-    align-items: flex-start;&#13;
-    background: linear-gradient(114.089deg, rgb(84, 60, 168) 17.665%, rgb(88, 107, 199) 114.38%);&#13;
-    padding: 12px 0;&#13;
-  }&#13;
-  .gn-login-link, .gn-nav-link, .gn-avatar-btn { height: 44px; padding: 0 20px !important; }&#13;
-}&#13;
-&#13;
-/* ─── Page body offset (header is fixed) ─────────────── */&#13;
-.sp-page-root { padding-top: 61px; }&#13;
-</css>
+        <css>/* ═══════════════════════════════════════════════════════
+   GateNow Header Widget Styles — pill navbar
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── Navbar shell (floating) ───────────────────────────
+   position: absolute (not fixed) — it sits 5px from the top of the
+   document and scrolls away with the page, instead of staying pinned
+   to the viewport. That's what stops it overlapping page content on
+   scroll (no fixed element means nothing to overlap). It's still
+   taken out of normal flow though, so the --gn-navbar-offset /
+   body padding-top trick further down is still required to reserve
+   its space. */
+.gn-navbar {
+  position: absolute !important;
+  top: 10px;
+  left: 20px;
+  right: 20px;
+  z-index: 1050;
+  background: transparent !important;
+  border: none !important;
+  min-height: auto !important;
+  margin-bottom: 0 !important;
+}
+
+/* ─── The actual white pill ──────────────────────────── */
+.gn-navbar-inner {
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(20, 30, 70, 0.10), 0 2px 8px rgba(20, 30, 70, 0.06);
+  padding: 6px 8px 6px 22px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+/* ─── Brand / Logo ───────────────────────────────────── */
+.navbar-header.gn-navbar-brand-wrap {
+  float: none !important;
+  height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.gn-brand {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 0 !important;
+  height: 64px !important;
+  text-decoration: none !important;
+}
+
+.gn-brand:hover { background: transparent !important; opacity: 0.85; }
+
+/* Uploaded logo image — primary. object-fit:contain preserves its own
+   aspect ratio so it won't stretch or crop regardless of source size. */
+.gn-logo-img {
+  height: 34px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Fallback icon+text — only shown by the &lt;img&gt;'s onerror handler */
+.gn-brand-text-fallback {
+  display: none; /* JS flips to flex on image load failure */
+  align-items: center;
+  gap: 10px;
+}
+
+/* Rounded-square blue mark */
+.gn-logo-mark {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, $gn-navbar-accent 0%, $gn-navbar-accent-dark 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gn-logo-icon { width: 18px; height: 18px; display: block; }
+
+/* Wordmark */
+.gn-brand-text {
+  font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: $gn-navbar-text;
+  letter-spacing: -0.3px;
+  line-height: 1;
+}
+
+/* ─── Right-side collapse panel (holds center menu + actions
+       in the DOM so the mobile hamburger can toggle both at
+       once — desktop CSS below visually pulls the menu to the
+       true center regardless of this DOM nesting) ─────────── */
+.gn-navbar-right {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  float: none !important;
+  margin: 0 !important;
+  height: 64px;
+  gap: 8px;
+  flex: 1;
+}
+
+/* ─── Center menu (About / Programs / Process / FAQ) ─────
+   Absolutely centered on .gn-navbar-inner on desktop, so it
+   stays dead-center no matter how wide the logo or the
+   sign-in/CTA group are. Falls back to normal static flow
+   inside the collapse panel on mobile (see media query). ─ */
+.gn-nav-menu {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.gn-nav-menu a {
+  display: flex !important;
+  align-items: center;
+  height: 64px;
+  padding: 0 16px !important;
+  color: $gn-navbar-text !important;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none !important;
+  background: transparent !important;
+  white-space: nowrap;
+  transition: color 0.18s ease;
+}
+.gn-nav-menu a:hover { color: $gn-navbar-accent !important; }
+
+.gn-nav-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Sign in (text link) ─────────────────────────────── */
+.gn-signin-link {
+  display: flex !important;
+  align-items: center;
+  height: 64px;
+  padding: 0 16px !important;
+  color: $gn-navbar-text !important;
+  text-decoration: none !important;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  background: transparent !important;
+  transition: color 0.18s ease;
+}
+.gn-signin-link:hover { color: $gn-navbar-accent !important; background: transparent !important; }
+
+/* ─── Apply for funding (CTA pill) ────────────────────── */
+.gn-cta-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 24px !important;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: $gn-navbar-accent !important;
+  color: #ffffff !important;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none !important;
+  white-space: nowrap;
+  box-shadow: 0 0 0 4px $gn-navbar-accent-ring;
+  transition: background 0.18s ease, transform 0.12s ease;
+}
+.gn-cta-btn:hover { background: $gn-navbar-accent-dark !important; transform: translateY(-1px); color: #fff !important; }
+
+/* Browser default focus/active outline is rectangular and ignores
+   border-radius — without this override, clicking or tabbing to the
+   button makes it visually flash square. Swap the native outline for
+   a rounded box-shadow ring instead, so keyboard focus is still
+   visible but stays pill-shaped. */
+.gn-cta-btn:focus,
+.gn-cta-btn:active {
+  outline: none !important;
+  box-shadow: 0 0 0 4px $gn-navbar-accent-ring, 0 0 0 2px $gn-navbar-accent !important;
+}
+
+/* ─── Generic nav link (Live Chat, mobile logout) ─────── */
+.gn-nav-link {
+  display: flex !important;
+  align-items: center;
+  height: 56px;
+  padding: 0 16px !important;
+  color: $gn-navbar-text !important;
+  font-size: 15px;
+  text-decoration: none !important;
+  transition: color 0.18s ease;
+}
+.gn-nav-link:hover { color: $gn-navbar-accent !important; }
+
+/* ─── Avatar dropdown button ──────────────────────────── */
+.gn-avatar-dropdown { position: relative; }
+
+.gn-avatar-btn {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 10px !important;
+  color: $gn-navbar-text !important;
+  text-decoration: none !important;
+  font-size: 15px;
+  font-weight: 500;
+  background: transparent !important;
+  transition: opacity 0.18s ease;
+  cursor: pointer;
+}
+.gn-avatar-btn:hover { opacity: 0.75; background: transparent !important; }
+
+.gn-user-name { color: $gn-navbar-text; font-size: 15px; font-family: 'Inter', sans-serif; }
+
+.gn-chevron { width: 12px; height: 12px; flex-shrink: 0; margin-left: 2px; transition: transform 0.2s ease; }
+.gn-avatar-dropdown.open .gn-chevron { transform: rotate(180deg); }
+
+/* ─── Dropdown menu ────────────────────────────────────── */
+.gn-dropdown-menu {
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08) !important;
+  padding: 6px !important;
+  min-width: 170px !important;
+  background: #ffffff !important;
+  top: calc(100% + 10px) !important;
+  right: 0 !important;
+  left: auto !important;
+}
+
+.gn-dropdown-header { padding: 8px 14px 4px; display: flex; flex-direction: column; }
+.gn-dropdown-name { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600; color: $gn-navbar-text; }
+.gn-dropdown-role { font-family: 'Inter', sans-serif; font-size: 11.5px; color: $gn-navbar-sub-text; }
+.gn-dropdown-divider { height: 1px; background: $brand-primary-lightest; margin: 6px 4px; }
+
+.gn-dropdown-item {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px !important;
+  border-radius: 8px !important;
+  color: #1D1D2E !important;
+  font-size: 13.5px !important;
+  font-family: 'Inter', sans-serif;
+  transition: background 0.15s ease !important;
+  text-decoration: none !important;
+}
+.gn-dropdown-item:hover { background: rgba($gn-navbar-accent, 0.08) !important; color: $gn-navbar-accent !important; }
+.gn-dropdown-item:hover svg path,
+.gn-dropdown-item:hover svg circle { stroke: $gn-navbar-accent !important; }
+
+.gn-dropdown-logout:hover { background: $state-danger-bg !important; color: $brand-danger !important; }
+.gn-dropdown-logout:hover svg path { stroke: $brand-danger !important; }
+
+/* ─── Mobile hamburger ─────────────────────────────────── */
+.gn-hamburger {
+  border: 1.5px solid #E3E7F0 !important;
+  border-radius: 8px !important;
+  margin: 0 4px 0 0 !important;
+  background: transparent !important;
+  padding: 8px 10px !important;
+  transition: background 0.18s ease;
+}
+.gn-hamburger:hover { background: $body-bg !important; }
+.gn-hamburger .icon-bar { background: $gn-navbar-text !important; }
+
+/* ─── Responsive ────────────────────────────────────────── */
+
+/* Hamburger + collapse panel only exist for &lt; 768px — hide/show
+   explicitly instead of relying on the theme's default Bootstrap
+   breakpoints, since we've overridden almost everything else. */
+.gn-hamburger { display: none; }
+
+@media (max-width: 992px) {
+  .gn-navbar { left: 12px; right: 12px; top: 5px; }
+  .gn-navbar-inner { padding: 6px 6px 6px 16px; }
+}
+
+@media (max-width: 768px) {
+  .gn-hamburger { display: inline-flex; }
+
+  .gn-navbar-right {
+    height: auto !important;
+    flex-direction: column;
+    align-items: stretch;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(20,30,70,0.12);
+    margin-top: 10px;
+    padding: 10px;
+    gap: 2px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+  /* Drop out of absolute centering — flow normally, stacked, inside
+     the collapsed panel alongside Sign in / Apply for funding */
+  .gn-nav-menu {
+    position: static;
+    left: auto; top: auto; transform: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .gn-nav-menu a { height: 44px; padding: 0 14px !important; }
+  .gn-signin-link, .gn-nav-link, .gn-avatar-btn { height: 44px; padding: 0 14px !important; }
+  .gn-cta-btn { margin: 6px 4px 0; height: 44px; }
+}
+
+/* Small phones — logo + hamburger need to squeeze into much less
+   width. Shrink the logo, tighten the pill's own padding, and drop
+   the wordmark's letter-spacing so it doesn't wrap or force a
+   horizontal scrollbar. */
+@media (max-width: 420px) {
+  .gn-navbar { left: 8px; right: 8px; }
+  .gn-navbar-inner { padding: 6px 4px 6px 12px; height: 56px; }
+  .navbar-header.gn-navbar-brand-wrap { height: 56px; }
+  .gn-brand, .gn-brand-text-fallback { height: 56px !important; gap: 8px; }
+  .gn-logo-img { height: 26px; max-width: 120px; }
+  .gn-logo-mark { width: 28px; height: 28px; }
+  .gn-brand-text { font-size: 16px; }
+  .gn-hamburger { padding: 6px 8px !important; }
+}
+
+/* ─── Page body offset (header floats above the page) ───
+   Absolute positioning takes the pill out of normal flow, so nothing
+   pushes page content down automatically — and different page
+   templates (homepage hero, register/form pages, etc.) don't all
+   share the same wrapper class. Instead of hardcoding one selector,
+   the controller below measures the real pill height on load/resize
+   and writes it to --gn-navbar-offset on &lt;html&gt;. This rule applies
+   it to &lt;body&gt;, which every page template inherits from. The 96px
+   is only a fallback for the instant before JS runs. */
+html { --gn-navbar-offset: 96px; }
+body { padding-top: var(--gn-navbar-offset) !important; }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -425,9 +526,17 @@
         <script><![CDATA[(function() {
 
   data.connect_support_queue_id = $sp.getValue('sp_chat_queue');
-  data.login_page = $sp.getValue('login_page');
+  data.login_page   = $sp.getValue('login_page');
   data.profileBtnMsg = gs.getMessage("User options");
-  data.toggleMsg = gs.getMessage("Toggle navigation");
+  data.toggleMsg     = gs.getMessage("Toggle navigation");
+
+  // Apply-for-funding destination — falls back to '#' so the button never breaks
+  try {
+    var applyPage = $sp.getValue('apply_page'); // e.g. sys_id or page id of the application form
+    data.applyUrl = applyPage ? ('?id=' + applyPage) : '#';
+  } catch (e) {
+    data.applyUrl = '#';
+  }
 
   // Safe menu loading
   try {
@@ -451,7 +560,6 @@
     data.menu.data.replace = true;
     data.hasLogin = false;
     data.hasMenuItems = false;
-
     try {
       if (data.menu.data.menu && data.menu.data.menu.items) {
         data.hasMenuItems = data.menu.data.menu.items.length > 0;
@@ -474,248 +582,237 @@
     data.loginWidget = null;
   }
 
-})();
-]]></script>
+})();]]></script>
         <servicenow>false</servicenow>
         <static>false</static>
         <sys_class_name>sp_header_footer</sys_class_name>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-19 09:02:49</sys_created_on>
         <sys_id>959052532f8b7210d2a0d68fcea4e3e1</sys_id>
-        <sys_mod_count>17</sys_mod_count>
+        <sys_mod_count>45</sys_mod_count>
         <sys_name>Applicant Portal header</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_header_footer_959052532f8b7210d2a0d68fcea4e3e1</sys_update_name>
-        <sys_updated_by>adnan.tariq</sys_updated_by>
-        <sys_updated_on>2026-04-30 07:10:27</sys_updated_on>
+        <sys_updated_by>muneesa.majid</sys_updated_by>
+        <sys_updated_on>2026-08-25 07:18:34</sys_updated_on>
         <template><![CDATA[<div>
-  <nav id="responsiveNav"
-       class="gn-navbar navbar-inverse"
-       ng-class="::{'navbar': !isViewNative, 'is-native': isViewNative}"
-       role="navigation"
-       aria-label="${Primary}">
 
-    <div class="gn-navbar-inner">
+<nav id="responsiveNav"
+     ng-if="isHomepage()"
+     class="gn-navbar navbar-inverse"
+     ng-class="::{'navbar': !isViewNative, 'is-native': isViewNative}"
+     role="navigation"
+     aria-label="${Primary}">
 
-      <!-- LEFT: Logo -->
-      <div ng-show="::!isViewNative" class="navbar-header gn-navbar-brand-wrap">
-  <a class="navbar-brand gn-brand"
-   ng-href="?id={{::portal.homepage_dv}}"
-   ng-click="collapse()"
-   aria-label="{{::portal.title}}">
+  <div class="gn-navbar-inner">
 
-  <!-- Use uploaded portal logo if available, fallback to SVG+text -->
-  <img ng-if="::portal.logo"
-       ng-src="{{::portal.logo}}"
-       class="gn-portal-logo"
-       alt="{{::portal.title}}"
-       height="36" />
+    <!-- LEFT: Logo -->
+    <div ng-show="::!isViewNative" class="navbar-header gn-navbar-brand-wrap">
 
-  <!-- Fallback: show SVG icon + text only when no logo is uploaded -->
-  <span ng-if="::!portal.logo" class="gn-brand-text-fallback">
-    <svg class="gn-logo-icon" viewBox="0 0 22 22" fill="none"
-         xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="4"  cy="4"  r="2.2" fill="white" opacity="0.5"/>
-      <circle cx="11" cy="4"  r="2.2" fill="white" opacity="0.7"/>
-      <circle cx="18" cy="4"  r="2.2" fill="white"/>
-      <circle cx="4"  cy="11" r="2.2" fill="white" opacity="0.5"/>
-      <circle cx="11" cy="11" r="2.2" fill="white" opacity="0.7"/>
-      <circle cx="18" cy="11" r="2.2" fill="white"/>
-      <circle cx="4"  cy="18" r="2.2" fill="white" opacity="0.3"/>
-      <circle cx="11" cy="18" r="2.2" fill="white" opacity="0.5"/>
-      <circle cx="18" cy="18" r="2.2" fill="white" opacity="0.7"/>
-    </svg>
-    <span class="gn-brand-text">
-      <span class="gn-brand-gate">Gate</span><span class="gn-brand-now">Now</span>
-    </span>
-  </span>
+      <a class="navbar-brand gn-brand"
+         ng-href="?id={{::portal.homepage_dv}}"
+         ng-click="collapse()"
+         aria-label="GateNow — Home">
 
-</a>
+        <!-- Primary: your uploaded logo image. If it 404s or fails to load,
+             onerror hides this <img> and reveals the icon+text fallback
+             right after it — no JS/Angular watcher needed, just native
+             img error handling so it works even before Angular finishes
+             loading. -->
+        <img class="gn-logo-img"
+             src="https://ven08761.service-now.com/x_enno_gatenow.GateNow%20Logo.png"
+             alt="GateNow"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
 
-        <!-- Mobile hamburger -->
-        <button ng-if="data.hasMenuItems ||
-                       (!user.logged_in && page.id != portal.login_page_dv && !data.hasLogin) ||
-                       user.logged_in"
-                type="button"
-                class="navbar-toggle collapsed gn-hamburger"
-                data-toggle="collapse"
-                data-target="#sp-nav-bar"
-                aria-haspopup="menu">
-          <span class="sr-only">${Toggle navigation}</span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-        </button>
-      </div>
+        <!-- Fallback: icon mark + "GateNow" text. Hidden by default —
+             only shown by the onerror handler above if the image fails. -->
+        <span class="gn-brand-text-fallback" style="display:none;">
+          <span class="gn-logo-mark" aria-hidden="true">
+            <svg class="gn-logo-icon" viewBox="0 0 24 24" fill="none"
+                 xmlns="http://www.w3.org/2000/svg">
+              <path d="M4.5 11L12 4.5 19.5 11" stroke="white" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6.5 9.5V18a1 1 0 001 1H10.5V15.2C10.5 14.5 11 14 11.7 14H12.3
+                       C13 14 13.5 14.5 13.5 15.2V19H16.5A1 1 0 0017.5 18V9.5"
+                    stroke="white" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="gn-brand-text">GateNow</span>
+        </span>
 
-      <!-- RIGHT: Nav items -->
-      <div sp-navbar-toggle=""
-           class="collapse navbar-right gn-navbar-right"
-           id="sp-nav-bar"
-           role="navigation">
+      </a>
 
-        <!-- Menu widget -->
-        <sp-widget widget="::data.menu"></sp-widget>
+      <!-- Mobile hamburger -->
+      <button type="button"
+              class="navbar-toggle collapsed gn-hamburger"
+              data-toggle="collapse"
+              data-target="#sp-nav-bar"
+              aria-haspopup="menu">
+        <span class="sr-only">${Toggle navigation}</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
 
-        <!-- Language selector -->
-        <sp-widget widget="::data.langSelector"></sp-widget>
-
-        <!-- NOT LOGGED IN -->
-        <ul ng-if="(!user.logged_in && page.id != portal.login_page_dv && !data.hasLogin)"
-            class="nav navbar-nav gn-nav-actions"
-            role="presentation">
-          <li role="presentation">
-            <a href ng-click="openLogin()" class="gn-login-link">
-              <svg class="gn-login-icon" viewBox="0 0 21 21" fill="none"
-                   xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M10.5 10.5C12.9853 10.5 15 8.48528 15 6C15 3.51472
-                         12.9853 1.5 10.5 1.5C8.01472 1.5 6 3.51472 6 6C6
-                         8.48528 8.01472 10.5 10.5 10.5Z"
-                      stroke="white" stroke-width="1.5"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M2.25 19.5C2.25 15.3579 6.02944 12 10.5 12C14.9706
-                         12 18.75 15.3579 18.75 19.5"
-                      stroke="white" stroke-width="1.5"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span class="gn-login-text">${Login}</span>
-            </a>
-          </li>
-        </ul>
-
-        <!-- LOGGED IN -->
-        <ul ng-if="user.logged_in" class="nav navbar-nav gn-nav-actions">
-
-          <!-- Live Chat -->
-          <li ng-if="::(data.connect_support_queue_id && !isAgentChatConfigured)">
-            <a href ng-click="openPopUp()" role="button" class="gn-nav-link">
-              ${Live Chat}
-            </a>
-          </li>
-
-          <!-- ── Desktop: Avatar dropdown ── -->
-          <li ng-if="showAvatar"
-              class="hidden-xs hidden-sm dropdown gn-avatar-dropdown">
-
-            <a href
-               class="toggle-dropdown gn-avatar-btn"
-               data-toggle="dropdown"
-               aria-expanded="false"
-               aria-label="{{::data.profileBtnMsg}}: {{::user.name}}"
-               id="gn-profile-dropdown"
-               role="button"
-               aria-haspopup="true">
-              <span class="navbar-avatar" aria-hidden="true">
-                <sn-avatar class="avatar-small-medium" primary="avatarProfile"/>
-              </span>
-              <span class="visible-lg-inline gn-user-name">{{::user.name}}</span>
-              <svg class="gn-chevron" viewBox="0 0 12 12" fill="none"
-                   xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M2 4L6 8L10 4" stroke="white" stroke-width="1.5"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </a>
-
-            <ul class="dropdown-menu gn-dropdown-menu"
-                aria-labelledby="gn-profile-dropdown">
-
-              <!-- User info header -->
-              <li class="gn-dropdown-header" role="presentation">
-                <span class="gn-dropdown-name">{{::user.name}}</span>
-                <span class="gn-dropdown-role">${Applicant}</span>
-              </li>
-
-              <li class="gn-dropdown-divider" role="separator"></li>
-
-              <!-- Profile -->
-              <li role="presentation">
-                <a tabindex="-1"
-                   ng-href="?id=user_profile&sys_id={{::user.sys_id}}"
-                   class="gn-dropdown-item"
-                   role="menuitem">
-                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14"
-                       aria-hidden="true">
-                    <circle cx="8" cy="5" r="3"
-                            stroke="#5443AD" stroke-width="1.4"/>
-                    <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5"
-                          stroke="#5443AD" stroke-width="1.4"
-                          stroke-linecap="round"/>
-                  </svg>
-                  ${Profile}
-                </a>
-              </li>
-
-              <li class="gn-dropdown-divider" role="separator"></li>
-
-              <!-- Logout — inside dropdown -->
-              <li ng-if="::!(isViewNative || isViewNativeTablet)"
-                  role="presentation">
-                <a tabindex="-1"
-                   ng-href="{{logoutUrl}}"
-                   class="gn-dropdown-item gn-dropdown-logout"
-                   role="menuitem">
-                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14"
-                       aria-hidden="true">
-                    <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"
-                          stroke="#EF4444" stroke-width="1.4"
-                          stroke-linecap="round"/>
-                    <path d="M10 11l3-3-3-3M13 8H6"
-                          stroke="#EF4444" stroke-width="1.4"
-                          stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  ${Logout}
-                </a>
-              </li>
-
-            </ul>
-          </li>
-
-          <!-- ── Mobile: avatar link ── -->
-          <li ng-if="showSMAvatar" class="visible-xs-block visible-sm-block">
-            <a ng-href="?id=user_profile&sys_id={{::user.sys_id}}"
-               ng-click="collapse()"
-               class="gn-avatar-btn">
-              <span class="navbar-avatar">
-                <sn-avatar class="avatar-small-medium" primary="avatarProfile"/>
-              </span>
-              {{::user.name}}
-            </a>
-          </li>
-
-          <!-- ── Mobile: logout ── -->
-          <li ng-if="::!(isViewNative || isViewNativeTablet)"
-              class="visible-xs-block visible-sm-block">
-            <a ng-href="{{logoutUrl}}"
-               class="gn-nav-link gn-nav-logout">
-              <svg viewBox="0 0 16 16" fill="none" width="14" height="14"
-                   aria-hidden="true">
-                <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"
-                      stroke="white" stroke-width="1.4"
-                      stroke-linecap="round"/>
-                <path d="M10 11l3-3-3-3M13 8H6"
-                      stroke="white" stroke-width="1.4"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              ${Logout}
-            </a>
-          </li>
-
-        </ul>
-      </div>
     </div>
 
-    <div class="gn-navbar-separator" aria-hidden="true"></div>
-  </nav>
+    <!-- CENTER + RIGHT: nav items -->
+    <div sp-navbar-toggle=""
+         class="collapse navbar-right gn-navbar-right"
+         id="sp-nav-bar"
+         role="navigation">
 
-  <!-- Login modal -->
-  <script type="text/ng-template" id="modalLogin">
-    <div class="modal-body">
-      <sp-widget widget="data.loginWidget"></sp-widget>
+      <!-- Center menu: About / Programs / Process / FAQ.
+           Hardcoded links, NOT the sp-widget CMS menu — that widget wasn't
+           returning items reliably. Swap the ng-href page ids below for your
+           real page identifiers (or sys_ids), and add/remove <li> entries
+           to change what shows here. -->
+      <ul class="gn-nav-menu" role="presentation">
+        <li><a ng-href="?id=about" ng-click="collapse()">${About}</a></li>
+        <li><a ng-href="?id=programs" ng-click="collapse()">${Programs}</a></li>
+        <li><a ng-href="?id=process" ng-click="collapse()">${Process}</a></li>
+        <li><a ng-href="?id=faq" ng-click="collapse()">${FAQ}</a></li>
+      </ul>
+
+      <!-- Language selector -->
+      <sp-widget widget="::data.langSelector"></sp-widget>
+
+      <!-- NOT LOGGED IN -->
+      <ul ng-if="(!user.logged_in && page.id != portal.login_page_dv && !data.hasLogin)"
+          class="nav navbar-nav gn-nav-actions"
+          role="presentation">
+
+        <li role="presentation">
+          <a href ng-click="openLogin()" class="gn-signin-link">
+            ${Sign in}
+          </a>
+        </li>
+
+        <li role="presentation">
+          <a ng-href="{{::data.applyUrl}}" class="gn-cta-btn">
+            ${Apply for funding}
+          </a>
+        </li>
+      </ul>
+
+      <!-- LOGGED IN -->
+      <ul ng-if="user.logged_in" class="nav navbar-nav gn-nav-actions">
+
+        <!-- Live Chat -->
+        <li ng-if="::(data.connect_support_queue_id && !isAgentChatConfigured)">
+          <a href ng-click="openPopUp()" role="button" class="gn-nav-link">
+            ${Live Chat}
+          </a>
+        </li>
+
+        <!-- Apply for funding stays visible when logged in too -->
+        <li role="presentation">
+          <a ng-href="{{::data.applyUrl}}" class="gn-cta-btn">
+            ${Apply for funding}
+          </a>
+        </li>
+
+        <!-- ── Desktop: avatar dropdown ── -->
+        <li ng-if="showAvatar" class="hidden-xs hidden-sm dropdown gn-avatar-dropdown">
+          <a href
+             class="toggle-dropdown gn-avatar-btn"
+             data-toggle="dropdown"
+             aria-expanded="false"
+             aria-label="{{::data.profileBtnMsg}}: {{::user.name}}"
+             id="gn-profile-dropdown"
+             role="button"
+             aria-haspopup="true">
+            <span class="navbar-avatar" aria-hidden="true">
+              <sn-avatar class="avatar-small-medium" primary="avatarProfile"/>
+            </span>
+            <span class="visible-lg-inline gn-user-name">{{::user.name}}</span>
+            <svg class="gn-chevron" viewBox="0 0 12 12" fill="none"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M2 4L6 8L10 4" stroke="#131B34" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+
+          <ul class="dropdown-menu gn-dropdown-menu" aria-labelledby="gn-profile-dropdown">
+
+            <li class="gn-dropdown-header" role="presentation">
+              <span class="gn-dropdown-name">{{::user.name}}</span>
+              <span class="gn-dropdown-role">${Applicant}</span>
+            </li>
+            <li class="gn-dropdown-divider" role="separator"></li>
+
+            <li role="presentation">
+              <a tabindex="-1"
+                 ng-href="?id=user_profile&sys_id={{::user.sys_id}}"
+                 class="gn-dropdown-item" role="menuitem">
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+                  <circle cx="8" cy="5" r="3" stroke="#2554EB" stroke-width="1.4"/>
+                  <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5"
+                        stroke="#2554EB" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                ${Profile}
+              </a>
+            </li>
+            <li class="gn-dropdown-divider" role="separator"></li>
+
+            <li ng-if="::!(isViewNative || isViewNativeTablet)" role="presentation">
+              <a tabindex="-1" ng-href="{{logoutUrl}}"
+                 class="gn-dropdown-item gn-dropdown-logout" role="menuitem">
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+                  <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"
+                        stroke="#EF4444" stroke-width="1.4" stroke-linecap="round"/>
+                  <path d="M10 11l3-3-3-3M13 8H6"
+                        stroke="#EF4444" stroke-width="1.4"
+                        stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                ${Logout}
+              </a>
+            </li>
+          </ul>
+        </li>
+
+        <!-- ── Mobile: avatar link ── -->
+        <li ng-if="showSMAvatar" class="visible-xs-block visible-sm-block">
+          <a ng-href="?id=user_profile&sys_id={{::user.sys_id}}"
+             ng-click="collapse()" class="gn-avatar-btn">
+            <span class="navbar-avatar">
+              <sn-avatar class="avatar-small-medium" primary="avatarProfile"/>
+            </span>
+            {{::user.name}}
+          </a>
+        </li>
+
+        <!-- ── Mobile: logout ── -->
+        <li ng-if="::!(isViewNative || isViewNativeTablet)"
+            class="visible-xs-block visible-sm-block">
+          <a ng-href="{{logoutUrl}}" class="gn-nav-link gn-nav-logout">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+              <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"
+                    stroke="#131B34" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="M10 11l3-3-3-3M13 8H6"
+                    stroke="#131B34" stroke-width="1.4"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            ${Logout}
+          </a>
+        </li>
+
+      </ul>
+
     </div>
-  </script>
-</div>
-]]></template>
+  </div>
+</nav>
+
+<!-- Login modal -->
+<script type="text/ng-template" id="modalLogin">
+  <div class="modal-body">
+    <sp-widget widget="data.loginWidget"></sp-widget>
+  </div>
+</script>
+
+</div>]]></template>
     </sp_header_footer>
 </record_update>

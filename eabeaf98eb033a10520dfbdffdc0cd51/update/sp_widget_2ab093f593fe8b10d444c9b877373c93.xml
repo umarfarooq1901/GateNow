@@ -1,0 +1,576 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function(spUtil, $rootScope, $window, $timeout) {
+  var c = this;
+
+  // --- SIDEBAR COLLAPSE SYNC ---
+  c.isSidebarCollapsed = $window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true';
+
+  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
+    $timeout(function() {
+      c.isSidebarCollapsed = isCollapsed;
+    });
+  });
+  // -----------------------------
+
+  // State variables for inline view
+  c.showProjectDetails = false;
+  c.projectDetailsWidget = null;
+  c.hideParentBackButton = false; // Tracks if a child form is open
+
+  // Open the project details inline
+  c.openProject = function(sysId) {
+    // Note: Update 'project_details_widget' to the exact ID of your project view widget
+    spUtil.get('each_project_detail', { sys_id: sysId }).then(function(response) {
+      c.projectDetailsWidget = response;
+      c.showProjectDetails = true;
+    });
+  };
+
+  // Close the inline view
+  c.closeProjectDetails = function() {
+    c.showProjectDetails = false;
+    c.projectDetailsWidget = null;
+    c.hideParentBackButton = false; // Reset the button state
+    c.server.update(); // Refresh dashboard KPIs
+  };
+
+  // Listen for the child widget saying it's done
+  $rootScope.$on('gn_close_project_details', function() {
+    c.closeProjectDetails();
+  });
+
+  // ADDED: Listen for when a child form (like Status Report) opens/closes
+  $rootScope.$on('gn_child_form_toggled', function(event, isFormOpen) {
+    c.hideParentBackButton = isFormOpen;
+  });
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* Force full transparency and visible overflow on wrapper elements for tooltips */
+.panel,
+.panel-body,
+.sp-widget {
+  overflow: visible !important;
+}
+
+/* ==========================================
+   LAYOUT — sidebar + main content
+   ========================================== */
+.gn-layout {
+  margin-left: -15px;
+  margin-right: -15px;
+  margin-top: 35px;
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: #f8fafc;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  position: relative;
+  overflow: visible !important; /* ALLOW TOOLTIPS */
+}
+.gn-layout *,
+.gn-layout *::before,
+.gn-layout *::after {
+  box-sizing: border-box;
+}
+
+/* ==========================================
+   SIDEBAR
+   ========================================== */
+.sidebar {
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  position: sticky;
+  
+  top: 58px; 
+  
+  /* FIX 2: Calculate the height so the bottom doesn't get cut off off-screen */
+  height: calc(100vh - 58px); 
+  
+  align-self: flex-start;
+  
+  /* CRITICAL: Hides scrollbar track while ensuring tooltips can escape */
+  overflow-y: hidden !important; 
+  overflow-x: visible !important;
+  overflow: visible !important; 
+  
+  overscroll-behavior: contain;
+  z-index: 10;
+  scrollbar-width: none;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar::-webkit-scrollbar { display: none; }
+
+/* ==========================================
+   MAIN CONTENT WRAPPER
+   ========================================== */
+.gn-projects-wrapper {
+  flex: 1;
+  min-width: 0;
+  padding: 30px;
+  box-sizing: border-box;
+  color: #1e293b;
+  overflow: visible !important;
+  transition: width 0.35s ease;
+}
+
+/* ==========================================
+   PROJECT UTILITIES &amp; CARDS
+   ========================================== */
+.text-green { color: #10b981 !important; }
+.text-orange { color: #d97706 !important; }
+.text-dark { color: #0f172a !important; }
+.font-bold { font-weight: 700 !important; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+/* Cards */
+.gn-card { background: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 24px; }
+.gn-dash-row { display: flex; gap: 24px; margin-bottom: 30px; .health-card { flex: 0 0 40%; } .budget-card { flex: 1; } }
+
+.card-header { margin-bottom: 20px; h2 { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; } p { font-size: 13px; color: #64748b; margin: 0; } }
+
+/* Segmented Health Bar */
+.segmented-bar {
+  display: flex; height: 36px; border-radius: 6px; overflow: hidden; margin-bottom: 24px;
+  .segment { display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; font-weight: 700; transition: width 0.3s ease;
+    &amp;.green { background-color: #10b981; } &amp;.yellow { background-color: #eab308; color: #78350f; } &amp;.grey { background-color: #e2e8f0; color: #475569; }
+  }
+}
+
+.health-metrics {
+  display: flex; justify-content: space-between;
+  .metric { display: flex; flex-direction: column; gap: 6px; .label { font-size: 12px; font-weight: 600; color: #94a3b8; } .value { font-size: 20px; font-weight: 800; color: #0f172a; } }
+}
+
+/* Budget Utilisation */
+.legend { display: flex; gap: 12px; font-size: 13px; font-weight: 600; color: #475569; span { display: flex; align-items: center; gap: 6px; } .dot { width: 10px; height: 10px; border-radius: 50%; } .dot.blue { background-color: #4f46e5; } .dot.grey { background-color: #e2e8f0; } }
+
+.budget-list {
+  display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px;
+  .bi-header { display: flex; justify-content: space-between; margin-bottom: 8px; .bi-name { font-size: 13px; font-weight: 700; color: #1e293b; } .bi-stats { font-size: 13px; color: #64748b; } }
+  .bi-bar-bg { height: 10px; background-color: #f1f5f9; border-radius: 5px; overflow: hidden; .bi-bar-fill { height: 100%; background-color: #4f46e5; border-radius: 5px; transition: width 0.3s ease; } }
+}
+.budget-footer { font-size: 13px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+
+/* Project Cards Grid */
+.gn-project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+.gn-project-card {
+  background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 24px; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s;
+  &amp;:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border-color: #cbd5e1; }
+  .pc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; .state-pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; } .pill-green { background: #dcfce7; color: #15803d; } .pill-yellow { background: #fef3c7; color: #b45309; } .pill-red { background: #fee2e2; color: #b91c1c; } .proj-number { font-size: 12px; font-weight: 600; color: #94a3b8; } }
+  .pc-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 20px 0; }
+  .pc-completion { margin-bottom: 20px; .lbl { font-size: 13px; color: #64748b; } .val { font-size: 14px; font-weight: 700; color: #0f172a; } .pc-bar-bg { height: 6px; background-color: #f1f5f9; border-radius: 3px; margin-top: 8px; overflow: hidden; .pc-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; } .bg-green { background-color: #10b981; } .bg-yellow { background-color: #eab308; } .bg-red { background-color: #ef4444; } } }
+  .pc-details { border-top: 1px solid #f1f5f9; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; .pc-row { display: flex; justify-content: space-between; font-size: 13px; .lbl { color: #64748b; } .val { color: #334155; text-align: right;} } }
+}
+
+/* Empty State */
+.gn-empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 80px 20px; text-align: center;
+  .empty-icon { width: 56px; height: 56px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 24px; margin-bottom: 20px; }
+  h2 { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 10px 0; }
+  p { font-size: 14px; color: #64748b; line-height: 1.5; margin: 0; }
+}
+
+.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+
+/* Responsive Adjustments for Layout Wrapper */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .gn-projects-wrapper { padding: 16px; }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>new_project</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>New Project</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    // 1. LOAD SIDEBAR WIDGET
+    data.sideBar = $sp.getWidget('sidebar');
+
+    var currentUser = gs.getUserID();
+    
+    data.loading = true;
+    data.projects = [];
+    data.kpis = {
+        activeProjects: 0,
+        countGreen: 0,
+        countYellow: 0,
+        countRed: 0,
+        countGrey: 0,
+        pctGreen: 0,
+        pctYellow: 0,
+        pctRed: 0,
+        pctGrey: 0,
+        avgCompletion: 0,
+        reportsOnTime: 100, 
+        openChanges: 0
+    };
+    data.budgetInsight = "";
+
+    /* ==========================================
+       2. GET APPLICANT RECORD FOR CURRENT USER
+       ========================================== */
+    var myApplicantIds = [];
+    var grApp = new GlideRecord('x_enno_gatenow_service_applicants');
+    grApp.addQuery('user', currentUser);
+    grApp.query();
+    while (grApp.next()) {
+        myApplicantIds.push(grApp.getUniqueValue());
+    }
+
+    var myProjects = [];
+    var grProj = new GlideRecord('x_enno_gatenow_project');
+    
+    var qcP = grProj.addQuery('applicant', 'IN', myApplicantIds.join(','));
+    qcP.addOrCondition('applicant.user', currentUser); 
+    grProj.orderByDesc('sys_created_on');
+    grProj.query();
+
+    var totalCompletion = 0;
+    var insightProject = null; 
+    
+    while (grProj.next()) {
+        var pId = grProj.getUniqueValue();
+        myProjects.push(pId);
+        
+        var pct = parseFloat(grProj.getValue('percent_complete')) || 0;
+        totalCompletion += pct;
+
+        // Fetch Financials
+        var awardedRaw = 0;
+        var spentRaw = 0;
+        
+        var awardSid = grProj.getValue('award');
+        if (awardSid) {
+            var awardRec = new GlideRecord('x_enno_gatenow_grant_awards');
+            if (awardRec.get(awardSid)) {
+                awardedRaw = parseFloat(awardRec.getValue('build_grant_amount')) || 0;
+            }
+        }
+        
+        if (awardedRaw === 0) {
+            var appSid = grProj.getValue('applicant');
+            if(appSid) {
+                var appRec2 = new GlideRecord('x_enno_gatenow_service_applicants');
+                if(appRec2.get(appSid)) {
+                    awardedRaw = parseFloat(appRec2.getValue('requested_budget')) || 0;
+                }
+            }
+        }
+
+        spentRaw = awardedRaw * (pct / 100); 
+        var budgetPct = awardedRaw > 0 ? Math.round((spentRaw / awardedRaw) * 100) : 0;
+
+        var projObj = {
+            sys_id: pId,
+            number: grProj.getValue('number') || '',
+            name: grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number'),
+            percentComplete: pct,
+            awardedRaw: awardedRaw,
+            spentRaw: spentRaw,
+            budgetPct: budgetPct,
+            awardedFormatted: formatShortCurrency(awardedRaw),
+            spentFormatted: formatShortCurrency(spentRaw),
+            
+            healthColor: 'grey',
+            healthLabel: 'No Status',
+            isBehind: false, 
+            
+            // Replaced hardcoded fields with actual table data
+            status: grProj.getDisplayValue('status') || 'Unknown',
+            phase: grProj.getDisplayValue('phase') || 'Unknown'
+        };
+
+        // --- Fetch Latest Health from Status Report ---
+        var grReport = new GlideRecord('x_enno_gatenow_status_report');
+        grReport.addQuery('project', pId);
+        grReport.orderByDesc('status_date');
+        grReport.setLimit(1);
+        grReport.query();
+        if (grReport.next()) {
+            var hVal = grReport.getValue('overall_health') || 'green';
+            projObj.healthColor = hVal.toLowerCase();
+            
+            if (projObj.healthColor === 'yellow') {
+                projObj.healthLabel = 'At risk';
+                projObj.isBehind = true;
+                insightProject = projObj; 
+            } else if (projObj.healthColor === 'red') {
+                projObj.healthLabel = 'Critical';
+                projObj.isBehind = true;
+                insightProject = projObj; 
+            } else {
+                projObj.healthLabel = 'On track';
+            }
+        }
+
+        // --- Fetch Open Change Requests (for Dashboard KPIs) ---
+        var grChange = new GlideRecord('x_enno_gatenow_request_change');
+        var qcC = grChange.addQuery('project', pId);
+        qcC.addOrCondition('parent', pId);
+        grChange.query();
+        while(grChange.next()) {
+            var stateStr = (grChange.getDisplayValue('approval') || grChange.getDisplayValue('state') || '').toLowerCase();
+            if (stateStr.indexOf('open') > -1 || stateStr.indexOf('request') > -1 || stateStr.indexOf('review') > -1) {
+                // Increment top-level KPI counter
+                data.kpis.openChanges++;
+            }
+        }
+
+        // Properly categorize Health for the top Bar
+        if (projObj.healthColor === 'green') data.kpis.countGreen++;
+        else if (projObj.healthColor === 'yellow') data.kpis.countYellow++;
+        else if (projObj.healthColor === 'red') data.kpis.countRed++;
+        else data.kpis.countGrey++;
+
+        data.projects.push(projObj);
+    }
+
+    // ==========================================
+    // 3. CALCULATE KPI AGGREGATIONS
+    // ==========================================
+    data.kpis.activeProjects = myProjects.length;
+    
+    if (data.kpis.activeProjects > 0) {
+        data.kpis.avgCompletion = Math.round(totalCompletion / data.kpis.activeProjects);
+        
+        data.kpis.pctGreen = Math.round((data.kpis.countGreen / data.kpis.activeProjects) * 100);
+        data.kpis.pctYellow = Math.round((data.kpis.countYellow / data.kpis.activeProjects) * 100);
+        data.kpis.pctRed = Math.round((data.kpis.countRed / data.kpis.activeProjects) * 100);
+        
+        data.kpis.pctGrey = 100 - (data.kpis.pctGreen + data.kpis.pctYellow + data.kpis.pctRed); 
+        if (data.kpis.pctGrey < 0) data.kpis.pctGrey = 0;
+    }
+
+    // ==========================================
+    // 4. DYNAMIC INSIGHTS & REPORTS ON TIME
+    // ==========================================
+    
+    if (insightProject) {
+        data.budgetInsight = insightProject.name + " requires attention — " + insightProject.budgetPct + "% spent at " + insightProject.percentComplete + "% completion.";
+    } else if (data.kpis.activeProjects > 0) {
+        data.budgetInsight = "All projects are spending within expected parameters.";
+    }
+
+    if (myProjects.length > 0) {
+        var totalRep = 0;
+        var lateRep = 0;
+        var grRepAll = new GlideRecord('x_enno_gatenow_status_report');
+        grRepAll.addQuery('project', 'IN', myProjects.join(','));
+        grRepAll.query();
+        while(grRepAll.next()) {
+            totalRep++;
+            var repState = (grRepAll.getDisplayValue('report_status') || '').toLowerCase();
+            if (repState.indexOf('late') > -1) {
+                lateRep++;
+            }
+        }
+        if (totalRep > 0) {
+            data.kpis.reportsOnTime = Math.round(((totalRep - lateRep) / totalRep) * 100);
+        }
+    }
+
+    data.loading = false;
+
+    /* ==========================================
+       FORMATTING HELPER FUNCTIONS
+       ========================================== */
+    function formatShortCurrency(amount) {
+        if (!amount || isNaN(amount)) return '$0';
+        if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (amount >= 1000) return '$' + (amount / 1000).toFixed(0) + 'K';
+        return '$' + amount.toString();
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-20 07:47:26</sys_created_on>
+        <sys_id>2ab093f593fe8b10d444c9b877373c93</sys_id>
+        <sys_mod_count>25</sys_mod_count>
+        <sys_name>New Project</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_2ab093f593fe8b10d444c9b877373c93</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-25 07:16:14</sys_updated_on>
+        <template><![CDATA[<div class="gn-layout">
+  
+  <!-- ==========================================
+       SIDEBAR WIDGET (Dynamic Width applied)
+       ========================================== -->
+  <div class="sidebar" ng-style="{'width': c.isSidebarCollapsed ? '64px' : '96px', 'min-width': c.isSidebarCollapsed ? '64px' : '96px', 'max-width': c.isSidebarCollapsed ? '64px' : '96px', 'flex': c.isSidebarCollapsed ? '0 0 64px' : '0 0 96px'}">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+  <!-- ==========================================
+       MAIN CONTENT: PROJECTS DASHBOARD
+       ========================================== -->
+  <div class="gn-projects-wrapper" ng-cloak>
+    
+    <div ng-if="!c.showProjectDetails">
+      
+      <div ng-if="c.data.projects.length > 0">
+        <!-- Top Dashboards Row -->
+        <div class="gn-dash-row">
+          
+          <!-- Portfolio Health Card -->
+          <div class="gn-card health-card">
+            <div class="card-header">
+              <h2>Portfolio health</h2>
+              <p>{{c.data.kpis.activeProjects}} active projects &middot; reported this month</p>
+            </div>
+            
+            <div class="segmented-bar">
+              <div class="segment green" ng-style="{'width': c.data.kpis.pctGreen + '%'}">
+                <span ng-if="c.data.kpis.countGreen > 0">{{c.data.kpis.countGreen}} on track</span>
+              </div>
+              <div class="segment yellow" ng-style="{'width': c.data.kpis.pctYellow + '%'}">
+                <span ng-if="c.data.kpis.countYellow > 0">{{c.data.kpis.countYellow}} at risk</span>
+              </div>
+              <!-- ADDED RED SEGMENT -->
+              <div class="segment" style="background-color: #ef4444;" ng-style="{'width': c.data.kpis.pctRed + '%'}">
+                <span ng-if="c.data.kpis.countRed > 0" style="color: white; padding-left: 8px;">{{c.data.kpis.countRed}} critical</span>
+              </div>
+              <!-- GREY SEGMENT -->
+              <div class="segment grey" ng-style="{'width': c.data.kpis.pctGrey + '%'}">
+                <span ng-if="c.data.kpis.countGrey > 0">{{c.data.kpis.countGrey}}</span>
+              </div>
+            </div>
+            
+            <div class="health-metrics">
+              <div class="metric">
+                <span class="label">Avg completion</span>
+                <span class="value">{{c.data.kpis.avgCompletion}}%</span>
+              </div>
+              <div class="metric">
+                <span class="label">Reports on time</span>
+                <span class="value text-green">{{c.data.kpis.reportsOnTime}}%</span>
+              </div>
+              <div class="metric">
+                <span class="label">Open change reqs</span>
+                <span class="value">{{c.data.kpis.openChanges}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Budget Utilisation Card -->
+          <div class="gn-card budget-card">
+            <div class="card-header flex-between">
+              <div>
+                <h2>Budget utilisation</h2>
+                <p>Spent against awarded value per project</p>
+              </div>
+              <div class="legend">
+                <span><div class="dot blue"></div> Spent</span>
+                <span><div class="dot grey"></div> Awarded</span>
+              </div>
+            </div>
+            
+            <div class="budget-list">
+              <!-- UPDATED: Added track by proj.sys_id -->
+              <div class="budget-item" ng-repeat="proj in c.data.projects track by proj.sys_id">
+                <div class="bi-header">
+                  <span class="bi-name">{{proj.name}}</span>
+                  <span class="bi-stats">{{proj.spentFormatted}} / {{proj.awardedFormatted}} &middot; {{proj.budgetPct}}%</span>
+                </div>
+                <div class="bi-bar-bg">
+                  <!-- ADDED DYNAMIC COLOR LOGIC FOR THE BUDGET BAR -->
+                  <div class="bi-bar-fill" 
+                       ng-style="{'width': proj.budgetPct + '%', 'background-color': proj.isBehind ? '#f59e0b' : '#4f46e5'}">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="budget-footer" ng-if="c.data.budgetInsight">
+              {{c.data.budgetInsight}}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Project Cards Grid -->
+        <div class="gn-project-grid">
+          <!-- UPDATED: Added track by proj.sys_id -->
+          <div class="gn-project-card" ng-repeat="proj in c.data.projects track by proj.sys_id" ng-click="c.openProject(proj.sys_id)">
+            <div class="pc-header">
+              <span class="state-pill" ng-class="'pill-' + proj.healthColor">{{proj.healthLabel}}</span>
+              <span class="proj-number">{{proj.number}}</span>
+            </div>
+            
+            <h3 class="pc-title">{{proj.name}}</h3>
+            
+            <div class="pc-completion">
+              <div class="flex-between">
+                <span class="lbl">Completion</span>
+                <span class="val">{{proj.percentComplete}}%</span>
+              </div>
+              <div class="pc-bar-bg">
+                <div class="pc-bar-fill" ng-class="'bg-' + proj.healthColor" ng-style="{'width': proj.percentComplete + '%'}"></div>
+              </div>
+            </div>
+            
+            <div class="pc-details">
+             <div class="pc-row">
+                <span class="lbl">Status</span>
+                <span class="val text-dark">{{proj.status}}</span>
+              </div>
+              <div class="pc-row" ng-if="proj.healthColor === 'green'">
+                <span class="lbl">Report due</span>
+                <span class="val font-bold text-orange">{{proj.reportDue}}</span>
+              </div>
+
+              <div class="pc-row">
+                <span class="lbl">Phase</span>
+                <span class="val text-dark">{{proj.phase}}</span>
+              </div>
+              <div class="pc-row" ng-if="proj.healthColor !== 'green'">
+                <span class="lbl">Change request</span>
+                <span class="val font-bold text-dark">{{proj.changeRequest}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div class="gn-empty-state" ng-if="c.data.projects.length === 0 && !c.data.loading">
+        <div class="empty-icon">
+          <i class="fa fa-briefcase"></i>
+        </div>
+        <h2>No projects yet</h2>
+        <p>Projects are created automatically once you acknowledge an<br>award. Nothing to set up.</p>
+      </div>
+
+    </div> <!-- End Dashboard View -->
+
+    <!-- ==========================================
+         EMBEDDED PROJECT DETAILS VIEW
+         ========================================== -->
+    <div ng-if="c.showProjectDetails" class="gn-embedded-view">
+      
+      <!-- ADDED: ng-if to hide this button when a child form in Widget 2 is opened -->
+      <button ng-if="!c.hideParentBackButton" class="btn-outline" ng-click="c.closeProjectDetails()" style="margin-bottom: 24px; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+        <i class="fa fa-arrow-left"></i> Back to Projects
+      </button>
+      
+      <sp-widget widget="c.projectDetailsWidget"></sp-widget>
+    </div>
+
+  </div> <!-- End Projects Wrapper -->
+
+</div>]]></template>
+    </sp_widget>
+</record_update>

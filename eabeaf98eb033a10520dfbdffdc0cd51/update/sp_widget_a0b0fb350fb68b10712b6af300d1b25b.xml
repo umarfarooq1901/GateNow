@@ -1,0 +1,668 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function($scope, $window, $rootScope, $timeout) {
+  var c = this;
+
+  // --- SIDEBAR COLLAPSE SYNC ---
+  c.isSidebarCollapsed = $window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true';
+
+  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
+    $timeout(function() {
+      c.isSidebarCollapsed = isCollapsed;
+    });
+  });
+  // -----------------------------
+
+  c.filterTab = 'open_now';
+  c.categoryFilter = 'All categories';
+  c.sortOption = 'closing_date';
+  c.dateRangeFilter = 'last_12_months';
+  c.searchTerm = '';
+
+  c.setTab = function(tabName) {
+    c.filterTab = tabName;
+    c.filterPrograms();
+  };
+
+  c.filterPrograms = function() {
+    c.server.get({
+      filterTab: c.filterTab,
+      categoryFilter: c.categoryFilter,
+      sortOption: c.sortOption,
+      dateRangeFilter: c.dateRangeFilter,
+      searchTerm: c.searchTerm
+    }).then(function(response) {
+      if (response && response.data) {
+        c.data = response.data;
+      }
+    });
+  };
+
+  c.startApplication = function(sysId) {
+    window.location.href = '?id=applicant_intake&sys_id=' + sysId;
+  };
+
+  c.viewDetails = function(sysId) {
+    window.location.href = '?id=grant_program_detail&sys_id=' + sysId;
+  };
+
+  c.reviewProfile = function() {
+    window.location.href = '?id=profile';
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* Force full transparency on all ServiceNow wrapper elements surrounding the widget */
+.panel, 
+.panel-body, 
+.padder, 
+.sp-row-content, 
+.page, 
+.body {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+/* Master Layout */
+.gn-layout {
+  margin: 0 !important;
+  width: 100% !important;
+  display: flex;
+  align-items: stretch;
+  background: #f8f9fa;
+  min-height: 100vh;
+  overflow: visible !important;
+}
+
+.aw-sidebar {
+  flex-shrink: 0;
+  background: transparent !important;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: hidden !important;
+  overflow-x: visible !important;
+  overflow: visible !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  z-index: 10;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.aw-sidebar::-webkit-scrollbar { display: none; }
+
+.funding-programs-container {
+  padding-top: 32px !important;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-bottom: 40px;
+  max-width: 100%;
+  margin: 0 auto;
+  font-family: 'Source Sans Pro', sans-serif;
+  background: transparent !important;
+  overflow: visible !important;
+  transition: width 0.35s ease;
+ 
+  .page-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+ 
+    .header-left {
+      .page-title {
+        font-size: 26px;
+        font-weight: 700;
+        color: #111;
+        margin: 0 0 4px 0;
+      }
+    }
+ 
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+ 
+      .search-box {
+        position: relative;
+        width: 320px;
+ 
+        .search-input {
+          width: 100%;
+          border-radius: 20px;
+          border: 1px solid #ced4da;
+          padding: 6px 12px 6px 36px;
+          font-size: 13px;
+          background: #fff;
+          height: 36px;
+        }
+ 
+        .search-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 15px;
+          height: 15px;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23adb5bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+        }
+      }
+ 
+      .avatar {
+        background: #2b1cb3;
+        color: #fff;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 13px;
+      }
+    }
+  }
+ 
+  .summary-cards-wrapper,
+  .row.summary-cards {
+    background: transparent !important;
+    background-color: transparent !important;
+    margin-bottom: 25px;
+    box-shadow: none !important;
+ 
+    .summary-card {
+      background: #fff !important;
+      padding: 20px;
+      border-radius: 9px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      height: 160px;
+ 
+      .summary-number {
+        font-size: 26px;
+        font-weight: 700;
+        color: #111111;
+      }
+ 
+      .summary-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #212529 !important;
+        letter-spacing: 0.5px;
+        margin-top: 4px;
+      }
+      .summary-sub {
+        font-size: 12px;
+        color: #5a6169;
+        margin-top: 4px;
+        a { color: #5c33ff; text-decoration: underline; }
+      }
+    }
+ 
+    .summary-card:nth-of-type(2) .summary-number,
+    &gt; div:nth-child(2) .summary-number {
+      color: #0284c7 !important;
+    }
+ 
+    .summary-card:nth-of-type(3) .summary-number,
+    &gt; div:nth-child(3) .summary-number {
+      color: #059669 !important;
+    }
+ 
+    .eligibility-card {
+      background: linear-gradient(135deg, #3b28cc 0%, #2b1cb3 100%) !important;
+      color: #fff;
+      .summary-number, .summary-label, .summary-sub, .summary-sub a {
+        color: #fff !important;
+      }
+    }
+  }
+ 
+  .days-left {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+ 
+    &amp;.urgent { 
+      background: #fff0f0; 
+      color: #e03131; 
+    } 
+    &amp;.warning { 
+      background: #fff9db; 
+      color: #d9480f; 
+    } 
+    &amp;.normal { 
+      background: #ebfbee; 
+      color: #2b8a3e; 
+    }
+    &amp;.closed {
+      background: #fff9db !important;
+      color: #d9a406 !important; 
+    }
+  }
+ 
+  .filter-bar {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    padding: 14px 18px;
+    border-radius: 9px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    margin-bottom: 25px;
+    display: flex;
+    align-items: center;
+ 
+    .filter-btn {
+      background: #f1f3f5;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-right: 8px;
+      color: #495057;
+      cursor: pointer;
+ 
+      &amp;.active {
+        background: #2b1cb3;
+        color: #fff;
+      }
+    }
+ 
+    .inline-select {
+      display: inline-block;
+      width: auto;
+      min-width: 150px;
+      margin-left: 5px;
+      border-radius: 6px;
+      height: 36px;
+      font-size: 13px;
+      border: 1px solid #ced4da;
+      background: #fff;
+    }
+  }
+ 
+  .programs-grid {
+    .program-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 22px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+ 
+      .card-header-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+ 
+        .badge-category {
+          background: #e7f5ff;
+          color: #1c7ed6;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+ 
+        .badge-status {
+          margin-left: 10px;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+          &amp;.eligible { background: #ebfbee; color: #2b8a3e; }
+          &amp;.open { background-color: #e6f4ea; color: #137333; }
+          &amp;.published { background-color: #e8f0fe; color: #1a73e8; }
+          &amp;.closed { background-color: #fef3c7; color: #92400e; }
+        }
+      }
+ 
+      .program-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #212529;
+        margin-bottom: 8px;
+      }
+ 
+      .program-desc {
+        font-size: 13.5px;
+        color: #6c757d;
+        height: 42px;
+        overflow: hidden;
+        margin-bottom: 20px;
+        line-height: 1.4;
+      }
+ 
+      .card-footer-info {
+        border-top: 1px solid #f1f3f5;
+        border-bottom: 1px solid #f1f3f5;
+        padding: 12px 0;
+        margin-bottom: 15px;
+ 
+        .info-label {
+          display: block;
+          font-size: 11px;
+          color: #adb5bd;
+        }
+        .info-val {
+          font-size: 13px;
+          font-weight: 600;
+          color: #343a40;
+        }
+      }
+ 
+      .card-actions {
+        display: flex;
+        gap: 10px;
+ 
+        .btn-primary { background: #3b28cc; border: none; border-radius: 6px; color: #fff; padding: 6px 16px; font-size: 13px; }
+        .btn-default { background: #fff; border: 1px solid #ced4da; border-radius: 6px; color: #495057; padding: 6px 16px; font-size: 13px; }
+      }
+    }
+  }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>funding_programs_custom</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Funding Programs Custom</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  // Load sidebar widget instance
+  data.sideBar = $sp.getWidget('sidebar');
+
+  data.programs = [];
+ 
+  // Set user initials for the avatar
+  var currentUser = gs.getUser();
+  var firstName = currentUser.getFirstName() || '';
+  var lastName = currentUser.getLastName() || '';
+  var initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
+  data.userInitials = initials || currentUser.getDisplayName().substring(0, 2).toUpperCase();
+ 
+  var totalOpen = 0;
+  var openingSoonCount = 0;
+  var closedProgramsCount = 0;
+  var totalCount = 0;
+  var totalBudgetSum = 0;
+ 
+  var now = new GlideDateTime();
+ 
+  var currentTab = (input && input.filterTab) ? input.filterTab : 'open_now';
+  var selectedCategory = (input && input.categoryFilter) ? input.categoryFilter : 'All categories';
+  var sortOption = (input && input.sortOption) ? input.sortOption : 'closing_date';
+  var searchTerm = (input && input.searchTerm) ? input.searchTerm.toLowerCase() : '';
+ 
+  var gr = new GlideRecord('x_enno_gatenow_grant_program');
+ 
+  if (sortOption == 'name') {
+    gr.orderBy('program_name');
+  } else {
+    gr.orderBy('proposal_close_date');
+  }
+ 
+  gr.query();
+ 
+  var categoriesSet = [];
+ 
+  while (gr.next()) {
+    var categoryVal = gr.getValue('category') || 'General';
+    if (categoriesSet.indexOf(categoryVal) == -1) {
+      categoriesSet.push(categoryVal);
+    }
+ 
+    var nameVal = gr.getValue('program_name') || '';
+    var descVal = gr.getValue('synopsis') || gr.getValue('program_description') || '';
+ 
+    if (searchTerm && nameVal.toLowerCase().indexOf(searchTerm) == -1 && descVal.toLowerCase().indexOf(searchTerm) == -1) {
+      continue;
+    }
+ 
+    var statusVal = gr.getValue('status') ? gr.getValue('status').toLowerCase() : '';
+    var statusDisplay = gr.getDisplayValue('status') ? gr.getDisplayValue('status').toLowerCase() : '';
+     
+    var openDateStr = gr.getValue('proposal_open_date');
+    var closeDateStr = gr.getValue('proposal_close_date');
+ 
+    var daysRemaining = 0;
+    if (closeDateStr) {
+      var closeDate = new GlideDateTime(closeDateStr);
+      var diffMs = closeDate.getNumericValue() - now.getNumericValue();
+      daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    }
+ 
+    var isOpenNow = (statusVal == 'accepting_proposals' || statusDisplay.indexOf('accepting proposals') > -1);
+    var isOpeningSoon = (statusVal == 'published' || statusDisplay.indexOf('published') > -1);
+    var isClosedStatus = (statusVal == 'program_closed' || statusVal == 'closed' || statusDisplay.indexOf('closed') > -1 || statusVal == 'rejected' || daysRemaining < 0);
+ 
+    var statusText = 'Eligible';
+    var statusClass = 'eligible';
+    var daysLeftText = '';
+ 
+    if (isClosedStatus) {
+      daysLeftText = 'Closed';
+      statusText = 'Closed';
+      statusClass = 'closed';
+    } else if (isOpenNow) {
+      statusText = 'Accepting Proposals';
+      statusClass = 'open';
+      if (daysRemaining === 0) {
+        daysLeftText = 'Closing today';
+      } else if (daysRemaining > 0) {
+        daysLeftText = daysRemaining + ' days left';
+      }
+    } else if (isOpeningSoon) {
+      statusText = 'Published';
+      statusClass = 'published';
+      daysLeftText = 'Opening soon';
+    } else {
+      daysLeftText = closeDateStr ? daysRemaining + ' days left' : '';
+    }
+ 
+    totalCount++;
+ 
+    if (isOpenNow) {
+      totalOpen++;
+    }
+    if (isOpeningSoon) {
+      openingSoonCount++;
+    }
+    if (isClosedStatus) {
+      closedProgramsCount++;
+    }
+ 
+    var matchesTab = false;
+    if (currentTab == 'open_now') matchesTab = isOpenNow;
+    else if (currentTab == 'opening_soon') matchesTab = isOpeningSoon;
+    else if (currentTab == 'closed_programs') matchesTab = isClosedStatus;
+    else if (currentTab == 'all') matchesTab = true;
+ 
+    var matchesCategory = (selectedCategory == 'All categories' || categoryVal == selectedCategory);
+ 
+    var budgetVal = parseFloat(gr.getValue('program_budget')) || 0;
+    totalBudgetSum += budgetVal;
+ 
+    if (matchesTab && matchesCategory) {
+      data.programs.push({
+        sys_id: gr.getUniqueValue(),
+        name: nameVal,
+        category: categoryVal,
+        statusText: statusText,
+        statusClass: statusClass,
+        daysLeftText: daysLeftText,
+        daysLeftClass: isClosedStatus ? 'closed' : (daysRemaining <= 10 && isOpenNow ? 'urgent' : 'normal'),
+        description: descVal,
+        fundingRange: budgetVal > 0 ? '$' + budgetVal.toLocaleString() : 'Amount TBD',
+        closes: closeDateStr || '',
+        isEligible: isOpenNow && !isClosedStatus
+      });
+    }
+  }
+ 
+  var formattedTotalFunding = '$' + (totalBudgetSum >= 1000000 ? (totalBudgetSum / 1000000).toFixed(1) + 'M' : totalBudgetSum.toLocaleString());
+ 
+  data.summary = {
+    openPrograms: totalOpen,
+    closingSoonCount: openingSoonCount,
+    totalFundingDisplay: formattedTotalFunding,
+    averageAwardDisplay: totalCount > 0 ? '$' + Math.round((totalBudgetSum / totalCount) / 1000) + 'K' : '$0K',
+    eligibilityMatch: totalOpen + ' of ' + totalCount + ' match'
+  };
+ 
+  data.counts = {
+    open: totalOpen,
+    opening: openingSoonCount,
+    closed: closedProgramsCount,
+    all: totalCount
+  };
+ 
+  data.categories = categoriesSet;
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-20 10:05:57</sys_created_on>
+        <sys_id>a0b0fb350fb68b10712b6af300d1b25b</sys_id>
+        <sys_mod_count>97</sys_mod_count>
+        <sys_name>Funding Programs Custom</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_a0b0fb350fb68b10712b6af300d1b25b</sys_update_name>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-24 11:08:35</sys_updated_on>
+        <template><![CDATA[<!-- Master Flexbox Layout Container -->
+<div class="gn-layout" style="display:flex; min-height:100vh; align-items:stretch; background:#f8f9fa;">
+
+  <!-- DYNAMIC SIDEBAR WRAPPER -->
+  <div class="aw-sidebar" ng-style="{'width': c.isSidebarCollapsed ? '64px' : '96px', 'min-width': c.isSidebarCollapsed ? '64px' : '96px', 'max-width': c.isSidebarCollapsed ? '64px' : '96px', 'flex': c.isSidebarCollapsed ? '0 0 64px' : '0 0 96px'}" style="position:sticky; top:0; height:100vh; overflow:visible; z-index: 10;">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="aw-main funding-programs-container" style="flex-grow:1; min-width:0; padding: 32px 40px 72px;">
+
+    <!-- Top Header Row -->
+    <div class="page-header-row">
+      <div class="header-left">
+        <h2 class="page-title">Funding Programs</h2>
+      </div>
+
+      <div class="header-right">
+        <div class="search-box">
+          <span class="search-icon"></span>
+          <input type="text"
+                 class="form-control search-input"
+                 placeholder="Search programs, applications..."
+                 ng-model="c.searchTerm"
+                 ng-change="c.filterPrograms()">
+        </div>
+
+        <div class="avatar">{{c.data.userInitials}}</div>
+      </div>
+    </div>
+
+    <!-- Top Summary Cards Banner -->
+    <div class="row summary-cards" style="background: transparent !important; background-color: transparent !important;">
+      <div class="col-md-3">
+        <div class="summary-card">
+          <div class="summary-label">OPEN PROGRAMS</div>
+          <div class="summary-number main-count">{{c.data.summary.openPrograms}}</div>
+          <div class="summary-sub">{{c.data.summary.closingSoonCount}} close within 30 days</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="summary-card">
+          <div class="summary-label">FUNDING AVAILABLE</div>
+          <div class="summary-number funding-val">{{c.data.summary.totalFundingDisplay}}</div>
+          <div class="summary-sub">Across all open cycles</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="summary-card">
+          <div class="summary-label">AVERAGE AWARD</div>
+          <div class="summary-number award-val">{{c.data.summary.averageAwardDisplay}}</div>
+          <div class="summary-sub">FY25 awarded grants</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="summary-card eligibility-card">
+          <div class="summary-label">YOUR ELIGIBILITY</div>
+          <div class="summary-number">{{c.data.summary.eligibilityMatch}}</div>
+          <div class="summary-sub">
+            Based on your organisation profile and prior awards.
+            <a href="javascript:void(0)" ng-click="c.reviewProfile()">Review profile &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter and Search Bar -->
+    <div class="filter-bar row align-items-center">
+      <div class="col-md-7 tabs-group">
+        <button class="filter-btn" ng-class="{'active': c.filterTab == 'all'}" ng-click="c.setTab('all')">All ({{c.data.counts.all}})</button>
+        <button class="filter-btn" ng-class="{'active': c.filterTab == 'open_now'}" ng-click="c.setTab('open_now')">Open now ({{c.data.counts.open}})</button>
+        <button class="filter-btn" ng-class="{'active': c.filterTab == 'opening_soon'}" ng-click="c.setTab('opening_soon')">Opening soon ({{c.data.counts.opening}})</button>
+        <button class="filter-btn" ng-class="{'active': c.filterTab == 'closed_programs'}" ng-click="c.setTab('closed_programs')">Closed ({{c.data.counts.closed}})</button>
+      </div>
+      <div class="col-md-5 dropdowns-group text-right d-flex justify-content-end gap-2">
+        <select class="form-control inline-select" ng-model="c.categoryFilter" ng-change="c.filterPrograms()">
+          <option value="All categories">All categories</option>
+          <option ng-repeat="cat in c.data.categories" value="{{cat}}">{{cat}}</option>
+        </select>
+        <select class="form-control inline-select" ng-model="c.sortOption" ng-change="c.filterPrograms()">
+          <option value="closing_date">Sort: Closing date</option>
+          <option value="name">Sort: Program Name</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Program Cards Grid -->
+    <div class="row programs-grid">
+      <div class="col-md-6" ng-repeat="program in c.data.programs">
+        <div class="program-card">
+          <div class="card-header-row">
+            <span class="badge-category">{{program.category}}</span>
+            <span class="badge-status" ng-class="program.statusClass">{{program.statusText}}</span>
+            <span class="days-left" ng-class="program.daysLeftClass">{{program.daysLeftText}}</span>
+          </div>
+          <h3 class="program-title">{{program.name}}</h3>
+          <p class="program-desc">{{program.description}}</p>
+
+          <div class="card-footer-info row">
+            <div class="col-md-4">
+              <span class="info-label">Funding Budget</span>
+              <span class="info-val">{{program.fundingRange}}</span>
+            </div>
+            <div class="col-md-4">
+              <span class="info-label">Closes</span>
+              <span class="info-val">{{program.closes}}</span>
+            </div>
+            <div class="col-md-4">
+              <span class="info-label">Cycle</span>
+              <span class="info-val">{{program.cycle}}</span>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button class="btn btn-primary" ng-click="c.startApplication(program.sys_id)" ng-if="program.isEligible">Start application</button>
+            <button class="btn btn-default" ng-click="c.viewDetails(program.sys_id)">Program details</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>]]></template>
+    </sp_widget>
+</record_update>

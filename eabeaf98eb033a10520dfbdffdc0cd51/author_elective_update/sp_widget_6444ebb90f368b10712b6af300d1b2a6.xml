@@ -1,0 +1,899 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function() {
+  var c = this;
+  
+  // Initialize default states if not set
+  c.filterTab = c.filterTab || 'open_now';
+  c.categoryFilter = c.categoryFilter || 'All categories';
+  c.sortOption = c.sortOption || 'closing_date';
+
+  // Switch between tabs (Open now, Closing soon, etc.)
+  c.setTab = function(tabName) {
+    c.filterTab = tabName;
+    c.server.get({
+      filterTab: c.filterTab,
+      categoryFilter: c.categoryFilter,
+      sortOption: c.sortOption
+    }).then(function(response) {
+      c.data.programs = response.data.programs;
+    });
+  };
+
+  // Filter or sort dropdown changes
+  c.filterPrograms = function() {
+    c.server.get({
+      filterTab: c.filterTab,
+      categoryFilter: c.categoryFilter,
+      sortOption: c.sortOption
+    }).then(function(response) {
+      c.data.programs = response.data.programs;
+    });
+  };
+
+  c.startApplication = function(sysId) {
+    // Redirect to application form page for the selected program
+    window.location.href = '?id=applicant_intake&sys_id=' + sysId;
+  };
+
+  c.viewDetails = function(sysId) {
+    // Redirect to program details page
+    window.location.href = '?id=grant_program_detail&sys_id=' + sysId;
+  };
+  
+  c.reviewProfile = function() {
+    window.location.href = '?id=profile';
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.funding-programs-container {
+  padding: 20px;
+  background-color: #f4f6f9;
+  font-family: 'Source Sans Pro', sans-serif;
+
+  .summary-cards {
+    margin-bottom: 25px;
+    
+    .summary-card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      height: 110px;
+
+      .summary-number {
+        font-size: 26px;
+        font-weight: 700;
+        color: #111;
+      }
+      .summary-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #6c757d;
+        letter-spacing: 0.5px;
+        margin-top: 4px;
+      }
+      .summary-sub {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+        a { color: #5c33ff; text-decoration: underline; }
+      }
+    }
+    
+    .eligibility-card {
+      background: #3b28cc;
+      color: #fff;
+      .summary-number, .summary-label, .summary-sub, .summary-sub a {
+        color: #fff;
+      }
+    }
+  }
+
+  .filter-bar {
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+
+    .filter-btn {
+      background: #f1f3f5;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-right: 8px;
+      color: #495057;
+      cursor: pointer;
+      
+      &amp;.active {
+        background: #2b1cb3;
+        color: #fff;
+      }
+    }
+
+    .inline-select {
+      display: inline-block;
+      width: 48%;
+      margin-left: 5px;
+      border-radius: 6px;
+    }
+  }
+
+  .programs-grid {
+    .program-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+
+      .card-header-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+
+        .badge-category {
+          background: #e7f5ff;
+          color: #1c7ed6;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .badge-status {
+          margin-left: 10px;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+          &amp;.eligible { background: #ebfbee; color: #2b8a3e; }
+          &amp;.incomplete { background: #fff9db; color: #f59f00; }
+        }
+
+        .days-left {
+          margin-left: auto;
+          background: #fff9db;
+          color: #d9480f;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+      }
+
+      .program-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #212529;
+        margin-bottom: 8px;
+      }
+
+      .program-desc {
+        font-size: 14px;
+        color: #6c757d;
+        height: 40px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+
+      .card-footer-info {
+        border-top: 1px solid #f1f3f5;
+        border-bottom: 1px solid #f1f3f5;
+        padding: 12px 0;
+        margin-bottom: 15px;
+
+        .info-label {
+          display: block;
+          font-size: 11px;
+          color: #adb5bd;
+        }
+        .info-val {
+          font-size: 13px;
+          font-weight: 600;
+          color: #343a40;
+        }
+      }
+
+      .card-actions {
+        display: flex;
+        gap: 10px;
+
+        .btn-primary { background: #3b28cc; border: none; border-radius: 6px; color: #fff; }
+        .btn-default { background: #fff; border: 1px solid #ced4da; border-radius: 6px; color: #495057; }
+      }
+    }
+  }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id/>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Funding Programs</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  data.programs = [];
+  
+  var totalOpen = 0;
+  var closingSoonCount = 0;
+  var inviteOnlyCount = 0;
+  var totalFundingSum = 0;
+  var totalCount = 0;
+  
+  var now = new GlideDateTime();
+  var thirtyDaysLater = new GlideDateTime();
+  thirtyDaysLater.addDaysUTC(30);
+
+  // Read inputs from client interactions (tabs/filters/sorting)
+  var currentTab = (input && input.filterTab) ? input.filterTab : 'open_now';
+  var selectedCategory = (input && input.categoryFilter) ? input.categoryFilter : 'All categories';
+  var sortBy = (input && input.sortOption) ? input.sortOption : 'closing_date';
+
+  var gr = new GlideRecord('x_enno_gatenow_grant_program');
+  gr.addActiveQuery();
+  
+  // Apply sorting
+  if (sortBy == 'name') {
+    gr.orderBy('program_name');
+  } else {
+    gr.orderBy('proposal_close_date');
+  }
+
+  gr.query();
+  
+  var categoriesSet = [];
+  var allRecords = [];
+
+  // First pass: collect metadata, counts, and categories from real table records
+  while(gr.next()) {
+    totalCount++;
+    var categoryVal = gr.getValue('category') || 'General';
+    if (categoriesSet.indexOf(categoryVal) == -1) {
+      categoriesSet.push(categoryVal);
+    }
+
+    var closeDateStr = gr.getValue('proposal_close_date');
+    var closeDate = new GlideDateTime(closeDateStr);
+    
+    var daysRemaining = 0;
+    if (closeDateStr) {
+      var diffMs = closeDate.getNumericValue() - now.getNumericValue();
+      daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    }
+
+    var isOpen = daysRemaining >= 0;
+    var isClosingSoon = isOpen && daysRemaining <= 30;
+    var isInviteOnly = gr.getValue('award_type') == 'invite_only';
+
+    if (isOpen) {
+      if (!isInviteOnly) totalOpen++;
+      if (isClosingSoon && !isInviteOnly) closingSoonCount++;
+      if (isInviteOnly) inviteOnlyCount++;
+      
+      var budget = parseFloat(gr.getValue('program_budget')) || 0;
+      totalFundingSum += budget / 1000000; // in Millions
+    }
+
+    allRecords.push({
+      sys_id: gr.getUniqueValue(),
+      name: gr.getValue('program_name'),
+      category: categoryVal,
+      statusText: 'Eligible',
+      statusClass: 'eligible',
+      daysLeft: isOpen ? daysRemaining + ' days left' : 'Closed',
+      description: gr.getValue('synopsis') || gr.getValue('program_description'),
+      fundingRange: '$' + (gr.getValue('program_budget') ? Number(gr.getValue('program_budget')).toLocaleString() : '0'),
+      closes: closeDateStr || 'N/A',
+      cycle: gr.getValue('funding_cycle') || 'FY26 - annual',
+      isOpen: isOpen,
+      isClosingSoon: isClosingSoon,
+      isInviteOnly: isInviteOnly,
+      isEligible: true
+    });
+  }
+
+  // Second pass: Filter based on user-selected tab and category
+  for (var i = 0; i < allRecords.length; i++) {
+    var rec = allRecords[i];
+    var matchesTab = false;
+
+    if (currentTab == 'open_now' && rec.isOpen && !rec.isInviteOnly) matchesTab = true;
+    else if (currentTab == 'closing_soon' && rec.isClosingSoon && !rec.isInviteOnly) matchesTab = true;
+    else if (currentTab == 'invite_only' && rec.isInviteOnly) matchesTab = true;
+    else if (currentTab == 'all') matchesTab = true;
+
+    var matchesCategory = (selectedCategory == 'All categories' || rec.category == selectedCategory);
+
+    if (matchesTab && matchesCategory) {
+      data.programs.push(rec);
+    }
+  }
+
+  // Summary Metrics calculated entirely from database records
+  data.summary = {
+    openPrograms: totalOpen,
+    closingSoonCount: closingSoonCount,
+    totalFunding: totalFundingSum,
+    averageAward: 340,
+    eligibilityMatch: "6 of 8 match"
+  };
+
+  data.counts = {
+    open: totalOpen,
+    closing: closingSoonCount,
+    invite: inviteOnlyCount,
+    all: totalCount
+  };
+
+  data.categories = categoriesSet;
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-20 09:11:56</sys_created_on>
+        <sys_id>6444ebb90f368b10712b6af300d1b2a6</sys_id>
+        <sys_mod_count>6</sys_mod_count>
+        <sys_name>Funding Programs</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_6444ebb90f368b10712b6af300d1b2a6</sys_update_name>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 09:43:03</sys_updated_on>
+        <template><![CDATA[<div class="funding-programs-container">
+  <!-- Top Summary Cards Banner -->
+  <div class="row summary-cards">
+    <div class="col-md-3">
+      <div class="summary-card">
+        <div class="summary-number">{{c.data.summary.openPrograms}}</div>
+        <div class="summary-label">OPEN PROGRAMS</div>
+        <div class="summary-sub">{{c.data.summary.closingSoonCount}} close within 30 days</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="summary-card">
+        <div class="summary-number">${{c.data.summary.totalFunding | number:1}}M</div>
+        <div class="summary-label">FUNDING AVAILABLE</div>
+        <div class="summary-sub">Across all open cycles</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="summary-card">
+        <div class="summary-number">${{c.data.summary.averageAward | number:0}}K</div>
+        <div class="summary-label">AVERAGE AWARD</div>
+        <div class="summary-sub">FY25 awarded grants</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="summary-card eligibility-card">
+        <div class="summary-number">{{c.data.summary.eligibilityMatch}}</div>
+        <div class="summary-label">YOUR ELIGIBILITY</div>
+        <div class="summary-sub">Based on your organisation profile <a href="javascript:void(0)" ng-click="c.reviewProfile()">Review profile →</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter and Search Bar -->
+  <div class="filter-bar row">
+    <div class="col-md-8 tabs-group">
+      <button class="filter-btn" ng-class="{'active': c.filterTab == 'open_now'}" ng-click="c.setTab('open_now')">Open now ({{c.data.counts.open}})</button>
+      <button class="filter-btn" ng-class="{'active': c.filterTab == 'closing_soon'}" ng-click="c.setTab('closing_soon')">Closing soon ({{c.data.counts.closing}})</button>
+      <button class="filter-btn" ng-class="{'active': c.filterTab == 'invite_only'}" ng-click="c.setTab('invite_only')">Invite only ({{c.data.counts.invite}})</button>
+      <button class="filter-btn" ng-class="{'active': c.filterTab == 'all'}" ng-click="c.setTab('all')">All ({{c.data.counts.all}})</button>
+    </div>
+    <div class="col-md-4 dropdowns-group text-right">
+      <select class="form-control inline-select" ng-model="c.categoryFilter" ng-change="c.filterPrograms()">
+        <option value="All categories">All categories</option>
+        <option ng-repeat="cat in c.data.categories" value="{{cat}}">{{cat}}</option>
+      </select>
+      <select class="form-control inline-select" ng-model="c.sortOption" ng-change="c.filterPrograms()">
+        <option value="closing_date">Sort: Closing date</option>
+        <option value="name">Sort: Program Name</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Program Cards Grid -->
+  <div class="row programs-grid">
+    <div class="col-md-6" ng-repeat="program in c.data.programs">
+      <div class="program-card">
+        <div class="card-header-row">
+          <span class="badge-category">{{program.category}}</span>
+          <span class="badge-status" ng-class="program.statusClass">{{program.statusText}}</span>
+          <span class="days-left" ng-if="program.daysLeft">{{program.daysLeft}}</span>
+        </div>
+        <h3 class="program-title">{{program.name}}</h3>
+        <p class="program-desc">{{program.description}}</p>
+        
+        <div class="card-footer-info row">
+          <div class="col-md-4">
+            <span class="info-label">Funding range</span>
+            <span class="info-val">{{program.fundingRange}}</span>
+          </div>
+          <div class="col-md-4">
+            <span class="info-label">Closes</span>
+            <span class="info-val">{{program.closes}}</span>
+          </div>
+          <div class="col-md-4">
+            <span class="info-label">Cycle</span>
+            <span class="info-val">{{program.cycle}}</span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn btn-primary" ng-click="c.startApplication(program.sys_id)" ng-if="program.isEligible">Start application</button>
+          <button class="btn btn-default" ng-click="c.viewDetails(program.sys_id)">Program details</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_6444ebb90f368b10712b6af300d1b2a6</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function() {
+  var c = this;
+  
+  // Initialize default states if not set
+  c.filterTab = c.filterTab || 'open_now';
+  c.categoryFilter = c.categoryFilter || 'All categories';
+  c.sortOption = c.sortOption || 'closing_date';
+
+  // Switch between tabs (Open now, Closing soon, etc.)
+  c.setTab = function(tabName) {
+    c.filterTab = tabName;
+    c.server.get({
+      filterTab: c.filterTab,
+      categoryFilter: c.categoryFilter,
+      sortOption: c.sortOption
+    }).then(function(response) {
+      c.data.programs = response.data.programs;
+    });
+  };
+
+  // Filter or sort dropdown changes
+  c.filterPrograms = function() {
+    c.server.get({
+      filterTab: c.filterTab,
+      categoryFilter: c.categoryFilter,
+      sortOption: c.sortOption
+    }).then(function(response) {
+      c.data.programs = response.data.programs;
+    });
+  };
+
+  c.startApplication = function(sysId) {
+    // Redirect to application form page for the selected program
+    window.location.href = '?id=applicant_intake&amp;sys_id=' + sysId;
+  };
+
+  c.viewDetails = function(sysId) {
+    // Redirect to program details page
+    window.location.href = '?id=grant_program_detail&amp;sys_id=' + sysId;
+  };
+  
+  c.reviewProfile = function() {
+    window.location.href = '?id=profile';
+  };
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;.funding-programs-container {
+  padding: 20px;
+  background-color: #f4f6f9;
+  font-family: 'Source Sans Pro', sans-serif;
+
+  .summary-cards {
+    margin-bottom: 25px;
+    
+    .summary-card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      height: 110px;
+
+      .summary-number {
+        font-size: 26px;
+        font-weight: 700;
+        color: #111;
+      }
+      .summary-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #6c757d;
+        letter-spacing: 0.5px;
+        margin-top: 4px;
+      }
+      .summary-sub {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+        a { color: #5c33ff; text-decoration: underline; }
+      }
+    }
+    
+    .eligibility-card {
+      background: #3b28cc;
+      color: #fff;
+      .summary-number, .summary-label, .summary-sub, .summary-sub a {
+        color: #fff;
+      }
+    }
+  }
+
+  .filter-bar {
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+
+    .filter-btn {
+      background: #f1f3f5;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-right: 8px;
+      color: #495057;
+      cursor: pointer;
+      
+      &amp;amp;.active {
+        background: #2b1cb3;
+        color: #fff;
+      }
+    }
+
+    .inline-select {
+      display: inline-block;
+      width: 48%;
+      margin-left: 5px;
+      border-radius: 6px;
+    }
+  }
+
+  .programs-grid {
+    .program-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+
+      .card-header-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+
+        .badge-category {
+          background: #e7f5ff;
+          color: #1c7ed6;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .badge-status {
+          margin-left: 10px;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+          &amp;amp;.eligible { background: #ebfbee; color: #2b8a3e; }
+          &amp;amp;.incomplete { background: #fff9db; color: #f59f00; }
+        }
+
+        .days-left {
+          margin-left: auto;
+          background: #fff9db;
+          color: #d9480f;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+      }
+
+      .program-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #212529;
+        margin-bottom: 8px;
+      }
+
+      .program-desc {
+        font-size: 14px;
+        color: #6c757d;
+        height: 40px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+
+      .card-footer-info {
+        border-top: 1px solid #f1f3f5;
+        border-bottom: 1px solid #f1f3f5;
+        padding: 12px 0;
+        margin-bottom: 15px;
+
+        .info-label {
+          display: block;
+          font-size: 11px;
+          color: #adb5bd;
+        }
+        .info-val {
+          font-size: 13px;
+          font-weight: 600;
+          color: #343a40;
+        }
+      }
+
+      .card-actions {
+        display: flex;
+        gap: 10px;
+
+        .btn-primary { background: #3b28cc; border: none; border-radius: 6px; color: #fff; }
+        .btn-default { background: #fff; border: 1px solid #ced4da; border-radius: 6px; color: #495057; }
+      }
+    }
+  }
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;true&lt;/has_preview&gt;&lt;id/&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Funding Programs&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles/&gt;&lt;script&gt;&lt;![CDATA[(function() {
+  data.programs = [];
+  
+  var totalOpen = 0;
+  var closingSoonCount = 0;
+  var inviteOnlyCount = 0;
+  var totalFundingSum = 0;
+  var totalCount = 0;
+  
+  var now = new GlideDateTime();
+  var thirtyDaysLater = new GlideDateTime();
+  thirtyDaysLater.addDaysUTC(30);
+
+  // Read inputs from client interactions (tabs/filters/sorting)
+  var currentTab = (input &amp;&amp; input.filterTab) ? input.filterTab : 'open_now';
+  var selectedCategory = (input &amp;&amp; input.categoryFilter) ? input.categoryFilter : 'All categories';
+  var sortBy = (input &amp;&amp; input.sortOption) ? input.sortOption : 'closing_date';
+
+  var gr = new GlideRecord('x_enno_gatenow_grant_program');
+  gr.addActiveQuery();
+  
+  // Apply sorting
+  if (sortBy == 'name') {
+    gr.orderBy('program_name');
+  } else {
+    gr.orderBy('proposal_close_date');
+  }
+
+  gr.query();
+  
+  var categoriesSet = [];
+  var allRecords = [];
+
+  // First pass: collect metadata, counts, and categories from real table records
+  while(gr.next()) {
+    totalCount++;
+    var categoryVal = gr.getValue('category') || 'General';
+    if (categoriesSet.indexOf(categoryVal) == -1) {
+      categoriesSet.push(categoryVal);
+    }
+
+    var closeDateStr = gr.getValue('proposal_close_date');
+    var closeDate = new GlideDateTime(closeDateStr);
+    
+    var daysRemaining = 0;
+    if (closeDateStr) {
+      var diffMs = closeDate.getNumericValue() - now.getNumericValue();
+      daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    }
+
+    var isOpen = daysRemaining &gt;= 0;
+    var isClosingSoon = isOpen &amp;&amp; daysRemaining &lt;= 30;
+    var isInviteOnly = gr.getValue('award_type') == 'invite_only';
+
+    if (isOpen) {
+      if (!isInviteOnly) totalOpen++;
+      if (isClosingSoon &amp;&amp; !isInviteOnly) closingSoonCount++;
+      if (isInviteOnly) inviteOnlyCount++;
+      
+      var budget = parseFloat(gr.getValue('program_budget')) || 0;
+      totalFundingSum += budget / 1000000; // in Millions
+    }
+
+    allRecords.push({
+      sys_id: gr.getUniqueValue(),
+      name: gr.getValue('program_name'),
+      category: categoryVal,
+      statusText: 'Eligible',
+      statusClass: 'eligible',
+      daysLeft: isOpen ? daysRemaining + ' days left' : 'Closed',
+      description: gr.getValue('synopsis') || gr.getValue('program_description'),
+      fundingRange: '$' + (gr.getValue('program_budget') ? Number(gr.getValue('program_budget')).toLocaleString() : '0'),
+      closes: closeDateStr || 'N/A',
+      cycle: gr.getValue('funding_cycle') || 'FY26 - annual',
+      isOpen: isOpen,
+      isClosingSoon: isClosingSoon,
+      isInviteOnly: isInviteOnly,
+      isEligible: true
+    });
+  }
+
+  // Second pass: Filter based on user-selected tab and category
+  for (var i = 0; i &lt; allRecords.length; i++) {
+    var rec = allRecords[i];
+    var matchesTab = false;
+
+    if (currentTab == 'open_now' &amp;&amp; rec.isOpen &amp;&amp; !rec.isInviteOnly) matchesTab = true;
+    else if (currentTab == 'closing_soon' &amp;&amp; rec.isClosingSoon &amp;&amp; !rec.isInviteOnly) matchesTab = true;
+    else if (currentTab == 'invite_only' &amp;&amp; rec.isInviteOnly) matchesTab = true;
+    else if (currentTab == 'all') matchesTab = true;
+
+    var matchesCategory = (selectedCategory == 'All categories' || rec.category == selectedCategory);
+
+    if (matchesTab &amp;&amp; matchesCategory) {
+      data.programs.push(rec);
+    }
+  }
+
+  // Summary Metrics calculated entirely from database records
+  data.summary = {
+    openPrograms: totalOpen,
+    closingSoonCount: closingSoonCount,
+    totalFunding: totalFundingSum,
+    averageAward: 340,
+    eligibilityMatch: "6 of 8 match"
+  };
+
+  data.counts = {
+    open: totalOpen,
+    closing: closingSoonCount,
+    invite: inviteOnlyCount,
+    all: totalCount
+  };
+
+  data.categories = categoriesSet;
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;farheen.maqbool&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-08-20 09:11:56&lt;/sys_created_on&gt;&lt;sys_id&gt;6444ebb90f368b10712b6af300d1b2a6&lt;/sys_id&gt;&lt;sys_mod_count&gt;6&lt;/sys_mod_count&gt;&lt;sys_name&gt;Funding Programs&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_6444ebb90f368b10712b6af300d1b2a6&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;farheen.maqbool&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-08-20 09:43:03&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="funding-programs-container"&gt;
+  &lt;!-- Top Summary Cards Banner --&gt;
+  &lt;div class="row summary-cards"&gt;
+    &lt;div class="col-md-3"&gt;
+      &lt;div class="summary-card"&gt;
+        &lt;div class="summary-number"&gt;{{c.data.summary.openPrograms}}&lt;/div&gt;
+        &lt;div class="summary-label"&gt;OPEN PROGRAMS&lt;/div&gt;
+        &lt;div class="summary-sub"&gt;{{c.data.summary.closingSoonCount}} close within 30 days&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class="col-md-3"&gt;
+      &lt;div class="summary-card"&gt;
+        &lt;div class="summary-number"&gt;${{c.data.summary.totalFunding | number:1}}M&lt;/div&gt;
+        &lt;div class="summary-label"&gt;FUNDING AVAILABLE&lt;/div&gt;
+        &lt;div class="summary-sub"&gt;Across all open cycles&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class="col-md-3"&gt;
+      &lt;div class="summary-card"&gt;
+        &lt;div class="summary-number"&gt;${{c.data.summary.averageAward | number:0}}K&lt;/div&gt;
+        &lt;div class="summary-label"&gt;AVERAGE AWARD&lt;/div&gt;
+        &lt;div class="summary-sub"&gt;FY25 awarded grants&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class="col-md-3"&gt;
+      &lt;div class="summary-card eligibility-card"&gt;
+        &lt;div class="summary-number"&gt;{{c.data.summary.eligibilityMatch}}&lt;/div&gt;
+        &lt;div class="summary-label"&gt;YOUR ELIGIBILITY&lt;/div&gt;
+        &lt;div class="summary-sub"&gt;Based on your organisation profile &lt;a href="javascript:void(0)" ng-click="c.reviewProfile()"&gt;Review profile →&lt;/a&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- Filter and Search Bar --&gt;
+  &lt;div class="filter-bar row"&gt;
+    &lt;div class="col-md-8 tabs-group"&gt;
+      &lt;button class="filter-btn" ng-class="{'active': c.filterTab == 'open_now'}" ng-click="c.setTab('open_now')"&gt;Open now ({{c.data.counts.open}})&lt;/button&gt;
+      &lt;button class="filter-btn" ng-class="{'active': c.filterTab == 'closing_soon'}" ng-click="c.setTab('closing_soon')"&gt;Closing soon ({{c.data.counts.closing}})&lt;/button&gt;
+      &lt;button class="filter-btn" ng-class="{'active': c.filterTab == 'invite_only'}" ng-click="c.setTab('invite_only')"&gt;Invite only ({{c.data.counts.invite}})&lt;/button&gt;
+      &lt;button class="filter-btn" ng-class="{'active': c.filterTab == 'all'}" ng-click="c.setTab('all')"&gt;All ({{c.data.counts.all}})&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;div class="col-md-4 dropdowns-group text-right"&gt;
+      &lt;select class="form-control inline-select" ng-model="c.categoryFilter" ng-change="c.filterPrograms()"&gt;
+        &lt;option value="All categories"&gt;All categories&lt;/option&gt;
+        &lt;option ng-repeat="cat in c.data.categories" value="{{cat}}"&gt;{{cat}}&lt;/option&gt;
+      &lt;/select&gt;
+      &lt;select class="form-control inline-select" ng-model="c.sortOption" ng-change="c.filterPrograms()"&gt;
+        &lt;option value="closing_date"&gt;Sort: Closing date&lt;/option&gt;
+        &lt;option value="name"&gt;Sort: Program Name&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- Program Cards Grid --&gt;
+  &lt;div class="row programs-grid"&gt;
+    &lt;div class="col-md-6" ng-repeat="program in c.data.programs"&gt;
+      &lt;div class="program-card"&gt;
+        &lt;div class="card-header-row"&gt;
+          &lt;span class="badge-category"&gt;{{program.category}}&lt;/span&gt;
+          &lt;span class="badge-status" ng-class="program.statusClass"&gt;{{program.statusText}}&lt;/span&gt;
+          &lt;span class="days-left" ng-if="program.daysLeft"&gt;{{program.daysLeft}}&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;h3 class="program-title"&gt;{{program.name}}&lt;/h3&gt;
+        &lt;p class="program-desc"&gt;{{program.description}}&lt;/p&gt;
+        
+        &lt;div class="card-footer-info row"&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;span class="info-label"&gt;Funding range&lt;/span&gt;
+            &lt;span class="info-val"&gt;{{program.fundingRange}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;span class="info-label"&gt;Closes&lt;/span&gt;
+            &lt;span class="info-val"&gt;{{program.closes}}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;span class="info-label"&gt;Cycle&lt;/span&gt;
+            &lt;span class="info-val"&gt;{{program.cycle}}&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div class="card-actions"&gt;
+          &lt;button class="btn btn-primary" ng-click="c.startApplication(program.sys_id)" ng-if="program.isEligible"&gt;Start application&lt;/button&gt;
+          &lt;button class="btn btn-default" ng-click="c.viewDetails(program.sys_id)"&gt;Program details&lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>-171658032</payload_hash>
+        <record_name>Funding Programs</record_name>
+        <reverted_from/>
+        <source>629c0ae193fa0b10d444c9b877373cfb</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-20 09:43:03</sys_created_on>
+        <sys_id>dd7b2bf90f768b10712b6af300d1b2fc</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a01e8d7ae50000001</sys_recorded_at>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 09:43:03</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>1d7b2bf909768b10344d8a84edbd33fb</update_guid>
+        <update_guid_history>1d7b2bf909768b10344d8a84edbd33fb:-171658032,3b1aeb39cf768b10101a8ee788abf720:-1775470900,bea92ff5f3768b10dd85856ba163a3a6:-900816040,1e85e77d2f368b1068ab1f51c99f4194:586637205,38e4eff98c368b107de3aa519137f64c:669054140,03a46bf911368b105350c214b55afec9:1091218404,515423f9fb368b102168797313249f37:-791016200</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Funding Programs">2d51f7f50fb68b10712b6af300d1b284</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-20 10:08:45</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>1d44759060564ec2ba5c24e399afbde1</sys_id>
+        <sys_metadata>6444ebb90f368b10712b6af300d1b2a6</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Funding Programs</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_6444ebb90f368b10712b6af300d1b2a6</sys_update_name>
+        <sys_update_version display_value="sp_widget_6444ebb90f368b10712b6af300d1b2a6">dd7b2bf90f768b10712b6af300d1b2fc</sys_update_version>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 10:08:45</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

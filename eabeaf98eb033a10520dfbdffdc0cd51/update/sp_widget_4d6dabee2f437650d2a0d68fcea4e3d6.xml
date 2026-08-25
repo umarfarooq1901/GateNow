@@ -1,854 +1,1198 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window, $timeout, spUtil, $location) {
+        <client_script><![CDATA[api.controller = function($scope) {
+
+  /* =========================================================
+     GATENOW · GRANT PROGRAMS · Client script
+
+     Search, status, category and paging all run against the
+     list already in memory. Nothing here goes back to the
+     server, so a keystroke costs nothing and the rows re-enter
+     on every change because ng-repeat rebuilds its nodes.
+     ========================================================= */
+
   var c = this;
 
-  c.gridView       = true;
-  c.activeCategory = 'all';
-  c.searchText     = '';
-  c.sortKey        = 'name_asc';
-  c.currentPage    = 1;
-  c.pageSize       = 12;
+  c.query    = '';
+  c.filter   = 'all';
+  c.category = 'all';
+  c.page     = 1;
 
-  var _filtered = [];
+  var PER_PAGE = c.data.pageSize || 10;
 
-  // ── Core filter + sort + paginate ──────────────────
-  c.applyFilters = function() {
-    var programs = angular.copy(c.data.programs) || [];
+  /* Search covers the four things a person actually types: the
+     program name, its category, its reference, and the words in
+     the summary. Diacritics are left alone, since the fields are
+     entered by the same team that reads them. */
+  function hit(p, q) {
+    return (
+      (p.name     || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.category || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.number   || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.synopsis || '').toLowerCase().indexOf(q) !== -1
+    );
+  }
 
-    // Category filter
-    if (c.activeCategory !== 'all') {
-      programs = programs.filter(function(p) {
-        return (p.program_category || '').trim() === c.activeCategory.trim();
-      });
-    }
+  /* every filter combined, before paging */
+  function matching() {
+    var q = (c.query || '').trim().toLowerCase();
 
-    // Search filter
-    if (c.searchText && c.searchText.trim()) {
-      var txt = c.searchText.toLowerCase().trim();
-      programs = programs.filter(function(p) {
-        return (p.program_name        || '').toLowerCase().indexOf(txt) !== -1 ||
-               (p.program_description || '').toLowerCase().indexOf(txt) !== -1 ||
-               (p.program_category    || '').toLowerCase().indexOf(txt) !== -1 ||
-               (p.program_budget      || '').toLowerCase().indexOf(txt) !== -1;
-      });
-    }
-
-    // Sort
-    programs.sort(function(a, b) {
-      if (c.sortKey === 'name_asc')  return (a.program_name || '').localeCompare(b.program_name || '');
-      if (c.sortKey === 'name_desc') return (b.program_name || '').localeCompare(a.program_name || '');
-      if (c.sortKey === 'budget')    return (b.program_budget || '').localeCompare(a.program_budget || '');
-      return 0; // newest — server already ordered
+    return (c.data.programs || []).filter(function(p) {
+      if (c.filter !== 'all' && p.state !== c.filter) return false;
+      if (c.category !== 'all' && p.category !== c.category) return false;
+      if (q && !hit(p, q)) return false;
+      return true;
     });
+  }
 
-    _filtered = programs;
+  c.total = function() {
+    return matching().length;
   };
 
-  // ── Exposed helpers ────────────────────────────────
-  c.totalFiltered = function() { return _filtered.length; };
-
-  c.totalPages = function() {
-    return Math.ceil(_filtered.length / parseInt(c.pageSize)) || 1;
+  c.pageCount = function() {
+    return Math.max(1, Math.ceil(matching().length / PER_PAGE));
   };
 
-  c.paged = function() {
-    var size  = parseInt(c.pageSize);
-    var start = (c.currentPage - 1) * size;
-    return _filtered.slice(start, start + size);
+  /* the slice on screen */
+  c.shown = function() {
+    var start = (c.page - 1) * PER_PAGE;
+    return matching().slice(start, start + PER_PAGE);
   };
 
-  c.pageStart = function() {
-    return _filtered.length ? (c.currentPage - 1) * parseInt(c.pageSize) + 1 : 0;
+  /* "1 to 10 of 34", so the count means something */
+  c.rangeFrom = function() {
+    return matching().length === 0 ? 0 : ((c.page - 1) * PER_PAGE) + 1;
   };
 
-  c.pageEnd = function() {
-    return Math.min(c.currentPage * parseInt(c.pageSize), _filtered.length);
+  c.rangeTo = function() {
+    return Math.min(c.page * PER_PAGE, matching().length);
   };
 
-  c.pageNumbers = function() {
-    var total = c.totalPages(), cur = c.currentPage, pages = [];
-    var start = Math.max(1, cur - 2), end = Math.min(total, cur + 2);
-    if (start > 1)     { pages.push(1); if (start > 2) pages.push('...'); }
-    for (var i = start; i <= end; i++) pages.push(i);
-    if (end < total)   { if (end < total - 1) pages.push('...'); pages.push(total); }
-    return pages;
-  };
-
-  c.goTo = function(p) {
-    if (p === '...' || p < 1 || p > c.totalPages()) return;
-    c.currentPage = p;
-    $timeout(function() {
-      var top = document.querySelector('.gp-main');
-      if (top) top.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  };
-
-  // ── Filters ────────────────────────────────────────
-  c.filterBy = function(cat) {
-    c.activeCategory = cat;
-    c.currentPage    = 1;
-    c.applyFilters();
-  };
+  /* any change to what is being filtered sends you back to the
+     first page, otherwise you land on an empty page four */
+  function reset() {
+    c.page = 1;
+  }
 
   c.onSearch = function() {
-    c.currentPage = 1;
-    c.applyFilters();
+    reset();
+  };
+
+  c.setFilter = function(key) {
+    if (c.filter === key) return;
+    c.filter = key;
+    reset();
+  };
+
+  c.setCategory = function(key) {
+    if (c.category === key) return;
+    c.category = key;
+    reset();
   };
 
   c.clearSearch = function() {
-    c.searchText  = '';
-    c.currentPage = 1;
-    c.applyFilters();
+    c.query = '';
+    reset();
   };
 
   c.clearAll = function() {
-    c.searchText     = '';
-    c.activeCategory = 'all';
-    c.currentPage    = 1;
-    c.applyFilters();
+    c.query = '';
+    c.filter = 'all';
+    c.category = 'all';
+    reset();
   };
 
-  c.countByCategory = function(cat) {
-    return (c.data.programs || []).filter(function(p) {
-      return (p.program_category || '').trim() === cat.trim();
-    }).length;
+  c.isFiltered = function() {
+    return c.filter !== 'all' || c.category !== 'all' || !!(c.query || '').trim();
   };
 
- c.viewDetails = function(program) {
-  if (!program || !program.sys_id) return;
 
-  $location.search({
-    id: 'grant_program_detail',
-    sys_id: program.sys_id
-  });
-};
+  /* =====================================================
+     PAGING
+     ===================================================== */
 
-  // ── Init ───────────────────────────────────────────
-  c.applyFilters();
+  c.goto = function(n) {
+    if (n === '...') return;
+    if (n < 1 || n > c.pageCount() || n === c.page) return;
+    c.page = n;
+  };
+
+  c.prev = function() { c.goto(c.page - 1); };
+  c.next = function() { c.goto(c.page + 1); };
+
+  /* First and last are always reachable, the current page keeps
+     a neighbour either side, and the gaps collapse to an
+     ellipsis. Seven slots at most, so the control never wraps. */
+  c.pages = function() {
+    var n = c.pageCount();
+    var p = c.page;
+    var out = [];
+
+    if (n <= 7) {
+      for (var i = 1; i <= n; i++) out.push(i);
+      return out;
+    }
+
+    out.push(1);
+
+    var from = Math.max(2, p - 1);
+    var to   = Math.min(n - 1, p + 1);
+
+    /* keep the run three wide even at either end */
+    if (p <= 3) to = 4;
+    if (p >= n - 2) from = n - 3;
+
+    if (from > 2) out.push('...');
+    for (var j = from; j <= to; j++) out.push(j);
+    if (to < n - 1) out.push('...');
+
+    out.push(n);
+    return out;
+  };
+
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ── Reset ── */
-.gp-programs-wrapper *,
-.gp-programs-wrapper *::before,
-.gp-programs-wrapper *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-/* ── Wrapper ── */
-.gp-programs-wrapper {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  width: calc(100% + 30px);
-  margin-left: -15px;
-  margin-right: -15px;
-  background: #f4f5f9;
-}
-
-/* ════════════════════════════════════════════════
-   HERO
-════════════════════════════════════════════════ */
-.gp-hero {
-  background: linear-gradient(114deg, #3d2e9c 0%, #5443ad 55%, #6b7fd4 100%);
-  padding: 66px 0 52px;
-  position: relative;
-  overflow: hidden;
-
-  &amp;::before {
-    content: '';
-    position: absolute;
-    top: -80px; right: -60px;
-    width: 340px; height: 340px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.04);
-    pointer-events: none;
-  }
-}
-
-.gp-hero__inner {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 40px;
-  flex-wrap: wrap;
-}
-
-.gp-hero__left { flex: 1; min-width: 280px; }
-
-/* Badge */
-.gp-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.25);
-  color: rgba(255,255,255,0.9);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 5px 14px;
-  border-radius: 100px;
-  margin-bottom: 16px;
-  backdrop-filter: blur(6px);
-}
-
-.gp-badge-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #7dd3fc;
-  box-shadow: 0 0 6px rgba(125,211,252,0.9);
-  flex-shrink: 0;
-  animation: gpPulse 2.2s ease-in-out infinite;
-}
-
-@keyframes gpPulse {
-  0%,100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(1.7); opacity: 0.45; }
-}
-
-.gp-hero__title {
-  font-size: clamp(22px, 2.6vw, 34px);
-  font-weight: 800;
-  color: #fff;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  margin-bottom: 12px;
-}
-
-.gp-hero__sub {
-  font-size: 14px;
-  color: rgba(255,255,255,0.70);
-  line-height: 1.7;
-  margin-bottom: 24px;
-  max-width: 520px;
-}
-
-/* Search */
-.gp-search-wrap {
-  position: relative;
-  max-width: 480px;
-}
-
-.gp-search-icon {
-  position: absolute;
-  left: 14px; top: 50%;
-  transform: translateY(-50%);
-  width: 16px; height: 16px;
-  color: rgba(255,255,255,0.55);
-  pointer-events: none;
-}
-
-.gp-search-input {
-  width: 100%;
-  padding: 12px 42px 12px 40px;
-  background: rgba(255,255,255,0.14);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 12px;
-  font-size: 13.5px;
-  color: #fff;
-  font-family: inherit;
-  backdrop-filter: blur(8px);
-  outline: none;
-  transition: background 0.2s, border-color 0.2s;
-
-  &amp;::placeholder { color: rgba(255,255,255,0.5); }
-
-  &amp;:focus {
-    background: rgba(255,255,255,0.20);
-    border-color: rgba(255,255,255,0.45);
-  }
-}
-
-.gp-search-clear {
-  position: absolute;
-  right: 12px; top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255,255,255,0.2);
-  border: none;
-  border-radius: 4px;
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff;
-  cursor: pointer;
-  transition: background 0.15s;
-
-  &amp;:hover { background: rgba(255,255,255,0.35); }
-}
-
-/* Stats pills */
-.gp-hero__stats {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.gp-stat-pill {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 12px;
-  padding: 12px 20px;
-  backdrop-filter: blur(6px);
-  min-width: 160px;
-  transition: background 0.18s;
-
-  &amp;:hover { background: rgba(255,255,255,0.20); }
-}
-
-.gp-stat-pill__num {
-  font-size: 26px;
-  font-weight: 900;
-  color: #fff;
-  line-height: 1;
-}
-
-.gp-stat-pill__lbl {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.58);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* ════════════════════════════════════════════════
-   BODY
-════════════════════════════════════════════════ */
-.gp-body {
-  background: #f4f5f9;
-  padding: 32px 0 72px;
-}
-
-.gp-body__inner {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 48px;
-}
-
-/* ── Toolbar ── */
-.gp-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.gp-toolbar__left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.gp-result-count {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-
-  strong { color: #1e293b; }
-}
-
-.gp-sort-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0 12px;
-  height: 34px;
-}
-
-.gp-sort-icon { color: #9ca3af; flex-shrink: 0; }
-
-.gp-sort-select {
-  border: none;
-  background: transparent;
-  font-size: 12.5px;
-  font-family: inherit;
-  color: #374151;
-  font-weight: 500;
-  outline: none;
-  cursor: pointer;
-}
-
-.gp-view-toggle {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 3px;
-}
-
-.gp-toggle-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px; height: 30px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: #9ca3af;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &amp;--active { background: #5443ad; color: #fff; }
-  &amp;:hover:not(.gp-toggle-btn--active) { background: #f3f4f6; color: #374151; }
-}
-
-/* ── Layout: sidebar + main ── */
-.gp-layout {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-}
-
-/* ════════════════════════════════════════════════
-   CATEGORY SIDEBAR
-════════════════════════════════════════════════ */
-.gp-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: #fff;
-  border: 1px solid #e9eaf0;
-  border-radius: 14px;
-  overflow: hidden;
-  position: sticky;
-  top: 16px;
-}
-
-.gp-sidebar__hdr {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #94a3b8;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.gp-cat-list {
-  list-style: none;
-  padding: 8px 0;
-  max-height: 520px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
-
-  &amp;::-webkit-scrollbar { width: 4px; }
-  &amp;::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
-}
-
-.gp-cat-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 16px;
-  cursor: pointer;
-  border-radius: 0;
-  transition: background 0.15s, color 0.15s;
-  border-left: 3px solid transparent;
-
-  &amp;:hover { background: #f8fafc; }
-
-  &amp;--active {
-    background: rgba(84,67,173,0.07);
-    border-left-color: #5443ad;
-
-    .gp-cat-item__name { color: #5443ad; font-weight: 700; }
-    .gp-cat-item__count { background: #5443ad; color: #fff; }
-  }
-}
-
-.gp-cat-item__name {
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gp-cat-item__count {
-  font-size: 10px;
-  font-weight: 700;
-  background: #f1f5f9;
-  color: #6b7280;
-  padding: 2px 7px;
-  border-radius: 99px;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-
-/* ── Main content ── */
-.gp-main { flex: 1; min-width: 0; }
-
-/* ── Active filters strip ── */
-.gp-active-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-  padding: 10px 14px;
-  background: #fff;
-  border: 1px solid #e9eaf0;
-  border-radius: 10px;
-}
-
-.gp-af-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.gp-af-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(84,67,173,0.08);
-  color: #5443ad;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 100px;
-
-  button {
-    background: none;
-    border: none;
-    color: #5443ad;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    padding: 0;
-    display: flex; align-items: center;
-  }
-}
-
-.gp-af-clear {
-  margin-left: auto;
-  background: none;
-  border: none;
-  font-size: 12px;
-  font-weight: 600;
-  color: #ef4444;
-  cursor: pointer;
-  font-family: inherit;
-
-  &amp;:hover { text-decoration: underline; }
-}
-
-/* ════════════════════════════════════════════════
-   GRID + CARDS
-════════════════════════════════════════════════ */
-.gp-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-bottom: 28px;
-
-  &amp;--list { grid-template-columns: 1fr; gap: 10px; }
-}
-
-.gp-card {
-  background: #fff;
-  border: 1px solid #e9eaf0;
-  border-radius: 14px;
-  padding: 20px 20px 16px;
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
-
-  &amp;:hover {
-    box-shadow: 0 8px 28px rgba(84,67,173,0.11);
-    transform: translateY(-2px);
-    border-color: rgba(84,67,173,0.28);
-  }
-}
-
-/* List view overrides */
-.gp-grid--list .gp-card {
-  flex-direction: row;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 20px;
-
-  .gp-card-desc   { display: none; }
-  .gp-card-meta   { flex-direction: row; gap: 14px; margin-bottom: 0; flex-wrap: wrap; }
-  .gp-card-footer { margin-top: 0; margin-left: auto; border-top: none; padding-top: 0; flex-shrink: 0; }
-  .gp-card__top   { margin-bottom: 4px; }
-  .gp-card-title  { font-size: 14px; margin-bottom: 4px; }
-}
-
-.gp-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.gp-card-badge {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(84,67,173,0.08);
-  color: #5443ad;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 3px 9px;
-  border-radius: 100px;
-}
-
-.gp-card-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 100px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.gp-status--active  { background: #dcfce7; color: #15803d; }
-.gp-status--inactive{ background: #f1f5f9; color: #64748b; }
-
-.gp-status-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.gp-card-title {
-  font-size: 14.5px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.4;
-  margin-bottom: 8px;
-}
-
-.gp-card-desc {
-  font-size: 12.5px;
-  color: #6b7280;
-  line-height: 1.6;
-  margin-bottom: 14px;
-  flex: 1;
-}
-
-.gp-card-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 14px;
-}
-
-.gp-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.gp-meta-icon {
-  width: 13px; height: 13px;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-
-.gp-card-footer {
-  margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px solid #f1f1f4;
-}
-
-.gp-card-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #5443ad;
-  transition: gap 0.18s;
-}
-
-.gp-card:hover .gp-card-link { gap: 9px; }
-
-/* ── Empty state ── */
-.gp-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 72px 0;
-  color: #9ca3af;
-  text-align: center;
-
-  strong { font-size: 15px; color: #374151; }
-  p      { font-size: 13px; }
-}
-
-.gp-btn-reset {
-  margin-top: 8px;
-  background: #5443ad;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 9px 22px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.18s;
-
-  &amp;:hover { background: #4336a0; }
-}
-
-/* ════════════════════════════════════════════════
-   PAGINATION
-════════════════════════════════════════════════ */
-.gp-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 16px 20px;
-  background: #fff;
-  border: 1px solid #e9eaf0;
-  border-radius: 12px;
-}
-
-.gp-pagination__info {
-  font-size: 12.5px;
-  color: #6b7280;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.gp-pagination__controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.gp-pg-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-
-  &amp;:hover:not([disabled]):not(.gp-pg-btn--active) {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-  }
-
-  &amp;--active {
-    background: #5443ad;
-    border-color: #5443ad;
-    color: #fff;
-  }
-
-  &amp;--ellipsis {
-    border-color: transparent;
-    background: transparent;
-    cursor: default;
-    color: #9ca3af;
-  }
-
-  &amp;[disabled] {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-}
-
-.gp-pagination__size {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
-  color: #6b7280;
-  font-weight: 500;
-
-  select {
-    border: 1px solid #e5e7eb;
-    border-radius: 7px;
-    padding: 4px 8px;
-    font-size: 12.5px;
-    font-family: inherit;
-    color: #374151;
-    font-weight: 600;
-    background: #fff;
-    outline: none;
-    cursor: pointer;
-  }
-}
-
-/* ════════════════════════════════════════════════
-   RESPONSIVE
-════════════════════════════════════════════════ */
-@media (max-width: 1100px) {
-  .gp-hero__inner,
-  .gp-body__inner { padding: 0 32px; }
-  .gp-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 900px) {
-  .gp-layout { flex-direction: column; }
-  .gp-sidebar { width: 100%; position: static;
-    .gp-cat-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; max-height: none; overflow: visible; }
-    .gp-cat-item { border-left: none; border-radius: 100px; padding: 6px 12px;
-      border: 1px solid #e5e7eb; background: #fff;
-      &amp;--active { background: #5443ad; border-color: #5443ad;
-        .gp-cat-item__name { color: #fff; }
-        .gp-cat-item__count { background: rgba(255,255,255,0.3); color: #fff; }
-      }
-    }
-  }
-}
-
-@media (max-width: 768px) {
-  .gp-hero { padding: 40px 0 38px; }
-  .gp-hero__inner { flex-direction: column; gap: 28px; padding: 0 20px; }
-  .gp-hero__stats { flex-direction: row; gap: 10px; flex-wrap: wrap; }
-  .gp-stat-pill { flex: 1; min-width: 80px; padding: 10px 14px; }
-  .gp-body__inner { padding: 0 16px; }
-  .gp-grid { grid-template-columns: 1fr; }
-  .gp-pagination { flex-direction: column; align-items: flex-start; gap: 12px; }
-}
-
-@media (max-width: 480px) {
-  .gp-hero__title { font-size: 22px; }
-  .gp-toolbar { flex-direction: column; align-items: flex-start; }
+        <css>/* =========================================================&#13;
+   GATENOW · GRANT PROGRAMS&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   COLOUR&#13;
+   One accent, and it is the blue from the logo. Everything else&#13;
+   is the same navy at different opacities, which is what keeps&#13;
+   a palette looking related rather than assembled. Green and&#13;
+   amber fills are gone. Blue now carries a single meaning on&#13;
+   this page: you can act on this. Anything you cannot act on is&#13;
+   drawn in neutrals.&#13;
+&#13;
+   The one exception is the closing flag, a muted amber that&#13;
+   appears only inside the final seven days. One alert colour,&#13;
+   used in one place, still reads as an alert. Used in four&#13;
+   places it reads as decoration.&#13;
+&#13;
+   TYPE&#13;
+   Six roles and no more:&#13;
+     display   52  700  -0.033em   page title&#13;
+     title     22  600  -0.022em   program name&#13;
+     lead    17.5  400              hero standfirst&#13;
+     body      15  400              descriptions&#13;
+     data      15  600  tabular     amounts and dates&#13;
+     label     11  600   0.14em     uppercase, every small cap&#13;
+&#13;
+   Tracking is negative only above 20px, where it is needed, and&#13;
+   positive only on uppercase labels, where it is required for&#13;
+   legibility. Amounts and dates use tabular figures so the two&#13;
+   fact columns line up down the list.&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- typeface ----------&#13;
+   Shared with the landing widgets. Keep a single copy in a&#13;
+   Style Sheet record attached to the theme if several of these&#13;
+   widgets appear on one portal.&#13;
+   ------------------------------------------------------------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- ink ----------&#13;
+   Every neutral is the navy at an opacity, so nothing on the&#13;
+   page is a stranger to anything else. */&#13;
+$g-navy:     #0a2540;&#13;
+$g-ink-2:    rgba(10, 37, 64, 0.72);&#13;
+$g-ink-3:    rgba(10, 37, 64, 0.54);&#13;
+$g-ink-4:    rgba(10, 37, 64, 0.38);&#13;
+$g-line:     rgba(10, 37, 64, 0.10);&#13;
+$g-line-2:   rgba(10, 37, 64, 0.06);&#13;
+$g-tint:     rgba(10, 37, 64, 0.03);&#13;
+&#13;
+/* ---------- accent, used sparingly ---------- */&#13;
+$g-blue:     #1560e0;&#13;
+$g-blue-dk:  #0f4cbb;&#13;
+$g-blue-1:   rgba(21, 96, 224, 0.08);&#13;
+$g-blue-2:   rgba(21, 96, 224, 0.16);&#13;
+&#13;
+/* ---------- state colours ----------&#13;
+   Blue is now, teal is next, amber is running out, neutral is&#13;
+   over. Four states, four meanings, and each colour appears in&#13;
+   exactly one of them. Teal was chosen over green because green&#13;
+   beside blue reads as a traffic light, and over violet because&#13;
+   at seven pixels a violet dot is just a blue dot. */&#13;
+$g-soon:     #0d7d8c;&#13;
+$g-soon-1:   rgba(13, 125, 140, 0.10);&#13;
+&#13;
+$g-warn:     #a4741f;&#13;
+$g-warn-1:   rgba(164, 116, 31, 0.10);&#13;
+$g-warn-2:   rgba(164, 116, 31, 0.24);&#13;
+&#13;
+$g-white:    #ffffff;&#13;
+$g-ease:     cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PAGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpl {&#13;
+  position: relative;&#13;
+  width: 100%;&#13;
+  min-height: 100vh;&#13;
+  font-family: $g-font;&#13;
+  color: $g-navy;&#13;
+  background: $g-white;&#13;
+  -webkit-font-smoothing: antialiased;&#13;
+}&#13;
+&#13;
+.gnpl *,&#13;
+.gnpl *::before,&#13;
+.gnpl *::after { box-sizing: border-box; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HERO&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpl-hero {&#13;
+  position: relative;&#13;
+  padding: 92px 24px 72px;&#13;
+  overflow: hidden;&#13;
+  background: linear-gradient(180deg, #f2f6fc 0%, #f8fafd 64%, #ffffff 100%);&#13;
+}&#13;
+&#13;
+.gnpl-hero__glow {&#13;
+  position: absolute;&#13;
+  top: -260px;&#13;
+  left: 50%;&#13;
+  width: 1080px;&#13;
+  height: 620px;&#13;
+  margin-left: -540px;&#13;
+  border-radius: 50%;&#13;
+  background: radial-gradient(circle, rgba(21, 96, 224, 0.07) 0%, rgba(21, 96, 224, 0) 68%);&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnpl-hero__inner {&#13;
+  position: relative;&#13;
+  z-index: 2;&#13;
+  max-width: 1180px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+/* label role */&#13;
+.gnpl .gnpl-eyebrow {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  margin: 0 0 20px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $g-ink-3;&#13;
+}&#13;
+&#13;
+/* display role */&#13;
+.gnpl .gnpl-hero__title {&#13;
+  margin: 0;&#13;
+  max-width: 680px;&#13;
+  font-size: 52px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.1;&#13;
+  letter-spacing: -0.033em;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+@supports (font-size: clamp(31px, 4.1vw, 52px)) {&#13;
+  .gnpl .gnpl-hero__title { font-size: clamp(31px, 4.1vw, 52px); }&#13;
+}&#13;
+&#13;
+/* lead role */&#13;
+.gnpl .gnpl-hero__sub {&#13;
+  max-width: 52ch;&#13;
+  margin: 20px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 17.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.65;&#13;
+  color: $g-ink-2;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- live figures ---------- */&#13;
+&#13;
+.gnpl .gnpl-stats {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(3, minmax(0, 1fr));&#13;
+  max-width: 680px;&#13;
+  margin: 46px 0 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gnpl-stat {&#13;
+  position: relative;&#13;
+  padding: 0 30px;&#13;
+}&#13;
+&#13;
+.gnpl-stat--1 { padding-left: 0; }&#13;
+&#13;
+/* hairlines between, not boxes around */&#13;
+.gnpl-stat--2,&#13;
+.gnpl-stat--3 { border-left: 1px solid $g-line; }&#13;
+&#13;
+.gnpl .gnpl-stat__label {&#13;
+  margin: 0;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $g-ink-3;&#13;
+}&#13;
+&#13;
+/* the figures are navy, not blue. blue is reserved for things&#13;
+   you can click. */&#13;
+.gnpl .gnpl-stat__value {&#13;
+  margin: 10px 0 0;&#13;
+  font-size: 36px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1;&#13;
+  letter-spacing: -0.035em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl .gnpl-stat__note {&#13;
+  margin: 7px 0 0;&#13;
+  max-width: 22ch;&#13;
+  font-size: 13px;&#13;
+  line-height: 1.5;&#13;
+  color: $g-ink-3;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   FILTER BAR&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpl-bar {&#13;
+  position: sticky;&#13;
+  top: 0;&#13;
+  z-index: 20;&#13;
+  padding: 13px 24px;&#13;
+  background: rgba(255, 255, 255, 0.9);&#13;
+  border-top: 1px solid $g-line;&#13;
+  border-bottom: 1px solid $g-line;&#13;
+  -webkit-backdrop-filter: blur(14px) saturate(150%);&#13;
+  backdrop-filter: blur(14px) saturate(150%);&#13;
+}&#13;
+&#13;
+.gnpl-bar__inner {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px 26px;&#13;
+  max-width: 1180px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- search ----------&#13;
+   Full height of the bar and given the first slot, because a&#13;
+   list of forty programs is searched more often than it is&#13;
+   filtered.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gnpl-search {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+  flex: 1 1 300px;&#13;
+  max-width: 380px;&#13;
+  height: 40px;&#13;
+  padding: 0 12px 0 14px;&#13;
+  margin: 0;&#13;
+  border: 1px solid $g-line;&#13;
+  border-radius: 10px;&#13;
+  background: $g-white;&#13;
+  font-weight: 400;&#13;
+  transition: border-color 0.4s $g-ease, box-shadow 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-search:focus-within {&#13;
+  border-color: rgba(21, 96, 224, 0.45);&#13;
+  box-shadow: 0 0 0 3px $g-blue-1;&#13;
+}&#13;
+&#13;
+.gnpl-search__icon {&#13;
+  font-size: 13px;&#13;
+  color: $g-ink-4;&#13;
+  flex-shrink: 0;&#13;
+  transition: color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-search:focus-within .gnpl-search__icon { color: $g-blue; }&#13;
+&#13;
+.gnpl-search__field {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  height: 100%;&#13;
+  border: 0;&#13;
+  outline: 0;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 400;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl-search__field::placeholder {&#13;
+  color: $g-ink-4;&#13;
+  font-weight: 400;&#13;
+}&#13;
+&#13;
+.gnpl-search__clear {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 22px;&#13;
+  height: 22px;&#13;
+  padding: 0;&#13;
+  border: 0;&#13;
+  border-radius: 50%;&#13;
+  background: $g-tint;&#13;
+  color: $g-ink-3;&#13;
+  font-size: 10px;&#13;
+  cursor: pointer;&#13;
+  flex-shrink: 0;&#13;
+  transition: background 0.4s $g-ease, color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-search__clear:hover {&#13;
+  background: rgba(10, 37, 64, 0.09);&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl-search__clear:focus-visible {&#13;
+  outline: 2px solid $g-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+.gnpl-chips {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px;&#13;
+}&#13;
+&#13;
+/* Selection is shown by weight and a quiet tint, not by&#13;
+   flooding the control with the accent colour. */&#13;
+.gnpl-chip {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  height: 38px;&#13;
+  padding: 0 14px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  color: $g-ink-2;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $g-ease,&#13;
+              border-color 0.4s $g-ease,&#13;
+              color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-chip:hover {&#13;
+  background: $g-tint;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl-chip.is-on {&#13;
+  background: $g-white;&#13;
+  border-color: $g-line;&#13;
+  color: $g-navy;&#13;
+  font-weight: 600;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);&#13;
+}&#13;
+&#13;
+.gnpl-chip__label { white-space: nowrap; }&#13;
+&#13;
+.gnpl-chip__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+  background: $g-ink-4;&#13;
+  transition: background 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-chip__dot--open { background: $g-blue; }&#13;
+.gnpl-chip__dot--soon { background: $g-soon; }&#13;
+&#13;
+.gnpl-chip__count {&#13;
+  font-size: 12.5px;&#13;
+  font-weight: 500;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $g-ink-4;&#13;
+  transition: color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-chip.is-on .gnpl-chip__count { color: $g-ink-3; }&#13;
+&#13;
+.gnpl-cats {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 2px;&#13;
+}&#13;
+&#13;
+.gnpl-cat {&#13;
+  height: 32px;&#13;
+  padding: 0 12px;&#13;
+  border: 0;&#13;
+  border-radius: 8px;&#13;
+  background: transparent;&#13;
+  color: $g-ink-3;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $g-ease, color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-cat:hover {&#13;
+  background: $g-tint;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl-cat.is-on {&#13;
+  background: $g-blue-1;&#13;
+  color: $g-blue-dk;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gnpl-chip:focus-visible,&#13;
+.gnpl-cat:focus-visible {&#13;
+  outline: 2px solid $g-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   DIRECTORY&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpl-body { padding: 30px 24px 108px; }&#13;
+&#13;
+.gnpl-body__inner {&#13;
+  max-width: 1180px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+.gnpl .gnpl-count {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  gap: 9px;&#13;
+  margin: 0 0 14px;&#13;
+  padding: 0;&#13;
+  font-size: 13px;&#13;
+  color: $g-ink-4;&#13;
+}&#13;
+&#13;
+.gnpl .gnpl-count strong {&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $g-ink-2;&#13;
+}&#13;
+&#13;
+.gnpl-count__clear {&#13;
+  padding: 0;&#13;
+  border: 0;&#13;
+  background: transparent;&#13;
+  color: $g-blue;&#13;
+  font-family: inherit;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  cursor: pointer;&#13;
+  transition: color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-count__clear:hover { color: $g-blue-dk; }&#13;
+&#13;
+.gnpl-count__clear:focus-visible {&#13;
+  outline: 2px solid $g-blue;&#13;
+  outline-offset: 2px;&#13;
+  border-radius: 4px;&#13;
+}&#13;
+&#13;
+.gnpl-list { border-top: 1px solid $g-line; }&#13;
+&#13;
+.gnpl-row {&#13;
+  position: relative;&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) 320px 48px;&#13;
+  align-items: center;&#13;
+  gap: 30px;&#13;
+  padding: 26px 24px 26px 28px;&#13;
+  border-bottom: 1px solid $g-line-2;&#13;
+  text-decoration: none;&#13;
+  color: inherit;&#13;
+  overflow: hidden;&#13;
+  transition: transform 0.5s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-row:hover,&#13;
+.gnpl-row:focus {&#13;
+  text-decoration: none;&#13;
+  color: inherit;&#13;
+  transform: translateX(3px);&#13;
+}&#13;
+&#13;
+.gnpl-row:focus-visible {&#13;
+  outline: 2px solid $g-blue;&#13;
+  outline-offset: -3px;&#13;
+}&#13;
+&#13;
+/* a neutral rail that takes the accent only on hover, so the&#13;
+   list is calm until you point at something */&#13;
+.gnpl-row__rail {&#13;
+  position: absolute;&#13;
+  top: 20px;&#13;
+  bottom: 20px;&#13;
+  left: 0;&#13;
+  width: 2px;&#13;
+  border-radius: 0 2px 2px 0;&#13;
+  background: $g-line;&#13;
+  transform: scaleY(0.5);&#13;
+  transform-origin: center;&#13;
+  transition: transform 0.5s $g-ease, background 0.5s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-row:hover .gnpl-row__rail {&#13;
+  transform: scaleY(1);&#13;
+  background: $g-blue;&#13;
+}&#13;
+&#13;
+/* closed rows keep the neutral rail on hover, since there is&#13;
+   nothing to act on */&#13;
+.gnpl-row--soon:hover .gnpl-row__rail   { background: $g-soon; }&#13;
+.gnpl-row--closed:hover .gnpl-row__rail { background: $g-ink-4; }&#13;
+&#13;
+.gnpl-row__wash {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  background: $g-tint;&#13;
+  transform: scaleX(0);&#13;
+  transform-origin: left center;&#13;
+  transition: transform 0.55s $g-ease;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnpl-row:hover .gnpl-row__wash { transform: scaleX(1); }&#13;
+&#13;
+.gnpl-row__main {&#13;
+  position: relative;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gnpl-row__top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+.gnpl-state {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 7px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gnpl-state__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+/* open is the only state you can act on, so it is the only one&#13;
+   that gets the accent */&#13;
+.gnpl-state--open   { color: $g-blue-dk; }&#13;
+.gnpl-state--soon   { color: $g-soon; }&#13;
+.gnpl-state--closed { color: $g-ink-4; }&#13;
+&#13;
+.gnpl-state--open .gnpl-state__dot   { background: $g-blue; }&#13;
+.gnpl-state--soon .gnpl-state__dot   { background: $g-soon; }&#13;
+.gnpl-state--closed .gnpl-state__dot {&#13;
+  background: transparent;&#13;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);&#13;
+}&#13;
+&#13;
+/* category and reference share one style, because they are the&#13;
+   same kind of information */&#13;
+.gnpl-row__meta {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $g-ink-4;&#13;
+}&#13;
+&#13;
+.gnpl-row__sep { color: rgba(10, 37, 64, 0.22); }&#13;
+&#13;
+/* title role */&#13;
+.gnpl .gnpl-row__name {&#13;
+  margin: 0;&#13;
+  font-size: 22px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.28;&#13;
+  letter-spacing: -0.022em;&#13;
+  color: $g-navy;&#13;
+  transition: color 0.5s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-row:hover .gnpl-row__name { color: $g-blue-dk; }&#13;
+&#13;
+/* body role, held to a readable measure */&#13;
+.gnpl .gnpl-row__desc {&#13;
+  max-width: 62ch;&#13;
+  margin: 8px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.62;&#13;
+  color: $g-ink-2;&#13;
+}&#13;
+&#13;
+.gnpl-row--closed .gnpl-row__name { color: $g-ink-3; }&#13;
+.gnpl-row--closed .gnpl-row__desc { color: $g-ink-3; }&#13;
+&#13;
+&#13;
+/* ---------- facts ---------- */&#13;
+&#13;
+.gnpl-row__facts {&#13;
+  position: relative;&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(2, minmax(0, 1fr));&#13;
+  gap: 22px;&#13;
+}&#13;
+&#13;
+.gnpl-fact {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 6px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+/* label role, the same one used everywhere else */&#13;
+.gnpl-fact__label {&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $g-ink-4;&#13;
+}&#13;
+&#13;
+/* data role, tabular so the columns line up down the list */&#13;
+.gnpl-fact__value {&#13;
+  font-size: 15px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+/* the one warm colour on the page, and it appears only inside&#13;
+   the final seven days */&#13;
+.gnpl-fact__flag {&#13;
+  align-self: flex-start;&#13;
+  margin-top: 2px;&#13;
+  padding: 2px 8px;&#13;
+  border: 1px solid $g-warn-2;&#13;
+  border-radius: 6px;&#13;
+  background: $g-warn-1;&#13;
+  color: $g-warn;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gnpl-row__go {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  justify-self: end;&#13;
+  width: 38px;&#13;
+  height: 38px;&#13;
+  border-radius: 50%;&#13;
+  background: transparent;&#13;
+  border: 1px solid $g-line;&#13;
+  color: $g-ink-3;&#13;
+  font-size: 12px;&#13;
+  transition: transform 0.5s $g-ease,&#13;
+              background 0.5s $g-ease,&#13;
+              border-color 0.5s $g-ease,&#13;
+              color 0.5s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-row:hover .gnpl-row__go {&#13;
+  transform: translateX(3px);&#13;
+  background: $g-blue;&#13;
+  border-color: $g-blue;&#13;
+  color: $g-white;&#13;
+}&#13;
+&#13;
+.gnpl-row--closed:hover .gnpl-row__go {&#13;
+  background: transparent;&#13;
+  border-color: $g-ink-4;&#13;
+  color: $g-ink-2;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   EMPTY AND MORE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpl-empty {&#13;
+  padding: 76px 24px;&#13;
+  text-align: center;&#13;
+  border-bottom: 1px solid $g-line-2;&#13;
+}&#13;
+&#13;
+.gnpl .gnpl-empty__title {&#13;
+  margin: 0;&#13;
+  font-size: 20px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.02em;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl .gnpl-empty__text {&#13;
+  max-width: 42ch;&#13;
+  margin: 10px auto 0;&#13;
+  padding: 0;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.64;&#13;
+  color: $g-ink-2;&#13;
+}&#13;
+&#13;
+.gnpl-empty__btn {&#13;
+  height: 44px;&#13;
+  margin-top: 22px;&#13;
+  padding: 0 20px;&#13;
+  border: 1px solid $g-line;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  color: $g-navy;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  cursor: pointer;&#13;
+  transition: border-color 0.4s $g-ease, color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-empty__btn:hover {&#13;
+  border-color: $g-blue-2;&#13;
+  color: $g-blue-dk;&#13;
+}&#13;
+&#13;
+/* ---------- pagination ----------&#13;
+   Numbers rather than an endless button, because someone who&#13;
+   saw a program on page three needs to get back to page three.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gnpl-pager {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  gap: 6px;&#13;
+  margin-top: 32px;&#13;
+}&#13;
+&#13;
+.gnpl-pager__nums {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 2px;&#13;
+}&#13;
+&#13;
+.gnpl-pager__step,&#13;
+.gnpl-pager__num {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  min-width: 38px;&#13;
+  height: 38px;&#13;
+  padding: 0 6px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 9px;&#13;
+  background: transparent;&#13;
+  color: $g-ink-2;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $g-ease,&#13;
+              border-color 0.4s $g-ease,&#13;
+              color 0.4s $g-ease;&#13;
+}&#13;
+&#13;
+.gnpl-pager__step {&#13;
+  border-color: $g-line;&#13;
+  font-size: 15px;&#13;
+}&#13;
+&#13;
+.gnpl-pager__step:hover:not(:disabled),&#13;
+.gnpl-pager__num:hover:not(:disabled) {&#13;
+  background: $g-tint;&#13;
+  color: $g-navy;&#13;
+}&#13;
+&#13;
+.gnpl-pager__step:disabled {&#13;
+  color: rgba(10, 37, 64, 0.22);&#13;
+  cursor: default;&#13;
+}&#13;
+&#13;
+/* the current page is the one thing here worth the accent */&#13;
+.gnpl-pager__num.is-on {&#13;
+  background: $g-blue;&#13;
+  border-color: $g-blue;&#13;
+  color: $g-white;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gnpl-pager__num.is-on:hover {&#13;
+  background: $g-blue;&#13;
+  color: $g-white;&#13;
+}&#13;
+&#13;
+/* the ellipsis is a gap, not a control */&#13;
+.gnpl-pager__num.is-gap {&#13;
+  min-width: 22px;&#13;
+  color: $g-ink-4;&#13;
+  cursor: default;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnpl-pager__step:focus-visible,&#13;
+.gnpl-pager__num:focus-visible {&#13;
+  outline: 2px solid $g-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gnplRise {&#13;
+    from { opacity: 0; transform: translateY(16px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gnplSlide {&#13;
+    from { opacity: 0; transform: translateX(-14px); }&#13;
+    to   { opacity: 1; transform: translateX(0); }&#13;
+  }&#13;
+&#13;
+  .gnpl .gnpl-eyebrow,&#13;
+  .gnpl .gnpl-hero__title,&#13;
+  .gnpl .gnpl-hero__sub {&#13;
+    animation: gnplRise 0.7s $g-ease backwards;&#13;
+  }&#13;
+&#13;
+  .gnpl .gnpl-hero__title { animation-delay: 0.06s; }&#13;
+  .gnpl .gnpl-hero__sub   { animation-delay: 0.13s; }&#13;
+&#13;
+  .gnpl-stat { animation: gnplRise 0.64s $g-ease backwards; }&#13;
+&#13;
+  .gnpl-stat--1 { animation-delay: 0.20s; }&#13;
+  .gnpl-stat--2 { animation-delay: 0.26s; }&#13;
+  .gnpl-stat--3 { animation-delay: 0.32s; }&#13;
+&#13;
+  .gnpl-bar { animation: gnplRise 0.64s $g-ease 0.38s backwards; }&#13;
+&#13;
+  .gnpl-pager { animation: gnplRise 0.6s $g-ease backwards; }&#13;
+&#13;
+  /* replays on every filter change, since ng-repeat rebuilds&#13;
+     its nodes and the keyframe starts again with them */&#13;
+  .gnpl-row { animation: gnplSlide 0.5s $g-ease backwards; }&#13;
+&#13;
+  .gnpl-row--n1  { animation-delay: 0.02s; }&#13;
+  .gnpl-row--n2  { animation-delay: 0.05s; }&#13;
+  .gnpl-row--n3  { animation-delay: 0.08s; }&#13;
+  .gnpl-row--n4  { animation-delay: 0.11s; }&#13;
+  .gnpl-row--n5  { animation-delay: 0.14s; }&#13;
+  .gnpl-row--n6  { animation-delay: 0.17s; }&#13;
+  .gnpl-row--n7  { animation-delay: 0.20s; }&#13;
+  .gnpl-row--n8  { animation-delay: 0.23s; }&#13;
+  .gnpl-row--n9  { animation-delay: 0.26s; }&#13;
+  .gnpl-row--n10 { animation-delay: 0.29s; }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1024px) {&#13;
+&#13;
+  .gnpl-hero { padding: 66px 20px 54px; }&#13;
+&#13;
+  .gnpl .gnpl-stats { max-width: none; }&#13;
+&#13;
+  .gnpl-bar { padding: 11px 20px; }&#13;
+&#13;
+  .gnpl-body { padding: 26px 20px 88px; }&#13;
+&#13;
+  .gnpl-row {&#13;
+    grid-template-columns: minmax(0, 1fr) 42px;&#13;
+    gap: 18px;&#13;
+    padding: 22px 18px 24px 26px;&#13;
+  }&#13;
+&#13;
+  /* the facts move under the name rather than being squeezed&#13;
+     into a column too narrow to hold a date */&#13;
+  .gnpl-row__facts {&#13;
+    grid-column: 1 / -1;&#13;
+    grid-template-columns: repeat(2, minmax(0, 200px));&#13;
+    padding-top: 16px;&#13;
+    border-top: 1px solid $g-line-2;&#13;
+  }&#13;
+&#13;
+  .gnpl-row__go {&#13;
+    grid-column: 2;&#13;
+    grid-row: 1;&#13;
+    align-self: start;&#13;
+  }&#13;
+}&#13;
+&#13;
+@media (max-width: 680px) {&#13;
+&#13;
+  .gnpl-hero { padding: 54px 16px 44px; }&#13;
+&#13;
+  .gnpl .gnpl-stats {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 20px;&#13;
+    margin-top: 32px;&#13;
+  }&#13;
+&#13;
+  .gnpl-stat { padding: 0; }&#13;
+&#13;
+  .gnpl-stat--2,&#13;
+  .gnpl-stat--3 {&#13;
+    border-left: 0;&#13;
+    border-top: 1px solid $g-line;&#13;
+    padding-top: 20px;&#13;
+  }&#13;
+&#13;
+  .gnpl .gnpl-stat__value { font-size: 30px; }&#13;
+  .gnpl .gnpl-stat__note { max-width: none; }&#13;
+&#13;
+  /* both filter rows scroll sideways rather than wrapping onto&#13;
+     four lines and burying the list */&#13;
+  .gnpl-bar__inner {&#13;
+    flex-direction: column;&#13;
+    align-items: stretch;&#13;
+    gap: 8px;&#13;
+  }&#13;
+&#13;
+  .gnpl-search {&#13;
+    flex: 1 1 auto;&#13;
+    max-width: none;&#13;
+    width: 100%;&#13;
+  }&#13;
+&#13;
+  .gnpl-chips,&#13;
+  .gnpl-cats {&#13;
+    flex-wrap: nowrap;&#13;
+    width: 100%;&#13;
+    overflow-x: auto;&#13;
+    padding-bottom: 3px;&#13;
+    -webkit-overflow-scrolling: touch;&#13;
+  }&#13;
+&#13;
+  .gnpl-pager__step,&#13;
+  .gnpl-pager__num {&#13;
+    min-width: 34px;&#13;
+    height: 34px;&#13;
+    font-size: 13.5px;&#13;
+  }&#13;
+&#13;
+  .gnpl-chip,&#13;
+  .gnpl-cat { flex-shrink: 0; }&#13;
+&#13;
+  .gnpl-body { padding: 22px 16px 72px; }&#13;
+&#13;
+  .gnpl-row { padding: 20px 14px 22px 20px; }&#13;
+&#13;
+  .gnpl .gnpl-row__name { font-size: 19px; }&#13;
+  .gnpl .gnpl-row__desc { font-size: 14.5px; }&#13;
+&#13;
+  .gnpl-row__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gnpl-row__go {&#13;
+    width: 34px;&#13;
+    height: 34px;&#13;
+    font-size: 11px;&#13;
+  }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gnpl * { transition: none; }&#13;
+  .gnpl-row:hover { transform: none; }&#13;
+  .gnpl-row:hover .gnpl-row__go { transform: none; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -866,337 +1210,522 @@
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function () {
-    data.programs        = [];
-    data.categoryList    = [];
-    data.activePrograms  = 0;
-    data.totalPrograms   = 0;
-    data.categories      = 0;
 
-    // Descriptive GlideRecord name – reflects the table being queried
-    var grantProgramGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
-    grantProgramGr.addQuery('active', true);
-    grantProgramGr.addQuery('status', 'accepting_proposals');
-    grantProgramGr.orderByDesc('sys_created_on');
-    grantProgramGr.query();
+  /* =========================================================
+     GATENOW · GRANT PROGRAMS
+     Service Portal widget · Server script
 
-    var catSet = {};
+     Publishes the programs an applicant is allowed to see, with
+     a derived state that the browser filters against.
 
-    while (grantProgramGr.next()) {
-        var cat = grantProgramGr.getDisplayValue('category') || ''; // ← confirm field name
+     Only GlideRecordSecure is used, so a reader sees exactly
+     what the read ACLs on the program table allow and nothing
+     more.
 
-        data.programs.push({
-            sys_id:             grantProgramGr.getUniqueValue(),
-            program_name:       grantProgramGr.getDisplayValue('program_name'),
-            program_description: grantProgramGr.getDisplayValue('program_description'),
-            program_category:   cat,                                     // ← must match filter comparison
-            program_budget:     grantProgramGr.getDisplayValue('program_budget'),
-            proposal_open_date: grantProgramGr.getDisplayValue('proposal_open_date'),
-            status:             grantProgramGr.getDisplayValue('status')
-        });
+     Note on option names: every widget instance already has a
+     built in "title" field, so options.title returns the
+     instance title rather than anything you set. The heading
+     option is named heading for that reason. The same applies
+     to color, glyph and size.
+     ========================================================= */
 
-        if (cat) catSet[cat] = true;
+  var TBL = 'x_enno_gatenow_grant_program';
+
+  /* Statuses an applicant has any business seeing, as stored
+     values. Draft, Pending Approval and Rejected are internal
+     states and are excluded on purpose, whatever the ACLs
+     happen to allow. */
+  var PUBLIC_STATUS = 'accepting_proposals,published,program_closed';
+
+  var CLOSING_SOON_DAYS = 7;
+
+  function opt(name, fallback) {
+    var value = options[name];
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    return value.toString();
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  /* positive is in the future, negative is past */
+  function daysFromNow(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    try {
+      var ms = GlideDateTime.subtract(new GlideDateTime(), g).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return null; }
+  }
+
+  function stripHtml(html) {
+    if (!html) return '';
+    return ('' + html).replace(/<[^>]*>/g, ' ')
+                      .replace(/&nbsp;/g, ' ')
+                      .replace(/&amp;/g, '&')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+  }
+
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next candidate */ }
+    }
+    return '';
+  }
+
+
+  /* ---------- copy ---------- */
+  data.regionLabel = opt('region_label', gs.getMessage('Grant programs'));
+  data.eyebrow     = opt('eyebrow', gs.getMessage('Funding'));
+  data.heading     = opt('heading', gs.getMessage('Every program, and when it closes'));
+  data.subhead     = opt('subhead', gs.getMessage(
+    'Each one lists what it funds, who can apply and the date it shuts. Check ' +
+    'those three before you write anything.'));
+
+  data.filterLabel = opt('filter_label', gs.getMessage('Filter by status'));
+  data.sortNote    = opt('sort_note', gs.getMessage('Soonest closing date first'));
+  data.labelBudget = opt('label_budget', gs.getMessage('Fund'));
+  data.labelCloses = opt('label_closes', gs.getMessage('Closes'));
+  data.labelView   = opt('label_view', gs.getMessage('View program'));
+  data.searchPlaceholder = opt('search_placeholder', gs.getMessage('Search by name, category or reference'));
+  data.searchLabel = opt('search_label', gs.getMessage('Search programs'));
+  data.searchClear = opt('search_clear', gs.getMessage('Clear search'));
+  data.labelOf     = opt('label_of', gs.getMessage('of'));
+  data.clearAll    = opt('clear_all', gs.getMessage('Clear filters'));
+  data.pagerLabel  = opt('pager_label', gs.getMessage('Program pages'));
+  data.prevLabel   = opt('prev_label', gs.getMessage('Previous page'));
+  data.nextLabel   = opt('next_label', gs.getMessage('Next page'));
+
+  data.emptyTitle  = opt('empty_title', gs.getMessage('Nothing here right now'));
+  data.emptyText   = opt('empty_text', gs.getMessage(
+    'Nothing matches what you have narrowed it down to. Try a different word, ' +
+    'or clear the filters and start again.'));
+  data.emptyAction = opt('empty_action', gs.getMessage('Show all programs'));
+
+  /* ADJUST to the page id of your program detail page */
+  var DETAIL_PAGE = opt('detail_page', 'x_enno_gatenow_program');
+
+  var portalSuffix = '';
+  try {
+    var pr = $sp.getPortalRecord();
+    if (pr) portalSuffix = '/' + pr.getValue('url_suffix');
+  } catch (e) { /* relative link still works */ }
+
+
+  /* ---------- programs ---------- */
+  data.programs = [];
+
+  var counts = { all: 0, open: 0, soon: 0, closed: 0 };
+  var catCounts = {};
+  var scanned = 0;
+
+  try {
+
+    var gr = new GlideRecordSecure(TBL);
+    gr.addQuery('status', 'IN', PUBLIC_STATUS);
+
+    /* Set the only_active option to true to match the stricter
+       rule used elsewhere. It is off by default here so a closed
+       program with active unticked still appears in the archive
+       rather than vanishing from the page. */
+    if (opt('only_active', 'false') === 'true') {
+      gr.addQuery('active', true);
     }
 
-    data.totalPrograms   = data.programs.length;
-    data.activePrograms  = data.programs.length;
-    data.categoryList    = Object.keys(catSet).sort(); // ← drives filter tab buttons
-    data.categories      = data.categoryList.length;
+    gr.orderBy('proposal_close_date');
+    gr.setLimit(200);
+    gr.query();
+
+    while (gr.next()) {
+
+      scanned++;
+
+      var statusValue = lower(gr.getValue('status'));
+
+      var closeRaw = gr.getValue('proposal_close_date');
+      var openRaw  = gr.getValue('proposal_open_date');
+
+      var daysToClose = daysFromNow(closeRaw);
+      var daysToOpen  = daysFromNow(openRaw);
+
+      var accepting = statusValue === 'accepting_proposals';
+      var closedTag = statusValue === 'program_closed';
+
+      /* Derived state, because status alone does not tell an
+         applicant whether they can act today. A program can read
+         Accepting Proposals and still be past its close date. */
+      var state, stateLabel;
+
+      if (closedTag || (daysToClose !== null && daysToClose < 0)) {
+        state = 'closed';
+        stateLabel = gs.getMessage('Closed');
+      } else if (accepting) {
+        state = 'open';
+        stateLabel = gs.getMessage('Open now');
+      } else if (daysToOpen !== null && daysToOpen > 0) {
+        state = 'soon';
+        stateLabel = gs.getMessage('Opens ' + fmtDate(openRaw));
+      } else {
+        state = 'soon';
+        stateLabel = gs.getMessage('Opening soon');
+      }
+
+      var urgent = (state === 'open' && daysToClose !== null && daysToClose <= CLOSING_SOON_DAYS);
+
+      var daysLabel = '';
+      if (urgent) {
+        daysLabel = daysToClose <= 0
+          ? gs.getMessage('Closes today')
+          : daysToClose + ' ' + (daysToClose === 1 ? gs.getMessage('day left') : gs.getMessage('days left'));
+      }
+
+      var budget = '';
+      try {
+        var b = gr.getDisplayValue('program_budget');
+        if (b) budget = ('' + b).replace(/\.00$/, '');
+      } catch (e) { /* leave blank */ }
+
+      var name = pick(gr, ['program_name', 'short_description', 'number']);
+
+      data.programs.push({
+        sysId     : gr.getUniqueValue(),
+        number    : gr.getValue('number'),
+        name      : name,
+        category  : gr.getDisplayValue('category'),
+        synopsis  : stripHtml(pick(gr, ['synopsis', 'summary_statement', 'program_description'])).substring(0, 165),
+        awardType : gr.getDisplayValue('award_type'),
+        budget    : budget,
+        closes    : closeRaw ? fmtDate(closeRaw) : gs.getMessage('No closing date'),
+        daysLabel : daysLabel,
+        urgent    : urgent,
+        state     : state,
+        stateLabel: stateLabel,
+        url       : portalSuffix + '?id=' + DETAIL_PAGE + '&sys_id=' + gr.getUniqueValue()
+      });
+
+      counts.all++;
+      counts[state]++;
+
+      var catName = gr.getDisplayValue('category');
+      if (catName) {
+        catCounts[catName] = (catCounts[catName] || 0) + 1;
+      }
+    }
+
+    if (scanned === 0) {
+      gs.info('GateNow programs: no readable records on ' + TBL + ' for ' +
+              gs.getUserName() + '. Check the read ACL.');
+    }
+
+  } catch (e) {
+    gs.error('GateNow programs: ' + e.message);
+  }
+
+  /* open first, then opening soon, then closed. within each
+     group the query order by closing date is preserved. */
+  var RANK = { open: 0, soon: 1, closed: 2 };
+  data.programs.sort(function (a, b) {
+    return RANK[a.state] - RANK[b.state];
+  });
+
+  data.filters = [
+    { key: 'all',    label: gs.getMessage('All'),           count: counts.all },
+    { key: 'open',   label: gs.getMessage('Open now'),      count: counts.open },
+    { key: 'soon',   label: gs.getMessage('Opening soon'),  count: counts.soon },
+    { key: 'closed', label: gs.getMessage('Closed'),        count: counts.closed }
+  ];
+
+  /* Category is a second filter rather than a replacement. The
+     template only draws this row when there is more than one
+     category to choose between, since a single option is not a
+     choice. */
+  data.categories = [{ key: 'all', label: gs.getMessage('All categories'), count: counts.all }];
+
+  var catNames = [];
+  for (var cn in catCounts) { catNames.push(cn); }
+  catNames.sort();
+
+  for (var ci = 0; ci < catNames.length; ci++) {
+    data.categories.push({
+      key  : catNames[ci],
+      label: catNames[ci],
+      count: catCounts[catNames[ci]]
+    });
+  }
+
+  data.categoryLabel = opt('category_label', gs.getMessage('Category'));
+
+  /* Hero figures, counted from the same list the page renders,
+     so the numbers cannot drift from what is on screen. */
+  var urgentCount = data.programs.filter(function (p) { return p.urgent; }).length;
+
+  data.stats = [
+    {
+      label: gs.getMessage('Open now'),
+      value: counts.open,
+      note : counts.open === 1 ? gs.getMessage('program accepting proposals')
+                               : gs.getMessage('programs accepting proposals')
+    },
+    {
+      label: gs.getMessage('Closing this week'),
+      value: urgentCount,
+      note : urgentCount === 0 ? gs.getMessage('nothing due in the next seven days')
+                               : gs.getMessage('inside the last seven days')
+    },
+    {
+      label: gs.getMessage('Categories'),
+      value: catNames.length,
+      note : gs.getMessage('areas currently funded')
+    }
+  ];
+
+  data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
+  data.sortNote = opt('sort_note', gs.getMessage('sorted by soonest closing date'));
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 07:53:14</sys_created_on>
         <sys_id>4d6dabee2f437650d2a0d68fcea4e3d6</sys_id>
-        <sys_mod_count>65</sys_mod_count>
+        <sys_mod_count>71</sys_mod_count>
         <sys_name>Opportunities Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4d6dabee2f437650d2a0d68fcea4e3d6</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2026-06-04 10:29:56</sys_updated_on>
-        <template><![CDATA[
-<div class="gp-programs-wrapper">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-24 12:08:22</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · GRANT PROGRAMS
+     Service Portal widget · HTML template
 
-  <!-- HERO -->
-  <div class="gp-hero">
-    <div class="gp-hero__inner">
-      <div class="gp-hero__left">
-        <div class="gp-badge">
-          <span class="gp-badge-dot"></span>
-          Federal Grant Programs
+     A page hero followed by a directory of rows. Rows rather
+     than cards because there is no artwork to carry a card, and
+     a card with nothing but text in it is a card missing
+     something.
+
+     Filtering runs in the browser against data already loaded,
+     so switching status costs no round trip and the rows
+     re-enter each time the list is rebuilt.
+     ========================================================= -->
+
+<div class="gnpl" role="region" aria-label="{{c.data.regionLabel}}">
+
+  <!-- ═══════════════════ HERO ═══════════════════ -->
+  <section class="gnpl-hero">
+
+    <span class="gnpl-hero__glow" aria-hidden="true"></span>
+
+    <div class="gnpl-hero__inner">
+
+      <span class="gnpl-eyebrow" ng-if="c.data.eyebrow">{{c.data.eyebrow}}</span>
+
+      <h1 class="gnpl-hero__title">{{c.data.heading}}</h1>
+
+      <p class="gnpl-hero__sub">{{c.data.subhead}}</p>
+
+      <dl class="gnpl-stats">
+        <div class="gnpl-stat"
+             ng-repeat="s in c.data.stats track by $index"
+             ng-class="'gnpl-stat--' + ($index + 1)">
+          <dt class="gnpl-stat__label">{{s.label}}</dt>
+          <dd class="gnpl-stat__value">{{s.value}}</dd>
+          <dd class="gnpl-stat__note" ng-if="s.note">{{s.note}}</dd>
         </div>
-        <h1 class="gp-hero__title">Discover Grant Programs</h1>
-        <p class="gp-hero__sub">
-          Browse federal transportation grants. Find the right funding opportunity for your infrastructure project.
-        </p>
-        <!-- Search -->
-        <div class="gp-search-wrap">
-          <svg class="gp-search-icon" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input class="gp-search-input"
-                 type="text"
-                 placeholder="Search programs, categories, keywords…"
-                 ng-model="c.searchText"
-                 ng-change="c.onSearch()" />
-          <button class="gp-search-clear" ng-if="c.searchText" ng-click="c.clearSearch()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2.5" width="14" height="14">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+      </dl>
+
+    </div>
+
+  </section>
+
+
+  <!-- ═══════════════════ FILTERS ═══════════════════ -->
+  <div class="gnpl-bar">
+
+    <div class="gnpl-bar__inner">
+
+      <label class="gnpl-search">
+        <i class="fa fa-search gnpl-search__icon" aria-hidden="true"></i>
+        <input type="text"
+               class="gnpl-search__field"
+               ng-model="c.query"
+               ng-change="c.onSearch()"
+               ng-model-options="{debounce: 120}"
+               placeholder="{{c.data.searchPlaceholder}}"
+               aria-label="{{c.data.searchLabel}}">
+        <button type="button"
+                class="gnpl-search__clear"
+                ng-if="c.query"
+                ng-click="c.clearSearch()"
+                aria-label="{{c.data.searchClear}}">
+          <i class="fa fa-times" aria-hidden="true"></i>
+        </button>
+      </label>
+
+      <div class="gnpl-chips" role="group" aria-label="{{c.data.filterLabel}}">
+        <button type="button"
+                class="gnpl-chip"
+                ng-repeat="f in c.data.filters track by f.key"
+                ng-class="{'is-on': c.filter === f.key}"
+                ng-click="c.setFilter(f.key)"
+                ng-attr-aria-pressed="{{c.filter === f.key}}">
+          <span class="gnpl-chip__dot" ng-class="'gnpl-chip__dot--' + f.key" aria-hidden="true"></span>
+          <span class="gnpl-chip__label">{{f.label}}</span>
+          <span class="gnpl-chip__count">{{f.count}}</span>
+        </button>
+      </div>
+
+      <div class="gnpl-cats" ng-if="c.data.categories.length > 2">
+        <button type="button"
+                class="gnpl-cat"
+                ng-repeat="k in c.data.categories track by k.key"
+                ng-class="{'is-on': c.category === k.key}"
+                ng-click="c.setCategory(k.key)"
+                ng-attr-aria-pressed="{{c.category === k.key}}">
+          {{k.label}}
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- ═══════════════════ DIRECTORY ═══════════════════ -->
+  <section class="gnpl-body">
+
+    <div class="gnpl-body__inner">
+
+      <p class="gnpl-count">
+        <strong ng-if="c.total()">{{c.rangeFrom()}}&ndash;{{c.rangeTo()}} {{c.data.labelOf}} {{c.total()}}</strong>
+        <strong ng-if="!c.total()">0</strong>
+        <span>{{c.data.sortNote}}</span>
+        <button type="button" class="gnpl-count__clear" ng-if="c.isFiltered()" ng-click="c.clearAll()">
+          {{c.data.clearAll}}
+        </button>
+      </p>
+
+      <div class="gnpl-list">
+
+        <a class="gnpl-row"
+           ng-repeat="p in c.shown() track by p.sysId"
+           ng-class="['gnpl-row--' + p.state, 'gnpl-row--n' + (($index % 10) + 1)]"
+           ng-href="{{p.url}}">
+
+          <span class="gnpl-row__rail" aria-hidden="true"></span>
+          <span class="gnpl-row__wash" aria-hidden="true"></span>
+
+          <div class="gnpl-row__main">
+
+            <span class="gnpl-row__top">
+              <span class="gnpl-state" ng-class="'gnpl-state--' + p.state">
+                <span class="gnpl-state__dot" aria-hidden="true"></span>
+                {{p.stateLabel}}
+              </span>
+              <span class="gnpl-row__meta">
+                <span ng-if="p.category">{{p.category}}</span>
+                <span class="gnpl-row__sep" ng-if="p.category" aria-hidden="true">&middot;</span>
+                <span>{{p.number}}</span>
+              </span>
+            </span>
+
+            <h2 class="gnpl-row__name">{{p.name}}</h2>
+
+            <p class="gnpl-row__desc" ng-if="p.synopsis">{{p.synopsis}}</p>
+
+          </div>
+
+          <div class="gnpl-row__facts">
+
+            <span class="gnpl-fact" ng-if="p.budget">
+              <span class="gnpl-fact__label">{{c.data.labelBudget}}</span>
+              <span class="gnpl-fact__value">{{p.budget}}</span>
+            </span>
+
+            <span class="gnpl-fact">
+              <span class="gnpl-fact__label">{{c.data.labelCloses}}</span>
+              <span class="gnpl-fact__value">{{p.closes}}</span>
+              <span class="gnpl-fact__flag" ng-if="p.urgent">{{p.daysLabel}}</span>
+            </span>
+
+          </div>
+
+          <span class="gnpl-row__go" aria-hidden="true"><i class="fa fa-arrow-right"></i></span>
+
+        </a>
+
+      </div>
+
+
+      <div class="gnpl-empty" ng-if="!c.shown().length">
+        <p class="gnpl-empty__title">{{c.data.emptyTitle}}</p>
+        <p class="gnpl-empty__text">{{c.data.emptyText}}</p>
+        <button type="button" class="gnpl-empty__btn" ng-click="c.clearAll()"
+                ng-if="c.isFiltered()">
+          {{c.data.emptyAction}}
+        </button>
+      </div>
+
+
+      <nav class="gnpl-pager" ng-if="c.pageCount() > 1" aria-label="{{c.data.pagerLabel}}">
+
+        <button type="button"
+                class="gnpl-pager__step"
+                ng-click="c.prev()"
+                ng-disabled="c.page === 1"
+                aria-label="{{c.data.prevLabel}}">
+          <i class="fa fa-angle-left" aria-hidden="true"></i>
+        </button>
+
+        <div class="gnpl-pager__nums">
+          <button type="button"
+                  ng-repeat="n in c.pages() track by $index"
+                  class="gnpl-pager__num"
+                  ng-class="{'is-on': n === c.page, 'is-gap': n === '...'}"
+                  ng-disabled="n === '...'"
+                  ng-click="c.goto(n)"
+                  ng-attr-aria-current="{{n === c.page ? 'page' : undefined}}">
+            {{n}}
           </button>
         </div>
-      </div>
 
-      <!-- Stats pills -->
-      <div class="gp-hero__stats">
-        <div class="gp-stat-pill">
-          <span class="gp-stat-pill__num">{{data.activePrograms}}</span>
-          <span class="gp-stat-pill__lbl">Active</span>
-        </div>
-        <div class="gp-stat-pill">
-          <span class="gp-stat-pill__num">{{data.categories}}</span>
-          <span class="gp-stat-pill__lbl">Categories</span>
-        </div>
-        <div class="gp-stat-pill">
-          <span class="gp-stat-pill__num">{{data.totalPrograms}}</span>
-          <span class="gp-stat-pill__lbl">Total</span>
-        </div>
-      </div>
-    </div>
-  </div>
+        <button type="button"
+                class="gnpl-pager__step"
+                ng-click="c.next()"
+                ng-disabled="c.page === c.pageCount()"
+                aria-label="{{c.data.nextLabel}}">
+          <i class="fa fa-angle-right" aria-hidden="true"></i>
+        </button>
 
-  <!-- BODY -->
-  <div class="gp-body">
-    <div class="gp-body__inner">
-
-      <!-- Toolbar -->
-      <div class="gp-toolbar">
-
-        <!-- Left: results + sort -->
-        <div class="gp-toolbar__left">
-          <span class="gp-result-count">
-            <strong>{{c.totalFiltered()}}</strong> programs found
-            <span ng-if="c.searchText || c.activeCategory !== 'all'"> — filtered</span>
-          </span>
-
-          <div class="gp-sort-wrap">
-            <svg viewBox="0 0 16 16" fill="none" width="13" height="13"
-                 class="gp-sort-icon">
-              <path d="M2 4h12M4 8h8M6 12h4"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <select class="gp-sort-select" ng-model="c.sortKey" ng-change="c.applyFilters()">
-              <option value="name_asc">Name A–Z</option>
-              <option value="name_desc">Name Z–A</option>
-              <option value="newest">Newest First</option>
-              <option value="budget">Budget</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Right: view toggle -->
-        <div class="gp-toolbar__right">
-          <div class="gp-view-toggle">
-            <button class="gp-toggle-btn"
-                    ng-class="{'gp-toggle-btn--active': c.gridView}"
-                    ng-click="c.gridView = true" title="Grid view">
-              <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-                <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor"/>
-                <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor"/>
-                <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor"/>
-                <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/>
-              </svg>
-            </button>
-            <button class="gp-toggle-btn"
-                    ng-class="{'gp-toggle-btn--active': !c.gridView}"
-                    ng-click="c.gridView = false" title="List view">
-              <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-                <rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/>
-                <rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/>
-                <rect x="1" y="12" width="14" height="2" rx="1" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Layout: sidebar + grid -->
-      <div class="gp-layout">
-
-        <!-- Category Sidebar -->
-        <aside class="gp-sidebar">
-          <div class="gp-sidebar__hdr">
-            <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-              <path d="M2 4h12M4 8h8M6 12h4"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            Categories
-          </div>
-
-          <ul class="gp-cat-list">
-            <li class="gp-cat-item"
-                ng-class="{'gp-cat-item--active': c.activeCategory === 'all'}"
-                ng-click="c.filterBy('all')">
-              <span class="gp-cat-item__name">All Programs</span>
-              <span class="gp-cat-item__count">{{data.totalPrograms}}</span>
-            </li>
-            <li class="gp-cat-item"
-                ng-repeat="cat in data.categoryList track by $index"
-                ng-class="{'gp-cat-item--active': c.activeCategory === cat}"
-                ng-click="c.filterBy(cat)">
-              <span class="gp-cat-item__name">{{cat}}</span>
-              <span class="gp-cat-item__count">{{c.countByCategory(cat)}}</span>
-            </li>
-          </ul>
-        </aside>
-
-        <!-- Main content -->
-        <div class="gp-main">
-
-          <!-- Active filters strip -->
-          <div class="gp-active-filters"
-               ng-if="c.activeCategory !== 'all' || c.searchText">
-            <span class="gp-af-label">Filters:</span>
-            <span class="gp-af-chip" ng-if="c.activeCategory !== 'all'">
-              {{c.activeCategory}}
-              <button ng-click="c.filterBy('all')">×</button>
-            </span>
-            <span class="gp-af-chip" ng-if="c.searchText">
-              "{{c.searchText}}"
-              <button ng-click="c.clearSearch()">×</button>
-            </span>
-            <button class="gp-af-clear" ng-click="c.clearAll()">Clear all</button>
-          </div>
-
-          <!-- Program grid/list -->
-          <div class="gp-grid" ng-class="{'gp-grid--list': !c.gridView}"
-               ng-if="c.paged().length">
-            <article class="gp-card"
-                     ng-repeat="program in c.paged() track by program.sys_id"
-                     ng-click="c.viewDetails(program)">
-
-              <div class="gp-card__top">
-                <span class="gp-card-badge" ng-if="program.program_category">
-                  {{program.program_category}}
-                </span>
-                <span class="gp-card-status"
-                      ng-class="program.status === 'Active' ? 'gp-status--active' : 'gp-status--inactive'">
-                  <span class="gp-status-dot"></span>
-                  {{program.status || 'Active'}}
-                </span>
-              </div>
-
-              <h3 class="gp-card-title">{{program.program_name}}</h3>
-
-              <p class="gp-card-desc" ng-if="program.program_description">
-                {{program.program_description | limitTo:120}}{{program.program_description.length > 120 ? '…' : ''}}
-              </p>
-
-              <div class="gp-card-meta">
-                <div class="gp-meta-row" ng-if="program.program_budget">
-                  <svg class="gp-meta-icon" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
-                    <path d="M8 4.5v7M6 6.5c0-.83.9-1.5 2-1.5s2 .67 2 1.5S9.1 8 8 8s-2 .67-2 1.5S6.9 11 8 11s2-.67 2-1.5"
-                          stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                  </svg>
-                  {{program.program_budget}}
-                </div>
-                <div class="gp-meta-row" ng-if="program.proposal_open_date">
-                  <svg class="gp-meta-icon" viewBox="0 0 16 16" fill="none">
-                    <rect x="1.5" y="2.5" width="13" height="12" rx="1.5"
-                          stroke="currentColor" stroke-width="1.3"/>
-                    <path d="M1.5 6h13M5 1.5v2M11 1.5v2"
-                          stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                  </svg>
-                  Opens {{program.proposal_open_date}}
-                </div>
-              </div>
-
-              <div class="gp-card-footer">
-                <span class="gp-card-link">
-                  View Details
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                       stroke="currentColor" stroke-width="2"
-                       stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                    <polyline points="12 5 19 12 12 19"/>
-                  </svg>
-                </span>
-              </div>
-
-            </article>
-          </div>
-
-          <!-- Empty state -->
-          <div class="gp-empty" ng-if="!c.paged().length">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
-                 stroke="#c4b5fd" stroke-width="1.3">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <strong>No programs found</strong>
-            <p>Try adjusting your search or filters.</p>
-            <button class="gp-btn-reset" ng-click="c.clearAll()">Reset Filters</button>
-          </div>
-
-          <!-- PAGINATION -->
-          <div class="gp-pagination" ng-if="c.totalPages() > 1">
-            <div class="gp-pagination__info">
-              Showing {{c.pageStart()}}–{{c.pageEnd()}} of {{c.totalFiltered()}}
-            </div>
-
-            <div class="gp-pagination__controls">
-
-              <!-- Prev -->
-              <button class="gp-pg-btn"
-                      ng-disabled="c.currentPage === 1"
-                      ng-click="c.goTo(c.currentPage - 1)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" width="14" height="14">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-              </button>
-
-              <!-- Page numbers -->
-              <ng-container ng-repeat="p in c.pageNumbers() track by $index">
-                <button class="gp-pg-btn gp-pg-btn--ellipsis"
-                        ng-if="p === '...'" disabled>…</button>
-                <button class="gp-pg-btn"
-                        ng-if="p !== '...'"
-                        ng-class="{'gp-pg-btn--active': p === c.currentPage}"
-                        ng-click="c.goTo(p)">{{p}}</button>
-              </ng-container>
-
-              <!-- Next -->
-              <button class="gp-pg-btn"
-                      ng-disabled="c.currentPage === c.totalPages()"
-                      ng-click="c.goTo(c.currentPage + 1)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" width="14" height="14">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
-            </div>
-
-            <!-- Page size -->
-            <div class="gp-pagination__size">
-              <span>Per page:</span>
-              <select ng-model="c.pageSize" ng-change="c.goTo(1)">
-                <option value="12">12</option>
-                <option value="24">24</option>
-                <option value="48">48</option>
-              </select>
-            </div>
-          </div>
-
-        </div><!-- /gp-main -->
-      </div><!-- /gp-layout -->
+      </nav>
 
     </div>
-  </div>
+
+  </section>
+
 </div>]]></template>
     </sp_widget>
 </record_update>

@@ -1,0 +1,518 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function(spUtil, $scope, $http, $rootScope) {
+  var c = this;
+  
+  c.submitting = false;
+  c.selectedFile = null;
+  
+  // Link to data prepared by server
+  c.change = c.data.changeData || {};
+
+  // Auto-populate the dropdown ONLY if called from the Project Details widget
+  if (c.data.passedProjectId) {
+      c.change.project = c.data.passedProjectId;
+  }
+
+  c.onFileSelect = function(element) {
+    if (element.files && element.files.length > 0) {
+      c.selectedFile = element.files[0];
+      $scope.$applyAsync();
+    }
+  };
+
+  c.removeFile = function() {
+    c.selectedFile = null;
+  };
+
+  c.closeToDashboard = function() {
+    // Updated to emit the same event name used by the parent widget listeners
+    $rootScope.$emit('gn_close_action_form');
+  };
+
+  c.saveDraft = function() {
+    spUtil.addInfoMessage("Draft saved.");
+    c.closeToDashboard();
+  };
+
+  c.submitChange = function() {
+    c.submitting = true;
+    
+    c.server.get({
+      action: 'submit_change',
+      changeData: c.change
+    }).then(function(r) {
+      if (r.data.success) {
+        var newSysId = r.data.new_sys_id;
+        
+        // Upload attachment if present
+        if (c.selectedFile && newSysId) {
+          var formData = new FormData();
+          formData.append('table_name', 'x_enno_gatenow_request_change');
+          formData.append('table_sys_id', newSysId);
+          formData.append('uploadFile', c.selectedFile);
+
+          $http({
+            method: 'POST',
+            url: '/api/now/attachment/upload',
+            headers: { 'Content-Type': undefined },
+            data: formData,
+            transformRequest: angular.identity
+          }).then(function() {
+            spUtil.addInfoMessage("Change request and attachment submitted.");
+            c.closeToDashboard();
+          }, function() {
+            spUtil.addErrorMessage("Request saved, but attachment failed.");
+            c.closeToDashboard();
+          });
+        } else {
+          spUtil.addInfoMessage("Change request submitted successfully.");
+          c.closeToDashboard();
+        }
+      } else {
+        spUtil.addErrorMessage(r.data.error || "Submission failed.");
+        c.submitting = false;
+      }
+    });
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.gn-form-wrapper {&#13;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;&#13;
+  background-color: #f8fafc;&#13;
+  padding: 30px;&#13;
+  min-height: 100vh;&#13;
+  color: #1e293b;&#13;
+}&#13;
+&#13;
+.text-muted { color: #64748b; }&#13;
+.text-danger { color: #ef4444; }&#13;
+.mt-4 { margin-top: 24px; }&#13;
+&#13;
+.gn-breadcrumbs {&#13;
+  margin-bottom: 24px;&#13;
+  font-size: 14px;&#13;
+  a { color: #4f46e5; text-decoration: none; font-weight: 500; }&#13;
+  .divider { color: #94a3b8; margin: 0 8px; }&#13;
+  .current { color: #64748b; }&#13;
+}&#13;
+&#13;
+.gn-form-layout {&#13;
+  display: flex;&#13;
+  gap: 30px;&#13;
+  align-items: flex-start;&#13;
+}&#13;
+&#13;
+/* Left Column: Form */&#13;
+.gn-main-form {&#13;
+  flex: 1;&#13;
+  background: #ffffff;&#13;
+  border-radius: 12px;&#13;
+  padding: 32px;&#13;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);&#13;
+}&#13;
+&#13;
+.form-row {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 20px;&#13;
+  margin-bottom: 24px;&#13;
+  width: 100%;&#13;
+}&#13;
+&#13;
+.form-group {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  margin-bottom: 24px;&#13;
+  &#13;
+  label {&#13;
+    font-size: 13px;&#13;
+    font-weight: 700;&#13;
+    color: #334155;&#13;
+    margin-bottom: 8px;&#13;
+  }&#13;
+}&#13;
+&#13;
+.form-group.half { flex: 1 1 calc(50% - 10px); margin-bottom: 0; }&#13;
+.form-group.third { flex: 1 1 calc(33.333% - 14px); margin-bottom: 0; }&#13;
+&#13;
+.gn-select, .gn-input, .gn-textarea {&#13;
+  width: 100%;&#13;
+  box-sizing: border-box;&#13;
+  border: 1px solid #cbd5e1;&#13;
+  border-radius: 8px;&#13;
+  padding: 10px 14px;&#13;
+  font-size: 14px;&#13;
+  color: #1e293b;&#13;
+  outline: none;&#13;
+  background-color: #ffffff;&#13;
+  &#13;
+  &amp;:disabled { background-color: #f8fafc; color: #475569; }&#13;
+  &amp;:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }&#13;
+}&#13;
+&#13;
+.gn-textarea { resize: vertical; }&#13;
+&#13;
+/* Attachments */&#13;
+.gn-attachment-zone {&#13;
+  border: 1px dashed #cbd5e1;&#13;
+  background: #f8fafc;&#13;
+  border-radius: 8px;&#13;
+  padding: 20px;&#13;
+  display: flex;&#13;
+  justify-content: space-between;&#13;
+  align-items: center;&#13;
+  margin-bottom: 12px;&#13;
+  &#13;
+  .zone-text { font-size: 14px; }&#13;
+  &#13;
+  .btn-browse {&#13;
+    background: #eef2ff; color: #4f46e5; font-weight: 600; font-size: 13px;&#13;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 0;&#13;
+  }&#13;
+}&#13;
+.file-preview {&#13;
+  background: #eef2ff; color: #4f46e5; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: 500;&#13;
+  .remove-file { float: right; cursor: pointer; margin-top: 3px; }&#13;
+}&#13;
+&#13;
+/* Footer Actions */&#13;
+.form-footer {&#13;
+  display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;&#13;
+  .right-actions { display: flex; gap: 12px; }&#13;
+}&#13;
+&#13;
+button {&#13;
+  font-size: 14px; font-weight: 600; border-radius: 8px; padding: 10px 20px; cursor: pointer; border: none;&#13;
+  &amp;.btn-text { background: transparent; color: #475569; padding-left: 0; }&#13;
+  &amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }&#13;
+  &amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }&#13;
+  &amp;:disabled { opacity: 0.7; cursor: not-allowed; }&#13;
+}&#13;
+&#13;
+/* Right Column: Sidebar */&#13;
+.gn-sidebar { width: 320px; flex-shrink: 0; }&#13;
+&#13;
+.glance-card {&#13;
+  background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;&#13;
+  h3 { font-size: 16px; font-weight: 700; color: #0f172a; margin: 0; }&#13;
+}&#13;
+&#13;
+/* Approval Path specific styling */&#13;
+.approval-path {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 16px;&#13;
+  &#13;
+  .path-step {&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    gap: 12px;&#13;
+    &#13;
+    .step-number {&#13;
+      width: 24px;&#13;
+      height: 24px;&#13;
+      background: #eef2ff;&#13;
+      color: #4f46e5;&#13;
+      border-radius: 50%;&#13;
+      display: flex;&#13;
+      align-items: center;&#13;
+      justify-content: center;&#13;
+      font-size: 12px;&#13;
+      font-weight: 700;&#13;
+      flex-shrink: 0;&#13;
+    }&#13;
+    &#13;
+    .step-text {&#13;
+      font-size: 13px;&#13;
+      color: #334155;&#13;
+      line-height: 1.4;&#13;
+    }&#13;
+  }&#13;
+}&#13;
+&#13;
+/* Warning Card specific styling */&#13;
+.warning-card {&#13;
+  background: #fffbeb;&#13;
+  border: 1px solid #fde68a;&#13;
+  border-radius: 12px;&#13;
+  padding: 24px;&#13;
+  &#13;
+  .warning-title {&#13;
+    font-size: 14px;&#13;
+    font-weight: 700;&#13;
+    color: #92400e;&#13;
+    margin: 0 0 8px 0;&#13;
+  }&#13;
+  &#13;
+  .warning-text {&#13;
+    font-size: 13px;&#13;
+    color: #92400e;&#13;
+    line-height: 1.5;&#13;
+    margin: 0;&#13;
+  }&#13;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>new_change_request</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>New Change Request</name>
+        <option_schema/>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+    data.success = false;
+    data.error = "";
+
+    // ==========================================
+    // 1. INITIAL LOAD (Passed from Dashboard via spUtil.get)
+    // ==========================================
+    if (!input || !input.action) {
+        data.availableProjects = [];
+        
+        // Catch the project ID passed from options (spUtil.get)
+        data.passedProjectId = options.project_id || (input ? input.project_id : '') || '';
+
+        var currentUser = gs.getUserID();
+        var myApplicantIds = [];
+
+        // Step A: Find the user's applicant profile IDs
+        // Using standard GlideRecord to bypass read ACLs for the dropdown
+        var grApp = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+        grApp.addQuery('user', currentUser);
+        grApp.query();
+        while (grApp.next()) {
+            myApplicantIds.push(grApp.getUniqueValue());
+        }
+
+        // Step B: Find the projects tied to those applicant profiles
+        var grProj = new GlideRecordSecure('x_enno_gatenow_project');
+        var qcP = grProj.addQuery('applicant', 'IN', myApplicantIds.join(','));
+        qcP.addOrCondition('applicant.user', currentUser);
+        qcP.addOrCondition('x_enno_gatenow_applicant.user', currentUser); // Fallback field check
+        
+        grProj.orderByDesc('sys_created_on');
+        grProj.query();
+        
+        while (grProj.next()) {
+            var pName = grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number');
+            data.availableProjects.push({
+                sys_id: grProj.getUniqueValue(),
+                name: pName + ' (' + grProj.getValue('number') + ')'
+            });
+        }
+
+        // The auto-select fallback logic has been removed so the field remains blank 
+        // when accessed outside of the Project Details context.
+
+        // Initialize empty payload mapping to the passed ID
+        data.changeData = {
+            project: data.passedProjectId,
+            short_description: '',
+            category: '',
+            priority: '',
+            impact: '',
+            business_justification: '',
+            description: ''
+        };
+    }
+
+    // ==========================================
+    // 2. HANDLE FORM SUBMISSION
+    // ==========================================
+    if (input && input.action === 'submit_change') {
+        
+        // Use GlideRecordSecure to ensure inserting data is strictly permission-checked
+        var cr = new GlideRecordSecure('x_enno_gatenow_request_change');
+        cr.initialize();
+        
+        var payload = input.changeData;
+        
+        // Failsafe: Prevent insert if project is empty
+        if (!payload || !payload.project) {
+            data.error = "A valid Project must be selected.";
+            return;
+        }
+
+        cr.setValue('project', payload.project);
+        cr.setValue('parent', payload.project); // Set both fields for backward compatibility
+        
+        cr.setValue('title', payload.short_description);
+        cr.setValue('short_description', payload.short_description); 
+        cr.setValue('category', payload.category);
+        cr.setValue('priority', payload.priority);
+        cr.setValue('impact', payload.impact);
+        cr.setValue('business_justification', payload.business_justification);
+        cr.setValue('description', payload.description);
+        
+        var newId = cr.insert();
+        
+        if (newId) {
+            data.success = true;
+            data.new_sys_id = newId;
+        } else {
+            data.error = "Database rejected insert. Ensure all mandatory fields are provided and you have write access.";
+        }
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-20 07:03:55</sys_created_on>
+        <sys_id>fda6c33593be8b10d444c9b877373ca4</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_name>New Change Request</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_fda6c33593be8b10d444c9b877373ca4</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-20 10:37:51</sys_updated_on>
+        <template><![CDATA[<div class="gn-form-wrapper" ng-cloak>
+  
+  <div class="gn-breadcrumbs">
+    <a href="javascript:void(0)" ng-click="c.closeToDashboard()">Reports & Change Requests</a> 
+    <span class="divider">/</span> 
+    <span class="current">New change request</span>
+  </div>
+
+  <div class="gn-form-layout">
+    
+    <!-- LEFT COLUMN: The Form -->
+    <div class="gn-main-form">
+      
+      <!-- Top Row: Project & Change Type -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Project <span class="text-danger">*</span></label>
+          <!-- UPDATED: Now dynamically populates with the user's projects -->
+          <select class="gn-select" ng-model="c.change.project" ng-options="proj.sys_id as proj.name for proj in c.data.availableProjects" required>
+            <option value="" disabled>-- Select Project --</option>
+          </select>
+        </div>
+        <div class="form-group half">
+          <label>Change type <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.change.category" required>
+            <option value="">-- Select --</option>
+            <option value="scope">Scope Change</option>
+            <option value="schedule">Timeline extension</option>
+            <option value="budget">Budget Change</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Request Details Card -->
+      <div class="gn-inner-card">
+        <div class="form-group">
+          <label>Title <span class="text-danger">*</span></label>
+          <input type="text" class="gn-input" ng-model="c.change.short_description" placeholder="Brief title of the change" required>
+        </div>
+        
+        <div class="form-row" style="margin-bottom: 0;">
+          <div class="form-group half">
+            <label>Priority <span class="text-danger">*</span></label>
+            <select class="gn-select" ng-model="c.change.priority" required>
+              <option value="">-- Select --</option>
+              <option value="1">1 - Critical</option>
+              <option value="2">2 - High</option>
+              <option value="3">3 - Moderate</option>
+              <option value="4">4 - Low</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label>Impact <span class="text-danger">*</span></label>
+            <select class="gn-select" ng-model="c.change.impact" required>
+              <option value="">-- Select --</option>
+              <option value="1">1 - Critical</option>
+              <option value="2">2 - High</option>
+              <option value="3">3 - Moderate</option>
+              <option value="4">4 - Low</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Justification -->
+      <div class="form-group mt-4">
+        <label>Justification <span class="text-danger">*</span></label>
+        <textarea class="gn-textarea" rows="4" ng-model="c.change.business_justification" placeholder="Explain why this change is necessary..." required></textarea>
+      </div>
+
+      <!-- Impact / Proposed Change -->
+      <div class="form-group">
+        <label>Impact on outcomes <span class="text-danger">*</span></label>
+        <textarea class="gn-textarea" rows="4" ng-model="c.change.description" placeholder="Describe the proposed change in detail and its impact on the project..." required></textarea>
+      </div>
+
+      <!-- File Attachment Zone -->
+      <div class="gn-attachment-zone">
+        <div class="zone-text">
+          <strong>Attach evidence</strong><br>
+          <span class="text-muted">Revised delivery plans, budgets or sign-off sheets &middot; optional</span>
+        </div>
+        <label class="btn-browse">
+          Browse files
+          <input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
+        </label>
+      </div>
+      
+      <div class="file-preview" ng-if="c.selectedFile">
+        <i class="fa fa-paperclip"></i> {{c.selectedFile.name}}
+        <i class="fa fa-times text-danger remove-file" ng-click="c.removeFile()"></i>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="form-footer">
+        <button class="btn-text" ng-click="c.closeToDashboard()">Cancel</button>
+        <div class="right-actions">
+          <button class="btn-outline" ng-click="c.saveDraft()">Save draft</button>
+          <!-- UPDATED: Button is disabled if project is not selected -->
+          <button class="btn-primary" ng-click="c.submitChange()" ng-disabled="c.submitting || !c.change.project || !c.change.short_description || !c.change.category || !c.change.priority || !c.change.impact || !c.change.business_justification || !c.change.description">
+            <span ng-if="!c.submitting">Submit change request</span>
+            <span ng-if="c.submitting">Submitting...</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Context Sidebar -->
+    <div class="gn-sidebar">
+      
+      <div class="glance-card">
+        <h3 style="margin-bottom: 20px;">Approval path</h3>
+        <div class="approval-path">
+          <div class="path-step">
+            <div class="step-number">1</div>
+            <div class="step-text text-primary font-bold">Grant manager review &middot; <span class="text-muted font-normal">5 business days</span></div>
+          </div>
+          <div class="path-step">
+            <div class="step-number">2</div>
+            <div class="step-text text-primary font-bold">Program officer decision</div>
+          </div>
+          <div class="path-step">
+            <div class="step-number">3</div>
+            <div class="step-text text-primary font-bold">Award variation issued in GateNow</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="warning-card mt-4">
+        <h3 class="warning-title">Before you submit</h3>
+        <p class="warning-text">Timeline changes beyond six months, or budget moves above 10% of a line, need a revised delivery plan attached.</p>
+      </div>
+
+    </div>
+
+  </div>
+</div>]]></template>
+    </sp_widget>
+</record_update>

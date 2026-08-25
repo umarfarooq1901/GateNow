@@ -1,0 +1,608 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function() {
+  /* widget controller */
+  var c = this;
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* =========================================================&#13;
+   GATENOW LANDING · ABOUT&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+   Component rules are scoped as .gna-about .gna-x so nothing&#13;
+   in the portal theme or Bootstrap outranks them.&#13;
+&#13;
+   Two deliberate decisions:&#13;
+&#13;
+   1. The section sits on white and lifts over the hero on a&#13;
+      rounded seam. The hero is a pale blue wash, so sharing&#13;
+      that wash made the two read as one slab.&#13;
+&#13;
+   2. Animation is CSS only, runs on load with a stagger, and&#13;
+      never holds an element at opacity zero in a base rule.&#13;
+      The from-state comes from animation-fill-mode backwards,&#13;
+      so if animation is blocked the content still renders.&#13;
+      Scroll linked animation is avoided on purpose, since&#13;
+      animation-timeline resolves against the nearest scroll&#13;
+      container and this section clips its own overflow.&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- typeface ----------&#13;
+   The same face as the hero. If both widgets sit on one page,&#13;
+   keep a single copy of this block, ideally in a shared Style&#13;
+   Sheet record attached to the theme, and delete it here.&#13;
+   ------------------------------------------------------------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- palette ---------- */&#13;
+$gna-navy:      #0a2540;&#13;
+$gna-blue:      #1560e0;&#13;
+$gna-blue-dk:   #0f4cbb;&#13;
+$gna-blue-soft: #eef3fd;&#13;
+$gna-blue-tint: #dbe7fa;&#13;
+$gna-body:      #55677f;&#13;
+$gna-hair:      #e4eaf4;&#13;
+$gna-white:     #ffffff;&#13;
+&#13;
+$gna-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   SECTION&#13;
+   The negative margin and rounded top edge lift this section&#13;
+   over the hero, which is what separates them.&#13;
+   ========================================================= */&#13;
+&#13;
+.gna-about {&#13;
+  position: relative;&#13;
+  z-index: 1;&#13;
+  width: 100%;&#13;
+  margin-top: -52px;&#13;
+  padding: 116px 24px 128px;&#13;
+  border-radius: 52px 52px 0 0;&#13;
+  font-family: $gna-font;&#13;
+  color: $gna-navy;&#13;
+  background: $gna-white;&#13;
+  box-shadow: 0 -24px 60px rgba(16, 54, 110, 0.07);&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+/* faint wash so the white is not flat */&#13;
+.gna-about::before {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  top: -180px;&#13;
+  right: -160px;&#13;
+  width: 620px;&#13;
+  height: 620px;&#13;
+  border-radius: 50%;&#13;
+  background: radial-gradient(circle, rgba(21, 96, 224, 0.07) 0%, rgba(21, 96, 224, 0) 68%);&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gna-about *,&#13;
+.gna-about *::before,&#13;
+.gna-about *::after { box-sizing: border-box; }&#13;
+&#13;
+.gna-about__inner {&#13;
+  position: relative;&#13;
+  max-width: 1160px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEADER&#13;
+   Left aligned against the hero's centred header, which is&#13;
+   half of what makes the two sections feel distinct.&#13;
+   ========================================================= */&#13;
+&#13;
+.gna-head {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 430px);&#13;
+  align-items: end;&#13;
+  gap: 20px 64px;&#13;
+}&#13;
+&#13;
+.gna-head__lead { min-width: 0; }&#13;
+&#13;
+.gna-head__aside { min-width: 0; }&#13;
+&#13;
+.gna-about .gna-eyebrow {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  padding: 8px 18px;&#13;
+  margin: 0 0 22px;&#13;
+  border-radius: 999px;&#13;
+  background: $gna-blue-soft;&#13;
+  color: $gna-blue;&#13;
+  font-size: 12px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.16em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gna-about .gna-title {&#13;
+  max-width: 620px;&#13;
+  margin: 0;&#13;
+  font-size: 50px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.14;&#13;
+  letter-spacing: -0.03em;&#13;
+  color: $gna-navy;&#13;
+}&#13;
+&#13;
+@supports (font-size: clamp(30px, 3.9vw, 50px)) {&#13;
+  .gna-about .gna-title { font-size: clamp(30px, 3.9vw, 50px); }&#13;
+}&#13;
+&#13;
+.gna-about .gna-sub {&#13;
+  margin: 0;&#13;
+  padding: 0 0 0 26px;&#13;
+  border-left: 2px solid $gna-blue-tint;&#13;
+  font-size: 17px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.68;&#13;
+  color: $gna-body;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PANELS&#13;
+   Widths alternate 7 / 5 then 5 / 7 so the block has rhythm&#13;
+   instead of sitting as a flat two by two.&#13;
+   ========================================================= */&#13;
+&#13;
+.gna-grid {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(12, minmax(0, 1fr));&#13;
+  gap: 22px;&#13;
+  margin-top: 74px;&#13;
+}&#13;
+&#13;
+.gna-panel--1 { grid-column: span 7; }&#13;
+.gna-panel--2 { grid-column: span 5; }&#13;
+.gna-panel--3 { grid-column: span 5; }&#13;
+.gna-panel--4 { grid-column: span 7; }&#13;
+&#13;
+.gna-panel {&#13;
+  position: relative;&#13;
+  display: block;&#13;
+  padding: 40px 38px 42px;&#13;
+  border: 1px solid $gna-hair;&#13;
+  border-radius: 26px;&#13;
+  background: $gna-white;&#13;
+  overflow: hidden;&#13;
+  will-change: transform;&#13;
+  transition: transform 0.62s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              box-shadow 0.62s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              border-color 0.62s cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+}&#13;
+&#13;
+/* glow that blooms from the corner on hover */&#13;
+.gna-panel::after {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  top: -120px;&#13;
+  right: -120px;&#13;
+  width: 320px;&#13;
+  height: 320px;&#13;
+  border-radius: 50%;&#13;
+  background: radial-gradient(circle, rgba(21, 96, 224, 0.10) 0%, rgba(21, 96, 224, 0) 70%);&#13;
+  opacity: 0;&#13;
+  transform: scale(0.7);&#13;
+  transition: opacity 0.7s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              transform 0.7s cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+/* accent that draws across the top edge on hover */&#13;
+.gna-panel__rule {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  left: 0;&#13;
+  height: 3px;&#13;
+  transform: scaleX(0);&#13;
+  transform-origin: left center;&#13;
+  background: linear-gradient(90deg, $gna-blue 0%, #5b93ee 100%);&#13;
+  transition: transform 0.7s cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+}&#13;
+&#13;
+.gna-panel__ghost {&#13;
+  position: absolute;&#13;
+  top: 18px;&#13;
+  right: 26px;&#13;
+  font-size: 76px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1;&#13;
+  letter-spacing: -0.04em;&#13;
+  color: rgba(21, 96, 224, 0.06);&#13;
+  transition: color 0.62s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              transform 0.62s cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gna-panel__icon {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 56px;&#13;
+  height: 56px;&#13;
+  border-radius: 18px;&#13;
+  background: $gna-blue-soft;&#13;
+  color: $gna-blue;&#13;
+  font-size: 20px;&#13;
+  transition: transform 0.62s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              background 0.62s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              color 0.62s cubic-bezier(0.45, 0.05, 0.25, 1),&#13;
+              box-shadow 0.62s cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+}&#13;
+&#13;
+.gna-about .gna-panel__kicker {&#13;
+  position: relative;&#13;
+  display: block;&#13;
+  margin: 26px 0 10px;&#13;
+  font-size: 12px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.15em;&#13;
+  text-transform: uppercase;&#13;
+  color: $gna-blue;&#13;
+}&#13;
+&#13;
+.gna-about .gna-panel__title {&#13;
+  position: relative;&#13;
+  margin: 0;&#13;
+  font-size: 25px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.26;&#13;
+  letter-spacing: -0.02em;&#13;
+  color: $gna-navy;&#13;
+  transition: color 0.62s cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+}&#13;
+&#13;
+.gna-about .gna-panel__text {&#13;
+  position: relative;&#13;
+  max-width: 520px;&#13;
+  margin: 14px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 16.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.7;&#13;
+  color: $gna-body;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HOVER&#13;
+   ========================================================= */&#13;
+&#13;
+.gna-panel:hover {&#13;
+  transform: translateY(-4px);&#13;
+  border-color: rgba(21, 96, 224, 0.22);&#13;
+  box-shadow: 0 26px 60px rgba(16, 54, 110, 0.13);&#13;
+}&#13;
+&#13;
+.gna-panel:hover::after {&#13;
+  opacity: 1;&#13;
+  transform: scale(1);&#13;
+}&#13;
+&#13;
+.gna-panel:hover .gna-panel__rule { transform: scaleX(1); }&#13;
+&#13;
+.gna-panel:hover .gna-panel__icon {&#13;
+  transform: translateY(-2px) rotate(-6deg);&#13;
+  background: $gna-blue;&#13;
+  color: $gna-white;&#13;
+  box-shadow: 0 14px 28px rgba(21, 96, 224, 0.30);&#13;
+}&#13;
+&#13;
+.gna-panel:hover .gna-panel__ghost {&#13;
+  color: rgba(21, 96, 224, 0.13);&#13;
+  transform: translateY(-4px);&#13;
+}&#13;
+&#13;
+.gna-panel:hover .gna-panel__title { color: $gna-blue-dk; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gnaLift {&#13;
+    from { opacity: 0; transform: translateY(26px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gnaFade {&#13;
+    from { opacity: 0; transform: translateY(16px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gnaSweep {&#13;
+    from { opacity: 0; transform: scaleY(0); }&#13;
+    to   { opacity: 1; transform: scaleY(1); }&#13;
+  }&#13;
+&#13;
+  .gna-about .gna-eyebrow,&#13;
+  .gna-about .gna-title {&#13;
+    animation: gnaFade 0.72s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;&#13;
+  }&#13;
+&#13;
+  .gna-about .gna-title { animation-delay: 0.09s; }&#13;
+&#13;
+  .gna-about .gna-sub {&#13;
+    transform-origin: top center;&#13;
+    animation: gnaSweep 0.8s cubic-bezier(0.2, 0.7, 0.3, 1) 0.18s backwards;&#13;
+  }&#13;
+&#13;
+  .gna-panel {&#13;
+    animation: gnaLift 0.82s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;&#13;
+  }&#13;
+&#13;
+  .gna-panel--1 { animation-delay: 0.26s; }&#13;
+  .gna-panel--2 { animation-delay: 0.38s; }&#13;
+  .gna-panel--3 { animation-delay: 0.50s; }&#13;
+  .gna-panel--4 { animation-delay: 0.62s; }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1024px) {&#13;
+&#13;
+  .gna-about {&#13;
+    margin-top: -40px;&#13;
+    padding: 88px 22px 96px;&#13;
+    border-radius: 40px 40px 0 0;&#13;
+  }&#13;
+&#13;
+  .gna-head {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 26px;&#13;
+  }&#13;
+&#13;
+  .gna-about .gna-sub {&#13;
+    padding-left: 22px;&#13;
+    max-width: 620px;&#13;
+  }&#13;
+&#13;
+  .gna-grid {&#13;
+    margin-top: 52px;&#13;
+    gap: 18px;&#13;
+  }&#13;
+&#13;
+  .gna-panel--1,&#13;
+  .gna-panel--2,&#13;
+  .gna-panel--3,&#13;
+  .gna-panel--4 { grid-column: span 12; }&#13;
+&#13;
+  .gna-about .gna-panel__text { max-width: none; }&#13;
+}&#13;
+&#13;
+@media (max-width: 620px) {&#13;
+&#13;
+  .gna-about {&#13;
+    margin-top: -28px;&#13;
+    padding: 64px 18px 72px;&#13;
+    border-radius: 30px 30px 0 0;&#13;
+  }&#13;
+&#13;
+  .gna-panel { padding: 30px 26px 32px; }&#13;
+&#13;
+  .gna-panel__ghost {&#13;
+    font-size: 58px;&#13;
+    top: 14px;&#13;
+    right: 20px;&#13;
+  }&#13;
+&#13;
+  .gna-about .gna-panel__title { font-size: 21px; }&#13;
+  .gna-about .gna-panel__text { font-size: 15.5px; }&#13;
+  .gna-about .gna-sub { font-size: 16px; }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gna-about * { transition: none; }&#13;
+  .gna-panel:hover { transform: none; }&#13;
+  .gna-panel:hover .gna-panel__icon { transform: none; }&#13;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>about_gate</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>About Gate section</name>
+        <option_schema/>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW LANDING · ABOUT
+     Service Portal widget · Server script
+
+     Copy is held here rather than in the template so every
+     string passes through gs.getMessage and stays translatable.
+     No table access, so no ACL considerations apply.
+     ========================================================= */
+
+  function opt(name, fallback) {
+    var value = options[name];
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    return value.toString();
+  }
+
+  data.regionLabel = opt('region_label', gs.getMessage('About GateNow'));
+  data.eyebrow     = opt('eyebrow', gs.getMessage('About GateNow'));
+  data.title       = opt('title', gs.getMessage('One place for the whole grant, not just the form'));
+
+  data.subhead = opt('subhead', gs.getMessage(
+    'Funding applications rarely fall over on the idea. They fall over on ' +
+    'version seven of the budget, a deadline nobody diarised, and a form ' +
+    'asking for the same three numbers a fourth time. GateNow takes that ' +
+    'part off your desk.'));
+
+  data.steps = [
+    {
+      index : '01',
+      icon  : 'fa-compass',
+      kicker: gs.getMessage('Before you apply'),
+      title : gs.getMessage('See what you can actually win'),
+      text  : gs.getMessage(
+        'GateNow checks your organisation against every open program and ' +
+        'tells you what you qualify for up front. No more working through ' +
+        'thirty pages of guidance to discover on page twenty nine that you ' +
+        'were never eligible.')
+    },
+    {
+      index : '02',
+      icon  : 'fa-pencil',
+      kicker: gs.getMessage('While you write'),
+      title : gs.getMessage('Write the part only you can write'),
+      text  : gs.getMessage(
+        'Your registration number, latest accounts, board list and policies ' +
+        'live in your profile and fill themselves in. What is left on the ' +
+        'form is the bit that needs your judgement, not your filing cabinet.')
+    },
+    {
+      index : '03',
+      icon  : 'fa-eye',
+      kicker: gs.getMessage('After you submit'),
+      title : gs.getMessage('Never wonder who has it'),
+      text  : gs.getMessage(
+        'Every application carries its own state, its own owner and its own ' +
+        'dates. When a reviewer needs something, it arrives as a task with a ' +
+        'deadline on it, not a line halfway down a mail thread.')
+    },
+    {
+      index : '04',
+      icon  : 'fa-shield',
+      kicker: gs.getMessage('Once you win'),
+      title : gs.getMessage('The award is the middle, not the end'),
+      text  : gs.getMessage(
+        'Reports, claims and change requests hang off the same record as the ' +
+        'bid that won it. Two years on, when the funder asks how the money ' +
+        'was spent, the answer is already assembled.')
+    }
+  ];
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-08-21 06:54:55</sys_created_on>
+        <sys_id>547e80d20ff20f10712b6af300d1b210</sys_id>
+        <sys_mod_count>6</sys_mod_count>
+        <sys_name>About Gate section</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_547e80d20ff20f10712b6af300d1b210</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-21 09:44:42</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW LANDING · ABOUT
+     Service Portal widget · HTML template
+
+     All display text arrives from the server script, which
+     resolves each string through gs.getMessage so the section
+     can be translated without touching the template.
+     ========================================================= -->
+
+<section class="gna-about" id="about-gatenow" role="region" aria-label="{{c.data.regionLabel}}">
+
+  <div class="gna-about__inner">
+
+    <!-- editorial header, deliberately left aligned so the
+         section does not read as a continuation of the hero -->
+    <header class="gna-head">
+
+      <div class="gna-head__lead">
+        <span class="gna-eyebrow" ng-if="c.data.eyebrow">{{c.data.eyebrow}}</span>
+        <h2 class="gna-title">{{c.data.title}}</h2>
+      </div>
+
+      <div class="gna-head__aside">
+        <p class="gna-sub">{{c.data.subhead}}</p>
+      </div>
+
+    </header>
+
+
+    <!-- panels -->
+    <div class="gna-grid">
+
+      <article class="gna-panel"
+               ng-repeat="s in c.data.steps track by $index"
+               ng-class="'gna-panel--' + ($index + 1)">
+
+        <span class="gna-panel__rule" aria-hidden="true"></span>
+        <span class="gna-panel__ghost" aria-hidden="true">{{s.index}}</span>
+
+        <span class="gna-panel__icon" aria-hidden="true">
+          <i class="fa" ng-class="s.icon"></i>
+        </span>
+
+        <span class="gna-panel__kicker">{{s.kicker}}</span>
+
+        <h3 class="gna-panel__title">{{s.title}}</h3>
+
+        <p class="gna-panel__text">{{s.text}}</p>
+
+      </article>
+
+    </div>
+
+  </div>
+
+</section>]]></template>
+    </sp_widget>
+</record_update>
