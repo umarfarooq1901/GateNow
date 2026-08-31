@@ -1,694 +1,886 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $location, spUtil) {
-    var c = this;
+        <client_script><![CDATA[api.controller = function($window) {
 
-    c.startEligibility = function($event) {
-        // Prevent default link behaviors and event bubbling
-        if ($event) {
-            $event.preventDefault();
-            $event.stopPropagation();
-        }
+  /* =========================================================
+     GATENOW · PROGRAM DETAIL · Client script
 
-        // Validate that we have the necessary data
-        // NOTE: Using bracket notation ['sys_id'] instead of dot notation (.sys_id) 
-        // to bypass the false positive in the ServiceNow Code Scanner.
-        if (!c.data.program || !c.data.program['sys_id']) {
-            // Best Practice: Use native portal notifications instead of alert()
-            spUtil.addErrorMessage('Program information is not available. Please try again.');
-            return;
-        }
+     One job: hand off to the intake page carrying the program
+     sys_id, so the form on the other side knows which program
+     is being applied to.
 
-        var targetPageId = 'applicant_intake'; 
-        var grantProgramSysId = c.data.program['sys_id'];
+     $window is injected rather than reaching for the global,
+     which keeps the widget testable and out of the way of the
+     coding standards check.
+     ========================================================= */
 
-        // Best Practice: Use $location.search() to safely route the user.
-        // This automatically handles URL encoding and keeps the user in their current portal context.
-        $location.search({
-            id: targetPageId,
-            program: grantProgramSysId
-        });
-    };
+  var c = this;
+
+  c.startApplication = function(sysId) {
+
+    if (!sysId || !c.data.canApply) return;
+
+    var page  = c.data.intakePage || 'applicant_intake';
+    var param = c.data.intakeParam || 'sys_id';
+
+    $window.location.href = '?id=' + page + '&' + param + '=' + encodeURIComponent(sysId);
+  };
+
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>// ===========================
-// DESIGN SYSTEM
-// ===========================
-$navy-primary: #051A53;
-$navy-dark: #030d2b;
-$white: #ffffff;
-$off-white: #f8f9fa;
-$light-gray: #f1f3f5;
-$lighter-gray: #fafafa;
-$border-color: #e5e7eb;
-$text-dark: #1a1a1a;
-$text-medium: #4a5568;
-$text-light: #6b7280;
-$text-muted: #9ca3af;
-$accent-blue: #e8eef9;
-$accent-blue-dark: #1e40af;
-$accent-green: #10b981;
-$accent-orange: #f59e0b;
-$error-red: #ef4444;
-
-$shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-
-$radius-sm: 6px;
-$radius-md: 10px;
-$radius-lg: 16px;
-$radius-xl: 20px;
-$radius-full: 9999px;
-
-$gap-xs: 8px;
-$gap-sm: 12px;
-$gap-md: 16px;
-$gap-lg: 24px;
-$gap-xl: 32px;
-$gap-xxl: 48px;
-$gap-xxxl: 64px;
-
-// ===========================
-// PAGE WRAPPER
-// ===========================
-.grant-detail-page-premium {
-  background: $off-white;
-  min-height: 100vh;
-}
-
-// ===========================
-// HERO BANNER
-// ===========================
-.program-hero-banner {
-  position: relative;
-  min-height: 400px;
-  background-size: cover;
-  background-position: center;
-  background-color: $navy-primary;
-  display: flex;
-  align-items: center;
-  
-  @media (max-width: 768px) {
-    min-height: 300px;
-  }
-  
-  .hero-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(5, 26, 83, 0.92) 0%, rgba(3, 13, 43, 0.85) 100%);
-  }
-  
-  .hero-content-wrapper {
-    position: relative;
-    z-index: 2;
-    width: 100%;
-    padding: $gap-xxl $gap-lg;
-  }
-  
-  .hero-inner-container {
-    max-width: 1400px;
-    margin: 0 auto;
-  }
-  
-  .program-category-tag {
-    display: inline-block;
-    padding: $gap-sm $gap-lg;
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-    color: $white;
-    font-size: 14px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-radius: $radius-full;
-    margin-bottom: $gap-lg;
-  }
-  
-  .hero-program-title {
-    font-size: 48px;
-    font-weight: 700;
-    color: $white;
-    margin: 0;
-    line-height: 1.2;
-    max-width: 900px;
-    
-    @media (max-width: 768px) {
-      font-size: 32px;
-    }
-  }
-}
-
-// ===========================
-// MAIN CONTAINER
-// ===========================
-.program-detail-main-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: $gap-xl $gap-lg $gap-xxxl;
-  
-  @media (max-width: 768px) {
-    padding: $gap-lg $gap-md $gap-xxl;
-  }
-}
-
-// ===========================
-// BREADCRUMB
-// ===========================
-.detail-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: $gap-sm;
-  margin-bottom: $gap-xl;
-  font-size: 14px;
-  
-  .breadcrumb-link {
-    color: $text-medium;
-    text-decoration: none;
-    transition: color 0.2s;
-    
-    &amp;:hover {
-      color: $navy-primary;
-    }
-  }
-  
-  .breadcrumb-sep {
-    color: $text-muted;
-    font-size: 12px;
-  }
-  
-  .breadcrumb-current {
-    color: $text-dark;
-    font-weight: 500;
-  }
-}
-
-// ===========================
-// GRID LAYOUT
-// ===========================
-.detail-grid-layout {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: $gap-xl;
-  align-items: start;
-  
-  @media (max-width: 1200px) {
-    grid-template-columns: 1fr 350px;
-  }
-  
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-// ===========================
-// MAIN CONTENT SECTION
-// ===========================
-.detail-main-section {
-  min-width: 0;
-  
-  // Quick Stats Bar
-  .program-stats-bar {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: $gap-lg;
-    margin-bottom: $gap-xxl;
-    
-    @media (max-width: 768px) {
-      grid-template-columns: 1fr;
-      gap: $gap-md;
-    }
-  }
-  
-  .stat-item {
-    background: $white;
-    border: 1px solid $border-color;
-    border-radius: $radius-lg;
-    padding: $gap-lg;
-    display: flex;
-    align-items: center;
-    gap: $gap-md;
-    box-shadow: $shadow-sm;
-    transition: all 0.3s ease;
-    
-    &amp;:hover {
-      box-shadow: $shadow-md;
-      transform: translateY(-2px);
-    }
-  }
-  
-  .stat-icon-wrapper {
-    width: 56px;
-    height: 56px;
-    background: linear-gradient(135deg, $accent-blue 0%, darken($accent-blue, 5%) 100%);
-    border-radius: $radius-md;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    
-    i {
-      font-size: 24px;
-      color: $accent-blue-dark;
-    }
-  }
-  
-  .stat-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .stat-label {
-    font-size: 13px;
-    color: $text-muted;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .stat-value {
-    font-size: 16px;
-    color: $text-dark;
-    font-weight: 600;
-  }
-  
-  // Content Blocks
-  .content-block {
-    background: $white;
-    border: 1px solid $border-color;
-    border-radius: $radius-lg;
-    padding: $gap-xxl;
-    margin-bottom: $gap-lg;
-    box-shadow: $shadow-sm;
-    
-    @media (max-width: 768px) {
-      padding: $gap-xl;
-    }
-    
-    &amp;.eligibility-highlight {
-      border-left: 4px solid $accent-green;
-    }
-    
-    &amp;.terms-section {
-      background: $lighter-gray;
-    }
-  }
-  
-  .content-heading-row {
-    display: flex;
-    align-items: center;
-    gap: $gap-md;
-    margin-bottom: $gap-xl;
-  }
-  
-  .heading-icon-circle {
-    width: 48px;
-    height: 48px;
-    background: $accent-blue;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    
-    i {
-      font-size: 20px;
-      color: $accent-blue-dark;
-    }
-  }
-  
-  .content-section-title {
-    font-size: 28px;
-    font-weight: 600;
-    color: $text-dark;
-    margin: 0;
-    
-    @media (max-width: 768px) {
-      font-size: 24px;
-    }
-  }
-  
-  .content-block-inner {
-    font-size: 16px;
-    line-height: 1.8;
-    color: $text-medium;
-    
-    p {
-      margin-bottom: $gap-md;
-      
-      &amp;:last-child {
-        margin-bottom: 0;
-      }
-    }
-    
-    h1, h2, h3, h4, h5, h6 {
-      color: $text-dark;
-      margin-top: $gap-xl;
-      margin-bottom: $gap-md;
-      font-weight: 600;
-    }
-    
-    ul, ol {
-      margin: $gap-md 0;
-      padding-left: $gap-xl;
-    }
-    
-    li {
-      margin-bottom: $gap-sm;
-    }
-    
-    strong {
-      color: $text-dark;
-      font-weight: 600;
-    }
-  }
-}
-
-// ===========================
-// SIDEBAR SECTION
-// ===========================
-.detail-sidebar-section {
-  .sidebar-sticky-container {
-    position: sticky;
-    top: 20px;
-    
-    @media (max-width: 1024px) {
-      position: static;
-    }
-  }
-  
-  // CTA Card
-  .sidebar-cta-card {
-    background: linear-gradient(135deg, $navy-primary 0%, $navy-dark 100%);
-    border-radius: $radius-xl;
-    padding: $gap-xxl;
-    margin-bottom: $gap-lg;
-    box-shadow: $shadow-xl;
-    text-align: center;
-    
-    .cta-content {
-      display: flex;
-      flex-direction: column;
-      gap: $gap-md;
-    }
-    
-    .cta-title {
-      font-size: 24px;
-      font-weight: 600;
-      color: $white;
-      margin: 0;
-    }
-    
-    .cta-description {
-      font-size: 15px;
-      color: rgba(255, 255, 255, 0.85);
-      line-height: 1.6;
-      margin: 0;
-    }
-    
-    .cta-apply-button {
-      width: 100%;
-      background: $white;
-      color: $navy-primary;
-      border: none;
-      border-radius: $radius-md;
-      padding: $gap-md $gap-lg;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: $gap-sm;
-      transition: all 0.3s ease;
-      margin-top: $gap-md;
-      
-      &amp;:hover {
-        background: $off-white;
-        transform: translateY(-2px);
-        box-shadow: $shadow-lg;
-        
-        .button-arrow {
-          transform: translateX(4px);
-        }
-      }
-      
-      .button-arrow {
-        transition: transform 0.3s ease;
-      }
-    }
-  }
-  
-  // Info Cards
-  .sidebar-info-card {
-    background: $white;
-    border: 1px solid $border-color;
-    border-radius: $radius-lg;
-    padding: $gap-xl;
-    margin-bottom: $gap-lg;
-    box-shadow: $shadow-sm;
-  }
-  
-  .info-card-header {
-    display: flex;
-    align-items: center;
-    gap: $gap-md;
-    margin-bottom: $gap-lg;
-    padding-bottom: $gap-md;
-    border-bottom: 2px solid $light-gray;
-  }
-  
-  .card-icon {
-    font-size: 24px;
-    color: $accent-blue-dark;
-  }
-  
-  .card-heading {
-    font-size: 18px;
-    font-weight: 600;
-    color: $text-dark;
-    margin: 0;
-  }
-  
-  .info-card-body {
-    display: flex;
-    flex-direction: column;
-    gap: $gap-lg;
-  }
-  
-  .info-detail-row {
-    display: flex;
-    align-items: flex-start;
-    gap: $gap-md;
-  }
-  
-  .detail-icon {
-    width: 36px;
-    height: 36px;
-    background: $light-gray;
-    border-radius: $radius-sm;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    
-    i {
-      font-size: 16px;
-      color: $text-medium;
-    }
-  }
-  
-  .detail-text-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-  }
-  
-  .detail-label {
-    font-size: 13px;
-    color: $text-muted;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .detail-value {
-    font-size: 15px;
-    color: $text-dark;
-    font-weight: 600;
-    line-height: 1.5;
-  }
-}
-
-// ===========================
-// ERROR STATE
-// ===========================
-.grant-detail-error-state {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: $gap-xxl;
-  background: $off-white;
-  
-  .error-container {
-    max-width: 600px;
-    background: $white;
-    border: 1px solid $border-color;
-    border-radius: $radius-xl;
-    padding: $gap-xxxl;
-    text-align: center;
-    box-shadow: $shadow-lg;
-  }
-  
-  .error-icon-circle {
-    width: 96px;
-    height: 96px;
-    background: lighten($error-red, 40%);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto $gap-xl;
-    
-    i {
-      font-size: 48px;
-      color: $error-red;
-    }
-  }
-  
-  .error-heading {
-    font-size: 28px;
-    font-weight: 600;
-    color: $text-dark;
-    margin: 0 0 $gap-md 0;
-  }
-  
-  .error-text {
-    font-size: 16px;
-    color: $text-medium;
-    line-height: 1.6;
-    margin: 0 0 $gap-xl 0;
-  }
-  
-  .error-back-button {
-    display: inline-flex;
-    align-items: center;
-    gap: $gap-sm;
-    padding: $gap-md $gap-xl;
-    background: $navy-primary;
-    color: $white;
-    border-radius: $radius-md;
-    text-decoration: none;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    
-    &amp;:hover {
-      background: $navy-dark;
-      transform: translateY(-2px);
-      box-shadow: $shadow-md;
-    }
-  }
-  // ===========================
-// STATS BAR — 5-column wrap
-// ===========================
-.program-stats-bar {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
-}
-
-// ===========================
-// ATTACHMENTS
-// ===========================
-.attachment-list {
-  display: flex;
-  flex-direction: column;
-  gap: $gap-sm;
-}
-
-.attachment-item {
-  display: flex;
-  align-items: center;
-  gap: $gap-md;
-  padding: $gap-sm $gap-md;
-  background: $light-gray;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  text-decoration: none;
-  transition: all 0.2s ease;
-
-  &amp;:hover {
-    background: $accent-blue;
-    border-color: $accent-blue-dark;
-    transform: translateX(3px);
-
-    .attachment-dl-icon {
-      color: $accent-blue-dark;
-    }
-  }
-}
-
-.attachment-icon-wrap {
-  width: 36px;
-  height: 36px;
-  background: $white;
-  border-radius: $radius-sm;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: $shadow-xs;
-
-  i {
-    font-size: 16px;
-    color: $accent-blue-dark;
-  }
-}
-
-.attachment-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.attachment-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: $text-dark;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.attachment-size {
-  font-size: 12px;
-  color: $text-muted;
-}
-
-.attachment-dl-icon {
-  font-size: 14px;
-  color: $text-muted;
-  flex-shrink: 0;
-  transition: color 0.2s;
-}
-
-.no-attachments-text {
-  font-size: 14px;
-  color: $text-muted;
-  margin: 0;
-  text-align: center;
-  padding: $gap-md 0;
-}
-}
+        <css>&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   GATENOW · PROGRAM DETAIL&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   Same tokens as the programs listing, deliberately. A detail&#13;
+   page that restyles itself makes the visitor wonder whether&#13;
+   they left the site.&#13;
+&#13;
+   COLOUR&#13;
+   One accent, the logo blue, meaning you can act on this.&#13;
+   Neutrals are all the same navy at different opacities. Teal&#13;
+   is opening soon, amber is closing inside a week, neutral is&#13;
+   closed. Four states, four meanings, nothing decorative.&#13;
+&#13;
+   TYPE&#13;
+     display   44  700  -0.033em   program name&#13;
+     section   19  600  -0.018em   section headings&#13;
+     lead    18.5  400              synopsis&#13;
+     body    16.5  400              long copy, 68ch measure&#13;
+     data      15  600  tabular     dates and amounts&#13;
+     label     11  600   0.14em     uppercase small caps&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- typeface ----------&#13;
+   Shared with the other widgets. Keep one copy in a Style Sheet&#13;
+   record attached to the theme if several appear on a portal.&#13;
+   ------------------------------------------------------------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- ink ---------- */&#13;
+$d-navy:    #0a2540;&#13;
+$d-ink-2:   rgba(10, 37, 64, 0.72);&#13;
+$d-ink-3:   rgba(10, 37, 64, 0.54);&#13;
+$d-ink-4:   rgba(10, 37, 64, 0.38);&#13;
+$d-line:    rgba(10, 37, 64, 0.10);&#13;
+$d-line-2:  rgba(10, 37, 64, 0.06);&#13;
+$d-tint:    rgba(10, 37, 64, 0.03);&#13;
+&#13;
+/* ---------- accent ---------- */&#13;
+$d-blue:    #1560e0;&#13;
+$d-blue-dk: #0f4cbb;&#13;
+$d-blue-1:  rgba(21, 96, 224, 0.08);&#13;
+$d-blue-2:  rgba(21, 96, 224, 0.16);&#13;
+&#13;
+/* ---------- state ---------- */&#13;
+$d-soon:    #0d7d8c;&#13;
+$d-warn:    #a4741f;&#13;
+$d-warn-1:  rgba(164, 116, 31, 0.10);&#13;
+$d-warn-2:  rgba(164, 116, 31, 0.26);&#13;
+&#13;
+$d-white:   #ffffff;&#13;
+$d-ease:    cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PAGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpd {&#13;
+  position: relative;&#13;
+  width: 100%;&#13;
+  min-height: 100vh;&#13;
+  font-family: $d-font;&#13;
+  color: $d-navy;&#13;
+  background: $d-white;&#13;
+  -webkit-font-smoothing: antialiased;&#13;
+}&#13;
+&#13;
+.gnpd *,&#13;
+.gnpd *::before,&#13;
+.gnpd *::after { box-sizing: border-box; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEADER&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpd-head {&#13;
+  position: relative;&#13;
+  padding: 34px 24px 54px;&#13;
+  overflow: hidden;&#13;
+  border-bottom: 1px solid $d-line;&#13;
+  background: linear-gradient(180deg, #f2f6fc 0%, #f8fafd 66%, #ffffff 100%);&#13;
+}&#13;
+&#13;
+.gnpd-head__glow {&#13;
+  position: absolute;&#13;
+  top: -280px;&#13;
+  left: 50%;&#13;
+  width: 1000px;&#13;
+  height: 620px;&#13;
+  margin-left: -500px;&#13;
+  border-radius: 50%;&#13;
+  background: radial-gradient(circle, rgba(21, 96, 224, 0.07) 0%, rgba(21, 96, 224, 0) 68%);&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnpd-head__inner {&#13;
+  position: relative;&#13;
+  z-index: 2;&#13;
+  max-width: 1180px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+.gnpd-back {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  margin-bottom: 30px;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  color: $d-ink-3;&#13;
+  text-decoration: none;&#13;
+  transition: color 0.4s $d-ease;&#13;
+}&#13;
+&#13;
+.gnpd-back:hover,&#13;
+.gnpd-back:focus {&#13;
+  color: $d-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gnpd-back__arrow {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 24px;&#13;
+  height: 24px;&#13;
+  border-radius: 50%;&#13;
+  border: 1px solid $d-line;&#13;
+  font-size: 12px;&#13;
+  transition: transform 0.4s $d-ease, border-color 0.4s $d-ease;&#13;
+}&#13;
+&#13;
+.gnpd-back:hover .gnpd-back__arrow {&#13;
+  transform: translateX(-3px);&#13;
+  border-color: $d-blue-2;&#13;
+}&#13;
+&#13;
+.gnpd-head__meta {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 14px;&#13;
+  margin-bottom: 16px;&#13;
+}&#13;
+&#13;
+.gnpd-state {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.13em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gnpd-state__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gnpd-state--open   { color: $d-blue-dk; }&#13;
+.gnpd-state--soon   { color: $d-soon; }&#13;
+.gnpd-state--closed { color: $d-ink-4; }&#13;
+&#13;
+.gnpd-state--open .gnpd-state__dot { background: $d-blue; }&#13;
+.gnpd-state--soon .gnpd-state__dot { background: $d-soon; }&#13;
+.gnpd-state--closed .gnpd-state__dot {&#13;
+  background: transparent;&#13;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);&#13;
+}&#13;
+&#13;
+/* category and reference are the same kind of information, so&#13;
+   they share one style */&#13;
+.gnpd-head__tags {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $d-ink-4;&#13;
+}&#13;
+&#13;
+.gnpd-head__sep { color: rgba(10, 37, 64, 0.22); }&#13;
+&#13;
+/* display role */&#13;
+.gnpd .gnpd-title {&#13;
+  margin: 0;&#13;
+  max-width: 20ch;&#13;
+  font-size: 44px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.1;&#13;
+  letter-spacing: -0.033em;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+@supports (font-size: clamp(28px, 3.6vw, 44px)) {&#13;
+  .gnpd .gnpd-title { font-size: clamp(28px, 3.6vw, 44px); }&#13;
+}&#13;
+&#13;
+/* lead role */&#13;
+.gnpd .gnpd-lead {&#13;
+  max-width: 60ch;&#13;
+  margin: 18px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 18.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.62;&#13;
+  color: $d-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-countdown {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+  margin: 22px 0 0;&#13;
+  padding: 7px 14px 7px 12px;&#13;
+  border: 1px solid $d-line;&#13;
+  border-radius: 999px;&#13;
+  background: $d-white;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  color: $d-ink-2;&#13;
+}&#13;
+&#13;
+/* the only warm colour on the page, and only inside the last&#13;
+   seven days */&#13;
+.gnpd .gnpd-countdown.is-urgent {&#13;
+  border-color: $d-warn-2;&#13;
+  background: $d-warn-1;&#13;
+  color: $d-warn;&#13;
+}&#13;
+&#13;
+.gnpd-countdown__pulse {&#13;
+  position: relative;&#13;
+  width: 8px;&#13;
+  height: 8px;&#13;
+  border-radius: 50%;&#13;
+  background: $d-blue;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gnpd-countdown.is-urgent .gnpd-countdown__pulse { background: $d-warn; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BODY&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpd-body { padding: 54px 24px 104px; }&#13;
+&#13;
+.gnpd-body__inner {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) 372px;&#13;
+  gap: 64px;&#13;
+  align-items: start;&#13;
+  max-width: 1180px;&#13;
+  margin: 0 auto;&#13;
+}&#13;
+&#13;
+.gnpd-main { min-width: 0; }&#13;
+&#13;
+&#13;
+/* ---------- announcement ---------- */&#13;
+&#13;
+.gnpd-notice {&#13;
+  padding: 20px 24px 22px;&#13;
+  margin-bottom: 42px;&#13;
+  border: 1px solid $d-blue-2;&#13;
+  border-radius: 14px;&#13;
+  background: $d-blue-1;&#13;
+}&#13;
+&#13;
+.gnpd-notice__label {&#13;
+  display: block;&#13;
+  margin-bottom: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $d-blue-dk;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-notice__text {&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  max-width: 68ch;&#13;
+  font-size: 15.5px;&#13;
+  line-height: 1.68;&#13;
+  color: $d-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- sections ---------- */&#13;
+&#13;
+.gnpd-sec {&#13;
+  padding-bottom: 34px;&#13;
+  margin-bottom: 34px;&#13;
+  border-bottom: 1px solid $d-line-2;&#13;
+}&#13;
+&#13;
+.gnpd-sec:last-child {&#13;
+  padding-bottom: 0;&#13;
+  margin-bottom: 0;&#13;
+  border-bottom: 0;&#13;
+}&#13;
+&#13;
+/* section role */&#13;
+.gnpd .gnpd-sec__title {&#13;
+  margin: 0 0 14px;&#13;
+  font-size: 19px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.3;&#13;
+  letter-spacing: -0.018em;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+/* body role, held to a measure and keeping the line breaks the&#13;
+   author typed into the field */&#13;
+.gnpd .gnpd-sec__text {&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  max-width: 68ch;&#13;
+  font-size: 16.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.74;&#13;
+  color: $d-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RAIL&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpd-rail {&#13;
+  position: sticky;&#13;
+  top: 24px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gnpd-panel {&#13;
+  border: 1px solid $d-line;&#13;
+  border-radius: 18px;&#13;
+  background: $d-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.04),&#13;
+              0 18px 44px rgba(10, 37, 64, 0.06);&#13;
+}&#13;
+&#13;
+.gnpd-block {&#13;
+  padding: 22px 24px 24px;&#13;
+  border-bottom: 1px solid $d-line-2;&#13;
+}&#13;
+&#13;
+.gnpd-block__label {&#13;
+  margin: 0 0 14px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $d-ink-4;&#13;
+}&#13;
+&#13;
+/* the one number on the page big enough to read from across the&#13;
+   desk, because it is the one that decides whether to apply */&#13;
+.gnpd .gnpd-figure {&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  font-size: 27px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.14;&#13;
+  letter-spacing: -0.03em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-figure__note {&#13;
+  margin: 5px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 12.5px;&#13;
+  color: $d-ink-4;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-rows {&#13;
+  display: grid;&#13;
+  gap: 11px;&#13;
+  margin: 18px 0 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gnpd-block__label + .gnpd-rows { margin-top: 0; }&#13;
+&#13;
+.gnpd-row {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  justify-content: space-between;&#13;
+  gap: 16px;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-row dt {&#13;
+  margin: 0;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 400;&#13;
+  color: $d-ink-3;&#13;
+}&#13;
+&#13;
+/* data role */&#13;
+.gnpd .gnpd-row dd {&#13;
+  margin: 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  text-align: right;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- dates ---------- */&#13;
+&#13;
+.gnpd .gnpd-time {&#13;
+  position: relative;&#13;
+  margin: 0;&#13;
+  padding: 0 0 0 22px;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+/* the thread behind the nodes */&#13;
+.gnpd .gnpd-time::before {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  top: 7px;&#13;
+  bottom: 7px;&#13;
+  left: 4px;&#13;
+  width: 2px;&#13;
+  border-radius: 2px;&#13;
+  background: $d-line;&#13;
+  transform-origin: center top;&#13;
+}&#13;
+&#13;
+.gnpd-time__step {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  justify-content: space-between;&#13;
+  gap: 14px;&#13;
+  padding-bottom: 15px;&#13;
+}&#13;
+&#13;
+.gnpd-time__step:last-child { padding-bottom: 0; }&#13;
+&#13;
+.gnpd-time__node {&#13;
+  position: absolute;&#13;
+  top: 6px;&#13;
+  left: -22px;&#13;
+  width: 10px;&#13;
+  height: 10px;&#13;
+  border-radius: 50%;&#13;
+  background: $d-white;&#13;
+  box-shadow: inset 0 0 0 2px rgba(10, 37, 64, 0.24);&#13;
+}&#13;
+&#13;
+/* the closing date is the one that costs you if you miss it */&#13;
+.gnpd-time__step.is-key .gnpd-time__node {&#13;
+  background: $d-blue;&#13;
+  box-shadow: 0 0 0 3px $d-blue-1;&#13;
+}&#13;
+&#13;
+.gnpd-time__label {&#13;
+  font-size: 13.5px;&#13;
+  color: $d-ink-3;&#13;
+}&#13;
+&#13;
+.gnpd-time__step.is-key .gnpd-time__label {&#13;
+  font-weight: 600;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+.gnpd-time__date {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  white-space: nowrap;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- action ---------- */&#13;
+&#13;
+.gnpd-act {&#13;
+  padding: 22px 24px 24px;&#13;
+  background: $d-tint;&#13;
+}&#13;
+&#13;
+.gnpd-btn {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  gap: 12px;&#13;
+  width: 100%;&#13;
+  height: 54px;&#13;
+  padding: 0 20px;&#13;
+  border: 0;&#13;
+  border-radius: 12px;&#13;
+  overflow: hidden;&#13;
+  background: $d-blue;&#13;
+  color: $d-white;&#13;
+  font-family: inherit;&#13;
+  font-size: 16px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.01em;&#13;
+  cursor: pointer;&#13;
+  box-shadow: 0 12px 26px rgba(21, 96, 224, 0.26);&#13;
+  transition: transform 0.5s $d-ease,&#13;
+              background 0.5s $d-ease,&#13;
+              box-shadow 0.5s $d-ease;&#13;
+}&#13;
+&#13;
+.gnpd-btn:hover {&#13;
+  transform: translateY(-2px);&#13;
+  background: $d-blue-dk;&#13;
+  box-shadow: 0 18px 36px rgba(21, 96, 224, 0.32);&#13;
+}&#13;
+&#13;
+.gnpd-btn:focus-visible {&#13;
+  outline: 2px solid $d-blue;&#13;
+  outline-offset: 3px;&#13;
+}&#13;
+&#13;
+.gnpd-btn__label { position: relative; z-index: 2; }&#13;
+&#13;
+.gnpd-btn__arrow {&#13;
+  position: relative;&#13;
+  z-index: 2;&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 28px;&#13;
+  height: 28px;&#13;
+  border-radius: 50%;&#13;
+  background: rgba(255, 255, 255, 0.18);&#13;
+  font-size: 12px;&#13;
+  transition: transform 0.5s $d-ease, background 0.5s $d-ease;&#13;
+}&#13;
+&#13;
+.gnpd-btn:hover .gnpd-btn__arrow {&#13;
+  transform: translateX(4px);&#13;
+  background: rgba(255, 255, 255, 0.28);&#13;
+}&#13;
+&#13;
+/* one pass of light across the face on hover */&#13;
+.gnpd-btn__shine {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  bottom: 0;&#13;
+  left: -60%;&#13;
+  z-index: 1;&#13;
+  width: 45%;&#13;
+  transform: skewX(-18deg);&#13;
+  background: linear-gradient(90deg,&#13;
+              rgba(255, 255, 255, 0) 0%,&#13;
+              rgba(255, 255, 255, 0.2) 50%,&#13;
+              rgba(255, 255, 255, 0) 100%);&#13;
+  transition: left 0.75s $d-ease;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gnpd-btn:hover .gnpd-btn__shine { left: 115%; }&#13;
+&#13;
+/* Closed and not yet open are drawn as a statement rather than&#13;
+   a dead button. A greyed out control invites clicking; a plain&#13;
+   panel does not. */&#13;
+.gnpd-btn--off {&#13;
+  background: transparent;&#13;
+  border: 1px dashed rgba(10, 37, 64, 0.22);&#13;
+  color: $d-ink-3;&#13;
+  cursor: default;&#13;
+  box-shadow: none;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+.gnpd-btn--off:hover {&#13;
+  transform: none;&#13;
+  background: transparent;&#13;
+  box-shadow: none;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-act__note {&#13;
+  margin: 13px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 13px;&#13;
+  line-height: 1.58;&#13;
+  color: $d-ink-3;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-act__note strong {&#13;
+  font-weight: 600;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NOT FOUND&#13;
+   ========================================================= */&#13;
+&#13;
+.gnpd--missing {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  padding: 120px 24px;&#13;
+}&#13;
+&#13;
+.gnpd-missing {&#13;
+  max-width: 44ch;&#13;
+  text-align: center;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-missing__title {&#13;
+  margin: 0;&#13;
+  font-size: 24px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.024em;&#13;
+  color: $d-navy;&#13;
+}&#13;
+&#13;
+.gnpd .gnpd-missing__text {&#13;
+  margin: 12px 0 0;&#13;
+  padding: 0;&#13;
+  font-size: 16px;&#13;
+  line-height: 1.68;&#13;
+  color: $d-ink-2;&#13;
+}&#13;
+&#13;
+.gnpd-missing__link {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  height: 46px;&#13;
+  margin-top: 24px;&#13;
+  padding: 0 22px;&#13;
+  border: 1px solid $d-line;&#13;
+  border-radius: 10px;&#13;
+  color: $d-navy;&#13;
+  font-size: 14.5px;&#13;
+  font-weight: 600;&#13;
+  text-decoration: none;&#13;
+  transition: border-color 0.4s $d-ease, color 0.4s $d-ease;&#13;
+}&#13;
+&#13;
+.gnpd-missing__link:hover,&#13;
+.gnpd-missing__link:focus {&#13;
+  border-color: $d-blue-2;&#13;
+  color: $d-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gnpdRise {&#13;
+    from { opacity: 0; transform: translateY(18px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gnpdSlide {&#13;
+    from { opacity: 0; transform: translateX(18px); }&#13;
+    to   { opacity: 1; transform: translateX(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gnpdDrop {&#13;
+    from { transform: scaleY(0); }&#13;
+    to   { transform: scaleY(1); }&#13;
+  }&#13;
+&#13;
+  @keyframes gnpdPulse {&#13;
+    0%   { box-shadow: 0 0 0 0 rgba(21, 96, 224, 0.4); }&#13;
+    70%  { box-shadow: 0 0 0 7px rgba(21, 96, 224, 0); }&#13;
+    100% { box-shadow: 0 0 0 0 rgba(21, 96, 224, 0); }&#13;
+  }&#13;
+&#13;
+  .gnpd-back,&#13;
+  .gnpd-head__meta,&#13;
+  .gnpd .gnpd-title,&#13;
+  .gnpd .gnpd-lead,&#13;
+  .gnpd .gnpd-countdown {&#13;
+    animation: gnpdRise 0.7s $d-ease backwards;&#13;
+  }&#13;
+&#13;
+  .gnpd-head__meta        { animation-delay: 0.05s; }&#13;
+  .gnpd .gnpd-title       { animation-delay: 0.11s; }&#13;
+  .gnpd .gnpd-lead        { animation-delay: 0.18s; }&#13;
+  .gnpd .gnpd-countdown   { animation-delay: 0.25s; }&#13;
+&#13;
+  .gnpd-notice { animation: gnpdRise 0.66s $d-ease 0.3s backwards; }&#13;
+&#13;
+  .gnpd-sec { animation: gnpdRise 0.66s $d-ease backwards; }&#13;
+&#13;
+  .gnpd-sec--1 { animation-delay: 0.34s; }&#13;
+  .gnpd-sec--2 { animation-delay: 0.40s; }&#13;
+  .gnpd-sec--3 { animation-delay: 0.46s; }&#13;
+  .gnpd-sec--4 { animation-delay: 0.52s; }&#13;
+&#13;
+  /* the rail arrives from its own side */&#13;
+  .gnpd-panel { animation: gnpdSlide 0.72s $d-ease 0.3s backwards; }&#13;
+&#13;
+  .gnpd .gnpd-time::before {&#13;
+    animation: gnpdDrop 0.8s $d-ease 0.55s backwards;&#13;
+  }&#13;
+&#13;
+  /* each date lands as the thread reaches it */&#13;
+  .gnpd-time__step { animation: gnpdRise 0.5s $d-ease backwards; }&#13;
+&#13;
+  .gnpd-time__step--1 { animation-delay: 0.62s; }&#13;
+  .gnpd-time__step--2 { animation-delay: 0.70s; }&#13;
+  .gnpd-time__step--3 { animation-delay: 0.78s; }&#13;
+  .gnpd-time__step--4 { animation-delay: 0.86s; }&#13;
+&#13;
+  /* one slow ring on the live countdown, and nowhere else */&#13;
+  .gnpd-countdown__pulse {&#13;
+    animation: gnpdPulse 2.8s $d-ease 1.2s infinite;&#13;
+  }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1080px) {&#13;
+&#13;
+  .gnpd-head { padding: 28px 20px 46px; }&#13;
+&#13;
+  .gnpd-body { padding: 40px 20px 84px; }&#13;
+&#13;
+  .gnpd-body__inner {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 44px;&#13;
+  }&#13;
+&#13;
+  /* the rail moves above the reading column, since the action&#13;
+     matters more than the terms on a narrow screen */&#13;
+  .gnpd-rail {&#13;
+    position: static;&#13;
+    order: -1;&#13;
+  }&#13;
+&#13;
+  .gnpd-main { order: 1; }&#13;
+&#13;
+  .gnpd .gnpd-title { max-width: none; }&#13;
+}&#13;
+&#13;
+@media (max-width: 620px) {&#13;
+&#13;
+  .gnpd-head { padding: 22px 16px 38px; }&#13;
+&#13;
+  .gnpd-back { margin-bottom: 22px; }&#13;
+&#13;
+  .gnpd-body { padding: 32px 16px 70px; }&#13;
+&#13;
+  .gnpd .gnpd-lead { font-size: 17px; }&#13;
+&#13;
+  .gnpd-notice {&#13;
+    padding: 17px 18px 19px;&#13;
+    margin-bottom: 32px;&#13;
+  }&#13;
+&#13;
+  .gnpd-sec {&#13;
+    padding-bottom: 26px;&#13;
+    margin-bottom: 26px;&#13;
+  }&#13;
+&#13;
+  .gnpd .gnpd-sec__title { font-size: 17.5px; }&#13;
+  .gnpd .gnpd-sec__text { font-size: 15.5px; }&#13;
+&#13;
+  .gnpd-block { padding: 19px 18px 20px; }&#13;
+  .gnpd-act { padding: 19px 18px 20px; }&#13;
+&#13;
+  .gnpd .gnpd-figure { font-size: 24px; }&#13;
+&#13;
+  .gnpd-btn {&#13;
+    height: 50px;&#13;
+    font-size: 15.5px;&#13;
+  }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gnpd * { transition: none; }&#13;
+  .gnpd-btn:hover { transform: none; }&#13;
+  .gnpd-countdown__pulse { animation: none; }&#13;
+}&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
+&#13;
 </css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -705,380 +897,550 @@ $gap-xxxl: 64px;
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
-    
-    // 1) Read the program parameter for the intake page and expose to client/prefill
-    var programParam = $sp.getParameter('program') || '';
-    data.program_param = programParam;
+        <script><![CDATA[
+(function () {
 
-    // 2) Initialize prefill holder so the next block can safely set defaults
-    if (!data.prefill) data.prefill = {};
-    if (programParam && !data.prefill.grant_program) {
-        data.prefill.grant_program = programParam;
+  /* =========================================================
+     GATENOW · PROGRAM DETAIL
+     Service Portal widget · Server script
+
+     Reads one program and publishes it in the shape the page
+     needs, including a derived state that decides whether the
+     apply button is live.
+
+     GlideRecordSecure only, so a reader sees exactly what the
+     read ACLs allow. A program in an internal state is treated
+     as not found rather than shown, whatever the ACLs happen to
+     permit.
+
+     Field names carry fallbacks because the form has been
+     relabelled once already: Program Budget became Program
+     Funding, and Summary Statement became Additional
+     Information. The first candidate that exists and has a
+     value wins.
+     ========================================================= */
+
+  var TBL = 'x_enno_gatenow_grant_program';
+
+  var PUBLIC_STATUS = ['accepting_proposals', 'published', 'program_closed'];
+  var CLOSING_SOON_DAYS = 7;
+
+  function opt(name, fallback) {
+    var value = options[name];
+    if (value === null || value === undefined || value === '') {
+      return fallback;
     }
+    return value.toString();
+  }
 
-    data.program = {};
-    data.error = "";
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
 
-    var sysId = $sp.getParameter('sys_id');
-    if (!sysId) {
-        data.error = "Missing sys_id parameter.";
-        return;
-    }
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
 
-    var programGR = new GlideRecordSecure('x_enno_gatenow_grant_program');
-    if (programGR.get(sysId)) {
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
 
-        // ✅ Program object
-        data.program = {
-            sys_id:                     programGR.getUniqueValue(),
-            title:                      programGR.getValue('program_name'),
-            description:                programGR.getValue('program_description'),
-            synopsis:                   programGR.getValue('synopsis'),
-            eligibility_summary:        programGR.getValue('eligibility_summary'),
-            terms_conditions:           programGR.getDisplayValue('terms_and_conditions'),
-            image:                      programGR.getDisplayValue('image'),
-            open_date:                  programGR.getDisplayValue('proposal_open_date'),
-            close_date:                 programGR.getDisplayValue('proposal_close_date'),
-            award_type:                 programGR.getDisplayValue('award_type'),
-            funding_opportunity_number: programGR.getValue('funding_opportunity_number') || '',
-            assistance_listing_number:  programGR.getValue('assistance_listing_number') || '',
-            program_budget:             parseFloat(programGR.getValue('program_budget')) || 0,
-            program_manager:            programGR.getDisplayValue('program_manager'),
-            category:                   programGR.getDisplayValue('category') || ''
-        };
+  /* positive is in the future, negative is past */
+  function daysFromNow(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    try {
+      var ms = GlideDateTime.subtract(new GlideDateTime(), g).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return null; }
+  }
 
-        // ✅ Attachments (moved OUTSIDE object)
-        data.attachments = [];
-
-        var attachmentGR = new GlideRecordSecure('sys_attachment');
-        attachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_program'); 
-        attachmentGR.addQuery('table_sys_id', sysId);
-        attachmentGR.query();
-
-        while (attachmentGR.next()) {
-            data.attachments.push({
-                sys_id:       attachmentGR.getUniqueValue(),
-                file_name:    attachmentGR.getValue('file_name'),
-                size_bytes:   attachmentGR.getValue('size_bytes'),
-                content_type: attachmentGR.getValue('content_type')
-            });
+  /* fields on this form have been renamed once, so every read
+     goes through a candidate list */
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
         }
-
-    } else {
-        data.error = "No grant program found for sys_id: " + sysId;
+      } catch (e) { /* next candidate */ }
     }
+    return '';
+  }
 
-})();]]></script>
+  function pickDisplay(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getDisplayValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next candidate */ }
+    }
+    return '';
+  }
+
+  /* currency display values arrive as "$1,000.00" */
+  function money(gr, names) {
+    var v = pickDisplay(gr, names);
+    if (!v) return '';
+    v = ('' + v).replace(/\.00$/, '');
+    return v === '$0' || v === '0' ? '' : v;
+  }
+
+  /* the long fields are plain text areas on the form, so any
+     markup is stripped and the line breaks are kept by the
+     stylesheet rather than converted to elements */
+  function text(gr, names) {
+    var raw = pick(gr, names);
+    if (!raw) return '';
+    return ('' + raw)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+
+  /* ---------- copy ---------- */
+  data.labels = {
+    back        : opt('label_back', gs.getMessage('All programs')),
+    apply       : opt('label_apply', gs.getMessage('Start application')),
+    applyClosed : opt('label_apply_closed', gs.getMessage('Applications closed')),
+    applySoon   : opt('label_apply_soon', gs.getMessage('Not open yet')),
+    about       : opt('label_about', gs.getMessage('About this program')),
+    eligibility : opt('label_eligibility', gs.getMessage('Who can apply')),
+    terms       : opt('label_terms', gs.getMessage('Terms and conditions')),
+    more        : opt('label_more', gs.getMessage('Additional information')),
+    notice      : opt('label_notice', gs.getMessage('Announcement')),
+    funding     : opt('label_funding', gs.getMessage('Funding')),
+    dates       : opt('label_dates', gs.getMessage('Key dates')),
+    admin       : opt('label_admin', gs.getMessage('Administration')),
+    range       : opt('label_range', gs.getMessage('Award range')),
+    pot         : opt('label_pot', gs.getMessage('Total programme funding')),
+    awardType   : opt('label_award_type', gs.getMessage('Award type')),
+    disburse    : opt('label_disburse', gs.getMessage('Paid by')),
+    schedule    : opt('label_schedule', gs.getMessage('Schedule')),
+    opens       : opt('label_opens', gs.getMessage('Applications open')),
+    closes      : opt('label_closes', gs.getMessage('Applications close')),
+    starts      : opt('label_starts', gs.getMessage('Programme starts')),
+    ends        : opt('label_ends', gs.getMessage('Programme ends')),
+    manager     : opt('label_manager', gs.getMessage('Program manager')),
+    opportunity : opt('label_opportunity', gs.getMessage('Funding opportunity number')),
+    listing     : opt('label_listing', gs.getMessage('Assistance listing number')),
+    reference   : opt('label_reference', gs.getMessage('Reference'))
+  };
+
+  data.applyNote = opt('apply_note', gs.getMessage(
+    'You can save a draft and come back to it. Nothing is submitted until you say so.'));
+
+  data.missingTitle = opt('missing_title', gs.getMessage('Program not available'));
+  data.missingText  = opt('missing_text', gs.getMessage(
+    'This program either does not exist or is not open to applicants. It may ' +
+    'have been withdrawn since the link was shared.'));
+
+  /* ADJUST if your listing page id differs */
+  data.backUrl = opt('back_url', '?id=opportunities');
+
+  /* the intake page the apply button hands off to */
+  data.intakePage  = opt('intake_page', 'applicant_intake');
+  data.intakeParam = opt('intake_param', 'sys_id');
+
+
+  /* ---------- the record ---------- */
+  data.found = false;
+
+  var sysId = $sp.getParameter('sys_id') || opt('sys_id', '');
+
+  if (sysId) {
+    try {
+
+      var gr = new GlideRecordSecure(TBL);
+
+      if (gr.get(sysId)) {
+
+        var statusValue = lower(gr.getValue('status'));
+
+        /* Draft, Pending Approval and Rejected are internal. A
+           direct link to one is treated as not found. */
+        if (PUBLIC_STATUS.indexOf(statusValue) !== -1) {
+
+          var closeRaw = gr.getValue('proposal_close_date');
+          var openRaw  = gr.getValue('proposal_open_date');
+
+          var daysToClose = daysFromNow(closeRaw);
+          var daysToOpen  = daysFromNow(openRaw);
+
+          var accepting = statusValue === 'accepting_proposals';
+          var closedTag = statusValue === 'program_closed';
+
+          /* Status alone does not tell an applicant whether they
+             can act today, so the state combines status and
+             dates. This is what gates the apply button. */
+          var state, stateLabel;
+
+          if (closedTag || (daysToClose !== null && daysToClose < 0)) {
+            state = 'closed';
+            stateLabel = gs.getMessage('Closed');
+          } else if (accepting) {
+            state = 'open';
+            stateLabel = gs.getMessage('Open for applications');
+          } else {
+            state = 'soon';
+            stateLabel = daysToOpen !== null && daysToOpen > 0
+              ? gs.getMessage('Opens') + ' ' + fmtDate(openRaw)
+              : gs.getMessage('Opening soon');
+          }
+
+          var urgent = (state === 'open' && daysToClose !== null && daysToClose <= CLOSING_SOON_DAYS);
+
+          var countdown = '';
+          if (state === 'open' && daysToClose !== null) {
+            countdown = daysToClose <= 0
+              ? gs.getMessage('Closes today')
+              : daysToClose + ' ' + (daysToClose === 1 ? gs.getMessage('day left to apply')
+                                                       : gs.getMessage('days left to apply'));
+          }
+
+          var minAward = money(gr, ['min_award', 'minimum_award']);
+          var maxAward = money(gr, ['max_award', 'maximum_award']);
+
+          var range = '';
+          if (minAward && maxAward) range = minAward + ' to ' + maxAward;
+          else if (maxAward)        range = gs.getMessage('Up to') + ' ' + maxAward;
+          else if (minAward)        range = gs.getMessage('From') + ' ' + minAward;
+
+          data.program = {
+            sysId      : gr.getUniqueValue(),
+            number     : gr.getValue('number'),
+            name       : pick(gr, ['program_name', 'short_description', 'number']),
+            category   : gr.getDisplayValue('category'),
+            state      : state,
+            stateLabel : stateLabel,
+            urgent     : urgent,
+            countdown  : countdown,
+
+            synopsis   : text(gr, ['synopsis', 'program_description']),
+            about      : text(gr, ['program_description']),
+            eligibility: text(gr, ['eligibility_summary']),
+            terms      : text(gr, ['terms_and_conditions']),
+            more       : text(gr, ['additional_information', 'summary_statement']),
+            notice     : text(gr, ['announcement']),
+
+            range      : range,
+            pot        : money(gr, ['program_funding', 'program_budget']),
+            awardType  : gr.getDisplayValue('award_type'),
+            disburse   : gr.getDisplayValue('disbursement_type'),
+            schedule   : gr.getDisplayValue('disbursement_schedule'),
+
+            opens      : fmtDate(openRaw),
+            closes     : fmtDate(closeRaw),
+            starts     : fmtDate(gr.getValue('start_date')),
+            ends       : fmtDate(gr.getValue('end_date')),
+
+            manager    : gr.getDisplayValue('program_manager'),
+            opportunity: pick(gr, ['funding_opportunity_number']),
+            listing    : pick(gr, ['assistance_listing_number'])
+          };
+
+          /* Only the sections with something in them are drawn,
+             so a sparsely filled program does not render a page
+             of empty headings. */
+          data.program.hasAbout       = !!data.program.about && data.program.about !== data.program.synopsis;
+          data.program.hasEligibility = !!data.program.eligibility;
+          data.program.hasTerms       = !!data.program.terms;
+          data.program.hasMore        = !!data.program.more;
+          data.program.hasNotice      = !!data.program.notice;
+
+          data.canApply = (state === 'open');
+
+          data.applyUrl = '?id=' + data.intakePage + '&' +
+                          data.intakeParam + '=' + gr.getUniqueValue();
+
+          data.found = true;
+        }
+      }
+
+    } catch (e) {
+      gs.error('GateNow program detail: ' + e.message);
+    }
+  }
+
+})();
+
+
+
+
+
+
+
+]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 09:50:32</sys_created_on>
         <sys_id>d1780c762f477650d2a0d68fcea4e3b3</sys_id>
-        <sys_mod_count>29</sys_mod_count>
+        <sys_mod_count>33</sys_mod_count>
         <sys_name>Program Detail Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_d1780c762f477650d2a0d68fcea4e3b3</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-05-26 07:14:18</sys_updated_on>
-        <template><![CDATA[<div ng-if="!data.error && data.program.sys_id" class="grant-detail-page-premium">
-  
-  <!-- Hero Banner with Image -->
-  <div class="program-hero-banner" ng-style="{'background-image': data.program.image ? 'url(' + data.program.image + ')' : 'none'}">
-    <div class="hero-overlay"></div>
-    <div class="hero-content-wrapper">
-      <div class="hero-inner-container">
-        <span class="program-category-tag">
-          {{data.program.category || 'Grant Program'}}
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-25 09:57:40</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · PROGRAM DETAIL
+     Service Portal widget · HTML template
+
+     Content on the left, a sticky facts rail on the right with
+     the apply button in it, so the action stays reachable
+     however far down the terms someone reads.
+
+     Sections only render when the field behind them has
+     something in it, so a sparsely filled program does not draw
+     a page of empty headings.
+     ========================================================= -->
+
+<div class="gnpd" ng-if="c.data.found">
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header class="gnpd-head">
+
+    <span class="gnpd-head__glow" aria-hidden="true"></span>
+
+    <div class="gnpd-head__inner">
+
+      <a class="gnpd-back" ng-href="{{c.data.backUrl}}">
+        <span class="gnpd-back__arrow" aria-hidden="true"><i class="fa fa-angle-left"></i></span>
+        {{c.data.labels.back}}
+      </a>
+
+      <div class="gnpd-head__meta">
+
+        <span class="gnpd-state" ng-class="'gnpd-state--' + c.data.program.state">
+          <span class="gnpd-state__dot" aria-hidden="true"></span>
+          {{c.data.program.stateLabel}}
         </span>
-        <h1 class="hero-program-title">{{data.program.title || "Program Title"}}</h1>
+
+        <span class="gnpd-head__tags">
+          <span ng-if="c.data.program.category">{{c.data.program.category}}</span>
+          <span class="gnpd-head__sep" ng-if="c.data.program.category" aria-hidden="true">&middot;</span>
+          <span>{{c.data.program.number}}</span>
+        </span>
+
       </div>
-    </div>
-  </div>
-  
-  <!-- Main Content Section -->
-  <div class="program-detail-main-container">
-    
-    <!-- Breadcrumb -->
-    <nav class="detail-breadcrumb">
-      <a href="/applicant" class="breadcrumb-link">Home</a>
-      <i class="fa fa-angle-right breadcrumb-sep"></i>
-      <a href="/applicant?id=opportunities_programs" class="breadcrumb-link">Programs</a>
-      <i class="fa fa-angle-right breadcrumb-sep"></i>
-      <span class="breadcrumb-current">{{data.program.title}}</span>
-    </nav>
-    
-    <!-- Two Column Layout -->
-    <div class="detail-grid-layout">
-      
-      <!-- LEFT: Main Content -->
-      <main class="detail-main-section">
-        
-        <!-- Quick Stats Bar -->
-        <div class="program-stats-bar">
-          <div class="stat-item">
-            <div class="stat-icon-wrapper">
-              <i class="fa fa-calendar"></i>
-            </div>
-            <div class="stat-content">
-              <span class="stat-label">Applications Open</span>
-              <span class="stat-value">{{data.program.open_date || "TBA"}}</span>
-            </div>
-          </div>
-          
-          <div class="stat-item">
-            <div class="stat-icon-wrapper">
-              <i class="fa fa-clock-o"></i>
-            </div>
-            <div class="stat-content">
-              <span class="stat-label">Deadline</span>
-              <span class="stat-value">{{data.program.close_date || "TBA"}}</span>
-            </div>
-          </div>
-          
-          <div class="stat-item">
-            <div class="stat-icon-wrapper">
-              <i class="fa fa-money"></i>
-            </div>
-            <div class="stat-content">
-              <span class="stat-label">Budget</span>
-              <span class="stat-value">{{data.program.program_budget | currency:"$":0}}</span>
-            </div>
-          </div>
 
-          <div class="stat-item">
-            <div class="stat-icon-wrapper">
-              <i class="fa fa-hashtag"></i>
-            </div>
-            <div class="stat-content">
-              <span class="stat-label">Funding Opportunity #</span>
-              <span class="stat-value">{{data.program.funding_opportunity_number || "N/A"}}</span>
-            </div>
-          </div>
+      <h1 class="gnpd-title">{{c.data.program.name}}</h1>
 
-          <div class="stat-item">
-            <div class="stat-icon-wrapper">
-              <i class="fa fa-list-alt"></i>
-            </div>
-            <div class="stat-content">
-              <span class="stat-label">Assistance Listing #</span>
-              <span class="stat-value">{{data.program.assistance_listing_number || "N/A"}}</span>
-            </div>
-          </div>
-        </div>
-        
-   <!-- Program Description -->
-<div ng-if="data.program.description" class="content-block">
-  <div class="content-heading-row">
-    <div class="heading-icon-circle">
-      <i class="fa fa-align-left"></i>
+      <p class="gnpd-lead" ng-if="c.data.program.synopsis">{{c.data.program.synopsis}}</p>
+
+      <p class="gnpd-countdown" ng-if="c.data.program.countdown"
+         ng-class="{'is-urgent': c.data.program.urgent}">
+        <span class="gnpd-countdown__pulse" aria-hidden="true"></span>
+        {{c.data.program.countdown}}
+      </p>
+
     </div>
-    <h2 class="content-section-title">Program Description</h2>
-  </div>
-  <div class="content-block-inner" ng-bind-html="data.program.description"></div>
-</div>
-        
-        <!-- Synopsis Section -->
-        <div ng-if="data.program.synopsis" class="content-block">
-          <div class="content-heading-row">
-            <div class="heading-icon-circle">
-              <i class="fa fa-file-text"></i>
-            </div>
-            <h2 class="content-section-title">Synopsis</h2>
-          </div>
-          <div class="content-block-inner" ng-bind-html="data.program.synopsis"></div>
+
+  </header>
+
+
+  <!-- ═══════════════════ BODY ═══════════════════ -->
+  <div class="gnpd-body">
+
+    <div class="gnpd-body__inner">
+
+      <!-- reading column -->
+      <main class="gnpd-main">
+
+        <div class="gnpd-notice" ng-if="c.data.program.hasNotice">
+          <span class="gnpd-notice__label">{{c.data.labels.notice}}</span>
+          <p class="gnpd-notice__text">{{c.data.program.notice}}</p>
         </div>
-        
-        <!-- Eligibility Section -->
-        <div ng-if="data.program.eligibility_summary" class="content-block eligibility-highlight">
-          <div class="content-heading-row">
-            <div class="heading-icon-circle">
-              <i class="fa fa-check-circle"></i>
-            </div>
-            <h2 class="content-section-title">Eligibility Requirements</h2>
-          </div>
-          <div class="content-block-inner" ng-bind-html="data.program.eligibility_summary"></div>
-        </div>
-        
-        <!-- Details Section -->
-       
-        
-        <!-- Terms and Conditions -->
-        <div ng-if="data.program.terms_conditions" class="content-block terms-section">
-          <div class="content-heading-row">
-            <div class="heading-icon-circle">
-              <i class="fa fa-gavel"></i>
-            </div>
-            <h2 class="content-section-title">Terms & Conditions</h2>
-          </div>
-          <div class="content-block-inner" ng-bind-html="data.program.terms_conditions"></div>
-        </div>
-        
+
+        <section class="gnpd-sec gnpd-sec--1" ng-if="c.data.program.hasAbout">
+          <h2 class="gnpd-sec__title">{{c.data.labels.about}}</h2>
+          <p class="gnpd-sec__text">{{c.data.program.about}}</p>
+        </section>
+
+        <section class="gnpd-sec gnpd-sec--2" ng-if="c.data.program.hasEligibility">
+          <h2 class="gnpd-sec__title">{{c.data.labels.eligibility}}</h2>
+          <p class="gnpd-sec__text">{{c.data.program.eligibility}}</p>
+        </section>
+
+        <section class="gnpd-sec gnpd-sec--3" ng-if="c.data.program.hasTerms">
+          <h2 class="gnpd-sec__title">{{c.data.labels.terms}}</h2>
+          <p class="gnpd-sec__text">{{c.data.program.terms}}</p>
+        </section>
+
+        <section class="gnpd-sec gnpd-sec--4" ng-if="c.data.program.hasMore">
+          <h2 class="gnpd-sec__title">{{c.data.labels.more}}</h2>
+          <p class="gnpd-sec__text">{{c.data.program.more}}</p>
+        </section>
+
       </main>
-      
-      <!-- RIGHT: Sidebar -->
-      <aside class="detail-sidebar-section">
-        
-        <!-- Sticky Sidebar Wrapper -->
-        <div class="sidebar-sticky-container">
-          
-          <!-- Apply Now CTA Card -->
-          <div class="sidebar-cta-card">
-            <div class="cta-content">
-              <h3 class="cta-title">Ready to Apply?</h3>
-              <p class="cta-description">Start your application today and unlock funding opportunities.</p>
-              <button class="cta-apply-button" ng-click="c.startEligibility($event)">
-                <span class="button-text">Apply Now</span>
-                <i class="fa fa-arrow-right button-arrow"></i>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Timeline Card -->
-          <div class="sidebar-info-card">
-            <div class="info-card-header">
-              <i class="fa fa-calendar-check-o card-icon"></i>
-              <h3 class="card-heading">Timeline</h3>
-            </div>
-            <div class="info-card-body">
-              <div class="info-detail-row">
-                <span class="detail-icon">
-                  <i class="fa fa-play-circle"></i>
-                </span>
-                <div class="detail-text-group">
-                  <span class="detail-label">Opens</span>
-                  <span class="detail-value">{{data.program.open_date || "To be announced"}}</span>
-                </div>
-              </div>
-              
-              <div class="info-detail-row">
-                <span class="detail-icon">
-                  <i class="fa fa-stop-circle"></i>
-                </span>
-                <div class="detail-text-group">
-                  <span class="detail-label">Closes</span>
-                  <span class="detail-value">{{data.program.close_date || "To be announced"}}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Award Information Card -->
-          <div class="sidebar-info-card">
-            <div class="info-card-header">
-              <i class="fa fa-trophy card-icon"></i>
-              <h3 class="card-heading">Award Information</h3>
-            </div>
-            <div class="info-card-body">
-              <div class="info-detail-row" ng-if="data.program.category">
-                <span class="detail-icon">
-                  <i class="fa fa-tag"></i>
-                </span>
-                <div class="detail-text-group">
-                  <span class="detail-label">Category</span>
-                  <span class="detail-value">{{data.program.category}}</span>
-                </div>
-              </div>
 
-              <div class="info-detail-row">
-                <span class="detail-icon">
-                  <i class="fa fa-bookmark"></i>
-                </span>
-                <div class="detail-text-group">
-                  <span class="detail-label">Award Type</span>
-                  <span class="detail-value">{{data.program.award_type || "Single Award"}}</span>
-                </div>
+
+      <!-- facts and action -->
+      <aside class="gnpd-rail">
+
+        <div class="gnpd-panel">
+
+          <!-- funding -->
+          <div class="gnpd-block" ng-if="c.data.program.range || c.data.program.pot">
+
+            <p class="gnpd-block__label">{{c.data.labels.funding}}</p>
+
+            <p class="gnpd-figure" ng-if="c.data.program.range">{{c.data.program.range}}</p>
+            <p class="gnpd-figure__note" ng-if="c.data.program.range">{{c.data.labels.range}}</p>
+
+            <dl class="gnpd-rows">
+              <div class="gnpd-row" ng-if="c.data.program.pot">
+                <dt>{{c.data.labels.pot}}</dt>
+                <dd>{{c.data.program.pot}}</dd>
               </div>
-              
-              <div class="info-detail-row">
-                <span class="detail-icon">
-                  <i class="fa fa-dollar"></i>
-                </span>
-                <div class="detail-text-group">
-                  <span class="detail-label">Total Budget</span>
-                  <span class="detail-value">{{data.program.program_budget | currency:"$":0}}</span>
-                </div>
+              <div class="gnpd-row" ng-if="c.data.program.awardType">
+                <dt>{{c.data.labels.awardType}}</dt>
+                <dd>{{c.data.program.awardType}}</dd>
               </div>
-            </div>
+              <div class="gnpd-row" ng-if="c.data.program.disburse">
+                <dt>{{c.data.labels.disburse}}</dt>
+                <dd>{{c.data.program.disburse}}</dd>
+              </div>
+              <div class="gnpd-row" ng-if="c.data.program.schedule">
+                <dt>{{c.data.labels.schedule}}</dt>
+                <dd>{{c.data.program.schedule}}</dd>
+              </div>
+            </dl>
+
           </div>
 
-          <!-- Attachments Card — has attachments -->
-          <div class="sidebar-info-card" ng-if="data.attachments && data.attachments.length > 0">
-            <div class="info-card-header">
-              <i class="fa fa-paperclip card-icon"></i>
-              <h3 class="card-heading">Documents</h3>
-            </div>
-            <div class="info-card-body">
-              <div class="attachment-list">
-               <a ng-repeat="att in data.attachments"
-   ng-href="/sys_attachment.do?sys_id={{att.sys_id}}"
-   target="_blank"
-   download
-   class="attachment-item">
-                  <span class="attachment-icon-wrap">
-                    <i class="fa fa-file-o"></i>
-                  </span>
-                  <div class="attachment-meta">
-                    <span class="attachment-name">{{att.file_name}}</span>
-                    <span class="attachment-size">{{(att.size_bytes / 1024) | number:1}} KB</span>
-                  </div>
-                  <i class="fa fa-download attachment-dl-icon"></i>
-                </a>
-              </div>
-            </div>
+          <!-- dates -->
+          <div class="gnpd-block">
+
+            <p class="gnpd-block__label">{{c.data.labels.dates}}</p>
+
+            <ol class="gnpd-time">
+
+              <li class="gnpd-time__step gnpd-time__step--1" ng-if="c.data.program.opens">
+                <span class="gnpd-time__node" aria-hidden="true"></span>
+                <span class="gnpd-time__label">{{c.data.labels.opens}}</span>
+                <span class="gnpd-time__date">{{c.data.program.opens}}</span>
+              </li>
+
+              <li class="gnpd-time__step gnpd-time__step--2 is-key" ng-if="c.data.program.closes">
+                <span class="gnpd-time__node" aria-hidden="true"></span>
+                <span class="gnpd-time__label">{{c.data.labels.closes}}</span>
+                <span class="gnpd-time__date">{{c.data.program.closes}}</span>
+              </li>
+
+              <li class="gnpd-time__step gnpd-time__step--3" ng-if="c.data.program.starts">
+                <span class="gnpd-time__node" aria-hidden="true"></span>
+                <span class="gnpd-time__label">{{c.data.labels.starts}}</span>
+                <span class="gnpd-time__date">{{c.data.program.starts}}</span>
+              </li>
+
+              <li class="gnpd-time__step gnpd-time__step--4" ng-if="c.data.program.ends">
+                <span class="gnpd-time__node" aria-hidden="true"></span>
+                <span class="gnpd-time__label">{{c.data.labels.ends}}</span>
+                <span class="gnpd-time__date">{{c.data.program.ends}}</span>
+              </li>
+
+            </ol>
+
           </div>
 
-          <!-- Attachments Card — no attachments -->
-          <div class="sidebar-info-card" ng-if="!data.attachments || data.attachments.length === 0">
-            <div class="info-card-header">
-              <i class="fa fa-paperclip card-icon"></i>
-              <h3 class="card-heading">Documents</h3>
-            </div>
-            <div class="info-card-body">
-              <p class="no-attachments-text">No documents attached to this program.</p>
-            </div>
-          </div>
-          
-          <!-- Contact Card -->
-          <div class="sidebar-info-card">
-            <div class="info-card-header">
-              <i class="fa fa-user-circle card-icon"></i>
-              <h3 class="card-heading">Program Contacts</h3>
-            </div>
-            <div class="info-card-body">
-              <div class="info-detail-row">
-                <span class="detail-icon">
-                  <i class="fa fa-user"></i>
-                </span>
-                <div class="detail-text-group">
-                  <span class="detail-label">Program Manager</span>
-                  <span class="detail-value">{{data.program.program_manager || "Not assigned"}}</span>
-                </div>
+          <!-- administration -->
+          <div class="gnpd-block"
+               ng-if="c.data.program.manager || c.data.program.opportunity || c.data.program.listing">
+
+            <p class="gnpd-block__label">{{c.data.labels.admin}}</p>
+
+            <dl class="gnpd-rows">
+              <div class="gnpd-row" ng-if="c.data.program.manager">
+                <dt>{{c.data.labels.manager}}</dt>
+                <dd>{{c.data.program.manager}}</dd>
               </div>
-            </div>
+              <div class="gnpd-row" ng-if="c.data.program.opportunity">
+                <dt>{{c.data.labels.opportunity}}</dt>
+                <dd>{{c.data.program.opportunity}}</dd>
+              </div>
+              <div class="gnpd-row" ng-if="c.data.program.listing">
+                <dt>{{c.data.labels.listing}}</dt>
+                <dd>{{c.data.program.listing}}</dd>
+              </div>
+            </dl>
+
           </div>
-          
+
+          <!-- action -->
+          <div class="gnpd-act">
+
+            <button type="button"
+                    class="gnpd-btn"
+                    ng-if="c.data.canApply"
+                    ng-click="c.startApplication(c.data.program.sysId)">
+              <span class="gnpd-btn__shine" aria-hidden="true"></span>
+              <span class="gnpd-btn__label">{{c.data.labels.apply}}</span>
+              <span class="gnpd-btn__arrow" aria-hidden="true"><i class="fa fa-arrow-right"></i></span>
+            </button>
+
+            <div class="gnpd-btn gnpd-btn--off" ng-if="!c.data.canApply" aria-disabled="true">
+              <span class="gnpd-btn__label" ng-if="c.data.program.state === 'closed'">
+                {{c.data.labels.applyClosed}}
+              </span>
+              <span class="gnpd-btn__label" ng-if="c.data.program.state === 'soon'">
+                {{c.data.labels.applySoon}}
+              </span>
+            </div>
+
+            <p class="gnpd-act__note" ng-if="c.data.canApply">{{c.data.applyNote}}</p>
+
+            <p class="gnpd-act__note" ng-if="!c.data.canApply && c.data.program.state === 'soon'">
+              {{c.data.labels.opens}}: <strong>{{c.data.program.opens}}</strong>
+            </p>
+
+            <p class="gnpd-act__note" ng-if="!c.data.canApply && c.data.program.state === 'closed'">
+              {{c.data.labels.closes}}: <strong>{{c.data.program.closes}}</strong>
+            </p>
+
+          </div>
+
         </div>
+
       </aside>
-      
+
     </div>
+
   </div>
+
 </div>
 
-<!-- Error State -->
-<div ng-if="data.error" class="grant-detail-error-state">
-  <div class="error-container">
-    <div class="error-icon-circle">
-      <i class="fa fa-exclamation-triangle"></i>
-    </div>
-    <h2 class="error-heading">Program Not Found</h2>
-    <p class="error-text">{{data.error}}</p>
-    <a href="?id=grant_programs_list" class="error-back-button">
-      <i class="fa fa-arrow-left"></i> Back to Programs
-    </a>
+
+<!-- ═══════════════════ NOT FOUND ═══════════════════ -->
+<div class="gnpd gnpd--missing" ng-if="!c.data.found">
+
+  <div class="gnpd-missing">
+    <p class="gnpd-missing__title">{{c.data.missingTitle}}</p>
+    <p class="gnpd-missing__text">{{c.data.missingText}}</p>
+    <a class="gnpd-missing__link" ng-href="{{c.data.backUrl}}">{{c.data.labels.back}}</a>
   </div>
-</div>]]></template>
+
+</div>
+
+
+]]></template>
     </sp_widget>
 </record_update>

@@ -1,0 +1,489 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller=function() {
+  /* widget controller */
+  var c = this;
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* ════════════════════════════════════════
+   SIDEBAR
+════════════════════════════════════════ */
+.dm-sidebar {
+  width: 100%;
+  height: 100vh;
+  background: linear-gradient(160deg, #2d2669 0%, #4a3fa0 50%, #6b5fd4 100%);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.dm-sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 1px; height: 100%;
+  background: rgba(255,255,255,0.08);
+  pointer-events: none;
+}
+
+/* ════════════════════════════════════════
+   USER BLOCK — top
+════════════════════════════════════════ */
+.dm-user-block {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 16px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.dm-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.80);
+  font-size: 13px;
+}
+
+.dm-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dm-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.90);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-user-role {
+  font-size: 10px;
+  color: rgba(255,255,255,0.38);
+  letter-spacing: 0.1px;
+}
+
+/* ════════════════════════════════════════
+   MENU
+════════════════════════════════════════ */
+.dm-menu {
+  list-style: none;
+  padding: 12px 12px;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.dm-menu::-webkit-scrollbar { width: 0; }
+
+.dm-menu li {
+  margin-bottom: 2px;
+}
+
+.dm-menu a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.70);
+  transition:
+    background .18s ease,
+    color .18s ease,
+    padding-left .18s ease;
+}
+
+.dm-menu a i {
+  width: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255,255,255,0.55);
+  flex-shrink: 0;
+  transition: color .18s ease, transform .18s ease;
+}
+
+.dm-menu li:not(.active) a:hover {
+  background: rgba(255,255,255,0.10);
+  color: #ffffff;
+  padding-left: 15px;
+}
+.dm-menu li:not(.active) a:hover i {
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.dm-menu li.active a {
+  background: rgba(255,255,255,0.18);
+  color: #ffffff;
+  font-weight: 600;
+  padding-left: 15px;
+  box-shadow: inset 3px 0 0 rgba(255,255,255,0.90);
+}
+.dm-menu li.active a i {
+  color: #ffffff;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>sidebar_dashboard</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Sidebar Dashboard</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
+        <script><![CDATA[(function() {
+  /* populate the 'data' object */
+  /* e.g., data.table = $sp.getValue('table'); */
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>adnan.tariq</sys_created_by>
+        <sys_created_on>2026-03-10 07:31:36</sys_created_on>
+        <sys_id>3af1b39deb67b610520dfbdffdc0cde4</sys_id>
+        <sys_mod_count>62</sys_mod_count>
+        <sys_name>Sidebar Dashboard</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_3af1b39deb67b610520dfbdffdc0cde4</sys_update_name>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 09:31:59</sys_updated_on>
+        <template><![CDATA[<div class="dm-sidebar">
+
+  <!-- User block — TOP -->
+  <div class="dm-user-block">
+    <div class="dm-user-avatar">
+      <i class="fa fa-user"></i>
+    </div>
+    <div class="dm-user-info">
+      <span class="dm-user-name">Welcome back</span>
+    </div>
+  </div>
+
+  <!-- Menu -->
+  <ul class="dm-menu">
+
+    <li ng-class="{active: c.isActive('dmm_dashboard')}">
+      <a href="/applicant?id=applicant_dashboard">
+        <i class="fa fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+    </li>
+    
+     <li ng-class="{'active': page.id == 'my_funding_programs'}">
+        <a href="?id=my_funding_programs">
+        <fa class="fa fa-th-large" aria-hidden="true"></fa>
+           <span>Funding Programs</span>
+        </a>
+       </li>
+
+    <li ng-class="{active: c.isActive('dmm_browse')}">
+      <a href="/applicant?id=my_application_page">
+        <i class="fa fa-file-text-o"></i>
+        <span>Applications</span>
+      </a>
+    </li>
+
+    <li ng-class="{active: c.isActive('dmm_cart')}">
+      <a href="/applicant?id=awards">
+        <i class="fa fa-trophy"></i>
+        <span>Awards</span>
+      </a>
+    </li>
+
+    <li ng-class="{active: c.isActive('dmm_report')}">
+      <a href="/applicant?id=my_project_page">
+        <i class="fa fa-briefcase"></i>
+        <span>Projects</span>
+      </a>
+    </li>
+
+    <li ng-class="{active: c.isActive('dmm_report')}">
+      <a href="/applicant?id=reimbursement">
+        <i class="fa fa-briefcase"></i>
+        <span>Reimbursement</span>
+      </a>
+    </li>
+
+  </ul>
+
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_3af1b39deb67b610520dfbdffdc0cde4</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller=function() {
+  /* widget controller */
+  var c = this;
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;/* ════════════════════════════════════════
+   SIDEBAR
+════════════════════════════════════════ */
+.dm-sidebar {
+  width: 100%;
+  height: 100vh;
+  background: linear-gradient(160deg, #2d2669 0%, #4a3fa0 50%, #6b5fd4 100%);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.dm-sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 1px; height: 100%;
+  background: rgba(255,255,255,0.08);
+  pointer-events: none;
+}
+
+/* ════════════════════════════════════════
+   USER BLOCK — top
+════════════════════════════════════════ */
+.dm-user-block {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 16px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.dm-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.80);
+  font-size: 13px;
+}
+
+.dm-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dm-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.90);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-user-role {
+  font-size: 10px;
+  color: rgba(255,255,255,0.38);
+  letter-spacing: 0.1px;
+}
+
+/* ════════════════════════════════════════
+   MENU
+════════════════════════════════════════ */
+.dm-menu {
+  list-style: none;
+  padding: 12px 12px;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.dm-menu::-webkit-scrollbar { width: 0; }
+
+.dm-menu li {
+  margin-bottom: 2px;
+}
+
+.dm-menu a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.70);
+  transition:
+    background .18s ease,
+    color .18s ease,
+    padding-left .18s ease;
+}
+
+.dm-menu a i {
+  width: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255,255,255,0.55);
+  flex-shrink: 0;
+  transition: color .18s ease, transform .18s ease;
+}
+
+.dm-menu li:not(.active) a:hover {
+  background: rgba(255,255,255,0.10);
+  color: #ffffff;
+  padding-left: 15px;
+}
+.dm-menu li:not(.active) a:hover i {
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.dm-menu li.active a {
+  background: rgba(255,255,255,0.18);
+  color: #ffffff;
+  font-weight: 600;
+  padding-left: 15px;
+  box-shadow: inset 3px 0 0 rgba(255,255,255,0.90);
+}
+.dm-menu li.active a i {
+  color: #ffffff;
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;true&lt;/has_preview&gt;&lt;id&gt;sidebar_dashboard&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Sidebar Dashboard&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles&gt;x_enno_gatenow.service_applicant_user&lt;/roles&gt;&lt;script&gt;&lt;![CDATA[(function() {
+  /* populate the 'data' object */
+  /* e.g., data.table = $sp.getValue('table'); */
+
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;adnan.tariq&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-03-10 07:31:36&lt;/sys_created_on&gt;&lt;sys_id&gt;3af1b39deb67b610520dfbdffdc0cde4&lt;/sys_id&gt;&lt;sys_mod_count&gt;62&lt;/sys_mod_count&gt;&lt;sys_name&gt;Sidebar Dashboard&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_3af1b39deb67b610520dfbdffdc0cde4&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;farheen.maqbool&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-08-20 09:31:59&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="dm-sidebar"&gt;
+
+  &lt;!-- User block — TOP --&gt;
+  &lt;div class="dm-user-block"&gt;
+    &lt;div class="dm-user-avatar"&gt;
+      &lt;i class="fa fa-user"&gt;&lt;/i&gt;
+    &lt;/div&gt;
+    &lt;div class="dm-user-info"&gt;
+      &lt;span class="dm-user-name"&gt;Welcome back&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- Menu --&gt;
+  &lt;ul class="dm-menu"&gt;
+
+    &lt;li ng-class="{active: c.isActive('dmm_dashboard')}"&gt;
+      &lt;a href="/applicant?id=applicant_dashboard"&gt;
+        &lt;i class="fa fa-th-large"&gt;&lt;/i&gt;
+        &lt;span&gt;Dashboard&lt;/span&gt;
+      &lt;/a&gt;
+    &lt;/li&gt;
+    
+     &lt;li ng-class="{'active': page.id == 'my_funding_programs'}"&gt;
+        &lt;a href="?id=my_funding_programs"&gt;
+        &lt;fa class="fa fa-th-large" aria-hidden="true"&gt;&lt;/fa&gt;
+           &lt;span&gt;Funding Programs&lt;/span&gt;
+        &lt;/a&gt;
+       &lt;/li&gt;
+
+    &lt;li ng-class="{active: c.isActive('dmm_browse')}"&gt;
+      &lt;a href="/applicant?id=my_application_page"&gt;
+        &lt;i class="fa fa-file-text-o"&gt;&lt;/i&gt;
+        &lt;span&gt;Applications&lt;/span&gt;
+      &lt;/a&gt;
+    &lt;/li&gt;
+
+    &lt;li ng-class="{active: c.isActive('dmm_cart')}"&gt;
+      &lt;a href="/applicant?id=awards"&gt;
+        &lt;i class="fa fa-trophy"&gt;&lt;/i&gt;
+        &lt;span&gt;Awards&lt;/span&gt;
+      &lt;/a&gt;
+    &lt;/li&gt;
+
+    &lt;li ng-class="{active: c.isActive('dmm_report')}"&gt;
+      &lt;a href="/applicant?id=my_project_page"&gt;
+        &lt;i class="fa fa-briefcase"&gt;&lt;/i&gt;
+        &lt;span&gt;Projects&lt;/span&gt;
+      &lt;/a&gt;
+    &lt;/li&gt;
+
+    &lt;li ng-class="{active: c.isActive('dmm_report')}"&gt;
+      &lt;a href="/applicant?id=reimbursement"&gt;
+        &lt;i class="fa fa-briefcase"&gt;&lt;/i&gt;
+        &lt;span&gt;Reimbursement&lt;/span&gt;
+      &lt;/a&gt;
+    &lt;/li&gt;
+
+  &lt;/ul&gt;
+
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>-1496576333</payload_hash>
+        <record_name>Sidebar Dashboard</record_name>
+        <reverted_from/>
+        <source>629c0ae193fa0b10d444c9b877373cfb</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-20 09:31:59</sys_created_on>
+        <sys_id>cbe8a3b50f768b10712b6af300d1b27b</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a01e8359de0000001</sys_recorded_at>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-20 09:31:59</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>0be8a3b51e768b101b8cc8347ade397a</update_guid>
+        <update_guid_history>0be8a3b51e768b101b8cc8347ade397a:-1496576333,82f7eff131768b10e90049304ecc6888:1927369367,afb6e26107360b108505087556aa9427:-600810440,8fa2ae69d6f20b10ce113830da735b13:-654251423,3e2d83c169994710c623fc2726fe6c3d:-387049807,4b2dca4d4e41c710ab2349ee1e6d53d6:0,587b02815941c71011b2557ec5bf8ba5:-552865593,d3e4fbd109f8c310be96e01d2a46d680:0,6744ff9db6b8c310bc6abb191b997f7d:0,9103b8dbf1e00310d8f3612c3e7f724d:-533486613</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Sidebar Dashboard">64668d28938f4f10d444c9b877373c7c</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>farheen.maqbool</sys_created_by>
+        <sys_created_on>2026-08-28 10:45:08</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>2ee6017dc74440d8952d0e06d5b8db90</sys_id>
+        <sys_metadata>3af1b39deb67b610520dfbdffdc0cde4</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Sidebar Dashboard</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_3af1b39deb67b610520dfbdffdc0cde4</sys_update_name>
+        <sys_update_version display_value="sp_widget_3af1b39deb67b610520dfbdffdc0cde4">cbe8a3b50f768b10712b6af300d1b27b</sys_update_version>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-28 10:45:08</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

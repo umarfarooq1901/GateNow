@@ -1,366 +1,1338 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller=function($scope, $window, $rootScope, $timeout) {
+        <client_script><![CDATA[api.controller = function($window) {
+
+  /* =========================================================
+     GATENOW · FUNDING PROGRAMS (dashboard) · Client script
+
+     Search, tabs, category, sort and paging all run against the
+     list already in memory. The previous version sent every one
+     of those back to the server, which meant a full widget
+     refresh on each keystroke.
+     ========================================================= */
+
   var c = this;
 
-  // --- SIDEBAR COLLAPSE SYNC ---
-  c.isSidebarCollapsed = $window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true';
+  c.query    = '';
+  c.tab      = 'open';
+  c.category = 'all';
+  c.sort     = 'close';
+  c.page     = 1;
 
-  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
-    $timeout(function() {
-      c.isSidebarCollapsed = isCollapsed;
+  var PER_PAGE = c.data.pageSize || 10;
+
+  /* Open first, because that is the only tab an applicant can
+     act on. The old default was also open, which was right. */
+  c.tabs = [
+    { key: 'open',   label: 'Open now' },
+    { key: 'soon',   label: 'Opening soon' },
+    { key: 'closed', label: 'Closed' },
+    { key: 'all',    label: 'All' }
+  ];
+
+  function hit(p, q) {
+    return (
+      (p.name     || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.category || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.number   || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.summary  || '').toLowerCase().indexOf(q) !== -1
+    );
+  }
+
+  function matching() {
+    var q = (c.query || '').trim().toLowerCase();
+
+    var out = (c.data.programs || []).filter(function(p) {
+      if (c.tab !== 'all' && p.state !== c.tab) return false;
+      if (c.category !== 'all' && p.category !== c.category) return false;
+      if (q && !hit(p, q)) return false;
+      return true;
     });
-  });
-  // -----------------------------
 
-  c.filterTab = 'open_now';
-  c.categoryFilter = 'All categories';
-  c.sortOption = 'closing_date';
-  c.dateRangeFilter = 'last_12_months';
-  c.searchTerm = '';
+    if (c.sort === 'name') {
+      out.sort(function(a, b) {
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    } else if (c.sort === 'fund') {
+      out.sort(function(a, b) {
+        return (b.fund || 0) - (a.fund || 0);
+      });
+    } else {
+      /* closing date, soonest first, and programs with no date
+         fall to the bottom rather than the top */
+      out.sort(function(a, b) {
+        return ('' + a.closeSort).localeCompare('' + b.closeSort);
+      });
+    }
 
-  c.setTab = function(tabName) {
-    c.filterTab = tabName;
-    c.filterPrograms();
+    return out;
+  }
+
+  c.total     = function() { return matching().length; };
+  c.pageCount = function() { return Math.max(1, Math.ceil(matching().length / PER_PAGE)); };
+
+  c.shown = function() {
+    var start = (c.page - 1) * PER_PAGE;
+    return matching().slice(start, start + PER_PAGE);
   };
 
-  c.filterPrograms = function() {
-    c.server.get({
-      filterTab: c.filterTab,
-      categoryFilter: c.categoryFilter,
-      sortOption: c.sortOption,
-      dateRangeFilter: c.dateRangeFilter,
-      searchTerm: c.searchTerm
-    }).then(function(response) {
-      if (response && response.data) {
-        c.data = response.data;
-      }
-    });
+  c.rangeFrom = function() {
+    return matching().length === 0 ? 0 : ((c.page - 1) * PER_PAGE) + 1;
+  };
+
+  c.rangeTo = function() {
+    return Math.min(c.page * PER_PAGE, matching().length);
+  };
+
+  /* any change to what is filtered sends you back to page one,
+     otherwise you land on an empty page four */
+  function reset() { c.page = 1; }
+
+  c.onChange = function() { reset(); };
+
+  c.setTab = function(key) {
+    if (c.tab === key) return;
+    c.tab = key;
+    reset();
+  };
+
+  c.clearSearch = function() {
+    c.query = '';
+    reset();
+  };
+
+  c.clearAll = function() {
+    c.query = '';
+    c.tab = 'all';
+    c.category = 'all';
+    reset();
+  };
+
+  c.isFiltered = function() {
+    return c.tab !== 'all' || c.category !== 'all' || !!(c.query || '').trim();
+  };
+
+
+  /* =====================================================
+     PAGING
+     ===================================================== */
+
+  c.goto = function(n) {
+    if (n === '...') return;
+    if (n < 1 || n > c.pageCount() || n === c.page) return;
+    c.page = n;
+  };
+
+  c.prev = function() { c.goto(c.page - 1); };
+  c.next = function() { c.goto(c.page + 1); };
+
+  /* first and last always reachable, current page keeps a
+     neighbour either side, gaps collapse to an ellipsis */
+  c.pages = function() {
+    var n = c.pageCount();
+    var p = c.page;
+    var out = [];
+
+    if (n <= 7) {
+      for (var i = 1; i <= n; i++) out.push(i);
+      return out;
+    }
+
+    out.push(1);
+
+    var from = Math.max(2, p - 1);
+    var to   = Math.min(n - 1, p + 1);
+
+    if (p <= 3) to = 4;
+    if (p >= n - 2) from = n - 3;
+
+    if (from > 2) out.push('...');
+    for (var j = from; j <= to; j++) out.push(j);
+    if (to < n - 1) out.push('...');
+
+    out.push(n);
+    return out;
+  };
+
+
+  /* =====================================================
+     NAVIGATION
+     ===================================================== */
+
+  c.detailUrl = function(sysId) {
+    return '?id=' + c.data.pages.detail + '&sys_id=' + sysId;
   };
 
   c.startApplication = function(sysId) {
-    window.location.href = '?id=applicant_intake&sys_id=' + sysId;
+    if (!sysId) return;
+    $window.location.href = '?id=' + c.data.pages.intake +
+                            '&sys_id=' + encodeURIComponent(sysId);
   };
 
-  c.viewDetails = function(sysId) {
-    window.location.href = '?id=grant_program_detail&sys_id=' + sysId;
-  };
-
-  c.reviewProfile = function() {
-    window.location.href = '?id=profile';
-  };
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* Force full transparency on all ServiceNow wrapper elements surrounding the widget */
-.panel, 
-.panel-body, 
-.padder, 
-.sp-row-content, 
-.page, 
-.body {
-  background: transparent !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  overflow: visible !important;
-}
+        <css>/* --- Tooltip and sidebar overflow overrides ---
+   Service Portal wraps every widget in a panel, and the panel
+   clips anything that leaves its box. The sidebar's tooltips and
+   its expanded state both need to escape that box, so the clip
+   is lifted here. Same block as the applicant overview widget,
+   deliberately, so the two pages behave identically. */
 
-/* Master Layout */
-.gn-layout {
-  margin: 0 !important;
-  width: 100% !important;
-  display: flex;
-  align-items: stretch;
-  background: #f8f9fa;
-  min-height: 100vh;
-  overflow: visible !important;
-}
+.panel,
+.panel-body,
+.sp-widget { overflow: visible !important; }
+
+.gn-layout { overflow: visible !important; }
+
+/* The column holds the rail and lets it decide how wide to be.
+   It used to carry a width through an inline ng-style, which is
+   what put 140px of the rail on top of this page: the column
+   reserved 96 while the rail draws 236.
+
+   The transition moved to the rail, which is the element that
+   actually changes width. Animating a wrapper that never
+   resized was doing nothing. */
 
 .aw-sidebar {
-  flex-shrink: 0;
-  background: transparent !important;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: hidden !important;
-  overflow-x: visible !important;
-  overflow: visible !important;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  z-index: 10;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  flex: 0 0 auto;
+  overflow: visible;
 }
-.aw-sidebar::-webkit-scrollbar { display: none; }
 
-.funding-programs-container {
-  padding-top: 32px !important;
-  padding-left: 40px;
-  padding-right: 40px;
-  padding-bottom: 40px;
-  max-width: 100%;
-  margin: 0 auto;
-  font-family: 'Source Sans Pro', sans-serif;
-  background: transparent !important;
-  overflow: visible !important;
-  transition: width 0.35s ease;
- 
-  .page-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
- 
-    .header-left {
-      .page-title {
-        font-size: 26px;
-        font-weight: 700;
-        color: #111;
-        margin: 0 0 4px 0;
-      }
-    }
- 
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
- 
-      .search-box {
-        position: relative;
-        width: 320px;
- 
-        .search-input {
-          width: 100%;
-          border-radius: 20px;
-          border: 1px solid #ced4da;
-          padding: 6px 12px 6px 36px;
-          font-size: 13px;
-          background: #fff;
-          height: 36px;
-        }
- 
-        .search-icon {
-          position: absolute;
-          left: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 15px;
-          height: 15px;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23adb5bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
-        }
-      }
- 
-      .avatar {
-        background: #2b1cb3;
-        color: #fff;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 13px;
-      }
-    }
+
+/* =========================================================
+   GATENOW · FUNDING PROGRAMS (dashboard)
+   Service Portal widget · CSS / SCSS
+
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
+
+   COLOUR
+   One accent, the logo blue, meaning you can act on this. Every
+   neutral is the same navy at a different opacity, which is what
+   keeps a palette looking related rather than assembled. Teal is
+   opening soon, amber is closing inside a fortnight, neutral is
+   closed. The indigo eligibility card in the previous version
+   was a fifth hue that belonged to no system.
+
+   TYPE
+     tile      30  700  tabular    the four headline figures
+     title     26  700  -0.03em    page title
+     name      18  600  -0.018em   program name
+     body      15  400              summaries
+     data      15  600  tabular     amounts and dates
+     label     11  600   0.14em     uppercase small caps
+
+   Amounts and dates use tabular figures so the four data
+   columns line up down the whole list.
+   ========================================================= */
+
+/* ---------- typeface ----------
+   Shared with the other widgets. Keep one copy in a Style Sheet
+   record attached to the theme if several appear on a portal.
+   ------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+
+
+/* ---------- ink ---------- */
+$f-navy:   #0a2540;
+$f-ink-2:  rgba(10, 37, 64, 0.72);
+$f-ink-3:  rgba(10, 37, 64, 0.54);
+$f-ink-4:  rgba(10, 37, 64, 0.38);
+$f-line:   rgba(10, 37, 64, 0.10);
+$f-line-2: rgba(10, 37, 64, 0.06);
+$f-tint:   rgba(10, 37, 64, 0.03);
+
+/* ---------- accent ---------- */
+$f-blue:    #1560e0;
+$f-blue-dk: #0f4cbb;
+$f-blue-1:  rgba(21, 96, 224, 0.08);
+$f-blue-2:  rgba(21, 96, 224, 0.16);
+
+/* ---------- state ---------- */
+$f-soon:   #0d7d8c;
+$f-warn:   #a4741f;
+$f-warn-1: rgba(164, 116, 31, 0.10);
+$f-warn-2: rgba(164, 116, 31, 0.26);
+
+$f-white: #ffffff;
+$f-page:  #f4f6fb;
+$f-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
+
+$f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   SHELL
+   ========================================================= */
+
+.gn-layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: $f-page;
+  font-family: $f-font;
+}
+
+/* Without min-width: 0 a flex child refuses to shrink below its
+   own content width, and slides under the rail rather than
+   narrowing. That is the usual cause of a stubborn overlap once
+   the widths are right. */
+.gfp {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+}
+
+.gfp {
+  min-height: 100vh;
+  padding: 30px 38px 72px;
+  background: $f-page;
+  font-family: $f-font;
+  color: $f-navy;
+  -webkit-font-smoothing: antialiased;
+}
+
+.gfp *,
+.gfp *::before,
+.gfp *::after { box-sizing: border-box; }
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.gfp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 26px;
+}
+
+.gfp .gfp-top__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: $f-navy;
+}
+
+.gfp-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gfp-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 340px;
+  height: 42px;
+  padding: 0 12px 0 14px;
+  margin: 0;
+  border: 1px solid $f-line;
+  border-radius: 11px;
+  background: $f-white;
+  font-weight: 400;
+  transition: border-color 0.4s $f-ease, box-shadow 0.4s $f-ease;
+}
+
+.gfp-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $f-blue-1;
+}
+
+.gfp-search__icon {
+  font-size: 13px;
+  color: $f-ink-4;
+  flex-shrink: 0;
+  transition: color 0.4s $f-ease;
+}
+
+.gfp-search:focus-within .gfp-search__icon { color: $f-blue; }
+
+.gfp-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: $f-navy;
+}
+
+.gfp-search__field::placeholder { color: $f-ink-4; }
+
+.gfp-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $f-tint;
+  color: $f-ink-3;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.gfp-search__clear:hover { background: rgba(10, 37, 64, 0.09); }
+
+.gfp-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: $f-navy;
+  color: $f-white;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   TILES
+   ========================================================= */
+
+.gfp-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.gfp-tile {
+  position: relative;
+  padding: 20px 22px 22px;
+  border: 1px solid $f-line;
+  border-radius: 16px;
+  background: $f-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: box-shadow 0.5s $f-ease, transform 0.5s $f-ease;
+}
+
+.gfp-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
+}
+
+/* a hairline of accent across the head of each tile, which is
+   all the colour a figure needs */
+.gfp-tile__rule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: $f-blue-2;
+  transform-origin: left center;
+}
+
+.gfp-tile.is-alert .gfp-tile__rule { background: $f-warn-2; }
+
+.gfp .gfp-tile__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $f-ink-4;
+}
+
+.gfp .gfp-tile__value {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.034em;
+  font-variant-numeric: tabular-nums;
+  color: $f-navy;
+}
+
+.gfp .gfp-tile__note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: $f-ink-3;
+}
+
+.gfp-tile.is-alert .gfp-tile__note {
+  color: $f-warn;
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.gfp-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.gfp-panel {
+  padding: 20px 22px 22px;
+  border: 1px solid $f-line;
+  border-radius: 16px;
+  background: $f-white;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.gfp-panel--chart { min-width: 0; }
+.gfp-panel--dead { min-width: 0; }
+
+.gfp-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.gfp .gfp-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: $f-navy;
+}
+
+.gfp-panel__hint {
+  font-size: 12px;
+  color: $f-ink-4;
+  font-variant-numeric: tabular-nums;
+}
+
+.gfp .gfp-panel__empty {
+  margin: 0;
+  padding: 24px 0 8px;
+  font-size: 13.5px;
+  color: $f-ink-4;
+}
+
+
+/* ---------- bars ---------- */
+
+.gfp-bars {
+  display: grid;
+  gap: 13px;
+}
+
+.gfp-bar {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) 66px;
+  align-items: center;
+  gap: 14px;
+}
+
+.gfp-bar__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: $f-ink-2;
+}
+
+.gfp-bar__track {
+  height: 8px;
+  border-radius: 999px;
+  background: $f-tint;
+  overflow: hidden;
+}
+
+.gfp-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(21, 96, 224, 0.55) 0%, $f-blue 100%);
+  transform-origin: left center;
+}
+
+.gfp-bar__value {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $f-navy;
+}
+
+
+/* ---------- deadlines ---------- */
+
+.gfp .gfp-dead {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gfp-dead__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 46px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid $f-line-2;
+}
+
+.gfp-dead__row:last-child { border-bottom: 0; }
+
+.gfp-dead__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $f-navy;
+  text-decoration: none;
+  transition: color 0.4s $f-ease;
+}
+
+.gfp-dead__name:hover,
+.gfp-dead__name:focus {
+  color: $f-blue-dk;
+  text-decoration: none;
+}
+
+.gfp-dead__date {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: $f-ink-4;
+}
+
+.gfp-dead__days {
+  justify-self: end;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: $f-tint;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $f-ink-2;
+}
+
+.gfp-dead__row.is-urgent .gfp-dead__days {
+  background: $f-warn-1;
+  color: $f-warn;
+}
+
+
+/* =========================================================
+   FILTERS
+   ========================================================= */
+
+.gfp-bar-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding-bottom: 16px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid $f-line;
+}
+
+.gfp-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* selection reads through weight and a quiet surface, not by
+   flooding the control with the accent */
+.gfp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: $f-ink-2;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.4s $f-ease, border-color 0.4s $f-ease, color 0.4s $f-ease;
+}
+
+.gfp-tab:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: $f-navy;
+}
+
+.gfp-tab.is-on {
+  background: $f-white;
+  border-color: $f-line;
+  color: $f-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
+}
+
+.gfp-tab__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $f-ink-4;
+  flex-shrink: 0;
+}
+
+/* only the actionable state carries the accent */
+.gfp-tab__dot--open { background: $f-blue; }
+.gfp-tab__dot--soon { background: $f-soon; }
+
+.gfp-tab__count {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: $f-ink-4;
+}
+
+.gfp-selects {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gfp-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+}
+
+.gfp-select select {
+  height: 38px;
+  padding: 0 34px 0 13px;
+  border: 1px solid $f-line;
+  border-radius: 10px;
+  background: $f-white;
+  color: $f-navy;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.4s $f-ease;
+}
+
+.gfp-select select:hover { border-color: $f-blue-2; }
+
+.gfp-select select:focus-visible {
+  outline: 2px solid $f-blue;
+  outline-offset: 2px;
+}
+
+.gfp-select i {
+  position: absolute;
+  right: 13px;
+  font-size: 13px;
+  color: $f-ink-4;
+  pointer-events: none;
+}
+
+.gfp-tab:focus-visible,
+.gfp-search__clear:focus-visible {
+  outline: 2px solid $f-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   LIST
+   ========================================================= */
+
+.gfp .gfp-count {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: $f-ink-4;
+}
+
+.gfp .gfp-count strong {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $f-ink-2;
+}
+
+.gfp-count__clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: $f-blue;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gfp-count__clear:hover { color: $f-blue-dk; }
+
+.gfp-list {
+  display: grid;
+  gap: 12px;
+}
+
+.gfp-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px 150px;
+  align-items: center;
+  gap: 26px;
+  padding: 20px 24px 20px 26px;
+  border: 1px solid $f-line;
+  border-radius: 16px;
+  background: $f-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: border-color 0.5s $f-ease,
+              box-shadow 0.5s $f-ease,
+              transform 0.5s $f-ease;
+}
+
+.gfp-row:hover {
+  transform: translateY(-2px);
+  border-color: $f-blue-2;
+  box-shadow: 0 16px 36px rgba(10, 37, 64, 0.09);
+}
+
+/* the rail states the position without adding a second badge */
+.gfp-row__rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: $f-line;
+  transform: scaleY(0.4);
+  transform-origin: center;
+  transition: transform 0.5s $f-ease, background 0.5s $f-ease;
+}
+
+.gfp-row--open .gfp-row__rail   { background: $f-blue; transform: scaleY(1); }
+.gfp-row--soon .gfp-row__rail   { background: $f-soon; transform: scaleY(1); }
+.gfp-row--closed .gfp-row__rail { background: rgba(10, 37, 64, 0.16); transform: scaleY(1); }
+
+.gfp-row__lead { min-width: 0; }
+
+.gfp-row__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.gfp-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gfp-state__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gfp-state--open   { color: $f-blue-dk; }
+.gfp-state--soon   { color: $f-soon; }
+.gfp-state--closed { color: $f-ink-4; }
+
+.gfp-state--open .gfp-state__dot { background: $f-blue; }
+.gfp-state--soon .gfp-state__dot { background: $f-soon; }
+.gfp-state--closed .gfp-state__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);
+}
+
+/* category and reference are the same kind of information, so
+   they share one style rather than two competing badges */
+.gfp-row__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $f-ink-4;
+}
+
+.gfp-row__sep { color: rgba(10, 37, 64, 0.22); }
+
+/* one urgency chip per row, and only inside a fortnight */
+.gfp-flag {
+  padding: 3px 9px;
+  border: 1px solid $f-warn-2;
+  border-radius: 6px;
+  background: $f-warn-1;
+  color: $f-warn;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gfp .gfp-row__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: -0.018em;
+}
+
+.gfp .gfp-row__name a {
+  color: $f-navy;
+  text-decoration: none;
+  transition: color 0.4s $f-ease;
+}
+
+.gfp .gfp-row__name a:hover,
+.gfp .gfp-row__name a:focus {
+  color: $f-blue-dk;
+  text-decoration: none;
+}
+
+.gfp .gfp-row__desc {
+  max-width: 68ch;
+  margin: 7px 0 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: $f-ink-3;
+}
+
+.gfp-row--closed .gfp-row__name a { color: $f-ink-3; }
+
+
+/* ---------- data columns ---------- */
+
+.gfp .gfp-row__data {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.gfp-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.gfp .gfp-cell dt {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $f-ink-4;
+}
+
+.gfp .gfp-cell dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  font-variant-numeric: tabular-nums;
+  color: $f-navy;
+}
+
+.gfp-row__act {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gfp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid $f-blue;
+  border-radius: 10px;
+  background: $f-blue;
+  color: $f-white;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.4s $f-ease,
+              border-color 0.4s $f-ease,
+              color 0.4s $f-ease;
+}
+
+.gfp-btn:hover,
+.gfp-btn:focus {
+  background: $f-blue-dk;
+  border-color: $f-blue-dk;
+  color: $f-white;
+  text-decoration: none;
+}
+
+.gfp-btn--ghost {
+  background: transparent;
+  border-color: $f-line;
+  color: $f-ink-2;
+}
+
+.gfp-btn--ghost:hover,
+.gfp-btn--ghost:focus {
+  background: transparent;
+  border-color: $f-blue-2;
+  color: $f-blue-dk;
+}
+
+.gfp-btn:focus-visible {
+  outline: 2px solid $f-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   EMPTY AND PAGER
+   ========================================================= */
+
+.gfp-empty {
+  padding: 66px 24px;
+  border: 1px dashed $f-line;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.gfp .gfp-empty__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $f-navy;
+}
+
+.gfp .gfp-empty__text {
+  max-width: 44ch;
+  margin: 9px auto 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: $f-ink-3;
+}
+
+.gfp-empty__btn {
+  height: 42px;
+  margin-top: 20px;
+  padding: 0 20px;
+  border: 1px solid $f-line;
+  border-radius: 10px;
+  background: $f-white;
+  color: $f-navy;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.4s $f-ease, color 0.4s $f-ease;
+}
+
+.gfp-empty__btn:hover {
+  border-color: $f-blue-2;
+  color: $f-blue-dk;
+}
+
+.gfp-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 26px;
+}
+
+.gfp-pager__nums {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.gfp-pager__step,
+.gfp-pager__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: $f-ink-2;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.4s $f-ease, border-color 0.4s $f-ease, color 0.4s $f-ease;
+}
+
+.gfp-pager__step {
+  border-color: $f-line;
+  background: $f-white;
+}
+
+.gfp-pager__step:hover:not(:disabled),
+.gfp-pager__num:hover:not(:disabled) {
+  background: $f-white;
+  color: $f-navy;
+}
+
+.gfp-pager__step:disabled {
+  color: rgba(10, 37, 64, 0.22);
+  cursor: default;
+}
+
+.gfp-pager__num.is-on {
+  background: $f-blue;
+  border-color: $f-blue;
+  color: $f-white;
+  font-weight: 600;
+}
+
+.gfp-pager__num.is-gap {
+  min-width: 20px;
+  color: $f-ink-4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.gfp-pager__step:focus-visible,
+.gfp-pager__num:focus-visible {
+  outline: 2px solid $f-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  @keyframes gfpRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
- 
-  .summary-cards-wrapper,
-  .row.summary-cards {
-    background: transparent !important;
-    background-color: transparent !important;
-    margin-bottom: 25px;
-    box-shadow: none !important;
- 
-    .summary-card {
-      background: #fff !important;
-      padding: 20px;
-      border-radius: 9px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-      height: 160px;
- 
-      .summary-number {
-        font-size: 26px;
-        font-weight: 700;
-        color: #111111;
-      }
- 
-      .summary-label {
-        font-size: 11px;
-        font-weight: 700;
-        color: #212529 !important;
-        letter-spacing: 0.5px;
-        margin-top: 4px;
-      }
-      .summary-sub {
-        font-size: 12px;
-        color: #5a6169;
-        margin-top: 4px;
-        a { color: #5c33ff; text-decoration: underline; }
-      }
-    }
- 
-    .summary-card:nth-of-type(2) .summary-number,
-    &gt; div:nth-child(2) .summary-number {
-      color: #0284c7 !important;
-    }
- 
-    .summary-card:nth-of-type(3) .summary-number,
-    &gt; div:nth-child(3) .summary-number {
-      color: #059669 !important;
-    }
- 
-    .eligibility-card {
-      background: linear-gradient(135deg, #3b28cc 0%, #2b1cb3 100%) !important;
-      color: #fff;
-      .summary-number, .summary-label, .summary-sub, .summary-sub a {
-        color: #fff !important;
-      }
-    }
+
+  @keyframes gfpDrawX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
   }
- 
-  .days-left {
-    margin-left: auto;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
- 
-    &amp;.urgent { 
-      background: #fff0f0; 
-      color: #e03131; 
-    } 
-    &amp;.warning { 
-      background: #fff9db; 
-      color: #d9480f; 
-    } 
-    &amp;.normal { 
-      background: #ebfbee; 
-      color: #2b8a3e; 
-    }
-    &amp;.closed {
-      background: #fff9db !important;
-      color: #d9a406 !important; 
-    }
+
+  @keyframes gfpFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
- 
-  .filter-bar {
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    padding: 14px 18px;
-    border-radius: 9px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-    margin-bottom: 25px;
-    display: flex;
-    align-items: center;
- 
-    .filter-btn {
-      background: #f1f3f5;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-weight: 600;
-      margin-right: 8px;
-      color: #495057;
-      cursor: pointer;
- 
-      &amp;.active {
-        background: #2b1cb3;
-        color: #fff;
-      }
-    }
- 
-    .inline-select {
-      display: inline-block;
-      width: auto;
-      min-width: 150px;
-      margin-left: 5px;
-      border-radius: 6px;
-      height: 36px;
-      font-size: 13px;
-      border: 1px solid #ced4da;
-      background: #fff;
-    }
+
+  .gfp-top    { animation: gfpRise 0.6s $f-ease backwards; }
+  .gfp-tile   { animation: gfpRise 0.62s $f-ease backwards; }
+
+  .gfp-tile--open    { animation-delay: 0.06s; }
+  .gfp-tile--fund    { animation-delay: 0.12s; }
+  .gfp-tile--ceiling { animation-delay: 0.18s; }
+  .gfp-tile--next    { animation-delay: 0.24s; }
+
+  .gfp-tile__rule { animation: gfpDrawX 0.7s $f-ease 0.3s backwards; }
+
+  .gfp-panel { animation: gfpRise 0.62s $f-ease 0.28s backwards; }
+
+  /* the bars grow from their own axis, staggered down the chart */
+  .gfp-bar__fill { animation: gfpDrawX 0.8s $f-ease backwards; }
+
+  .gfp-bar--1 .gfp-bar__fill { animation-delay: 0.38s; }
+  .gfp-bar--2 .gfp-bar__fill { animation-delay: 0.45s; }
+  .gfp-bar--3 .gfp-bar__fill { animation-delay: 0.52s; }
+  .gfp-bar--4 .gfp-bar__fill { animation-delay: 0.59s; }
+  .gfp-bar--5 .gfp-bar__fill { animation-delay: 0.66s; }
+  .gfp-bar--6 .gfp-bar__fill { animation-delay: 0.73s; }
+
+  .gfp-dead__row { animation: gfpFade 0.5s $f-ease backwards; }
+
+  .gfp-dead__row--1 { animation-delay: 0.40s; }
+  .gfp-dead__row--2 { animation-delay: 0.46s; }
+  .gfp-dead__row--3 { animation-delay: 0.52s; }
+  .gfp-dead__row--4 { animation-delay: 0.58s; }
+  .gfp-dead__row--5 { animation-delay: 0.64s; }
+
+  .gfp-bar-filters { animation: gfpRise 0.6s $f-ease 0.34s backwards; }
+
+  /* replays on every filter change, because ng-repeat rebuilds
+     its nodes and the keyframe starts again with them */
+  .gfp-row { animation: gfpRise 0.5s $f-ease backwards; }
+
+  .gfp-row--n1  { animation-delay: 0.02s; }
+  .gfp-row--n2  { animation-delay: 0.05s; }
+  .gfp-row--n3  { animation-delay: 0.08s; }
+  .gfp-row--n4  { animation-delay: 0.11s; }
+  .gfp-row--n5  { animation-delay: 0.14s; }
+  .gfp-row--n6  { animation-delay: 0.17s; }
+  .gfp-row--n7  { animation-delay: 0.20s; }
+  .gfp-row--n8  { animation-delay: 0.23s; }
+  .gfp-row--n9  { animation-delay: 0.26s; }
+  .gfp-row--n10 { animation-delay: 0.29s; }
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1400px) {
+
+  .gfp-row {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 22px;
   }
- 
-  .programs-grid {
-    .program-card {
-      background: #fff;
-      border-radius: 8px;
-      padding: 22px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.04);
- 
-      .card-header-row {
-        display: flex;
-        align-items: center;
-        margin-bottom: 12px;
- 
-        .badge-category {
-          background: #e7f5ff;
-          color: #1c7ed6;
-          padding: 4px 10px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: 600;
-        }
- 
-        .badge-status {
-          margin-left: 10px;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: 600;
-          &amp;.eligible { background: #ebfbee; color: #2b8a3e; }
-          &amp;.open { background-color: #e6f4ea; color: #137333; }
-          &amp;.published { background-color: #e8f0fe; color: #1a73e8; }
-          &amp;.closed { background-color: #fef3c7; color: #92400e; }
-        }
-      }
- 
-      .program-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: #212529;
-        margin-bottom: 8px;
-      }
- 
-      .program-desc {
-        font-size: 13.5px;
-        color: #6c757d;
-        height: 42px;
-        overflow: hidden;
-        margin-bottom: 20px;
-        line-height: 1.4;
-      }
- 
-      .card-footer-info {
-        border-top: 1px solid #f1f3f5;
-        border-bottom: 1px solid #f1f3f5;
-        padding: 12px 0;
-        margin-bottom: 15px;
- 
-        .info-label {
-          display: block;
-          font-size: 11px;
-          color: #adb5bd;
-        }
-        .info-val {
-          font-size: 13px;
-          font-weight: 600;
-          color: #343a40;
-        }
-      }
- 
-      .card-actions {
-        display: flex;
-        gap: 10px;
- 
-        .btn-primary { background: #3b28cc; border: none; border-radius: 6px; color: #fff; padding: 6px 16px; font-size: 13px; }
-        .btn-default { background: #fff; border: 1px solid #ced4da; border-radius: 6px; color: #495057; padding: 6px 16px; font-size: 13px; }
-      }
-    }
+
+  /* the buttons move under the data columns rather than being
+     squeezed into a third lane */
+  .gfp-row__act {
+    grid-column: 2;
+    flex-direction: row;
+    justify-content: flex-end;
   }
+
+  .gfp .gfp-row__data { grid-column: 2; }
+
+  .gfp-row__lead { grid-row: span 2; }
+}
+
+@media (max-width: 1150px) {
+
+  .gfp { padding: 26px 24px 64px; }
+
+  .gfp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .gfp-panels { grid-template-columns: minmax(0, 1fr); }
+
+  .gfp-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .gfp-row__lead,
+  .gfp .gfp-row__data,
+  .gfp-row__act { grid-column: 1; }
+
+  .gfp-row__lead { grid-row: auto; }
+
+  .gfp .gfp-row__data {
+    padding-top: 16px;
+    border-top: 1px solid $f-line-2;
+  }
+
+  .gfp-row__act { justify-content: flex-start; }
+}
+
+@media (max-width: 820px) {
+
+  /* the sidebar widget handles its own narrow state, so nothing
+     here touches the column it sits in */
+  .gfp { padding: 22px 16px 56px; }
+
+  .gfp-top__right {
+    width: 100%;
+    order: 2;
+  }
+
+  .gfp-search { width: 100%; }
+
+  .gfp-tiles { grid-template-columns: minmax(0, 1fr); }
+
+  .gfp-bar-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gfp-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gfp-tab { flex-shrink: 0; }
+
+  .gfp-selects { width: 100%; }
+
+  .gfp-select { flex: 1; }
+
+  .gfp-select select { width: 100%; }
+
+  .gfp .gfp-row__data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .gfp-bar { grid-template-columns: 96px minmax(0, 1fr) 58px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gfp * { transition: none; }
+  .gfp-row:hover { transform: none; }
+  .gfp-tile:hover { transform: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -377,292 +1349,645 @@
         <option_schema/>
         <public>false</public>
         <roles/>
-        <script><![CDATA[(function() {
-  // Load sidebar widget instance
-  data.sideBar = $sp.getWidget('sidebar');
+        <script><![CDATA[(function () {
 
+  /* =========================================================
+     GATENOW · FUNDING PROGRAMS (dashboard)
+     Service Portal widget · Server script
+
+     Publishes every readable program once, with the figures the
+     page needs already worked out. Search, tabs, category, sort
+     and paging all happen in the browser, so none of them cost
+     a round trip.
+
+     GlideRecordSecure throughout. The previous version used a
+     plain GlideRecord, which reads past the ACLs on the program
+     table and would show an applicant records they are not
+     entitled to.
+     ========================================================= */
+
+  var TBL = 'x_enno_gatenow_grant_program';
+
+  /* Draft, Pending Approval and Rejected are internal states.
+     They are excluded here rather than left to the ACLs. */
+  var PUBLIC_STATUS = 'accepting_proposals,published,program_closed';
+
+  var URGENT_DAYS = 14;
+
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  function daysFromNow(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    try {
+      var ms = GlideDateTime.subtract(new GlideDateTime(), g).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return null; }
+  }
+
+  /* currency fields hold "USD;500000" or a bare number */
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  /* Written out rather than using toLocaleString, which is not
+     dependable on the server side engine. */
+  function withCommas(n) {
+    var s = '' + Math.round(n);
+    var out = '';
+    var c = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      c++;
+      if (c % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return out;
+  }
+
+  function fmtFull(n) {
+    return n > 0 ? '$' + withCommas(n) : '';
+  }
+
+  /* compact form for the tiles, where the column is narrow */
+  function fmtShort(n) {
+    if (!n) return '$0';
+    if (n >= 1000000000) return '$' + (n / 1000000000).toFixed(1).replace(/\.0$/, '') + 'B';
+    if (n >= 1000000)    return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000)       return '$' + Math.round(n / 1000) + 'K';
+    return '$' + withCommas(n);
+  }
+
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next */ }
+    }
+    return '';
+  }
+
+  function clip(s, n) {
+    s = ('' + (s || '')).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+                        .replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+    return s.length > n ? s.substring(0, n).replace(/\s+\S*$/, '') + '...' : s;
+  }
+
+
+  /* ---------- chrome ---------- */
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
+
+  var user = gs.getUser();
+  var fn = user.getFirstName() || '';
+  var ln = user.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (user.getDisplayName() || 'U').substring(0, 2).toUpperCase();
+
+  data.pages = {
+    intake : opt('intake_page', 'applicant_intake'),
+    detail : opt('detail_page', 'opportunity_details')
+  };
+
+  data.labels = {
+    title      : opt('label_title', gs.getMessage('Funding programs')),
+    search     : opt('label_search', gs.getMessage('Search programs by name, category or reference')),
+    apply      : opt('label_apply', gs.getMessage('Start application')),
+    details    : opt('label_details', gs.getMessage('Program details')),
+    funding    : opt('label_funding', gs.getMessage('Program funding')),
+    maxAward   : opt('label_max', gs.getMessage('Max award')),
+    minAward   : opt('label_min', gs.getMessage('Min award')),
+    closes     : opt('label_closes', gs.getMessage('Closes')),
+    opens      : opt('label_opens', gs.getMessage('Opens')),
+    byCategory : opt('label_by_category', gs.getMessage('Funding available by category')),
+    closingSoon: opt('label_closing_soon', gs.getMessage('Closing soonest')),
+    noChart    : opt('label_no_chart', gs.getMessage('No open programs to chart yet.')),
+    noDeadlines: opt('label_no_deadlines', gs.getMessage('Nothing closing in the near future.')),
+    emptyTitle : opt('label_empty_title', gs.getMessage('No programs match')),
+    emptyText  : opt('label_empty_text', gs.getMessage('Try a different search, or clear the filters to see everything.')),
+    clear      : opt('label_clear', gs.getMessage('Clear filters')),
+    of         : opt('label_of', gs.getMessage('of')),
+    sortClose  : opt('label_sort_close', gs.getMessage('Closing date')),
+    sortName   : opt('label_sort_name', gs.getMessage('Program name')),
+    sortFund   : opt('label_sort_fund', gs.getMessage('Largest fund')),
+    allCats    : opt('label_all_cats', gs.getMessage('All categories')),
+    openWord   : opt('label_open_word', gs.getMessage('open programs'))
+  };
+
+
+  /* ---------- programs ---------- */
   data.programs = [];
- 
-  // Set user initials for the avatar
-  var currentUser = gs.getUser();
-  var firstName = currentUser.getFirstName() || '';
-  var lastName = currentUser.getLastName() || '';
-  var initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
-  data.userInitials = initials || currentUser.getDisplayName().substring(0, 2).toUpperCase();
- 
-  var totalOpen = 0;
-  var openingSoonCount = 0;
-  var closedProgramsCount = 0;
-  var totalCount = 0;
-  var totalBudgetSum = 0;
- 
-  var now = new GlideDateTime();
- 
-  var currentTab = (input && input.filterTab) ? input.filterTab : 'open_now';
-  var selectedCategory = (input && input.categoryFilter) ? input.categoryFilter : 'All categories';
-  var sortOption = (input && input.sortOption) ? input.sortOption : 'closing_date';
-  var searchTerm = (input && input.searchTerm) ? input.searchTerm.toLowerCase() : '';
- 
-  var gr = new GlideRecord('x_enno_gatenow_grant_program');
- 
-  if (sortOption == 'name') {
-    gr.orderBy('program_name');
-  } else {
+
+  var counts = { all: 0, open: 0, soon: 0, closed: 0 };
+  var openFundTotal = 0;
+  var openCount = 0;
+  var urgentCount = 0;
+  var ceiling = 0;
+  var catFund = {};
+  var catNames = [];
+  var nextClose = null;
+
+  try {
+
+    var gr = new GlideRecordSecure(TBL);
+    gr.addQuery('status', 'IN', PUBLIC_STATUS);
     gr.orderBy('proposal_close_date');
-  }
- 
-  gr.query();
- 
-  var categoriesSet = [];
- 
-  while (gr.next()) {
-    var categoryVal = gr.getValue('category') || 'General';
-    if (categoriesSet.indexOf(categoryVal) == -1) {
-      categoriesSet.push(categoryVal);
-    }
- 
-    var nameVal = gr.getValue('program_name') || '';
-    var descVal = gr.getValue('synopsis') || gr.getValue('program_description') || '';
- 
-    if (searchTerm && nameVal.toLowerCase().indexOf(searchTerm) == -1 && descVal.toLowerCase().indexOf(searchTerm) == -1) {
-      continue;
-    }
- 
-    var statusVal = gr.getValue('status') ? gr.getValue('status').toLowerCase() : '';
-    var statusDisplay = gr.getDisplayValue('status') ? gr.getDisplayValue('status').toLowerCase() : '';
-     
-    var openDateStr = gr.getValue('proposal_open_date');
-    var closeDateStr = gr.getValue('proposal_close_date');
- 
-    var daysRemaining = 0;
-    if (closeDateStr) {
-      var closeDate = new GlideDateTime(closeDateStr);
-      var diffMs = closeDate.getNumericValue() - now.getNumericValue();
-      daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    }
- 
-    var isOpenNow = (statusVal == 'accepting_proposals' || statusDisplay.indexOf('accepting proposals') > -1);
-    var isOpeningSoon = (statusVal == 'published' || statusDisplay.indexOf('published') > -1);
-    var isClosedStatus = (statusVal == 'program_closed' || statusVal == 'closed' || statusDisplay.indexOf('closed') > -1 || statusVal == 'rejected' || daysRemaining < 0);
- 
-    var statusText = 'Eligible';
-    var statusClass = 'eligible';
-    var daysLeftText = '';
- 
-    if (isClosedStatus) {
-      daysLeftText = 'Closed';
-      statusText = 'Closed';
-      statusClass = 'closed';
-    } else if (isOpenNow) {
-      statusText = 'Accepting Proposals';
-      statusClass = 'open';
-      if (daysRemaining === 0) {
-        daysLeftText = 'Closing today';
-      } else if (daysRemaining > 0) {
-        daysLeftText = daysRemaining + ' days left';
+    gr.setLimit(300);
+    gr.query();
+
+    while (gr.next()) {
+
+      var statusValue = lower(gr.getValue('status'));
+      var closeRaw = gr.getValue('proposal_close_date');
+      var openRaw  = gr.getValue('proposal_open_date');
+
+      var toClose = daysFromNow(closeRaw);
+      var toOpen  = daysFromNow(openRaw);
+
+      var accepting = statusValue === 'accepting_proposals';
+      var closedTag = statusValue === 'program_closed';
+
+      /* Status alone does not say whether an applicant can act
+         today, so the state combines status with the dates. A
+         program marked Accepting Proposals whose close date has
+         passed is closed, whatever the field says. */
+      var state, stateLabel;
+
+      if (closedTag || (toClose !== null && toClose < 0)) {
+        state = 'closed';
+        stateLabel = gs.getMessage('Closed');
+      } else if (accepting) {
+        state = 'open';
+        stateLabel = gs.getMessage('Open now');
+      } else {
+        state = 'soon';
+        stateLabel = gs.getMessage('Opening soon');
       }
-    } else if (isOpeningSoon) {
-      statusText = 'Published';
-      statusClass = 'published';
-      daysLeftText = 'Opening soon';
-    } else {
-      daysLeftText = closeDateStr ? daysRemaining + ' days left' : '';
-    }
- 
-    totalCount++;
- 
-    if (isOpenNow) {
-      totalOpen++;
-    }
-    if (isOpeningSoon) {
-      openingSoonCount++;
-    }
-    if (isClosedStatus) {
-      closedProgramsCount++;
-    }
- 
-    var matchesTab = false;
-    if (currentTab == 'open_now') matchesTab = isOpenNow;
-    else if (currentTab == 'opening_soon') matchesTab = isOpeningSoon;
-    else if (currentTab == 'closed_programs') matchesTab = isClosedStatus;
-    else if (currentTab == 'all') matchesTab = true;
- 
-    var matchesCategory = (selectedCategory == 'All categories' || categoryVal == selectedCategory);
- 
-    var budgetVal = parseFloat(gr.getValue('program_budget')) || 0;
-    totalBudgetSum += budgetVal;
- 
-    if (matchesTab && matchesCategory) {
+
+      var fund = num(pick(gr, ['program_funding', 'program_budget']));
+
+      /* Min and max are entered by hand and do get swapped, so
+         the smaller of the two is treated as the minimum rather
+         than trusting the field names. */
+      var a = num(pick(gr, ['min_award', 'minimum_award']));
+      var b = num(pick(gr, ['max_award', 'maximum_award']));
+      var minAward = (a && b) ? Math.min(a, b) : (a || b);
+      var maxAward = (a && b) ? Math.max(a, b) : (b || a);
+
+      var cat = gr.getDisplayValue('category') || gs.getMessage('Uncategorised');
+
+      /* one urgency chip, and only on something you can still
+         apply to */
+      var flag = '';
+      if (state === 'open' && toClose !== null && toClose <= URGENT_DAYS) {
+        flag = toClose <= 0
+          ? gs.getMessage('Closes today')
+          : toClose + ' ' + (toClose === 1 ? gs.getMessage('day left') : gs.getMessage('days left'));
+      }
+
       data.programs.push({
-        sys_id: gr.getUniqueValue(),
-        name: nameVal,
-        category: categoryVal,
-        statusText: statusText,
-        statusClass: statusClass,
-        daysLeftText: daysLeftText,
-        daysLeftClass: isClosedStatus ? 'closed' : (daysRemaining <= 10 && isOpenNow ? 'urgent' : 'normal'),
-        description: descVal,
-        fundingRange: budgetVal > 0 ? '$' + budgetVal.toLocaleString() : 'Amount TBD',
-        closes: closeDateStr || '',
-        isEligible: isOpenNow && !isClosedStatus
+        sysId    : gr.getUniqueValue(),
+        number   : gr.getValue('number'),
+        name     : pick(gr, ['program_name', 'short_description', 'number']),
+        category : cat,
+        summary  : clip(pick(gr, ['synopsis', 'program_description']), 150),
+        state    : state,
+        stateLabel: stateLabel,
+        flag     : flag,
+        urgent   : !!flag,
+        fund     : fund,
+        fundText : fund ? fmtFull(fund) : '',
+        maxText  : maxAward ? fmtFull(maxAward) : '',
+        minText  : minAward ? fmtFull(minAward) : '',
+        closes   : closeRaw ? fmtDate(closeRaw) : '',
+        opens    : openRaw ? fmtDate(openRaw) : '',
+        closeSort: closeRaw || '9999-12-31',
+        daysToClose: toClose,
+        canApply : (state === 'open')
       });
+
+      counts.all++;
+      counts[state]++;
+
+      if (catNames.indexOf(cat) === -1) catNames.push(cat);
+
+      /* Every headline figure below counts open programs only.
+         Averaging a fund that closed last year into "funding
+         available" is the quickest way to publish a number
+         nobody can act on. */
+      if (state === 'open') {
+        openCount++;
+        openFundTotal += fund;
+        if (maxAward > ceiling) ceiling = maxAward;
+        catFund[cat] = (catFund[cat] || 0) + fund;
+        if (flag) urgentCount++;
+
+        if (toClose !== null && toClose >= 0) {
+          if (nextClose === null || toClose < nextClose.days) {
+            nextClose = { days: toClose, date: fmtDate(closeRaw), name: pick(gr, ['program_name', 'number']) };
+          }
+        }
+      }
     }
+
+  } catch (e) {
+    gs.error('GateNow funding programs: ' + e.message);
   }
- 
-  var formattedTotalFunding = '$' + (totalBudgetSum >= 1000000 ? (totalBudgetSum / 1000000).toFixed(1) + 'M' : totalBudgetSum.toLocaleString());
- 
-  data.summary = {
-    openPrograms: totalOpen,
-    closingSoonCount: openingSoonCount,
-    totalFundingDisplay: formattedTotalFunding,
-    averageAwardDisplay: totalCount > 0 ? '$' + Math.round((totalBudgetSum / totalCount) / 1000) + 'K' : '$0K',
-    eligibilityMatch: totalOpen + ' of ' + totalCount + ' match'
-  };
- 
-  data.counts = {
-    open: totalOpen,
-    opening: openingSoonCount,
-    closed: closedProgramsCount,
-    all: totalCount
-  };
- 
-  data.categories = categoriesSet;
+
+  catNames.sort();
+  data.categories = catNames;
+
+  data.counts = counts;
+
+
+  /* ---------- headline tiles ---------- */
+  data.tiles = [
+    {
+      key  : 'open',
+      label: gs.getMessage('Open now'),
+      value: '' + counts.open,
+      note : urgentCount > 0
+               ? urgentCount + ' ' + gs.getMessage('closing within a fortnight')
+               : gs.getMessage('none closing in the next fortnight'),
+      alert: urgentCount > 0
+    },
+    {
+      key  : 'fund',
+      label: gs.getMessage('Funding available'),
+      value: fmtShort(openFundTotal),
+      note : openCount === 1
+               ? gs.getMessage('across one open program')
+               : gs.getMessage('across') + ' ' + openCount + ' ' + gs.getMessage('open programs')
+    },
+    {
+      key  : 'ceiling',
+      label: gs.getMessage('Largest single award'),
+      value: ceiling ? fmtShort(ceiling) : '—',
+      note : gs.getMessage('highest maximum on an open program')
+    },
+    {
+      key  : 'next',
+      label: gs.getMessage('Next deadline'),
+      value: nextClose ? nextClose.date : '—',
+      note : nextClose
+               ? (nextClose.days === 0
+                    ? gs.getMessage('closes today')
+                    : nextClose.days + ' ' + gs.getMessage('days away'))
+               : gs.getMessage('nothing open with a closing date'),
+      alert: !!(nextClose && nextClose.days <= URGENT_DAYS)
+    }
+  ];
+
+
+  /* ---------- funding by category, open programs only ---------- */
+  data.chart = [];
+
+  var chartMax = 0;
+  for (var ck in catFund) {
+    if (catFund[ck] > chartMax) chartMax = catFund[ck];
+  }
+
+  var chartRows = [];
+  for (var cj in catFund) {
+    chartRows.push({ label: cj, value: catFund[cj] });
+  }
+  chartRows.sort(function (x, y) { return y.value - x.value; });
+
+  for (var ci = 0; ci < chartRows.length && ci < 6; ci++) {
+    data.chart.push({
+      label: chartRows[ci].label,
+      text : fmtShort(chartRows[ci].value),
+      pct  : chartMax ? Math.max(3, Math.round((chartRows[ci].value / chartMax) * 100)) : 0
+    });
+  }
+
+
+  /* ---------- closing soonest ---------- */
+  data.deadlines = data.programs
+    .filter(function (p) { return p.state === 'open' && p.daysToClose !== null && p.daysToClose >= 0; })
+    .sort(function (x, y) { return x.daysToClose - y.daysToClose; })
+    .slice(0, 5)
+    .map(function (p) {
+      return {
+        sysId : p.sysId,
+        name  : p.name,
+        closes: p.closes,
+        days  : p.daysToClose === 0 ? gs.getMessage('Today') : p.daysToClose + 'd',
+        urgent: p.urgent
+      };
+    });
+
+  data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-20 10:05:57</sys_created_on>
         <sys_id>a0b0fb350fb68b10712b6af300d1b25b</sys_id>
-        <sys_mod_count>97</sys_mod_count>
+        <sys_mod_count>120</sys_mod_count>
         <sys_name>Funding Programs Custom</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_a0b0fb350fb68b10712b6af300d1b25b</sys_update_name>
-        <sys_updated_by>farheen.maqbool</sys_updated_by>
-        <sys_updated_on>2026-08-24 11:08:35</sys_updated_on>
-        <template><![CDATA[<!-- Master Flexbox Layout Container -->
-<div class="gn-layout" style="display:flex; min-height:100vh; align-items:stretch; background:#f8f9fa;">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-31 02:50:07</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · FUNDING PROGRAMS (dashboard)
+     Service Portal widget · HTML template
 
-  <!-- DYNAMIC SIDEBAR WRAPPER -->
-  <div class="aw-sidebar" ng-style="{'width': c.isSidebarCollapsed ? '64px' : '96px', 'min-width': c.isSidebarCollapsed ? '64px' : '96px', 'max-width': c.isSidebarCollapsed ? '64px' : '96px', 'flex': c.isSidebarCollapsed ? '0 0 64px' : '0 0 96px'}" style="position:sticky; top:0; height:100vh; overflow:visible; z-index: 10;">
+     Sits inside the applicant dashboard next to the sidebar.
+
+     Three bands: the figures worth knowing, two analytics
+     panels, then the programs themselves as rows. Rows rather
+     than cards, because a two column card grid at this width
+     wastes half the row on air and truncates the summary.
+     ========================================================= -->
+
+<!-- The wrapper holds the rail and nothing more.
+
+     It used to declare a width through an ng-style, which is
+     what caused the overlap: it reserved 96px while the rail
+     draws 236px, so 140px of the rail painted over this page.
+
+     The rail sets its own width, does its own sticking and owns
+     the collapsed state, so there is nothing left for the
+     column to say. -->
+<div class="gn-layout">
+
+  <!-- SIDEBAR -->
+  <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
-  <!-- MAIN CONTENT AREA -->
-  <main class="aw-main funding-programs-container" style="flex-grow:1; min-width:0; padding: 32px 40px 72px;">
+  <main class="gfp">
 
-    <!-- Top Header Row -->
-    <div class="page-header-row">
-      <div class="header-left">
-        <h2 class="page-title">Funding Programs</h2>
-      </div>
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="gfp-top">
 
-      <div class="header-right">
-        <div class="search-box">
-          <span class="search-icon"></span>
+      <h1 class="gfp-top__title">{{c.data.labels.title}}</h1>
+
+      <div class="gfp-top__right">
+
+        <label class="gfp-search">
+          <i class="fa fa-search gfp-search__icon" aria-hidden="true"></i>
           <input type="text"
-                 class="form-control search-input"
-                 placeholder="Search programs, applications..."
-                 ng-model="c.searchTerm"
-                 ng-change="c.filterPrograms()">
-        </div>
+                 class="gfp-search__field"
+                 ng-model="c.query"
+                 ng-change="c.onChange()"
+                 ng-model-options="{debounce: 120}"
+                 placeholder="{{c.data.labels.search}}"
+                 aria-label="{{c.data.labels.search}}">
+          <button type="button" class="gfp-search__clear" ng-if="c.query" ng-click="c.clearSearch()"
+                  aria-label="{{c.data.labels.clear}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </label>
 
-        <div class="avatar">{{c.data.userInitials}}</div>
-      </div>
-    </div>
+        <span class="gfp-avatar">{{c.data.userInitials}}</span>
 
-    <!-- Top Summary Cards Banner -->
-    <div class="row summary-cards" style="background: transparent !important; background-color: transparent !important;">
-      <div class="col-md-3">
-        <div class="summary-card">
-          <div class="summary-label">OPEN PROGRAMS</div>
-          <div class="summary-number main-count">{{c.data.summary.openPrograms}}</div>
-          <div class="summary-sub">{{c.data.summary.closingSoonCount}} close within 30 days</div>
-        </div>
       </div>
-      <div class="col-md-3">
-        <div class="summary-card">
-          <div class="summary-label">FUNDING AVAILABLE</div>
-          <div class="summary-number funding-val">{{c.data.summary.totalFundingDisplay}}</div>
-          <div class="summary-sub">Across all open cycles</div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="summary-card">
-          <div class="summary-label">AVERAGE AWARD</div>
-          <div class="summary-number award-val">{{c.data.summary.averageAwardDisplay}}</div>
-          <div class="summary-sub">FY25 awarded grants</div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="summary-card eligibility-card">
-          <div class="summary-label">YOUR ELIGIBILITY</div>
-          <div class="summary-number">{{c.data.summary.eligibilityMatch}}</div>
-          <div class="summary-sub">
-            Based on your organisation profile and prior awards.
-            <a href="javascript:void(0)" ng-click="c.reviewProfile()">Review profile &rarr;</a>
+
+    </header>
+
+
+    <!-- ═══════════════ TILES ═══════════════ -->
+    <section class="gfp-tiles">
+
+      <article class="gfp-tile"
+               ng-repeat="t in c.data.tiles track by t.key"
+               ng-class="['gfp-tile--' + t.key, {'is-alert': t.alert}]">
+        <span class="gfp-tile__rule" aria-hidden="true"></span>
+        <p class="gfp-tile__label">{{t.label}}</p>
+        <p class="gfp-tile__value">{{t.value}}</p>
+        <p class="gfp-tile__note">{{t.note}}</p>
+      </article>
+
+    </section>
+
+
+    <!-- ═══════════════ ANALYTICS ═══════════════ -->
+    <section class="gfp-panels">
+
+      <!-- funding by category -->
+      <article class="gfp-panel gfp-panel--chart">
+
+        <header class="gfp-panel__head">
+          <h2 class="gfp-panel__title">{{c.data.labels.byCategory}}</h2>
+          <span class="gfp-panel__hint">{{c.data.counts.open}} {{c.data.labels.openWord}}</span>
+        </header>
+
+        <div class="gfp-bars" ng-if="c.data.chart.length">
+          <div class="gfp-bar"
+               ng-repeat="b in c.data.chart track by $index"
+               ng-class="'gfp-bar--' + ($index + 1)">
+            <span class="gfp-bar__label" title="{{b.label}}">{{b.label}}</span>
+            <span class="gfp-bar__track">
+              <span class="gfp-bar__fill" ng-style="{width: b.pct + '%'}"></span>
+            </span>
+            <span class="gfp-bar__value">{{b.text}}</span>
           </div>
         </div>
+
+        <p class="gfp-panel__empty" ng-if="!c.data.chart.length">{{c.data.labels.noChart}}</p>
+
+      </article>
+
+      <!-- closing soonest -->
+      <article class="gfp-panel gfp-panel--dead">
+
+        <header class="gfp-panel__head">
+          <h2 class="gfp-panel__title">{{c.data.labels.closingSoon}}</h2>
+        </header>
+
+        <ol class="gfp-dead" ng-if="c.data.deadlines.length">
+          <li class="gfp-dead__row"
+              ng-repeat="d in c.data.deadlines track by d.sysId"
+              ng-class="['gfp-dead__row--' + ($index + 1), {'is-urgent': d.urgent}]">
+            <a class="gfp-dead__name" ng-href="{{c.detailUrl(d.sysId)}}" title="{{d.name}}">{{d.name}}</a>
+            <span class="gfp-dead__date">{{d.closes}}</span>
+            <span class="gfp-dead__days">{{d.days}}</span>
+          </li>
+        </ol>
+
+        <p class="gfp-panel__empty" ng-if="!c.data.deadlines.length">{{c.data.labels.noDeadlines}}</p>
+
+      </article>
+
+    </section>
+
+
+    <!-- ═══════════════ FILTERS ═══════════════ -->
+    <div class="gfp-bar-filters">
+
+      <div class="gfp-tabs" role="group">
+        <button type="button" class="gfp-tab"
+                ng-repeat="t in c.tabs track by t.key"
+                ng-class="{'is-on': c.tab === t.key}"
+                ng-click="c.setTab(t.key)"
+                ng-attr-aria-pressed="{{c.tab === t.key}}">
+          <span class="gfp-tab__dot" ng-class="'gfp-tab__dot--' + t.key" aria-hidden="true"></span>
+          {{t.label}}
+          <span class="gfp-tab__count">{{c.data.counts[t.key]}}</span>
+        </button>
       </div>
+
+      <div class="gfp-selects">
+
+        <label class="gfp-select">
+          <select ng-model="c.category" ng-change="c.onChange()">
+            <option value="all">{{c.data.labels.allCats}}</option>
+            <option ng-repeat="cat in c.data.categories track by cat" value="{{cat}}">{{cat}}</option>
+          </select>
+          <i class="fa fa-angle-down" aria-hidden="true"></i>
+        </label>
+
+        <label class="gfp-select">
+          <select ng-model="c.sort" ng-change="c.onChange()">
+            <option value="close">{{c.data.labels.sortClose}}</option>
+            <option value="name">{{c.data.labels.sortName}}</option>
+            <option value="fund">{{c.data.labels.sortFund}}</option>
+          </select>
+          <i class="fa fa-angle-down" aria-hidden="true"></i>
+        </label>
+
+      </div>
+
     </div>
 
-    <!-- Filter and Search Bar -->
-    <div class="filter-bar row align-items-center">
-      <div class="col-md-7 tabs-group">
-        <button class="filter-btn" ng-class="{'active': c.filterTab == 'all'}" ng-click="c.setTab('all')">All ({{c.data.counts.all}})</button>
-        <button class="filter-btn" ng-class="{'active': c.filterTab == 'open_now'}" ng-click="c.setTab('open_now')">Open now ({{c.data.counts.open}})</button>
-        <button class="filter-btn" ng-class="{'active': c.filterTab == 'opening_soon'}" ng-click="c.setTab('opening_soon')">Opening soon ({{c.data.counts.opening}})</button>
-        <button class="filter-btn" ng-class="{'active': c.filterTab == 'closed_programs'}" ng-click="c.setTab('closed_programs')">Closed ({{c.data.counts.closed}})</button>
-      </div>
-      <div class="col-md-5 dropdowns-group text-right d-flex justify-content-end gap-2">
-        <select class="form-control inline-select" ng-model="c.categoryFilter" ng-change="c.filterPrograms()">
-          <option value="All categories">All categories</option>
-          <option ng-repeat="cat in c.data.categories" value="{{cat}}">{{cat}}</option>
-        </select>
-        <select class="form-control inline-select" ng-model="c.sortOption" ng-change="c.filterPrograms()">
-          <option value="closing_date">Sort: Closing date</option>
-          <option value="name">Sort: Program Name</option>
-        </select>
-      </div>
-    </div>
 
-    <!-- Program Cards Grid -->
-    <div class="row programs-grid">
-      <div class="col-md-6" ng-repeat="program in c.data.programs">
-        <div class="program-card">
-          <div class="card-header-row">
-            <span class="badge-category">{{program.category}}</span>
-            <span class="badge-status" ng-class="program.statusClass">{{program.statusText}}</span>
-            <span class="days-left" ng-class="program.daysLeftClass">{{program.daysLeftText}}</span>
-          </div>
-          <h3 class="program-title">{{program.name}}</h3>
-          <p class="program-desc">{{program.description}}</p>
+    <!-- ═══════════════ LIST ═══════════════ -->
+    <p class="gfp-count">
+      <strong ng-if="c.total()">{{c.rangeFrom()}}&ndash;{{c.rangeTo()}} {{c.data.labels.of}} {{c.total()}}</strong>
+      <strong ng-if="!c.total()">0</strong>
+      <button type="button" class="gfp-count__clear" ng-if="c.isFiltered()" ng-click="c.clearAll()">
+        {{c.data.labels.clear}}
+      </button>
+    </p>
 
-          <div class="card-footer-info row">
-            <div class="col-md-4">
-              <span class="info-label">Funding Budget</span>
-              <span class="info-val">{{program.fundingRange}}</span>
-            </div>
-            <div class="col-md-4">
-              <span class="info-label">Closes</span>
-              <span class="info-val">{{program.closes}}</span>
-            </div>
-            <div class="col-md-4">
-              <span class="info-label">Cycle</span>
-              <span class="info-val">{{program.cycle}}</span>
-            </div>
-          </div>
+    <div class="gfp-list">
 
-          <div class="card-actions">
-            <button class="btn btn-primary" ng-click="c.startApplication(program.sys_id)" ng-if="program.isEligible">Start application</button>
-            <button class="btn btn-default" ng-click="c.viewDetails(program.sys_id)">Program details</button>
-          </div>
+      <article class="gfp-row"
+               ng-repeat="p in c.shown() track by p.sysId"
+               ng-class="['gfp-row--' + p.state, 'gfp-row--n' + (($index % 10) + 1)]">
+
+        <span class="gfp-row__rail" aria-hidden="true"></span>
+
+        <div class="gfp-row__lead">
+
+          <span class="gfp-row__top">
+            <span class="gfp-state" ng-class="'gfp-state--' + p.state">
+              <span class="gfp-state__dot" aria-hidden="true"></span>{{p.stateLabel}}
+            </span>
+            <span class="gfp-row__meta">
+              <span>{{p.category}}</span>
+              <span class="gfp-row__sep" aria-hidden="true">&middot;</span>
+              <span>{{p.number}}</span>
+            </span>
+            <span class="gfp-flag" ng-if="p.flag">{{p.flag}}</span>
+          </span>
+
+          <h3 class="gfp-row__name">
+            <a ng-href="{{c.detailUrl(p.sysId)}}">{{p.name}}</a>
+          </h3>
+
+          <p class="gfp-row__desc" ng-if="p.summary">{{p.summary}}</p>
+
         </div>
-      </div>
+
+        <dl class="gfp-row__data">
+
+          <div class="gfp-cell">
+            <dt>{{c.data.labels.funding}}</dt>
+            <dd>{{p.fundText || '—'}}</dd>
+          </div>
+
+          <div class="gfp-cell">
+            <dt>{{c.data.labels.maxAward}}</dt>
+            <dd>{{p.maxText || '—'}}</dd>
+          </div>
+
+          <div class="gfp-cell">
+            <dt>{{c.data.labels.minAward}}</dt>
+            <dd>{{p.minText || '—'}}</dd>
+          </div>
+
+          <div class="gfp-cell">
+            <dt>{{p.state === 'soon' ? c.data.labels.opens : c.data.labels.closes}}</dt>
+            <dd>{{(p.state === 'soon' ? p.opens : p.closes) || '—'}}</dd>
+          </div>
+
+        </dl>
+
+        <div class="gfp-row__act">
+          <button type="button" class="gfp-btn" ng-if="p.canApply"
+                  ng-click="c.startApplication(p.sysId)">
+            {{c.data.labels.apply}}
+          </button>
+          <a class="gfp-btn gfp-btn--ghost" ng-href="{{c.detailUrl(p.sysId)}}">
+            {{c.data.labels.details}}
+          </a>
+        </div>
+
+      </article>
+
     </div>
+
+
+    <div class="gfp-empty" ng-if="!c.shown().length">
+      <p class="gfp-empty__title">{{c.data.labels.emptyTitle}}</p>
+      <p class="gfp-empty__text">{{c.data.labels.emptyText}}</p>
+      <button type="button" class="gfp-empty__btn" ng-if="c.isFiltered()" ng-click="c.clearAll()">
+        {{c.data.labels.clear}}
+      </button>
+    </div>
+
+
+    <nav class="gfp-pager" ng-if="c.pageCount() > 1">
+      <button type="button" class="gfp-pager__step" ng-click="c.prev()" ng-disabled="c.page === 1">
+        <i class="fa fa-angle-left" aria-hidden="true"></i>
+      </button>
+      <div class="gfp-pager__nums">
+        <button type="button"
+                ng-repeat="n in c.pages() track by $index"
+                class="gfp-pager__num"
+                ng-class="{'is-on': n === c.page, 'is-gap': n === '...'}"
+                ng-disabled="n === '...'"
+                ng-click="c.goto(n)">{{n}}</button>
+      </div>
+      <button type="button" class="gfp-pager__step" ng-click="c.next()" ng-disabled="c.page === c.pageCount()">
+        <i class="fa fa-angle-right" aria-hidden="true"></i>
+      </button>
+    </nav>
 
   </main>
+
 </div>]]></template>
     </sp_widget>
 </record_update>

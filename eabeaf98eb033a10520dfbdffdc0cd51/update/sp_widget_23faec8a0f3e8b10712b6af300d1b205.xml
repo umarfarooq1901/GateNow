@@ -1,449 +1,1495 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window, $rootScope, $timeout, $document) {
+        <client_script><![CDATA[api.controller = function($scope) {
+
+  /* =========================================================
+     GATENOW · MY APPLICATIONS · Client script
+
+     Tabs, search and paging run against the list already in
+     memory. No writes on this page, so nothing goes back to
+     the server.
+     ========================================================= */
+
   var c = this;
 
-  c.isSidebarCollapsed = $window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true';
-  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
-    $timeout(function() {
-      c.isSidebarCollapsed = isCollapsed;
+  c.query = '';
+  c.tab   = 'all';
+  c.page  = 1;
+
+  var PER_PAGE = c.data.pageSize || 10;
+
+  /* the record showing in the modal, or null */
+  c.open = null;
+
+  c.tabs = [
+    { key: 'all',     label: c.data.t.tabAll },
+    { key: 'new',     label: c.data.t.tabNew },
+    { key: 'review',  label: c.data.t.tabReview },
+    { key: 'awarded', label: c.data.t.tabAwarded },
+    { key: 'closed',  label: c.data.t.tabClosed }
+  ];
+
+  function hit(a, q) {
+    return (
+      (a.program || '').toLowerCase().indexOf(q) !== -1 ||
+      (a.number  || '').toLowerCase().indexOf(q) !== -1 ||
+      (a.title   || '').toLowerCase().indexOf(q) !== -1
+    );
+  }
+
+  function matching() {
+    var q = (c.query || '').trim().toLowerCase();
+
+    var out = (c.data.applications || []).filter(function(a) {
+      if (c.tab !== 'all' && a.group !== c.tab) return false;
+      if (q && !hit(a, q)) return false;
+      return true;
     });
+
+    return out;
+  }
+
+  c.total     = function() { return matching().length; };
+  c.pageCount = function() { return Math.max(1, Math.ceil(matching().length / PER_PAGE)); };
+
+  c.shown = function() {
+    var start = (c.page - 1) * PER_PAGE;
+    return matching().slice(start, start + PER_PAGE);
+  };
+
+  function reset() { c.page = 1; }
+
+  c.onChange = function() { reset(); };
+
+  c.setTab = function(key) {
+    if (c.tab === key) return;
+    c.tab = key;
+    reset();
+  };
+
+  c.clearSearch = function() { c.query = ''; reset(); };
+
+  c.clearAll = function() {
+    c.query = '';
+    c.tab = 'all';
+    reset();
+  };
+
+
+  /* =====================================================
+     DETAIL
+
+     The whole record is already on the page, so opening the
+     modal is a local assignment. Fetching it on open would mean
+     a server call, and a server call repaints the widget.
+     ===================================================== */
+
+  c.openDetail = function(application) {
+    c.open = application || null;
+  };
+
+  c.closeDetail = function() {
+    c.open = null;
+  };
+
+  /* escape closes it, which people expect and nobody documents */
+  $scope.$on('keydown', function(e, event) {
+    if (event && event.keyCode === 27) c.closeDetail();
   });
 
-  c.filterTab = 'all';
-  c.searchTerm = '';
-  c.dateFilter = '12'; 
-  c.dateFilterLabel = 'Last 12 months';
-  c.dateDropdownOpen = false;
 
-  c.toggleDateDropdown = function($event) {
-    $event.stopPropagation();
-    c.dateDropdownOpen = !c.dateDropdownOpen;
+  /* =====================================================
+     PAGING
+     ===================================================== */
+
+  c.goto = function(n) {
+    if (n === '...') return;
+    if (n < 1 || n > c.pageCount() || n === c.page) return;
+    c.page = n;
   };
 
-  c.setDateFilter = function(val, label) {
-    c.dateFilter = val;
-    c.dateFilterLabel = label;
-    c.dateDropdownOpen = false;
-    c.applyFilters();
-  };
+  c.prev = function() { c.goto(c.page - 1); };
+  c.next = function() { c.goto(c.page + 1); };
 
-  $document.on('click', function() {
-    if (c.dateDropdownOpen) {
-      $scope.$apply(function() {
-        c.dateDropdownOpen = false;
-      });
-    }
-  });
+  /* first and last always reachable, current page keeps a
+     neighbour either side, gaps collapse to an ellipsis */
+  c.pages = function() {
+    var n = c.pageCount();
+    var p = c.page;
+    var out = [];
 
- c.applyFilters = function() {
-    var list = c.data.applications || [];
-
-    // 1. Tab Filters
-    if (c.filterTab === 'review') {
-      list = list.filter(function(a) { 
-        return a.state_value === 'ready_for_review' || a.state_value === 'review_in_progress'; 
-      });
-    } else if (c.filterTab === 'submitted') {
-      list = list.filter(function(a) { 
-        return a.state_value === 'new'; 
-      });
-    }
-    // Note: If c.filterTab === 'all', it bypasses the state filter and shows everything.
-
-    // 2. Date Filter
-    if (c.dateFilter !== 'all') {
-      var monthsToSubtract = parseInt(c.dateFilter, 10);
-      var cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - monthsToSubtract);
-      var cutoffMs = cutoffDate.getTime();
-      list = list.filter(function(a) { return a.raw_date_ms >= cutoffMs; });
+    if (n <= 7) {
+      for (var i = 1; i <= n; i++) out.push(i);
+      return out;
     }
 
-    // 3. Search Bar Filter
-    if (c.searchTerm && c.searchTerm.trim() !== '') {
-      var query = c.searchTerm.toLowerCase();
-      list = list.filter(function(a) {
-        var ref = (a.number || '').toLowerCase();
-        var prog = (a.program_name || '').toLowerCase();
-        var subDate = (a.submission_date || '').toLowerCase();
-        var reqBudget = (a.requested_budget_formatted || '').toLowerCase();
-        var stage = (a.state_display || '').toLowerCase();
+    out.push(1);
 
-        return ref.indexOf(query) > -1 || prog.indexOf(query) > -1 || subDate.indexOf(query) > -1 || reqBudget.indexOf(query) > -1 || stage.indexOf(query) > -1;
-      });
-    }
+    var from = Math.max(2, p - 1);
+    var to   = Math.min(n - 1, p + 1);
 
-    c.filteredApplications = list;
+    if (p <= 3) to = 4;
+    if (p >= n - 2) from = n - 3;
+
+    if (from > 2) out.push('...');
+    for (var j = from; j <= to; j++) out.push(j);
+    if (to < n - 1) out.push('...');
+
+    out.push(n);
+    return out;
   };
 
-  c.applyFilters();
-
-  c.setFilter = function(tab) {
-    c.filterTab = tab;
-    c.applyFilters();
-  };
-
-  // --- Modal Logic Copied From Widget A ---
-  c.modalOpen = false;
-  c.selected = {};
-  c.activeTab = 'personal';
-  
-  c.openModal = function(app) {
-    c.selected = app;
-    c.activeTab = 'personal';
-    c.modalOpen = true;
-    document.body.style.overflow = 'hidden'; 
-  };
-  
-  c.closeModal = function() {
-    c.modalOpen = false;
-    c.selected = {};
-    document.body.style.overflow = '';
-  };
-
-  c.setTab = function(tab) { 
-    c.activeTab = tab; 
-  };
-
-  c.handleAction = function(app) {
-    c.openModal(app);
-  };
-
-  // Utilities for formatting
-  c.formatBytes = function(bytes) {
-    if (!bytes || bytes == 0) return '0 B';
-    var b = parseInt(bytes);
-    if (b < 1024)    return b + ' B';
-    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-    return (b / 1048576).toFixed(1) + ' MB';
-  };
-
-  c.getFileIcon = function(ct) {
-    if (!ct) return 'fa-file-o';
-    if (ct.indexOf('pdf')   > -1) return 'fa-file-pdf-o';
-    if (ct.indexOf('image') > -1) return 'fa-file-image-o';
-    if (ct.indexOf('word')  > -1) return 'fa-file-word-o';
-    if (ct.indexOf('excel') > -1 || ct.indexOf('sheet') > -1) return 'fa-file-excel-o';
-    return 'fa-file-o';
-  };
-
-  // Escape closes modal
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      $scope.$apply(function() {
-        if (c.modalOpen) c.closeModal();
-      });
-    }
-  });
-
-  // Gentle color fade logic for program bars
-  c.getBarColor = function(index, totalItems) {
-    var total = totalItems || 6; 
-    if (total <= 1) total = 2;
-    var minOpacity = 0.45;
-    var opacity = 1 - ((index / (total - 1)) * (1 - minOpacity));
-    return 'rgba(53, 71, 188, ' + opacity.toFixed(2) + ')'; 
-  };
-};]]></client_script>
+}]]></client_script>
         <controller_as>c</controller_as>
-        <css>.mya-wrap {
-  width: 100%;
+        <css>/* =========================================================
+   GATENOW · MY APPLICATIONS
+   Service Portal widget · CSS / SCSS
+
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
+
+   WHAT CHANGED FROM THE VERSION ON SCREEN
+
+   Colour. The indigo on the bars, the active tab and the avatar
+   was a fifth hue that belonged to no system. Everything is now
+   the logo blue for the one accent, and every neutral is the
+   same navy at a different opacity. Green for awarded, amber for
+   attention, and nothing else.
+
+   Type. Headings were heavier and larger than they needed to be
+   against the data. The figures now carry the weight, the
+   headings step back, and every amount and date uses tabular
+   figures so the columns line up down the table.
+
+   Radius and shadow. 16px on the panels, a one pixel hairline
+   and a very light shadow, matching the funding programs page.
+
+   TYPE
+     tile      30  700  tabular   the four figures
+     title     26  700  -0.03em   page title
+     panel     15  600  -0.014em  panel headings
+     name      14  600             program name in a row
+     data      14  600  tabular    amounts and dates
+     label     11  600   0.14em    uppercase small caps
+   ========================================================= */
+
+/* ---------- overflow overrides ----------
+   Service Portal wraps every widget in a panel that clips
+   anything leaving its box, which cuts off the sidebar tooltips.
+   ------------------------------------------------------- */
+
+.panel,
+.panel-body,
+.sp-widget { overflow: visible !important; }
+
+.gn-layout { overflow: visible !important; }
+
+/* The column holds the rail and lets it decide how wide to be.
+   It used to carry a width through an inline ng-style, which is
+   what put 140px of the rail on top of this page: the column
+   reserved 96 while the rail draws 236.
+
+   The transition moved to the rail, which is the element that
+   actually changes width. Animating a wrapper that never
+   resized was doing nothing. */
+
+.aw-sidebar {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+
+/* ---------- typeface ---------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+
+
+/* ---------- ink ---------- */
+$p-navy:   #0a2540;
+$p-ink-2:  rgba(10, 37, 64, 0.72);
+$p-ink-3:  rgba(10, 37, 64, 0.54);
+$p-ink-4:  rgba(10, 37, 64, 0.38);
+$p-line:   rgba(10, 37, 64, 0.10);
+$p-line-2: rgba(10, 37, 64, 0.06);
+$p-tint:   rgba(10, 37, 64, 0.03);
+
+/* ---------- accent ---------- */
+$p-blue:    #1560e0;
+$p-blue-dk: #0f4cbb;
+$p-blue-1:  rgba(21, 96, 224, 0.08);
+$p-blue-2:  rgba(21, 96, 224, 0.16);
+
+/* ---------- state ---------- */
+$p-good:   #1f8a63;
+$p-good-1: rgba(31, 138, 99, 0.12);
+$p-warn:   #a4741f;
+$p-warn-1: rgba(164, 116, 31, 0.10);
+
+$p-white: #ffffff;
+$p-page:  #f4f6fb;
+$p-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
+
+$p-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+.gn-layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: $p-page;
+  font-family: $p-font;
+}
+
+/* Without min-width: 0 a flex child refuses to shrink below its
+   own content width, and slides under the rail rather than
+   narrowing. That is the usual cause of a stubborn overlap once
+   the widths are right. */
+.gap {
+  flex: 1;
   min-width: 0;
-  background: #f4f7f9;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  box-sizing: border-box;
-  margin-top: 30px !important; /* Pulls the widget flush to the top */
-}
-.mya-wrap *, .mya-wrap *::before, .mya-wrap *::after { box-sizing: border-box; }
-
-/* Page Header */
-.mya-page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
-.mya-page-hd-left { display: flex; align-items: center; gap: 14px; }
-.mya-page-hd-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.mya-page-title { font-size: 24px; font-weight: 900; color: #0f172a; margin: 0; line-height: 1.2; }
-.mya-page-sub-wrap { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-.mya-status-dot { width: 7px; height: 7px; background-color: #10b981; border-radius: 50%; display: inline-block; }
-.mya-page-sub { font-size: 13px; color: #64748b; margin: 0; font-weight: 500; }
-
-/* Search Bar */
-.mya-search-box { position: relative; display: flex; align-items: center; }
-.mya-search-box i { position: absolute; left: 14px; color: #94a3b8; font-size: 13px; }
-.mya-search-box input { width: 240px; padding: 8px 12px 8px 36px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; color: #1e293b; outline: none; transition: all .15s; }
-.mya-search-box input:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
-
-/* Date Dropdown Menu */
-.mya-dropdown-wrap { position: relative; }
-.mya-dropdown-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; }
-.mya-dropdown-btn i.fa-calendar-o { color: #4f46e5; }
-.mya-dropdown-btn i.fa-chevron-down { font-size: 10px; color: #94a3b8; margin-left: 4px; }
-.mya-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 170px; z-index: 100; padding: 8px 0; }
-.mya-dropdown-item { padding: 10px 16px; font-size: 13px; color: #374151; cursor: pointer; font-weight: 600; transition: all 0.15s; }
-.mya-dropdown-item:hover { background: #f8fafc; color: #4f46e5; }
-.mya-dropdown-item.active { color: #4f46e5; background: #f1f5f9; }
-
-/* User Avatar */
-.mya-user-avatar { width: 38px; height: 38px; background: #5443AD; color: #fff; font-size: 13px; font-weight: 800; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(84,67,173,0.3); }
-
-/* Summaries &amp; Analytics */
-.mya-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
-.mya-sum-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-.mya-sum-lbl { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
-.mya-sum-val { font-size: 28px; font-weight: 900; color: #0f172a; margin: 8px 0 4px; line-height: 1; }
-.mya-sum-sub { font-size: 12px; color: #64748b; font-weight: 500; }
-.mya-analytics-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; margin-bottom: 28px; }
-.mya-analytics-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-.mya-box-title { font-size: 16px; font-weight: 800; color: #0f172a; }
-.mya-box-sub { font-size: 12px; color: #64748b; margin-top: 3px; margin-bottom: 20px; }
-
-/* Stage Conversion Bars */
-.mya-stage-list { display: flex; flex-direction: column; gap: 20px; }
-.mya-stage-row { display: flex; align-items: center; gap: 12px; }
-.mya-stage-name { width: 90px; font-size: 12px; font-weight: 700; color: #334155; }
-.mya-stage-bar-wrap { flex: 1; height: 32px; background: #f1f5f9; border-radius: 50px; overflow: hidden; position: relative; }
-.mya-stage-bar-fill { height: 100%; border-radius: 50px; display: flex; align-items: center; justify-content: flex-start; transition: width .4s ease-in-out; }
-.mya-stage-bar-fill.bg-blue-light { background: #5c75ea; }
-.mya-stage-bar-fill.bg-blue-med { background: #3547bc; }
-.mya-stage-bar-fill.bg-blue-dark { background: #232c7b; }
-.mya-stage-bar-fill.bg-green { background: #22a06b; }
-.mya-stage-count { font-size: 13px; font-weight: 800; color: #fff; padding-left: 14px; }
-.mya-stage-pct { width: 35px; text-align: right; font-size: 12px; font-weight: 700; color: #64748b; }
-.mya-box-foot { font-size: 11px; color: #94a3b8; margin-top: 18px; }
-
-/* Applications by Program Bars */
-.mya-prog-bars { display: flex; flex-direction: column; gap: 16px; }
-.mya-prog-row { display: flex; flex-direction: column; gap: 6px; }
-.mya-prog-info { display: flex; justify-content: space-between; font-size: 12px; }
-.mya-prog-title-text { font-weight: 700; color: #1e293b; }
-.mya-prog-count-val { font-weight: 800; color: #64748b; }
-.mya-prog-track { height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
-.mya-prog-fill { height: 100%; border-radius: 4px; transition: width .4s ease-in-out; } 
-
-/* Table Container &amp; Filters */
-.mya-table-container { width: 100%; display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-top: 24px; }
-.mya-table-header-row { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 12px; }
-.mya-table-main-title { font-size: 16px; font-weight: 800; color: #0f172a; }
-.mya-table-sub-title { font-size: 12px; color: #64748b; margin-top: 2px; }
-.mya-filter-tabs { display: flex; gap: 6px; background: #f8fafc; padding: 4px; border-radius: 10px; border: 1px solid #e2e8f0; }
-.mya-ftab { padding: 6px 14px; border: none; background: transparent; font-size: 12px; font-weight: 700; color: #64748b; border-radius: 8px; cursor: pointer; transition: all .15s; }
-.mya-ftab.active { background: #4f46e5; color: #fff; box-shadow: 0 2px 6px rgba(79,70,229,0.3); }
-.mya-table-head-cols { display: flex; background: #f8fafc; padding: 10px 24px; border-bottom: 1px solid #e2e8f0; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
-.mya-app-row-card { display: flex; align-items: center; padding: 16px 24px; border-bottom: 1px solid #f1f5f9; transition: background .12s; }
-.mya-app-row-card:hover { background: #f8fafc; }
-.mya-app-row-card:last-child { border-bottom: none; }
-
-/* Table Column Layout */
-.mya-col { padding: 0 8px; }
-.mya-col-ref { flex: 0 0 150px; }
-.mya-col-prog { flex: 1; min-width: 250px; max-width: 380px; } 
-.mya-col-sub { flex: 1; min-width: 130px; max-width: 160px; }  
-.mya-col-req { flex: 1; min-width: 120px; max-width: 160px; }  
-.mya-col-stg { flex: 2; min-width: 220px; }                    
-.mya-col-act { flex: 0 0 100px; text-align: right; }
-.mya-app-num-bold { font-size: 13px; font-weight: 800; color: #0f172a; }
-.mya-prog-text { font-size: 13px; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-.mya-sub-date-text { font-size: 12px; color: #64748b; font-weight: 500; }
-.mya-req-val { font-size: 13px; font-weight: 800; color: #0f172a; }
-
-/* Mini Status Bars */
-.mya-stage-inline-wrap { display: flex; align-items: center; gap: 10px; }
-.mya-mini-track { width: 60px; height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; flex-shrink: 0; }
-.mya-mini-fill { height: 100%; border-radius: 3px; }
-.mya-mini-fill.bg-blue { background: #4f46e5; }
-.mya-mini-fill.bg-green { background: #10b981; }
-.mya-mini-fill.bg-gray { background: #94a3b8; } 
-.mya-mini-fill.bg-red { background: #ef4444; }  
-.mya-stage-status-lbl { font-size: 12px; font-weight: 700; white-space: nowrap; }
-.text-blue { color: #4f46e5; }
-.text-green { color: #10b981; }
-.text-gray { color: #64748b; }
-.text-red { color: #ef4444; } 
-
-/* Action Buttons */
-.mya-action-btn { padding: 6px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #374151; transition: all .15s; }
-.mya-action-btn:hover { background: #f8fafc; }
-
-/* Empty State */
-.mya-empty-state { text-align: center; padding: 48px 20px; }
-.mya-empty-ico { width: 56px; height: 56px; border-radius: 14px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #94a3b8; margin: 0 auto 12px; }
-
-
-/* ═══════════════════════════════════════
-   NEW MODAL OVERLAY &amp; CONTAINER (COPIED)
-═══════════════════════════════════════ */
-.mya-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(15,23,42,0.55);
-  backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-  animation: myaFadeIn .18s ease;
-}
-@keyframes myaFadeIn { from { opacity: 0; } to { opacity: 1; } }
-.mya-modal {
-  background: #fff; border-radius: 20px;
-  width: 100%; max-width: 720px;
-  max-height: 90vh; overflow: hidden;
-  display: flex; flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
-  animation: myaModalIn .22s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes myaModalIn {
-  from { opacity: 0; transform: scale(.95) translateY(16px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  overflow: visible;
 }
 
-/* Modal header */
-.mya-mhdr {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 22px 16px; border-bottom: 1px solid #f1f5f9;
-  background: linear-gradient(135deg, #f8faff, #fff);
+.gap {
+  min-height: 100vh;
+  padding: 28px 36px 68px;
+  background: $p-page;
+  font-family: $p-font;
+  color: $p-navy;
+  -webkit-font-smoothing: antialiased;
+}
+
+.gap *,
+.gap *::before,
+.gap *::after { box-sizing: border-box; }
+
+.gap-right { text-align: right; }
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.gap-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 22px;
+}
+
+.gap-top__lead { min-width: 0; }
+
+.gap .gap-top__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: $p-navy;
+}
+
+.gap .gap-top__sub {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 7px 0 0;
+  font-size: 13.5px;
+  color: $p-ink-3;
+}
+
+.gap-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $p-good;
+  box-shadow: 0 0 0 3px $p-good-1;
   flex-shrink: 0;
 }
-.mya-mhdr-left { display: flex; align-items: center; gap: 12px; }
-.mya-mhdr-av {
-  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 18px;
-  box-shadow: 0 3px 10px rgba(99,102,241,0.3);
-}
-.mya-mhdr-title { font-size: 16px; font-weight: 800; color: #1e293b; }
-.mya-mhdr-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-.mya-mhdr-close {
-  width: 32px; height: 32px; border-radius: 8px;
-  border: none; background: #f1f5f9; color: #64748b;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 13px; transition: background .15s;
-}
-.mya-mhdr-close:hover { background: #fee2e2; color: #dc2626; }
 
-/* Modal banner */
-.mya-mbanner {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 22px; background: #f8fafc;
-  border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
-}
-.mya-mbanner-date { font-size: 11px; color: #94a3b8; }
-
-/* Modal tabs */
-.mya-mtabs {
-  display: flex; gap: 2px; padding: 0 22px;
-  border-bottom: 1px solid #f1f5f9; background: #fff;
-  overflow-x: auto; flex-shrink: 0;
-}
-.mya-mtab {
-  padding: 12px 16px; border: none; background: transparent;
-  font-size: 12px; font-weight: 700; color: #64748b;
-  cursor: pointer; border-bottom: 2px solid transparent;
-  margin-bottom: -1px; white-space: nowrap;
-  transition: color .15s, border-color .15s;
-  display: flex; align-items: center; gap: 5px;
-}
-.mya-mtab:hover  { color: #4f46e5; }
-.mya-mtab.active { color: #5443AD; border-bottom-color: #5443AD; }
-.mya-mtab-badge  {
-  background: #5443AD; color: #fff;
-  font-size: 9px; font-weight: 800;
-  width: 16px; height: 16px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
+.gap-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* Modal body */
-.mya-mbody { flex: 1; overflow-y: auto; padding: 20px 22px; }
-
-/* Section title */
-.mya-sec-title {
-  font-size: 11px; font-weight: 800; color: #94a3b8;
-  text-transform: uppercase; letter-spacing: .8px;
-  margin-bottom: 14px;
-}
-.mya-divider { height: 1px; background: #f1f5f9; margin: 20px 0; }
-
-/* View grid */
-.mya-view-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 4px; }
-.mya-vfield    { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 14px; }
-.mya-vflabel   { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
-.mya-vfvalue   { font-size: 13px; font-weight: 600; color: #1e293b; margin-top: 3px; }
-
-/* Prose */
-.mya-prose-field { margin-bottom: 14px; }
-.mya-prose-val   {
-  font-size: 13px; color: #374151; line-height: 1.6;
-  background: #f8fafc; border: 1px solid #f1f5f9;
-  border-radius: 10px; padding: 12px 14px; margin-top: 4px;
-  white-space: pre-wrap;
+.gap-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 340px;
+  height: 42px;
+  padding: 0 12px 0 14px;
+  margin: 0;
+  border: 1px solid $p-line;
+  border-radius: 11px;
+  background: $p-white;
+  font-weight: 400;
+  transition: border-color 0.4s $p-ease, box-shadow 0.4s $p-ease;
 }
 
-/* Attachments */
-.mya-no-attach { text-align: center; padding: 24px; color: #94a3b8; }
-.mya-no-attach i { font-size: 24px; display: block; margin-bottom: 8px; }
-.mya-no-attach p { font-size: 13px; font-weight: 600; margin: 0; }
-.mya-attach-list { display: flex; flex-direction: column; gap: 8px; }
-.mya-attach-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; background: #f8fafc;
-  border: 1px solid #f1f5f9; border-radius: 10px;
-  transition: background .1s;
+.gap-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $p-blue-1;
 }
-.mya-attach-item:hover { background: #f1f5f9; }
-.mya-attach-ico  {
-  width: 36px; height: 36px; border-radius: 9px;
-  background: #eff6ff; border: 1px solid #e2e8f0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px; color: #5443AD; flex-shrink: 0;
-}
-.mya-attach-info { flex: 1; min-width: 0; }
-.mya-attach-name { font-size: 12px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mya-attach-size { font-size: 10px; color: #94a3b8; margin-top: 2px; }
-.mya-attach-dl {
-  width: 30px; height: 30px; border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; cursor: pointer; transition: all .15s; border: none;
-  background: #EEEDFB; color: #5443AD; text-decoration: none;
-}
-.mya-attach-dl:hover { background: #ddd9f7; }
 
-/* Modal footer */
-.mya-mfooter {
-  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-  padding: 14px 22px; border-top: 1px solid #f1f5f9;
-  background: #f8fafc; flex-shrink: 0;
+.gap-search__icon {
+  font-size: 13px;
+  color: $p-ink-4;
+  flex-shrink: 0;
 }
-.mya-mfoot-close {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; border-radius: 9px;
-  background: #fff; border: 1.5px solid #e2e8f0;
-  font-size: 13px; font-weight: 700; color: #374151;
-  cursor: pointer; transition: all .15s;
-}
-.mya-mfoot-close:hover { background: #f1f5f9; }
 
-/* Banner Badges (Copied from Widget A) */
-.mya-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700; padding: 5px 12px;
-  border-radius: 99px; white-space: nowrap;
+.gap-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: $p-navy;
 }
-.badge-completed   { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.badge-review      { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
-.badge-new         { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.badge-declined    { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-.badge-pending     { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-.badge-submitted   { background: #eff6ff; color: #3b82f6; border: 1px solid #bfdbfe; }
-.badge-approved    { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-.badge-closed      { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-.badge-in-progress { background: #f0f9ff; color: #0369a1; border: 1px solid #7dd3fc; }
 
-/* Responsive Adjustments */
-@media(max-width: 1024px) {
-  .mya-summary-grid { grid-template-columns: repeat(2, 1fr); }
-  .mya-analytics-grid { grid-template-columns: 1fr; }
+.gap-search__field::placeholder { color: $p-ink-4; }
+
+.gap-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $p-tint;
+  color: $p-ink-3;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
-@media(max-width: 768px) {
-  .mya-wrap { padding: 16px; margin-top: 60px; }
-  .mya-summary-grid { grid-template-columns: 1fr; }
+
+/* the accent blue. Navy read as a dark chip beside a white
+   search field, and the initials are a person, not a state. */
+.gap-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: $p-blue;
+  box-shadow: 0 6px 16px rgba(21, 96, 224, 0.28);
+  color: $p-white;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   FIGURES
+   ========================================================= */
+
+.gap-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.gap-tile {
+  position: relative;
+  padding: 20px 22px 22px;
+  border: 1px solid $p-line;
+  border-radius: 16px;
+  background: $p-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: transform 0.5s $p-ease, box-shadow 0.5s $p-ease;
+}
+
+.gap-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
+}
+
+.gap-tile__rule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: $p-blue-2;
+  transform-origin: left center;
+}
+
+.gap .gap-tile__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $p-ink-4;
+}
+
+/* the figure carries the weight, not the heading above it */
+.gap .gap-tile__value {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.034em;
+  font-variant-numeric: tabular-nums;
+  color: $p-navy;
+}
+
+.gap .gap-tile__note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: $p-ink-3;
+}
+
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.gap-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.gap-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px 24px;
+  border: 1px solid $p-line;
+  border-radius: 16px;
+  background: $p-white;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.gap-panel__head { margin-bottom: 20px; }
+
+.gap .gap-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: $p-navy;
+}
+
+.gap .gap-panel__hint {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  color: $p-ink-4;
+}
+
+.gap .gap-panel__foot {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid $p-line-2;
+  font-size: 12px;
+  line-height: 1.55;
+  color: $p-ink-4;
+}
+
+.gap .gap-panel__empty {
+  margin: 0;
+  padding: 26px 0 6px;
+  font-size: 13.5px;
+  color: $p-ink-4;
+}
+
+
+/* ---------- stage conversion ---------- */
+
+.gap-funnel {
+  display: grid;
+  gap: 14px;
+}
+
+.gap-fun {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 16px;
+}
+
+.gap-fun__label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $p-ink-2;
+}
+
+.gap-fun__track {
+  height: 30px;
+  border-radius: 8px;
+  background: $p-tint;
+  overflow: hidden;
+}
+
+.gap-fun__fill {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100%;
+  min-width: 0;
+  padding: 0 11px;
+  border-radius: 8px;
+  background: $p-blue;
+  transform-origin: left center;
+}
+
+/* declined is the one row where blue would be the wrong story */
+.gap-fun--declined .gap-fun__fill { background: rgba(10, 37, 64, 0.3); }
+.gap-fun--awarded .gap-fun__fill  { background: $p-good; }
+
+.gap-fun__count {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $p-white;
+  white-space: nowrap;
+}
+
+.gap-fun__pct {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $p-ink-3;
+}
+
+
+/* ---------- by program ---------- */
+
+.gap-progs {
+  display: grid;
+  gap: 16px;
+}
+
+.gap-prog { min-width: 0; }
+
+.gap-prog__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.gap-prog__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: $p-navy;
+}
+
+.gap-prog__count {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $p-ink-3;
+}
+
+.gap-prog__track {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: $p-tint;
+  overflow: hidden;
+}
+
+.gap-prog__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: $p-blue;
+  transform-origin: left center;
+}
+
+/* later rows step back, so the ranking reads without needing
+   a second colour */
+.gap-prog--2 .gap-prog__fill { background: rgba(21, 96, 224, 0.72); }
+.gap-prog--3 .gap-prog__fill { background: rgba(21, 96, 224, 0.55); }
+.gap-prog--4 .gap-prog__fill { background: rgba(21, 96, 224, 0.42); }
+.gap-prog--5 .gap-prog__fill { background: rgba(21, 96, 224, 0.32); }
+.gap-prog--6 .gap-prog__fill { background: rgba(21, 96, 224, 0.24); }
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.gap-block {
+  border: 1px solid $p-line;
+  border-radius: 16px;
+  background: $p-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.gap-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  padding: 22px 24px 20px;
+}
+
+.gap .gap-block__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $p-navy;
+}
+
+.gap .gap-block__hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: $p-ink-4;
+}
+
+/* tabs read through weight and a quiet surface, not by flooding
+   the control with the accent */
+.gap-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid $p-line;
+  border-radius: 11px;
+  background: $p-page;
+}
+
+.gap-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: $p-ink-3;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.4s $p-ease, color 0.4s $p-ease, border-color 0.4s $p-ease;
+}
+
+.gap-tab:hover { color: $p-navy; }
+
+.gap-tab.is-on {
+  background: $p-white;
+  border-color: $p-line;
+  color: $p-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.06);
+}
+
+.gap-tab__count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $p-ink-4;
+}
+
+.gap-table { min-width: 0; }
+
+/* Column alignment.
+
+   The amount is right aligned so the figures stack on their
+   last digit, which is the only way a column of money is
+   readable. The stage is left aligned so every track starts at
+   the same x. Between them sits a wide gap, because a right
+   aligned column running straight into a left aligned one gives
+   you a ragged seam that reads as one broken column.
+
+   Both header labels use the same alignment as the cells under
+   them, which is what was actually wrong before. */
+.gap-table__head,
+.gap-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) 118px 132px 210px 104px;
+  align-items: center;
+  gap: 0 26px;
+  padding: 0 24px;
+}
+
+/* The amount column, hard right on both rows.
+
+   Grid gap is uniform across every column, so widening it to
+   separate these two would also push Reference away from
+   Program, where the space is not wanted. The separation is
+   added as padding on the two columns that need it instead:
+   a little on the right of the amount, more on the left of the
+   stage, which comes to roughly 60px between the last digit
+   and the first segment of the track. */
+.gap-table__head &gt; :nth-child(4),
+.gap-row &gt; :nth-child(4) {
+  text-align: right;
+  justify-self: stretch;
+  padding-right: 10px;
+}
+
+/* the stage column, hard left on both rows, pushed clear of the
+   figures beside it */
+.gap-table__head &gt; :nth-child(5),
+.gap-row &gt; :nth-child(5) {
+  text-align: left;
+  justify-self: start;
+  padding-left: 24px;
+}
+
+/* the action column, hard right on both rows */
+.gap-table__head &gt; :nth-child(6),
+.gap-row &gt; :nth-child(6) {
+  text-align: right;
+  justify-self: end;
+}
+
+.gap-table__head {
+  height: 42px;
+  border-top: 1px solid $p-line-2;
+  border-bottom: 1px solid $p-line-2;
+  background: rgba(10, 37, 64, 0.015);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $p-ink-4;
+}
+
+.gap-row {
+  min-height: 66px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid $p-line-2;
+  transition: background 0.4s $p-ease;
+}
+
+.gap-row:last-child { border-bottom: 0; }
+
+.gap-row:hover { background: rgba(21, 96, 224, 0.025); }
+
+.gap-cell {
+  min-width: 0;
+  font-size: 14px;
+  color: $p-ink-2;
+}
+
+.gap-cell--ref {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.004em;
+  color: $p-navy;
+}
+
+.gap-cell--prog { display: flex; flex-direction: column; gap: 3px; }
+
+.gap-cell__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: $p-navy;
+}
+
+.gap-cell__sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: $p-ink-4;
+}
+
+.gap-cell--date,
+.gap-cell--num {
+  font-variant-numeric: tabular-nums;
+}
+
+.gap-cell--num {
+  font-size: 14px;
+  font-weight: 600;
+  color: $p-navy;
+  white-space: nowrap;
+}
+
+/* said rather than left blank, so nobody wonders whether the
+   date failed to load */
+.gap-cell.is-blank {
+  font-style: italic;
+  color: $p-ink-4;
+}
+
+
+/* ---------- the micro track ---------- */
+
+/* fixed track width plus a fixed gap means every stage label
+   begins at the same x down the column */
+/* fixed track width plus a fixed gap means every stage label
+   begins at the same x down the column */
+.gap-cell--stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* a hairline where the right aligned column meets the left
+   aligned one, so the seam reads as a boundary rather than as
+   two columns that drifted together */
+.gap-row &gt; .gap-cell--stage::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  bottom: -14px;
+  left: -12px;
+  width: 1px;
+  background: $p-line-2;
+}
+
+.gap-mini {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+  width: 64px;
+}
+
+.gap-mini__seg {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: $p-line-2;
+}
+
+.gap-mini__seg.is-done { background: rgba(21, 96, 224, 0.35); }
+.gap-mini__seg.is-now  { background: $p-blue; }
+
+/* a journey that stopped is not a journey in progress */
+.gap-mini.is-stopped .gap-mini__seg { background: rgba(10, 37, 64, 0.14); }
+
+.gap-mini__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+  color: $p-ink-2;
+}
+
+.gap-row--awarded .gap-mini__label { color: $p-good; font-weight: 600; }
+.gap-row--closed .gap-mini__label  { color: $p-ink-4; }
+.gap-row--new .gap-mini__label     { color: $p-warn; font-weight: 600; }
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+.gap-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.4s $p-ease, border-color 0.4s $p-ease, color 0.4s $p-ease;
+}
+
+.gap-btn--primary {
+  background: $p-blue;
+  border-color: $p-blue;
+  color: $p-white;
+}
+
+.gap-btn--primary:hover,
+.gap-btn--primary:focus {
+  background: $p-blue-dk;
+  border-color: $p-blue-dk;
+  color: $p-white;
+  text-decoration: none;
+}
+
+.gap-btn--ghost {
+  border-color: $p-line;
+  color: $p-ink-2;
+}
+
+.gap-btn--ghost:hover,
+.gap-btn--ghost:focus {
+  border-color: $p-blue-2;
+  color: $p-blue-dk;
+  text-decoration: none;
+}
+
+.gap-btn:focus-visible,
+.gap-tab:focus-visible,
+.gap-search__clear:focus-visible {
+  outline: 2px solid $p-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   EMPTY AND PAGER
+   ========================================================= */
+
+.gap-blank,
+.gap-nomatch {
+  padding: 62px 24px;
+  text-align: center;
+}
+
+.gap-blank__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: $p-blue-1;
+  color: $p-blue;
+  font-size: 20px;
+}
+
+.gap .gap-blank__title,
+.gap .gap-nomatch__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $p-navy;
+}
+
+.gap .gap-blank__text,
+.gap .gap-nomatch__text {
+  max-width: 46ch;
+  margin: 9px auto 20px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: $p-ink-3;
+}
+
+.gap-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 24px 24px;
+}
+
+.gap-pager__nums {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.gap-pager__step,
+.gap-pager__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: $p-ink-2;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.4s $p-ease, border-color 0.4s $p-ease, color 0.4s $p-ease;
+}
+
+.gap-pager__step { border-color: $p-line; }
+
+.gap-pager__step:hover:not(:disabled),
+.gap-pager__num:hover:not(:disabled) {
+  background: $p-tint;
+  color: $p-navy;
+}
+
+.gap-pager__step:disabled {
+  color: rgba(10, 37, 64, 0.22);
+  cursor: default;
+}
+
+.gap-pager__num.is-on {
+  background: $p-blue;
+  border-color: $p-blue;
+  color: $p-white;
+  font-weight: 600;
+}
+
+.gap-pager__num.is-gap {
+  min-width: 20px;
+  color: $p-ink-4;
+  cursor: default;
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   DETAIL MODAL
+   Read only. Everything the applicant submitted, grouped the
+   way the form asked for it, so the two are recognisable as
+   the same thing.
+   ========================================================= */
+
+.gap-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 44px 20px;
+  overflow-y: auto;
+  background: rgba(10, 37, 64, 0.42);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.gap-modal__panel {
+  width: 100%;
+  max-width: 820px;
+  border-radius: 18px;
+  background: $p-white;
+  box-shadow: 0 30px 80px rgba(10, 37, 64, 0.3);
+  overflow: hidden;
+}
+
+.gap-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 20px;
+  border-bottom: 1px solid $p-line-2;
+}
+
+.gap-modal__lead { min-width: 0; }
+
+.gap-modal__ref {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: $p-ink-4;
+}
+
+.gap .gap-modal__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.24;
+  letter-spacing: -0.026em;
+  color: $p-navy;
+}
+
+.gap-modal__stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gap-modal__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gap-modal__stage--new     { color: $p-warn; }
+.gap-modal__stage--review  { color: $p-blue-dk; }
+.gap-modal__stage--awarded { color: $p-good; }
+.gap-modal__stage--closed  { color: $p-ink-4; }
+
+.gap-modal__stage--new .gap-modal__dot     { background: $p-warn; }
+.gap-modal__stage--review .gap-modal__dot  { background: $p-blue; }
+.gap-modal__stage--awarded .gap-modal__dot { background: $p-good; }
+.gap-modal__stage--closed .gap-modal__dot  {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);
+}
+
+.gap-modal__x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid $p-line;
+  border-radius: 10px;
+  background: transparent;
+  color: $p-ink-3;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.4s $p-ease, color 0.4s $p-ease;
+}
+
+.gap-modal__x:hover {
+  border-color: $p-blue-2;
+  color: $p-blue-dk;
+}
+
+.gap-modal__body {
+  max-height: 62vh;
+  padding: 4px 26px 20px;
+  overflow-y: auto;
+}
+
+.gap-sec {
+  padding: 22px 0;
+  border-bottom: 1px solid $p-line-2;
+}
+
+.gap-sec:last-child { border-bottom: 0; }
+
+.gap .gap-sec__title {
+  margin: 0 0 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $p-blue;
+}
+
+.gap .gap-sec__rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+  margin: 0;
+  padding: 0;
+}
+
+.gap-kv { min-width: 0; }
+
+.gap .gap-kv dt {
+  margin: 0 0 3px;
+  font-size: 12px;
+  color: $p-ink-4;
+}
+
+.gap .gap-kv dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: -0.008em;
+  color: $p-navy;
+  word-break: break-word;
+}
+
+.gap .gap-kv dd.gap-kv--num { font-variant-numeric: tabular-nums; }
+
+/* said rather than left blank, so nobody wonders whether it
+   failed to load or was never filled in */
+.gap .gap-kv dd.is-blank {
+  font-weight: 400;
+  font-style: italic;
+  color: $p-ink-4;
+}
+
+.gap-prose { margin-top: 18px; }
+
+.gap .gap-prose__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: $p-ink-4;
+}
+
+/* the line breaks the applicant typed are kept, since a
+   proposal written in paragraphs should read as paragraphs */
+.gap .gap-prose__text {
+  margin: 0;
+  max-width: 72ch;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: $p-ink-2;
+  white-space: pre-line;
+}
+
+.gap-modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 26px;
+  border-top: 1px solid $p-line-2;
+  background: $p-page;
+}
+
+@media (max-width: 720px) {
+
+  .gap-modal { padding: 20px 12px; }
+
+  .gap-modal__panel { border-radius: 14px; }
+
+  .gap-modal__head { padding: 20px 18px 16px; }
+  .gap-modal__body { padding: 4px 18px 16px; max-height: 68vh; }
+  .gap-modal__foot { padding: 14px 18px; }
+
+  .gap .gap-sec__rows { grid-template-columns: minmax(0, 1fr); }
+
+  .gap .gap-modal__title { font-size: 19px; }
+}
+
+
+/* =========================================================
+   MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  @keyframes gapRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes gapDrawX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+
+  .gap-top   { animation: gapRise 0.6s $p-ease backwards; }
+  .gap-tile  { animation: gapRise 0.62s $p-ease backwards; }
+
+  .gap-tile--total  { animation-delay: 0.06s; }
+  .gap-tile--review { animation-delay: 0.12s; }
+  .gap-tile--rate   { animation-delay: 0.18s; }
+  .gap-tile--value  { animation-delay: 0.24s; }
+
+  .gap-tile__rule { animation: gapDrawX 0.7s $p-ease 0.3s backwards; }
+
+  .gap-panel { animation: gapRise 0.62s $p-ease 0.28s backwards; }
+  .gap-block { animation: gapRise 0.62s $p-ease 0.34s backwards; }
+
+  /* the bars grow from their own axis, staggered down each panel */
+  .gap-fun__fill { animation: gapDrawX 0.8s $p-ease backwards; }
+
+  .gap-fun--submitted .gap-fun__fill { animation-delay: 0.40s; }
+  .gap-fun--reviewed .gap-fun__fill  { animation-delay: 0.47s; }
+  .gap-fun--declined .gap-fun__fill  { animation-delay: 0.54s; }
+  .gap-fun--awarded .gap-fun__fill   { animation-delay: 0.61s; }
+
+  .gap-prog__fill { animation: gapDrawX 0.8s $p-ease backwards; }
+
+  .gap-prog--1 .gap-prog__fill { animation-delay: 0.42s; }
+  .gap-prog--2 .gap-prog__fill { animation-delay: 0.48s; }
+  .gap-prog--3 .gap-prog__fill { animation-delay: 0.54s; }
+  .gap-prog--4 .gap-prog__fill { animation-delay: 0.60s; }
+  .gap-prog--5 .gap-prog__fill { animation-delay: 0.66s; }
+  .gap-prog--6 .gap-prog__fill { animation-delay: 0.72s; }
+
+  /* replays on every tab change, because ng-repeat rebuilds its
+     nodes and the keyframe starts again with them */
+  .gap-row { animation: gapRise 0.45s $p-ease backwards; }
+
+  .gap-row--n1  { animation-delay: 0.02s; }
+  .gap-row--n2  { animation-delay: 0.05s; }
+  .gap-row--n3  { animation-delay: 0.08s; }
+  .gap-row--n4  { animation-delay: 0.11s; }
+  .gap-row--n5  { animation-delay: 0.14s; }
+  .gap-row--n6  { animation-delay: 0.17s; }
+  .gap-row--n7  { animation-delay: 0.20s; }
+  .gap-row--n8  { animation-delay: 0.23s; }
+  .gap-row--n9  { animation-delay: 0.26s; }
+  .gap-row--n10 { animation-delay: 0.29s; }
+
+  @keyframes gapModalIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes gapVeilIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .gap-modal { animation: gapVeilIn 0.28s $p-ease backwards; }
+  .gap-modal__panel { animation: gapModalIn 0.4s $p-ease 0.04s backwards; }
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1360px) {
+
+  .gap { padding: 26px 24px 60px; }
+
+  .gap-table__head,
+  .gap-row {
+    grid-template-columns: 116px minmax(0, 1fr) 104px 112px 178px 100px;
+    gap: 0 18px;
+    padding: 0 18px;
+  }
+
+  .gap-table__head &gt; :nth-child(5),
+  .gap-row &gt; :nth-child(5) { padding-left: 18px; }
+}
+
+@media (max-width: 1150px) {
+
+  .gap-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .gap-panels { grid-template-columns: minmax(0, 1fr); }
+
+  /* the table stops being a table, because six columns at this
+     width means four of them are two characters wide */
+  .gap-table__head { display: none; }
+
+  .gap-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px 18px;
+  }
+
+  .gap-cell--prog { grid-column: 1 / -1; }
+
+  .gap-cell::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $p-ink-4;
+  }
+
+  .gap-cell--prog::before { display: none; }
+
+  .gap-right { text-align: left; }
+
+  .gap-cell--stage {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  /* stacked rows have no columns to divide */
+  .gap-row &gt; .gap-cell--stage::before { display: none; }
+
+  .gap-table__head &gt; :nth-child(4),
+  .gap-row &gt; :nth-child(4) { padding-right: 0; }
+
+  .gap-table__head &gt; :nth-child(5),
+  .gap-row &gt; :nth-child(5) { padding-left: 0; }
+}
+
+@media (max-width: 820px) {
+
+  .gap { padding: 22px 16px 52px; }
+
+  .gap-top__right {
+    width: 100%;
+    order: 2;
+  }
+
+  .gap-search { width: 100%; }
+
+  .gap-tiles { grid-template-columns: minmax(0, 1fr); }
+
+  .gap-block__head { align-items: stretch; flex-direction: column; }
+
+  .gap-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gap-tab { flex-shrink: 0; }
+
+  .gap-row { grid-template-columns: minmax(0, 1fr); }
+
+  .gap-fun { grid-template-columns: 84px minmax(0, 1fr) 40px; gap: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gap * { transition: none; }
+  .gap-tile:hover { transform: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -461,261 +1507,510 @@
         <public>false</public>
         <roles/>
         <script><![CDATA[(function () {
-  data.sideBar = $sp.getWidget('sidebar');
+
+  /* =========================================================
+     GATENOW · MY APPLICATIONS
+     Service Portal widget · Server script
+
+     Structure is the one on screen: four figures, a stage
+     conversion panel, a by-program panel, then the table.
+     Only the presentation changes.
+
+     Three figures were saying things the data did not support,
+     and those are fixed here:
+
+       "Average 18 days in review" with nothing in review.
+       The average is now only calculated from applications
+       actually sitting in a review state, and the tile says so
+       when there are none.
+
+       "Success rate 0%" before any decision has come back.
+       A rate over zero decided applications is not zero, it is
+       undefined. It reads as a dash until something has been
+       decided either way.
+
+       "Across 2 programs, last 12 months" on a query with no
+       date filter. The window is real now.
+
+     GlideRecordSecure throughout.
+     ========================================================= */
+
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+
+  var me = gs.getUserID();
+  var MONTHS_BACK = 12;
+
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  function daysSince(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    try {
+      var ms = GlideDateTime.subtract(g, new GlideDateTime()).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return null; }
+  }
+
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  /* written out rather than toLocaleString, which is not
+     dependable on the server engine */
+  function commas(n) {
+    var s = '' + Math.round(n);
+    var out = '';
+    var c = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      c++;
+      if (c % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return out;
+  }
+
+  function fmtShort(n) {
+    if (!n) return '$0';
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000)    return '$' + Math.round(n / 1000) + 'K';
+    return '$' + commas(n);
+  }
+
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next */ }
+    }
+    return '';
+  }
+
+
+  /* ---------- chrome ---------- */
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
+
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
+
+  data.pages = {
+    intake  : opt('intake_page', 'applicant_intake'),
+    programs: opt('programs_page', 'x_enno_gatenow_programs'),
+    awards  : opt('awards_page', 'x_enno_gatenow_awards'),
+    detail  : opt('detail_page', 'x_enno_gatenow_application')
+  };
+
+
+  /* ============================================================
+     STATE MAP
+     stage drives the micro track in the table.
+     group drives the tabs.
+     ============================================================ */
+
+  var STATES = {
+    /* new means submitted and not yet picked up, not a draft.
+       These records already carry a submission date, so the row
+       action is View rather than Resume. */
+    'new':                   { group: 'new',     stage: 1, label: gs.getMessage('New') },
+    'ready_for_review':      { group: 'review',  stage: 1, label: gs.getMessage('Submitted') },
+    'review_in_progress':    { group: 'review',  stage: 2, label: gs.getMessage('Under review') },
+    'review_completed':      { group: 'review',  stage: 2, label: gs.getMessage('Reviewed') },
+    'award_pending':         { group: 'awarded', stage: 3, label: gs.getMessage('Award offered') },
+    'award_acknowledged':    { group: 'awarded', stage: 3, label: gs.getMessage('Awarded') },
+    'project_in_progress':   { group: 'awarded', stage: 3, label: gs.getMessage('In delivery') },
+    'project_completed':     { group: 'awarded', stage: 3, label: gs.getMessage('Completed') },
+    'declined_by_agency':    { group: 'closed',  stage: 3, label: gs.getMessage('Not selected') },
+    'declined_by_applicant': { group: 'closed',  stage: 3, label: gs.getMessage('You declined') },
+    'cancelled':             { group: 'closed',  stage: 3, label: gs.getMessage('Cancelled') }
+  };
+
+
+  /* ============================================================
+     RECORDS
+     ============================================================ */
+
   data.applications = [];
 
-  var applicantTable = 'x_enno_gatenow_service_applicants';
-  var currentUser = gs.getUserName();
-  if (!currentUser) return;
+  var counts = { all: 0, new: 0, review: 0, awarded: 0, closed: 0 };
 
-  var currentDisplay = gs.getUserDisplayName() || currentUser;
-  data.userFullName = currentDisplay;
-  
-  var nameParts = currentDisplay.trim().split(' ');
-  var initials = '';
-  if (nameParts.length > 1) {
-    initials = nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0);
-  } else if (nameParts.length === 1 && nameParts[0] !== '') {
-    initials = nameParts[0].charAt(0);
-  }
-  data.userInitials = initials.toUpperCase() || 'U';
+  var requested = 0;
+  var awardedValue = 0;
+  var reviewDays = [];
+  var byProgram = {};
 
-  var formatDate = function (d) {
-    if (!d || d === '' || d === 'null') return '';
-    var parts = String(d).split(' ')[0].split('-');
-    if (parts.length === 3) {
-      var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return parts[2] + ' ' + months[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
-    }
-    return String(d).split(' ')[0];
-  };
+  /* the funnel counts every application that reached a stage,
+     not only the ones sitting in it now */
+  var funnel = { submitted: 0, reviewed: 0, declined: 0, awarded: 0 };
 
-  var formatCurrency = function(amount) {
-    var num = parseFloat(amount);
-    if (isNaN(num)) return '$0';
-    if (num >= 1000000) {
-      return '$' + (num / 1000000).toFixed(1) + 'M';
-    } else if (num >= 1000) {
-      return '$' + Math.round(num / 1000) + 'K';
-    }
-    return '$' + num.toLocaleString();
-  };
+  var since = new GlideDateTime();
+  since.addMonthsLocalTime(-MONTHS_BACK);
 
-  // Badge mapping from Widget A to keep Banner styling accurate
-  var badgeMap = {
-    'new':                    'badge-new',
-    'ready_for_review':       'badge-review',
-    'review_in_progress':     'badge-in-progress',
-    'review_completed':       'badge-completed',
-    'award_pending':          'badge-pending',
-    'award_acknowledged':     'badge-completed',
-    'project_in_progress':    'badge-in-progress',
-    'project_completed':      'badge-completed',
-    'closed':                 'badge-closed',
-    'declined_by_agency':     'badge-declined',
-    'declined_by_applicant':  'badge-declined'
-  };
+  try {
 
-  var applicantQuery = new GlideRecordSecure(applicantTable);
-  
-  if (currentUser !== 'admin') {
-    applicantQuery.addQuery('sys_created_by', currentUser);
-  }
-  
-  applicantQuery.orderByDesc('sys_updated_on');
-  applicantQuery.query();
+    var gr = new GlideRecordSecure(APPLICANT);
+    gr.addQuery('user', me);
+    gr.addQuery('sys_created_on', '>=', since.getValue());
+    gr.orderByDesc('sys_updated_on');
+    gr.setLimit(300);
+    gr.query();
 
-  var totalReqSum = 0;
-  var totalAwardedSum = 0;
-  var underReviewCount = 0;
-  var awardedCount = 0;
-  var decidedCount = 0;
-  var newCount = 0; 
-  var programMap = {};
-  
-  var stageCounts = {
-    submitted: 0,
-    reviewed: 0,
-    decided: 0,
-    awarded: 0
-  };
+    while (gr.next()) {
 
-  while (applicantQuery.next()) {
-    var sysId = applicantQuery.getUniqueValue();
-    var stateVal = applicantQuery.getValue('state') || 'new';
-    var subDate = applicantQuery.getValue('submission_date');
-    var createdDate = applicantQuery.getValue('sys_created_on');
-    var reqBudget = parseFloat(applicantQuery.getValue('requested_budget')) || 0;
-    
-    var rawSubDate = subDate || createdDate;
-    var rawDateMs = 0;
-    if (rawSubDate) {
-       var gdt = new GlideDateTime(rawSubDate);
-       rawDateMs = gdt.getNumericValue();
-    }
-    
-    totalReqSum += reqBudget;
+      var stateVal = lower(gr.getValue('state'));
+      var meta = STATES[stateVal] || {
+        group: 'review', stage: 1,
+        label: gr.getDisplayValue('state') || gs.getMessage('In progress')
+      };
 
-    if (stateVal === 'ready_for_review' || stateVal === 'review_in_progress') underReviewCount++;
-    if (stateVal === 'new') newCount++; 
-    
-    if (stateVal === 'award_acknowledged' || stateVal === 'project_completed' || stateVal === 'review_completed') {
-      awardedCount++;
-      totalAwardedSum += reqBudget;
-    } else if (stateVal === 'declined_by_agency' || stateVal === 'declined_by_applicant') {
-      decidedCount++;
-    }
+      var asked   = num(pick(gr, ['requested_budget']));
+      var program = gr.getDisplayValue('program') || gs.getMessage('Unassigned');
+      var subRaw  = gr.getValue('submission_date');
 
-    // --- STAGE CONVERSION FUNNEL LOGIC ---
-    stageCounts.submitted++; 
+      /* Everything the modal shows is loaded here rather than
+         fetched on open. A second server call would re-run this
+         script and repaint the widget, which is the flicker we
+         removed from the intake form. */
+      data.applications.push({
+        sysId     : gr.getUniqueValue(),
+        number    : gr.getValue('number'),
+        program   : program,
+        programId : gr.getValue('program'),
+        category  : gr.getValue('program_category') || gr.getDisplayValue('category'),
+        title     : pick(gr, ['proposal_title', 'short_description']),
+        group     : meta.group,
+        stage     : meta.stage,
+        stateLabel: meta.label,
+        amount    : asked,
+        amountText: asked ? fmtShort(asked) : '',
+        amountFull: asked ? '$' + commas(asked) : '',
+        submitted : subRaw ? fmtDate(subRaw) : '',
+        updated   : fmtDate(gr.getValue('sys_updated_on')),
 
-    if (stateVal === 'ready_for_review' || stateVal === 'review_in_progress') {
-      stageCounts.reviewed++;
-    }
+        detail: {
+          applicant   : [pick(gr, ['first_name']), pick(gr, ['middle_name']), pick(gr, ['last_name'])]
+                          .filter(function (x) { return !!x; }).join(' '),
+          email       : pick(gr, ['email']),
+          phone       : pick(gr, ['phone_number']),
+          address     : [pick(gr, ['street']), pick(gr, ['city']),
+                         pick(gr, ['zip_postal_code']), pick(gr, ['country'])]
+                          .filter(function (x) { return !!x; }).join(', '),
+          organisation: pick(gr, ['organization']),
+          applicantType: gr.getDisplayValue('applicant_type'),
+          identityType: gr.getDisplayValue('identity_type'),
+          uei         : pick(gr, ['uei']),
+          tin         : pick(gr, ['tin_ein']),
+          citizenship : gr.getDisplayValue('citizenship_status'),
+          birthdate   : fmtDate(gr.getValue('birthdate')),
 
-    stageCounts.decided = decidedCount;
-    stageCounts.awarded = awardedCount;
-    // -------------------------------------
+          /* Deliberately not published: ssn.
 
-    var progName = applicantQuery.getDisplayValue('program.program_name') || 'Unassigned Program';
-    programMap[progName] = (programMap[progName] || 0) + 1;
+             It is on the record and it would be trivial to add
+             here, but this payload is readable in the browser on
+             a page whose only job is to remind someone what they
+             already typed. There is no reason to put a social
+             security number back on screen for that. If a caller
+             genuinely needs it, they need the record, not this
+             widget. */
 
-    var actionLabel = 'Open';
-    var actionType = 'open_form';
-    var btnClass = ''; 
+          gender      : gr.getDisplayValue('gender'),
+          race        : gr.getDisplayValue('race'),
+          ethnicity   : gr.getDisplayValue('ethnicity'),
+          education   : gr.getDisplayValue('education_level'),
+          marital     : gr.getDisplayValue('marital_status'),
+          military    : gr.getDisplayValue('military_status'),
+          disability  : gr.getDisplayValue('disability_status'),
+          tribal      : gr.getDisplayValue('tribal_affiliation'),
 
-    var stageProgress = 25;
-    var barClass = 'bg-blue';
-    var textClass = 'text-blue';
-    var stateDisplay = applicantQuery.getDisplayValue('state') || 'Submitted';
-
-    // --- TABLE ROW STATUS UI MAPPING ---
-    if (stateVal === 'new') {
-      stageProgress = 15;
-      barClass = 'bg-gray';     
-      textClass = 'text-gray';  
-      stateDisplay = 'Submitted';
-    } else if (stateVal === 'ready_for_review' || stateVal === 'review_in_progress') {
-      stageProgress = 50; 
-      barClass = 'bg-blue'; 
-      textClass = 'text-blue'; 
-      stateDisplay = 'Under review';
-    } else if (stateVal === 'award_acknowledged' || stateVal === 'project_completed' || stateVal === 'review_completed' || stateVal.indexOf('award') > -1) {
-      stageProgress = 100; 
-      barClass = 'bg-green'; 
-      textClass = 'text-green'; 
-      stateDisplay = 'Awarded';
-    } else if (stateVal.indexOf('declined') > -1 || stateVal === 'cancelled') {
-      stageProgress = 100; 
-      barClass = 'bg-red'; 
-      textClass = 'text-red'; 
-      stateDisplay = 'Declined';
-    }
-    // -----------------------------------
-
-    // --- Fetch Attachments for Modal ---
-    var attachments     = [];
-    var attachmentQuery = new GlideRecordSecure('sys_attachment');
-    attachmentQuery.addQuery('table_name',   applicantTable);
-    attachmentQuery.addQuery('table_sys_id', sysId);
-    attachmentQuery.query();
-
-    while (attachmentQuery.next()) {
-      attachments.push({
-        sys_id:       attachmentQuery.getUniqueValue(),
-        name:         attachmentQuery.getValue('file_name')    || '',
-        size:         attachmentQuery.getValue('size_bytes')   || '0',
-        content_type: attachmentQuery.getValue('content_type') || ''
+          proposalTitle: pick(gr, ['proposal_title']),
+          summary      : pick(gr, ['short_description']),
+          description  : pick(gr, ['proposal_description']),
+          goals        : pick(gr, ['project_goals_and_objectives']),
+          method       : pick(gr, ['project_activities_methodology']),
+          startDate    : fmtDate(gr.getValue('project_start_date')),
+          endDate      : fmtDate(gr.getValue('project_end_date')),
+          files        : 0
+        }
       });
+
+      counts.all++;
+      counts[meta.group]++;
+      requested += asked;
+
+      byProgram[program] = (byProgram[program] || 0) + 1;
+
+      /* funnel: reaching a later stage implies the earlier ones */
+      if (meta.stage >= 1) funnel.submitted++;
+      if (meta.stage >= 2) funnel.reviewed++;
+      if (meta.group === 'awarded') { funnel.awarded++; awardedValue += asked; }
+      if (meta.group === 'closed')  funnel.declined++;
+
+      /* only applications genuinely in review contribute to the
+         average time in review */
+      if (meta.group === 'review' && subRaw) {
+        var d = daysSince(subRaw);
+        if (d !== null && d >= 0) reviewDays.push(d);
+      }
     }
 
-    // Ensure we push all properties needed for both the table AND the new modal
-    data.applications.push({
-      sys_id: sysId,
-      number: applicantQuery.getValue('number') || '',
-      program_name: progName,
-      submission_date: formatDate(subDate),
-      raw_date_ms: rawDateMs,
-      requested_budget_formatted: formatCurrency(reqBudget),
-      state_value: stateVal,
-      state_display: stateDisplay,
-      stage_progress_pct: stageProgress,
-      stage_bar_class: barClass,
-      stage_text_class: textClass,
-      action_label: actionLabel,
-      action_type: actionType,
-      action_btn_class: btnClass,
+  } catch (e) {
+    gs.error('[MyApplications] ' + e.message);
+  }
 
-      // --- ALL THE MODAL-SPECIFIC DATA FIELDS COPIED OVER ---
-      first_name:             applicantQuery.getValue('first_name')  || '',
-      middle_name:            applicantQuery.getValue('middle_name') || '',
-      last_name:              applicantQuery.getValue('last_name')   || '',
-      birthdate:              formatDate(applicantQuery.getValue('birthdate')),
-      phone:                  applicantQuery.getValue('phone_number') || '',
-      email:                  applicantQuery.getValue('email')        || '',
-      gender_display:         applicantQuery.getDisplayValue('gender') || '',
-      marital_display:        applicantQuery.getDisplayValue('marital_status') || '',
-      race_display:           applicantQuery.getDisplayValue('race') || '',
-      ethnicity_display:      applicantQuery.getDisplayValue('ethnicity') || '',
-      education_display:      applicantQuery.getDisplayValue('education_level') || '',
-      military_display:       applicantQuery.getDisplayValue('military_status') || '',
-      street:                 applicantQuery.getValue('street') || '',
-      city:                   applicantQuery.getValue('city') || '',
-      country:                applicantQuery.getValue('country') || '',
-      zip:                    applicantQuery.getValue('zip_postal_code') || '',
-      applicant_type_display: applicantQuery.getDisplayValue('applicant_type') || '',
-      citizenship_display:    applicantQuery.getDisplayValue('citizenship_status') || '',
-      identity_display:       applicantQuery.getDisplayValue('identity_type') || '',
-      tribal_display:         applicantQuery.getDisplayValue('tribal_affiliation') || '',
-      disability_display:     applicantQuery.getDisplayValue('disability_status') || '',
-      ssn:                    applicantQuery.getValue('ssn') || '',
-      tin_ein:                applicantQuery.getValue('tin_ein') || '',
-      uei:                    applicantQuery.getValue('uei') || '',
-      organization:           applicantQuery.getValue('organization') || '',
-      program_num:            applicantQuery.getDisplayValue('program.number') || '',
-      program_category:       applicantQuery.getDisplayValue('program_category') || '',
-      start_date:             formatDate(applicantQuery.getValue('project_start_date')),
-      end_date:               formatDate(applicantQuery.getValue('project_end_date')),
-      requested_budget:       formatCurrency(reqBudget),
-      short_description:      applicantQuery.getValue('short_description') || '',
-      proposal_description:   applicantQuery.getValue('proposal_description') || '',
-      project_goals:          applicantQuery.getValue('project_goals_and_objectives') || '',
-      project_activities:     applicantQuery.getValue('project_activities_methodology') || '',
-      updated_on:             applicantQuery.getDisplayValue('sys_updated_on') || '',
-      badge_class:            badgeMap[stateVal] || 'badge-new', // Using badge mapper for the banner
-      attachments:            attachments
+  /* One aggregate for every attachment count, rather than a
+     query per row. Three hundred rows would otherwise be three
+     hundred queries. */
+  try {
+    if (data.applications.length) {
+
+      var ids = [];
+      for (var k = 0; k < data.applications.length; k++) {
+        ids.push(data.applications[k].sysId);
+      }
+
+      var byId = {};
+      var ag = new GlideAggregate('sys_attachment');
+      ag.addQuery('table_name', APPLICANT);
+      ag.addQuery('table_sys_id', 'IN', ids.join(','));
+      ag.addAggregate('COUNT', 'table_sys_id');
+      ag.groupBy('table_sys_id');
+      ag.query();
+
+      while (ag.next()) {
+        byId[ag.getValue('table_sys_id')] = parseInt(ag.getAggregate('COUNT', 'table_sys_id'), 10) || 0;
+      }
+
+      for (var m = 0; m < data.applications.length; m++) {
+        data.applications[m].detail.files = byId[data.applications[m].sysId] || 0;
+      }
+    }
+  } catch (e) {
+    gs.info('[MyApplications] attachment count unavailable: ' + e.message);
+  }
+
+  data.counts = counts;
+
+
+  /* ---------- header line ---------- */
+  data.headline = counts.all + ' ' +
+    (counts.all === 1 ? gs.getMessage('application') : gs.getMessage('applications')) +
+    '  ·  ' + counts.review + ' ' + gs.getMessage('currently under review');
+
+
+  /* ---------- four figures ---------- */
+
+  var avgReview = 0;
+  if (reviewDays.length) {
+    var total = 0;
+    for (var i = 0; i < reviewDays.length; i++) total += reviewDays[i];
+    avgReview = Math.round(total / reviewDays.length);
+  }
+
+  var decided = counts.awarded + counts.closed;
+
+  data.tiles = [
+    {
+      key  : 'total',
+      label: gs.getMessage('Total applications'),
+      value: '' + counts.all,
+      note : Object.keys(byProgram).length + ' ' +
+             (Object.keys(byProgram).length === 1 ? gs.getMessage('program') : gs.getMessage('programs')) +
+             ', ' + gs.getMessage('last 12 months')
+    },
+    {
+      key  : 'review',
+      label: gs.getMessage('Under review'),
+      value: '' + counts.review,
+      /* an average over nothing is not a number */
+      note : reviewDays.length
+               ? gs.getMessage('average') + ' ' + avgReview + ' ' + gs.getMessage('days waiting')
+               : gs.getMessage('nothing with the review team')
+    },
+    {
+      key  : 'rate',
+      /* a rate over zero decisions is undefined, not zero */
+      label: gs.getMessage('Success rate'),
+      value: decided ? Math.round((counts.awarded / decided) * 100) + '%' : '—',
+      note : decided
+               ? counts.awarded + ' ' + gs.getMessage('awarded of') + ' ' + decided + ' ' + gs.getMessage('decided')
+               : gs.getMessage('no decisions returned yet')
+    },
+    {
+      key  : 'value',
+      label: gs.getMessage('Value requested'),
+      value: fmtShort(requested),
+      note : fmtShort(awardedValue) + ' ' + gs.getMessage('awarded to date')
+    }
+  ];
+
+
+  /* ---------- stage conversion ---------- */
+
+  var base = funnel.submitted || 0;
+
+  function stageRow(key, label, count) {
+    return {
+      key  : key,
+      label: label,
+      count: count,
+      pct  : base ? Math.round((count / base) * 100) : 0,
+      /* a bar of zero still needs to be visible as a track */
+      width: base ? Math.max(count > 0 ? 4 : 0, Math.round((count / base) * 100)) : 0
+    };
+  }
+
+  data.funnel = [
+    stageRow('submitted', gs.getMessage('Submitted'), funnel.submitted),
+    stageRow('reviewed',  gs.getMessage('Reviewed'),  funnel.reviewed),
+    stageRow('declined',  gs.getMessage('Declined'),  funnel.declined),
+    stageRow('awarded',   gs.getMessage('Awarded'),   funnel.awarded)
+  ];
+
+
+  /* ---------- by program ---------- */
+
+  var rows = [];
+  for (var name in byProgram) {
+    rows.push({ label: name, count: byProgram[name] });
+  }
+  rows.sort(function (a, b) { return b.count - a.count; });
+
+  var top = rows.length ? rows[0].count : 0;
+
+  data.byProgram = [];
+  for (var r = 0; r < rows.length && r < 6; r++) {
+    data.byProgram.push({
+      label: rows[r].label,
+      count: rows[r].count,
+      width: top ? Math.max(6, Math.round((rows[r].count / top) * 100)) : 0
     });
   }
 
-  data.totalApplications = data.applications.length;
-  data.underReviewCount = underReviewCount;
-  data.awardedCount = awardedCount;
-  data.decidedCount = decidedCount || 1; 
-  data.newCount = newCount; 
-  data.successRate = Math.round((awardedCount / data.decidedCount) * 100);
-  data.totalRequestedFormatted = formatCurrency(totalReqSum);
-  data.totalAwardedFormatted = formatCurrency(totalAwardedSum);
 
-  var uniqueProgs = Object.keys(programMap);
-  data.programCount = uniqueProgs.length;
-  data.applicationsByProgram = uniqueProgs.map(function(pName) {
-    var count = programMap[pName];
-    var maxCount = Math.max.apply(null, Object.values(programMap)) || 1;
-    return { name: pName, count: count, percentage: Math.round((count / maxCount) * 100) };
-  }).sort(function(a, b) { return b.count - a.count; });
-
-  var totalSub = stageCounts.submitted || 1;
-  data.stageConversion = [
-    { 
-      label: 'Submitted', 
-      count: stageCounts.submitted, 
-      percentage: Math.min(100, Math.round((stageCounts.submitted / totalSub) * 100)), 
-      barClass: 'bg-blue-light' 
-    },
-    { label: 'Reviewed', count: stageCounts.reviewed, percentage: Math.min(100, Math.round((stageCounts.reviewed / totalSub) * 100)), barClass: 'bg-blue-med' },
-    { label: 'Declined', count: stageCounts.decided, percentage: Math.min(100, Math.round((stageCounts.decided / totalSub) * 100)), barClass: 'bg-blue-dark' },
-    { label: 'Awarded', count: stageCounts.awarded, percentage: Math.min(100, Math.round((stageCounts.awarded / totalSub) * 100)), barClass: 'bg-green' }
+  /* ---------- micro track labels ---------- */
+  data.track = [
+    gs.getMessage('New'),
+    gs.getMessage('Submitted'),
+    gs.getMessage('Review'),
+    gs.getMessage('Decision')
   ];
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+
+  data.t = {
+    title    : opt('label_title', gs.getMessage('My applications')),
+    search   : gs.getMessage('Search programs, applications...'),
+
+    funnelTitle: gs.getMessage('Stage conversion'),
+    funnelHint : gs.getMessage('How your applications move through the lifecycle'),
+    funnelFoot : gs.getMessage('Counts are applications that reached each stage. Percentages are of everything submitted.'),
+
+    progTitle: gs.getMessage('Applications by program'),
+    progHint : gs.getMessage('Where you have applied most'),
+    progEmpty: gs.getMessage('Nothing to chart yet.'),
+
+    listTitle: gs.getMessage('All applications'),
+    listHint : gs.getMessage('Sorted by last update'),
+
+    colRef    : gs.getMessage('Reference'),
+    colProgram: gs.getMessage('Program'),
+    colSub    : gs.getMessage('Submitted'),
+    colReq    : gs.getMessage('Requested'),
+    colStage  : gs.getMessage('Stage'),
+    colAction : gs.getMessage('Action'),
+
+    tabAll    : gs.getMessage('All'),
+    tabNew    : gs.getMessage('New'),
+    tabReview : gs.getMessage('In review'),
+    tabAwarded: gs.getMessage('Awarded'),
+    tabClosed : gs.getMessage('Closed'),
+
+    view     : gs.getMessage('View'),
+    notSent  : gs.getMessage('Not submitted'),
+
+    mClose      : gs.getMessage('Close'),
+    mRequest    : gs.getMessage('The request'),
+    mApplicant  : gs.getMessage('Applicant'),
+    mProposal   : gs.getMessage('The proposal'),
+    mProgram    : gs.getMessage('Program'),
+    mCategory   : gs.getMessage('Category'),
+    mReference  : gs.getMessage('Reference'),
+    mStage      : gs.getMessage('Stage'),
+    mRequested  : gs.getMessage('Requested'),
+    mSubmitted  : gs.getMessage('Submitted'),
+    mUpdated    : gs.getMessage('Last change'),
+    mName       : gs.getMessage('Name'),
+    mEmail      : gs.getMessage('Email'),
+    mPhone      : gs.getMessage('Phone'),
+    mAddress    : gs.getMessage('Address'),
+    mOrg        : gs.getMessage('Organisation'),
+    mType       : gs.getMessage('Applicant type'),
+    mIdentity   : gs.getMessage('Identity type'),
+    mUei        : gs.getMessage('UEI'),
+    mTin        : gs.getMessage('TIN or EIN'),
+    mCitizen    : gs.getMessage('Citizenship'),
+    mTitle      : gs.getMessage('Title'),
+    mSummary    : gs.getMessage('One line summary'),
+    mDescription: gs.getMessage('Description'),
+    mGoals      : gs.getMessage('Goals and objectives'),
+    mMethod     : gs.getMessage('Activities and methodology'),
+    mDates      : gs.getMessage('Project dates'),
+    mTo         : gs.getMessage('to'),
+    mFiles      : gs.getMessage('Documents attached'),
+    mNone       : gs.getMessage('Not provided'),
+
+    mBackground : gs.getMessage('Background'),
+    mBirthdate  : gs.getMessage('Date of birth'),
+    mGender     : gs.getMessage('Gender'),
+    mRace       : gs.getMessage('Race'),
+    mEthnicity  : gs.getMessage('Ethnicity'),
+    mEducation  : gs.getMessage('Education level'),
+    mMarital    : gs.getMessage('Marital status'),
+    mMilitary   : gs.getMessage('Military status'),
+    mDisability : gs.getMessage('Disability status'),
+    mTribal     : gs.getMessage('Tribal affiliation'),
+
+    emptyTitle: gs.getMessage('No applications yet'),
+    emptyText : gs.getMessage('Apply to a program and it appears here, from first draft through to a decision.'),
+    emptyBtn  : gs.getMessage('Browse open programs'),
+
+    noMatch    : gs.getMessage('Nothing matches this filter'),
+    noMatchText: gs.getMessage('Try another tab, or clear the search.'),
+    clear      : gs.getMessage('Clear')
+  };
+
+  data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -723,330 +2018,379 @@
         <sys_created_by>Sheeba.showkat</sys_created_by>
         <sys_created_on>2026-08-20 14:21:25</sys_created_on>
         <sys_id>23faec8a0f3e8b10712b6af300d1b205</sys_id>
-        <sys_mod_count>80</sys_mod_count>
+        <sys_mod_count>102</sys_mod_count>
         <sys_name>My Applications</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_23faec8a0f3e8b10712b6af300d1b205</sys_update_name>
-        <sys_updated_by>Sheeba.showkat</sys_updated_by>
-        <sys_updated_on>2026-08-25 07:27:27</sys_updated_on>
-        <template><![CDATA[<!-- Master Flexbox Layout Container -->
-<div class="main-layout-flex" style="display:flex; min-height:100vh; align-items:stretch; background: #f4f7f9;">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-31 02:46:54</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · MY APPLICATIONS
+     Service Portal widget · HTML template
 
-  <!-- DYNAMIC SIDEBAR WRAPPER -->
-  <div class="sidebar" ng-style="{'width': c.isSidebarCollapsed ? '60px' : '96px', 'min-width': c.isSidebarCollapsed ? '60px' : '96px', 'max-width': c.isSidebarCollapsed ? '60px' : '96px', 'flex': c.isSidebarCollapsed ? '0 0 60px' : '0 0 96px'}" style="position:sticky; top:0; height:100vh; overflow: visible; transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); z-index: 10;">
+     Same structure as before: header, four figures, two
+     analytics panels, then the table with tabs. Only the
+     presentation and the wording changed.
+     ========================================================= -->
+
+<!-- The wrapper holds the rail and nothing more.
+
+     It used to declare a width through an ng-style, which is
+     what caused the overlap: it reserved 96px while the rail
+     draws 236px, so 140px of the rail painted over this page.
+
+     The rail sets its own width, does its own sticking and owns
+     the collapsed state, so the column has nothing left to say. -->
+<div class="gn-layout">
+
+  <!-- SIDEBAR -->
+  <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
-  <!-- Main Content Area -->
-  <div style="flex-grow:1; min-width:0; transition: width 0.35s ease;">
+<main class="gap">
 
-    <!-- Main Content Column -->
-    <div class="mya-wrap" style="width: 100%; min-width: 0; box-sizing: border-box; padding: 0 32px 56px;">
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="gap-top">
 
-      <!-- Page Header -->
-      <div class="mya-page-header">
-        <div class="mya-page-hd-left">
-          <div>
-            <h1 class="mya-page-title">My Applications</h1>
-            <div class="mya-page-sub-wrap">
-              <span class="mya-status-dot"></span>
-              <p class="mya-page-sub">{{c.filteredApplications.length}} applications · {{c.data.underReviewCount}} currently under review</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="mya-page-hd-right">
-          <!-- Search Bar -->
-          <div class="mya-search-box">
-            <i class="fa fa-search"></i>
-            <input type="text" ng-model="c.searchTerm" ng-change="c.applyFilters()" placeholder="Search programs, applications..." />
-          </div>
-
-          <!-- Date Filter Dropdown -->
-          <div class="mya-dropdown-wrap">
-            <button class="mya-dropdown-btn" ng-click="c.toggleDateDropdown($event)">
-              <i class="fa fa-calendar-o"></i> {{c.dateFilterLabel}} <i class="fa fa-chevron-down"></i>
-            </button>
-
-            <div class="mya-dropdown-menu" ng-show="c.dateDropdownOpen">
-              <div class="mya-dropdown-item" ng-class="{'active': c.dateFilter === 'all'}" ng-click="c.setDateFilter('all', 'All time')">All time</div>
-              <div class="mya-dropdown-item" ng-class="{'active': c.dateFilter === '12'}" ng-click="c.setDateFilter('12', 'Last 12 months')">Last 12 months</div>
-              <div class="mya-dropdown-item" ng-class="{'active': c.dateFilter === '6'}" ng-click="c.setDateFilter('6', 'Last 6 months')">Last 6 months</div>
-              <div class="mya-dropdown-item" ng-class="{'active': c.dateFilter === '3'}" ng-click="c.setDateFilter('3', 'Last 3 months')">Last 3 months</div>
-            </div>
-          </div>
-
-          <!-- User Initials Avatar Badge -->
-          <div class="mya-user-avatar" title="{{c.data.userFullName}}">{{c.data.userInitials}}</div>
-        </div>
+      <div class="gap-top__lead">
+        <h1 class="gap-top__title">{{c.data.t.title}}</h1>
+        <p class="gap-top__sub">
+          <span class="gap-live" aria-hidden="true"></span>
+          {{c.data.headline}}
+        </p>
       </div>
 
-      <!-- Top Summary Cards -->
-      <div class="mya-summary-grid">
-        <div class="mya-sum-card">
-          <div class="mya-sum-lbl">Total Applications</div>
-          <div class="mya-sum-val">{{c.data.totalApplications}}</div>
-          <div class="mya-sum-sub">Across {{c.data.programCount}} programs, last 12 months</div>
-        </div>
-        <div class="mya-sum-card">
-          <div class="mya-sum-lbl">Under Review</div>
-          <div class="mya-sum-val">{{c.data.underReviewCount}}</div>
-          <div class="mya-sum-sub">Average 18 days in review</div>
-        </div>
-        <div class="mya-sum-card">
-          <div class="mya-sum-lbl">Success Rate</div>
-          <div class="mya-sum-val">{{c.data.successRate}}%</div>
-          <div class="mya-sum-sub">{{c.data.awardedCount}} awarded of {{c.data.decidedCount}} decided</div>
-        </div>
-        <div class="mya-sum-card">
-          <div class="mya-sum-lbl">Value Requested</div>
-          <div class="mya-sum-val">{{c.data.totalRequestedFormatted}}</div>
-          <div class="mya-sum-sub">{{c.data.totalAwardedFormatted}} awarded to date</div>
-        </div>
+      <div class="gap-top__right">
+
+        <label class="gap-search">
+          <i class="fa fa-search gap-search__icon" aria-hidden="true"></i>
+          <input type="text"
+                 class="gap-search__field"
+                 ng-model="c.query"
+                 ng-change="c.onChange()"
+                 ng-model-options="{debounce: 120}"
+                 placeholder="{{c.data.t.search}}"
+                 aria-label="{{c.data.t.search}}">
+          <button type="button" class="gap-search__clear" ng-if="c.query" ng-click="c.clearSearch()"
+                  aria-label="{{c.data.t.clear}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </label>
+
+        <span class="gap-avatar">{{c.data.userInitials}}</span>
+
       </div>
 
-      <!-- Analytics Section -->
-      <div class="mya-analytics-grid">
-        <!-- Stage Conversion -->
-        <div class="mya-analytics-box">
-          <div class="mya-box-title">Stage conversion</div>
-          <div class="mya-box-sub">How your applications progress through the GateNow lifecycle</div>
-          <div class="mya-stage-list">
-            <div class="mya-stage-row" ng-repeat="stage in c.data.stageConversion">
-              <div class="mya-stage-name">{{stage.label}}</div>
-              <div class="mya-stage-bar-wrap">
-                <div class="mya-stage-bar-fill" ng-class="stage.barClass" ng-style="{width: stage.percentage + '%'}">
-                  <span class="mya-stage-count" ng-if="stage.count > 0">{{stage.count}}</span>
-                </div>
-              </div>
-              <div class="mya-stage-pct">{{stage.percentage}}%</div>
-            </div>
+    </header>
+
+
+    <!-- ═══════════════ FIGURES ═══════════════ -->
+    <section class="gap-tiles">
+      <article class="gap-tile"
+               ng-repeat="t in c.data.tiles track by t.key"
+               ng-class="'gap-tile--' + t.key">
+        <span class="gap-tile__rule" aria-hidden="true"></span>
+        <p class="gap-tile__label">{{t.label}}</p>
+        <p class="gap-tile__value">{{t.value}}</p>
+        <p class="gap-tile__note">{{t.note}}</p>
+      </article>
+    </section>
+
+
+    <!-- ═══════════════ PANELS ═══════════════ -->
+    <section class="gap-panels">
+
+      <!-- stage conversion -->
+      <article class="gap-panel">
+
+        <header class="gap-panel__head">
+          <h2 class="gap-panel__title">{{c.data.t.funnelTitle}}</h2>
+          <p class="gap-panel__hint">{{c.data.t.funnelHint}}</p>
+        </header>
+
+        <div class="gap-funnel">
+          <div class="gap-fun"
+               ng-repeat="f in c.data.funnel track by f.key"
+               ng-class="'gap-fun--' + f.key">
+            <span class="gap-fun__label">{{f.label}}</span>
+            <span class="gap-fun__track">
+              <span class="gap-fun__fill" ng-style="{width: f.width + '%'}">
+                <span class="gap-fun__count" ng-if="f.count">{{f.count}}</span>
+              </span>
+            </span>
+            <span class="gap-fun__pct">{{f.pct}}%</span>
           </div>
-          <div class="mya-box-foot">Bars show count of applications reaching each stage; percentages are of all submitted applications.</div>
         </div>
 
-        <!-- Applications by Program -->
-        <div class="mya-analytics-box">
-          <div class="mya-box-title">Applications by program</div>
-          <div class="mya-box-sub">Where you have applied most</div>
-          <div class="mya-prog-bars">
-            <div class="mya-prog-row" ng-repeat="prog in c.data.applicationsByProgram">
-              <div class="mya-prog-info">
-                <span class="mya-prog-title-text">{{prog.name}}</span>
-                <span class="mya-prog-count-val">{{prog.count}}</span>
-              </div>
-              <div class="mya-prog-track">
-                <div class="mya-prog-fill" ng-style="{'width': prog.percentage + '%', 'background-color': c.getBarColor($index, c.data.applicationsByProgram.length)}"></div>
-              </div>
-            </div>
+        <p class="gap-panel__foot">{{c.data.t.funnelFoot}}</p>
+
+      </article>
+
+      <!-- by program -->
+      <article class="gap-panel">
+
+        <header class="gap-panel__head">
+          <h2 class="gap-panel__title">{{c.data.t.progTitle}}</h2>
+          <p class="gap-panel__hint">{{c.data.t.progHint}}</p>
+        </header>
+
+        <div class="gap-progs" ng-if="c.data.byProgram.length">
+          <div class="gap-prog"
+               ng-repeat="p in c.data.byProgram track by $index"
+               ng-class="'gap-prog--' + ($index + 1)">
+            <span class="gap-prog__row">
+              <span class="gap-prog__name" title="{{p.label}}">{{p.label}}</span>
+              <span class="gap-prog__count">{{p.count}}</span>
+            </span>
+            <span class="gap-prog__track">
+              <span class="gap-prog__fill" ng-style="{width: p.width + '%'}"></span>
+            </span>
           </div>
         </div>
+
+        <p class="gap-panel__empty" ng-if="!c.data.byProgram.length">{{c.data.t.progEmpty}}</p>
+
+      </article>
+
+    </section>
+
+
+    <!-- ═══════════════ TABLE ═══════════════ -->
+    <section class="gap-block">
+
+      <header class="gap-block__head">
+
+        <div>
+          <h2 class="gap-block__title">{{c.data.t.listTitle}}</h2>
+          <p class="gap-block__hint">{{c.data.t.listHint}}</p>
+        </div>
+
+        <div class="gap-tabs" role="group">
+          <button type="button" class="gap-tab"
+                  ng-repeat="t in c.tabs track by t.key"
+                  ng-class="{'is-on': c.tab === t.key}"
+                  ng-click="c.setTab(t.key)"
+                  ng-attr-aria-pressed="{{c.tab === t.key}}">
+            {{t.label}}
+            <span class="gap-tab__count">{{c.data.counts[t.key]}}</span>
+          </button>
+        </div>
+
+      </header>
+
+      <!-- nothing at all -->
+      <div class="gap-blank" ng-if="!c.data.applications.length">
+        <span class="gap-blank__mark" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
+        <p class="gap-blank__title">{{c.data.t.emptyTitle}}</p>
+        <p class="gap-blank__text">{{c.data.t.emptyText}}</p>
+        <a class="gap-btn gap-btn--primary" ng-href="?id={{c.data.pages.programs}}">{{c.data.t.emptyBtn}}</a>
       </div>
 
-      <!-- All Applications Section with Filter Tabs -->
-      <div class="mya-table-container">
-        <div class="mya-table-header-row">
-          <div>
-            <div class="mya-table-main-title">All applications</div>
-            <div class="mya-table-sub-title">Sorted by last update</div>
-          </div>
-          <div class="mya-filter-tabs">
-            <button class="mya-ftab" ng-class="{active: c.filterTab === 'all'}" ng-click="c.setFilter('all')">
-              All ({{c.data.totalApplications}})
-            </button>
-            <button class="mya-ftab" ng-class="{active: c.filterTab === 'review'}" ng-click="c.setFilter('review')">
-              In review ({{c.data.underReviewCount}})
-            </button>
-            <button class="mya-ftab" ng-class="{active: c.filterTab === 'submitted'}" ng-click="c.setFilter('submitted')">
-              Submitted ({{c.data.newCount}})
-            </button>
-          </div>
+      <div class="gap-table" ng-if="c.data.applications.length">
+
+        <div class="gap-table__head">
+          <span>{{c.data.t.colRef}}</span>
+          <span>{{c.data.t.colProgram}}</span>
+          <span>{{c.data.t.colSub}}</span>
+          <span class="gap-right">{{c.data.t.colReq}}</span>
+          <span>{{c.data.t.colStage}}</span>
+          <span class="gap-right">{{c.data.t.colAction}}</span>
         </div>
 
-        <div class="mya-list" ng-if="c.filteredApplications && c.filteredApplications.length">
-          <div class="mya-table-head-cols">
-            <div class="mya-col mya-col-ref">Reference</div>
-            <div class="mya-col mya-col-prog">Program</div>
-            <div class="mya-col mya-col-sub">Submitted</div>
-            <div class="mya-col mya-col-req">Requested</div>
-            <div class="mya-col mya-col-stg">Stage</div>
-            <div class="mya-col mya-col-act">Action</div>
-          </div>
+        <div class="gap-row"
+             ng-repeat="a in c.shown() track by a.sysId"
+             ng-class="['gap-row--' + a.group, 'gap-row--n' + (($index % 10) + 1)]">
 
-          <div class="mya-app-row-card" ng-repeat="app in c.filteredApplications track by app.sys_id">
-            <div class="mya-col mya-col-ref">
-              <span class="mya-app-num-bold">{{app.number}}</span>
-            </div>
-            <div class="mya-col mya-col-prog">
-              <span class="mya-prog-text">{{app.program_name}}</span>
-            </div>
-            <div class="mya-col mya-col-sub">
-              <span class="mya-sub-date-text">{{app.submission_date || 'Not submitted'}}</span>
-            </div>
-            <div class="mya-col mya-col-req">
-              <span class="mya-req-val">{{app.requested_budget_formatted}}</span>
-            </div>
-            <div class="mya-col mya-col-stg">
-              <div class="mya-stage-inline-wrap">
-                <div class="mya-mini-track">
-                  <div class="mya-mini-fill" ng-class="app.stage_bar_class" ng-style="{width: app.stage_progress_pct + '%'}"></div>
-                </div>
-                <span class="mya-stage-status-lbl" ng-class="app.stage_text_class">{{app.state_display}}</span>
-              </div>
-            </div>
-            <div class="mya-col mya-col-act">
-              <button class="mya-action-btn" ng-class="app.action_btn_class" ng-click="c.handleAction(app)">
-                {{app.action_label}}
-              </button>
-            </div>
-          </div>
+          <span class="gap-cell gap-cell--ref" data-label="{{c.data.t.colRef}}">{{a.number}}</span>
+
+          <span class="gap-cell gap-cell--prog" data-label="{{c.data.t.colProgram}}">
+            <span class="gap-cell__name" title="{{a.program}}">{{a.program}}</span>
+            <span class="gap-cell__sub" ng-if="a.title" title="{{a.title}}">{{a.title}}</span>
+          </span>
+
+          <span class="gap-cell gap-cell--date" data-label="{{c.data.t.colSub}}"
+                ng-class="{'is-blank': !a.submitted}">
+            {{a.submitted || c.data.t.notSent}}
+          </span>
+
+          <span class="gap-cell gap-cell--num gap-right" data-label="{{c.data.t.colReq}}">
+            {{a.amountText || '—'}}
+          </span>
+
+          <span class="gap-cell gap-cell--stage" data-label="{{c.data.t.colStage}}">
+            <span class="gap-mini" ng-class="{'is-stopped': a.group === 'closed'}" aria-hidden="true">
+              <span class="gap-mini__seg"
+                    ng-repeat="s in c.data.track track by $index"
+                    ng-class="{'is-done': $index < a.stage, 'is-now': $index === a.stage}"></span>
+            </span>
+            <span class="gap-mini__label">{{a.stateLabel}}</span>
+          </span>
+
+          <span class="gap-cell gap-right" data-label="{{c.data.t.colAction}}">
+            <button type="button" class="gap-btn gap-btn--ghost" ng-click="c.openDetail(a)">
+              {{c.data.t.view}}
+            </button>
+          </span>
+
         </div>
 
-        <div class="mya-empty-state" ng-if="!c.filteredApplications || !c.filteredApplications.length">
-          <div class="mya-empty-ico"><i class="fa fa-folder-open-o"></i></div>
-          <h3>No Applications Found</h3>
-          <p>Applications matching this filter or search query will appear here.</p>
+        <div class="gap-nomatch" ng-if="!c.shown().length">
+          <p class="gap-nomatch__title">{{c.data.t.noMatch}}</p>
+          <p class="gap-nomatch__text">{{c.data.t.noMatchText}}</p>
+          <button type="button" class="gap-btn gap-btn--ghost" ng-click="c.clearAll()">{{c.data.t.clear}}</button>
         </div>
+
       </div>
 
-      <!-- New Copied Modal for viewing details -->
-      <div class="mya-overlay" ng-if="c.modalOpen" ng-click="c.closeModal()">
-        <div class="mya-modal" ng-click="$event.stopPropagation()">
+      <nav class="gap-pager" ng-if="c.pageCount() > 1">
+        <button type="button" class="gap-pager__step" ng-click="c.prev()" ng-disabled="c.page === 1">
+          <i class="fa fa-angle-left" aria-hidden="true"></i>
+        </button>
+        <div class="gap-pager__nums">
+          <button type="button"
+                  ng-repeat="n in c.pages() track by $index"
+                  class="gap-pager__num"
+                  ng-class="{'is-on': n === c.page, 'is-gap': n === '...'}"
+                  ng-disabled="n === '...'"
+                  ng-click="c.goto(n)">{{n}}</button>
+        </div>
+        <button type="button" class="gap-pager__step" ng-click="c.next()" ng-disabled="c.page === c.pageCount()">
+          <i class="fa fa-angle-right" aria-hidden="true"></i>
+        </button>
+      </nav>
 
-          <div class="mya-mhdr">
-            <div class="mya-mhdr-left">
-              <div class="mya-mhdr-av">
-                <i class="fa fa-file-text"></i>
-              </div>
-              <div>
-                <div class="mya-mhdr-title">{{c.selected.number}}</div>
-                <div class="mya-mhdr-sub">Application Details</div>
-              </div>
-            </div>
-            <button class="mya-mhdr-close" ng-click="c.closeModal()">
-              <i class="fa fa-times"></i>
-            </button>
-          </div>
+    </section>
 
-          <div class="mya-mbanner">
-            <span class="mya-badge {{c.selected.badge_class}}">{{c.selected.state_display}}</span>
-            <span class="mya-mbanner-date">
-              <i class="fa fa-clock-o"></i> {{c.selected.updated_on}}
+
+    <!-- ═══════════════ DETAIL ═══════════════
+         Everything the applicant submitted, read only. The data
+         is already on the page, so opening this costs nothing.
+         ═══════════════════════════════════════ -->
+    <div class="gap-modal" ng-if="c.open" ng-click="c.closeDetail()">
+
+      <div class="gap-modal__panel"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="gapModalTitle"
+           ng-click="$event.stopPropagation()">
+
+        <header class="gap-modal__head">
+
+          <div class="gap-modal__lead">
+            <span class="gap-modal__ref">{{c.open.number}}</span>
+            <h2 class="gap-modal__title" id="gapModalTitle">{{c.open.program}}</h2>
+            <span class="gap-modal__stage" ng-class="'gap-modal__stage--' + c.open.group">
+              <span class="gap-modal__dot" aria-hidden="true"></span>{{c.open.stateLabel}}
             </span>
           </div>
 
-          <div class="mya-mtabs">
-            <button class="mya-mtab" ng-class="{active: c.activeTab==='personal'}"    ng-click="c.setTab('personal')">Personal</button>
-            <button class="mya-mtab" ng-class="{active: c.activeTab==='identity'}"    ng-click="c.setTab('identity')">Identity</button>
-            <button class="mya-mtab" ng-class="{active: c.activeTab==='program'}"      ng-click="c.setTab('program')">Program</button>
-            <button class="mya-mtab" ng-class="{active: c.activeTab==='proposal'}"    ng-click="c.setTab('proposal')">Proposal</button>
-            <button class="mya-mtab" ng-class="{active: c.activeTab==='attachments'}" ng-click="c.setTab('attachments')">
-              Attachments
-              <span class="mya-mtab-badge" ng-if="c.selected.attachments && c.selected.attachments.length">
-                {{c.selected.attachments.length}}
-              </span>
-            </button>
-          </div>
+          <button type="button" class="gap-modal__x" ng-click="c.closeDetail()"
+                  aria-label="{{c.data.t.mClose}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
 
-          <div class="mya-mbody">
+        </header>
 
-            <div ng-if="c.activeTab==='personal'">
-              <div class="mya-sec-title">Personal Information</div>
-              <div class="mya-view-grid">
-                <div class="mya-vfield"><div class="mya-vflabel">First Name</div><div class="mya-vfvalue">{{c.selected.first_name||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Middle Name</div><div class="mya-vfvalue">{{c.selected.middle_name||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Last Name</div><div class="mya-vfvalue">{{c.selected.last_name||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Birthdate</div><div class="mya-vfvalue">{{c.selected.birthdate||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Phone</div><div class="mya-vfvalue">{{c.selected.phone||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Email</div><div class="mya-vfvalue">{{c.selected.email||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Gender</div><div class="mya-vfvalue">{{c.selected.gender_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Marital Status</div><div class="mya-vfvalue">{{c.selected.marital_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Race</div><div class="mya-vfvalue">{{c.selected.race_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Ethnicity</div><div class="mya-vfvalue">{{c.selected.ethnicity_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Education Level</div><div class="mya-vfvalue">{{c.selected.education_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Military Status</div><div class="mya-vfvalue">{{c.selected.military_display||'—'}}</div></div>
+        <div class="gap-modal__body">
+
+          <!-- the request -->
+          <section class="gap-sec">
+            <h3 class="gap-sec__title">{{c.data.t.mRequest}}</h3>
+            <dl class="gap-sec__rows">
+              <div class="gap-kv"><dt>{{c.data.t.mProgram}}</dt><dd>{{c.open.program}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mCategory}}</dt><dd ng-class="{'is-blank': !c.open.category}">{{c.open.category || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mRequested}}</dt><dd class="gap-kv--num">{{c.open.amountFull || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mSubmitted}}</dt><dd ng-class="{'is-blank': !c.open.submitted}">{{c.open.submitted || c.data.t.notSent}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mUpdated}}</dt><dd>{{c.open.updated}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mFiles}}</dt><dd class="gap-kv--num">{{c.open.detail.files}}</dd></div>
+            </dl>
+          </section>
+
+          <!-- applicant -->
+          <section class="gap-sec">
+            <h3 class="gap-sec__title">{{c.data.t.mApplicant}}</h3>
+            <dl class="gap-sec__rows">
+              <div class="gap-kv"><dt>{{c.data.t.mName}}</dt><dd ng-class="{'is-blank': !c.open.detail.applicant}">{{c.open.detail.applicant || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mEmail}}</dt><dd ng-class="{'is-blank': !c.open.detail.email}">{{c.open.detail.email || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mPhone}}</dt><dd ng-class="{'is-blank': !c.open.detail.phone}">{{c.open.detail.phone || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mBirthdate}}</dt><dd ng-class="{'is-blank': !c.open.detail.birthdate}">{{c.open.detail.birthdate || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mAddress}}</dt><dd ng-class="{'is-blank': !c.open.detail.address}">{{c.open.detail.address || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mOrg}}</dt><dd ng-class="{'is-blank': !c.open.detail.organisation}">{{c.open.detail.organisation || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mType}}</dt><dd ng-class="{'is-blank': !c.open.detail.applicantType}">{{c.open.detail.applicantType || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mIdentity}}</dt><dd ng-class="{'is-blank': !c.open.detail.identityType}">{{c.open.detail.identityType || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mCitizen}}</dt><dd ng-class="{'is-blank': !c.open.detail.citizenship}">{{c.open.detail.citizenship || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mUei}}</dt><dd ng-class="{'is-blank': !c.open.detail.uei}">{{c.open.detail.uei || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mTin}}</dt><dd ng-class="{'is-blank': !c.open.detail.tin}">{{c.open.detail.tin || c.data.t.mNone}}</dd></div>
+            </dl>
+          </section>
+
+          <!-- background -->
+          <section class="gap-sec">
+            <h3 class="gap-sec__title">{{c.data.t.mBackground}}</h3>
+            <dl class="gap-sec__rows">
+              <div class="gap-kv"><dt>{{c.data.t.mGender}}</dt><dd ng-class="{'is-blank': !c.open.detail.gender}">{{c.open.detail.gender || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mRace}}</dt><dd ng-class="{'is-blank': !c.open.detail.race}">{{c.open.detail.race || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mEthnicity}}</dt><dd ng-class="{'is-blank': !c.open.detail.ethnicity}">{{c.open.detail.ethnicity || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mEducation}}</dt><dd ng-class="{'is-blank': !c.open.detail.education}">{{c.open.detail.education || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mMarital}}</dt><dd ng-class="{'is-blank': !c.open.detail.marital}">{{c.open.detail.marital || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mMilitary}}</dt><dd ng-class="{'is-blank': !c.open.detail.military}">{{c.open.detail.military || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mDisability}}</dt><dd ng-class="{'is-blank': !c.open.detail.disability}">{{c.open.detail.disability || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv"><dt>{{c.data.t.mTribal}}</dt><dd ng-class="{'is-blank': !c.open.detail.tribal}">{{c.open.detail.tribal || c.data.t.mNone}}</dd></div>
+            </dl>
+          </section>
+
+          <!-- proposal -->
+          <section class="gap-sec">
+
+            <h3 class="gap-sec__title">{{c.data.t.mProposal}}</h3>
+
+            <dl class="gap-sec__rows">
+              <div class="gap-kv"><dt>{{c.data.t.mTitle}}</dt><dd ng-class="{'is-blank': !c.open.detail.proposalTitle}">{{c.open.detail.proposalTitle || c.data.t.mNone}}</dd></div>
+              <div class="gap-kv" ng-if="c.open.detail.startDate || c.open.detail.endDate">
+                <dt>{{c.data.t.mDates}}</dt>
+                <dd class="gap-kv--num">{{c.open.detail.startDate}} {{c.data.t.mTo}} {{c.open.detail.endDate}}</dd>
               </div>
-              <div class="mya-divider"></div>
-              <div class="mya-sec-title">Address</div>
-              <div class="mya-view-grid">
-                <div class="mya-vfield"><div class="mya-vflabel">Street</div><div class="mya-vfvalue">{{c.selected.street||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">City</div><div class="mya-vfvalue">{{c.selected.city||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Country</div><div class="mya-vfvalue">{{c.selected.country||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Zip / Postal Code</div><div class="mya-vfvalue">{{c.selected.zip||'—'}}</div></div>
-              </div>
+            </dl>
+
+            <div class="gap-prose" ng-if="c.open.detail.summary">
+              <p class="gap-prose__label">{{c.data.t.mSummary}}</p>
+              <p class="gap-prose__text">{{c.open.detail.summary}}</p>
             </div>
 
-            <div ng-if="c.activeTab==='identity'">
-              <div class="mya-sec-title">Identity &amp; Classification</div>
-              <div class="mya-view-grid">
-                <div class="mya-vfield"><div class="mya-vflabel">Applicant Type</div><div class="mya-vfvalue">{{c.selected.applicant_type_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Citizenship Status</div><div class="mya-vfvalue">{{c.selected.citizenship_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Identity Type</div><div class="mya-vfvalue">{{c.selected.identity_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Tribal Affiliation</div><div class="mya-vfvalue">{{c.selected.tribal_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Disability Status</div><div class="mya-vfvalue">{{c.selected.disability_display||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">UEI</div><div class="mya-vfvalue">{{c.selected.uei||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">SSN</div><div class="mya-vfvalue">{{c.selected.ssn||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">TIN / EIN</div><div class="mya-vfvalue">{{c.selected.tin_ein||'—'}}</div></div>
-              </div>
+            <div class="gap-prose" ng-if="c.open.detail.description">
+              <p class="gap-prose__label">{{c.data.t.mDescription}}</p>
+              <p class="gap-prose__text">{{c.open.detail.description}}</p>
             </div>
 
-            <div ng-if="c.activeTab==='program'">
-              <div class="mya-sec-title">Program &amp; Project</div>
-              <div class="mya-view-grid">
-                <div class="mya-vfield"><div class="mya-vflabel">Program Name</div><div class="mya-vfvalue">{{c.selected.program_name||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Program Number</div><div class="mya-vfvalue">{{c.selected.program_num||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Program Category</div><div class="mya-vfvalue">{{c.selected.program_category||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Organization</div><div class="mya-vfvalue">{{c.selected.organization||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Project Start Date</div><div class="mya-vfvalue">{{c.selected.start_date||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Project End Date</div><div class="mya-vfvalue">{{c.selected.end_date||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Submission Date</div><div class="mya-vfvalue">{{c.selected.submission_date||'—'}}</div></div>
-                <div class="mya-vfield"><div class="mya-vflabel">Requested Budget</div><div class="mya-vfvalue">{{c.selected.requested_budget||'—'}}</div></div>
-              </div>
+            <div class="gap-prose" ng-if="c.open.detail.goals">
+              <p class="gap-prose__label">{{c.data.t.mGoals}}</p>
+              <p class="gap-prose__text">{{c.open.detail.goals}}</p>
             </div>
 
-            <div ng-if="c.activeTab==='proposal'">
-              <div class="mya-sec-title">Proposal Details</div>
-              <div class="mya-prose-field"><div class="mya-vflabel">Short Description</div><div class="mya-prose-val">{{c.selected.short_description||'—'}}</div></div>
-              <div class="mya-prose-field"><div class="mya-vflabel">Proposal Description</div><div class="mya-prose-val">{{c.selected.proposal_description||'—'}}</div></div>
-              <div class="mya-prose-field"><div class="mya-vflabel">Project Goals and Objectives</div><div class="mya-prose-val">{{c.selected.project_goals||'—'}}</div></div>
-              <div class="mya-prose-field"><div class="mya-vflabel">Project Activities / Methodology</div><div class="mya-prose-val">{{c.selected.project_activities||'—'}}</div></div>
+            <div class="gap-prose" ng-if="c.open.detail.method">
+              <p class="gap-prose__label">{{c.data.t.mMethod}}</p>
+              <p class="gap-prose__text">{{c.open.detail.method}}</p>
             </div>
 
-            <div ng-if="c.activeTab==='attachments'">
-              <div class="mya-sec-title">Attachments</div>
-              <div class="mya-no-attach" ng-if="!c.selected.attachments || !c.selected.attachments.length">
-                <i class="fa fa-paperclip"></i>
-                <p>No attachments found</p>
-              </div>
-              <div class="mya-attach-list" ng-if="c.selected.attachments && c.selected.attachments.length">
-                <div class="mya-attach-item" ng-repeat="att in c.selected.attachments track by att.sys_id">
-                  <div class="mya-attach-ico"><i class="fa {{c.getFileIcon(att.content_type)}}"></i></div>
-                  <div class="mya-attach-info">
-                    <div class="mya-attach-name">{{att.name}}</div>
-                    <div class="mya-attach-size">{{c.formatBytes(att.size)}}</div>
-                  </div>
-                  <a class="mya-attach-dl" ng-href="/sys_attachment.do?sys_id={{att.sys_id}}" target="_blank">
-                    <i class="fa fa-download"></i>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="mya-mfooter">
-            <button class="mya-mfoot-close" ng-click="c.closeModal()">
-              <i class="fa fa-times"></i> Close
-            </button>
-          </div>
+          </section>
 
         </div>
+
+        <footer class="gap-modal__foot">
+          <button type="button" class="gap-btn gap-btn--primary" ng-click="c.closeDetail()">
+            {{c.data.t.mClose}}
+          </button>
+        </footer>
+
       </div>
 
     </div>
-  </div>
+
+  </main>
+
 </div>]]></template>
     </sp_widget>
 </record_update>

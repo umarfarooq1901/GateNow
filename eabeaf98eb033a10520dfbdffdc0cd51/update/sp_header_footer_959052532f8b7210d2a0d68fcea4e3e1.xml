@@ -4,6 +4,36 @@
         <client_script><![CDATA[api.controller = function ($rootScope, $scope, $injector, spUtil, $location,
                            $uibModal, cabrillo, $timeout, $window, i18n) {
 
+  // 1. Disable native browser scroll memory
+  if ('scrollRestoration' in $window.history) {
+    $window.history.scrollRestoration = 'manual';
+  }
+
+  // 2. Strip the hash completely (Both Browser History AND Angular routing)
+  if ($window.location.href.indexOf('#') !== -1) {
+    // Wipe from the browser URL bar
+    $window.history.replaceState(null, null, $window.location.pathname + $window.location.search);
+    
+    // Wipe from Angular's internal memory so it doesn't push it back
+    if ($location.hash()) {
+      $location.hash(null);
+      $location.replace();
+    }
+  }
+
+  // 3. Aggressively force scroll to top across SP containers
+  function forceScrollToTop() {
+    $window.scrollTo(0, 0);
+    if (typeof $ !== 'undefined') {
+      $('html, body').scrollTop(0);
+    }
+  }
+
+  forceScrollToTop();
+  $timeout(forceScrollToTop, 50);
+  $timeout(forceScrollToTop, 300);
+  $timeout(forceScrollToTop, 600);
+
   $scope.logoText = i18n.format(
     i18n.getMessage('Go to {0} Homepage'), $scope.portal.title
   );
@@ -77,6 +107,10 @@
     });
   };
 
+  $rootScope.$on('gatenow.trigger.login', function() {
+      $scope.openLogin();
+  });
+
   // ── Responsive avatar logic ──
   var nav = document.getElementById('responsiveNav');
   function isMDScreenSize() {
@@ -97,17 +131,14 @@
   $scope.showSMAvatar = isMDScreenSize();
   $scope.showAvatar   = !isMDScreenSize();
 
-  // ── Reserve space for the fixed pill so page content never
-  //    scrolls underneath it, regardless of page template ──
   function updateNavOffset() {
     if (!nav) return;
     var rect = nav.getBoundingClientRect();
-    // gap above the pill (from .gn-navbar's `top`) + pill height + a little breathing room
     var topGap = parseFloat(getComputedStyle(nav).top) || 20;
     var offset = Math.ceil(rect.height + topGap + 20);
     document.documentElement.style.setProperty('--gn-navbar-offset', offset + 'px');
   }
-  // Run after layout settles (fonts/images can still shift height on first paint)
+  
   $timeout(updateNavOffset, 0);
   $timeout(updateNavOffset, 300);
   window.addEventListener('resize', updateNavOffset);
@@ -128,7 +159,6 @@
       new ResizeObserver(function(entries) {
         if (entries && entries[0])
           updateResponsiveClasses(entries[0].contentRect.width);
-        // Mobile menu opening/closing changes the pill's real height too
         updateNavOffset();
       }).observe(nav);
     } catch(e) {}
@@ -148,6 +178,35 @@
     if (!$scope.page || !$scope.page.id) return true;
     return $scope.page.id === $scope.portal.homepage_dv;
   };
+
+  // ── Smooth-scroll to a section on the homepage ──
+  $scope.scrollToSection = function(id, event) {
+    if (event) {
+      event.preventDefault(); 
+    }
+    
+    if ($window.history.pushState) {
+      $window.history.pushState(null, null, '#' + id);
+    }
+
+    $timeout(function() {
+      var $target = $('#' + id);
+      
+      if (!$target.length) {
+        console.warn('scrollToSection: no element with id="' + id + '" found on page.');
+        return;
+      }
+
+      var offsetVar = getComputedStyle(document.documentElement).getPropertyValue('--gn-navbar-offset');
+      var offset = parseFloat(offsetVar) || 96;
+
+      $('html, body').animate({
+        scrollTop: $target.offset().top - offset - 16
+      }, 400);
+      
+    }, 50);
+  };
+
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════════════════════
@@ -281,6 +340,13 @@
   transform: translate(-50%, -50%);
 }
 
+.gn-nav-menu li,
+.gn-nav-menu li:focus,
+.gn-nav-menu li:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .gn-nav-menu a {
   display: flex !important;
   align-items: center;
@@ -294,16 +360,23 @@
   background: transparent !important;
   white-space: nowrap;
   transition: color 0.18s ease;
-}
-.gn-nav-menu a:hover { color: $gn-navbar-accent !important; }
 
-.gn-nav-actions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.gn-nav-menu a:hover {
+  color: $gn-navbar-accent !important;
+}
+
+.gn-nav-menu a:focus,
+.gn-nav-menu a:focus-visible,
+.gn-nav-menu a:active {
+  color: $gn-navbar-text !important;
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* ─── Sign in (text link) ─────────────────────────────── */
@@ -318,42 +391,77 @@
   font-size: 15px;
   font-weight: 500;
   background: transparent !important;
-  transition: color 0.18s ease;
+  border-radius: 999px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.18s ease, box-shadow 0.18s ease;
 }
 .gn-signin-link:hover { color: $gn-navbar-accent !important; background: transparent !important; }
 
-/* ─── Apply for funding (CTA pill) ────────────────────── */
+/* Same rectangular-outline fix as the nav menu links above */
+.gn-signin-link:focus,
+.gn-signin-link:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px $gn-navbar-accent-ring, inset 0 0 0 1px $gn-navbar-accent !important;
+}
+.gn-signin-link:active {
+  outline: none !important;
+}
+
+/* ─── Apply for funding / Application Status (CTA pill) ──
+   Both buttons share this class, so this single fix covers them. ── */
 .gn-cta-btn {
   display: flex !important;
   align-items: center;
   justify-content: center;
   height: 48px;
   padding: 0 24px !important;
+  margin-top:5px;
   margin-left: 4px;
-  border-radius: 999px;
+  border-radius: 999px !important;
+
   background: $gn-navbar-accent !important;
   color: #ffffff !important;
+
   font-family: 'Inter', 'Segoe UI', sans-serif;
   font-size: 15px;
   font-weight: 700;
   text-decoration: none !important;
   white-space: nowrap;
-  box-shadow: 0 0 0 4px $gn-navbar-accent-ring;
-  transition: background 0.18s ease, transform 0.12s ease;
-}
-.gn-cta-btn:hover { background: $gn-navbar-accent-dark !important; transform: translateY(-1px); color: #fff !important; }
 
-/* Browser default focus/active outline is rectangular and ignores
-   border-radius — without this override, clicking or tabbing to the
-   button makes it visually flash square. Swap the native outline for
-   a rounded box-shadow ring instead, so keyboard focus is still
-   visible but stays pill-shaped. */
+  box-shadow: 0 0 0 4px $gn-navbar-accent-ring !important;
+
+  outline: none !important;
+  border: none !important;
+
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.gn-cta-btn:hover {
+  background: $gn-navbar-accent-dark !important;
+  transform: translateY(-1px);
+  color: #ffffff !important;
+}
+
+/* Prevent square shape when clicked/focused */
 .gn-cta-btn:focus,
+.gn-cta-btn:focus-visible,
 .gn-cta-btn:active {
   outline: none !important;
-  box-shadow: 0 0 0 4px $gn-navbar-accent-ring, 0 0 0 2px $gn-navbar-accent !important;
+  border: none !important;
+  border-radius: 999px !important;
+  box-shadow: 0 0 0 4px $gn-navbar-accent-ring !important;
+  background: $gn-navbar-accent !important;
+  color: #ffffff !important;
 }
 
+/* Keep hover appearance when focused */
+.gn-cta-btn:hover:focus,
+.gn-cta-btn:hover:focus-visible {
+  background: $gn-navbar-accent-dark !important;
+  border-radius: 999px !important;
+  box-shadow: 0 0 0 4px $gn-navbar-accent-ring !important;
+}
 /* ─── Generic nav link (Live Chat, mobile logout) ─────── */
 .gn-nav-link {
   display: flex !important;
@@ -363,9 +471,19 @@
   color: $gn-navbar-text !important;
   font-size: 15px;
   text-decoration: none !important;
-  transition: color 0.18s ease;
+  border-radius: 999px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.18s ease, box-shadow 0.18s ease;
 }
 .gn-nav-link:hover { color: $gn-navbar-accent !important; }
+.gn-nav-link:focus,
+.gn-nav-link:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px $gn-navbar-accent-ring, inset 0 0 0 1px $gn-navbar-accent !important;
+}
+.gn-nav-link:active {
+  outline: none !important;
+}
 
 /* ─── Avatar dropdown button ──────────────────────────── */
 .gn-avatar-dropdown { position: relative; }
@@ -381,10 +499,17 @@
   font-size: 15px;
   font-weight: 500;
   background: transparent !important;
-  transition: opacity 0.18s ease;
+  border-radius: 999px;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.18s ease, box-shadow 0.18s ease;
   cursor: pointer;
 }
 .gn-avatar-btn:hover { opacity: 0.75; background: transparent !important; }
+.gn-avatar-btn:focus,
+.gn-avatar-btn:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px $gn-navbar-accent-ring, inset 0 0 0 1px $gn-navbar-accent !important;
+}
 
 .gn-user-name { color: $gn-navbar-text; font-size: 15px; font-family: 'Inter', sans-serif; }
 
@@ -589,14 +714,14 @@ body { padding-top: var(--gn-navbar-offset) !important; }</css>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-19 09:02:49</sys_created_on>
         <sys_id>959052532f8b7210d2a0d68fcea4e3e1</sys_id>
-        <sys_mod_count>45</sys_mod_count>
+        <sys_mod_count>93</sys_mod_count>
         <sys_name>Applicant Portal header</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_header_footer_959052532f8b7210d2a0d68fcea4e3e1</sys_update_name>
         <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-08-25 07:18:34</sys_updated_on>
+        <sys_updated_on>2026-08-28 09:11:47</sys_updated_on>
         <template><![CDATA[<div>
 
 <nav id="responsiveNav"
@@ -616,18 +741,11 @@ body { padding-top: var(--gn-navbar-offset) !important; }</css>
          ng-click="collapse()"
          aria-label="GateNow — Home">
 
-        <!-- Primary: your uploaded logo image. If it 404s or fails to load,
-             onerror hides this <img> and reveals the icon+text fallback
-             right after it — no JS/Angular watcher needed, just native
-             img error handling so it works even before Angular finishes
-             loading. -->
         <img class="gn-logo-img"
              src="https://ven08761.service-now.com/x_enno_gatenow.GateNow%20Logo.png"
              alt="GateNow"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
 
-        <!-- Fallback: icon mark + "GateNow" text. Hidden by default —
-             only shown by the onerror handler above if the image fails. -->
         <span class="gn-brand-text-fallback" style="display:none;">
           <span class="gn-logo-mark" aria-hidden="true">
             <svg class="gn-logo-icon" viewBox="0 0 24 24" fill="none"
@@ -665,16 +783,12 @@ body { padding-top: var(--gn-navbar-offset) !important; }</css>
          id="sp-nav-bar"
          role="navigation">
 
-      <!-- Center menu: About / Programs / Process / FAQ.
-           Hardcoded links, NOT the sp-widget CMS menu — that widget wasn't
-           returning items reliably. Swap the ng-href page ids below for your
-           real page identifiers (or sys_ids), and add/remove <li> entries
-           to change what shows here. -->
+      <!-- Center menu -->
       <ul class="gn-nav-menu" role="presentation">
-        <li><a ng-href="?id=about" ng-click="collapse()">${About}</a></li>
-        <li><a ng-href="?id=programs" ng-click="collapse()">${Programs}</a></li>
-        <li><a ng-href="?id=process" ng-click="collapse()">${Process}</a></li>
-        <li><a ng-href="?id=faq" ng-click="collapse()">${FAQ}</a></li>
+        <li><a href="javascript:void(0);" ng-click="scrollToSection('about_gate', $event); collapse()">${About}</a></li>
+        <li><a ng-href="?id=opportunities" ng-click="collapse()">${Programs}</a></li>
+        <li><a href="javascript:void(0);" ng-click="scrollToSection('application_process', $event); collapse()">${Process}</a></li>
+        <li><a href="javascript:void(0);" ng-click="scrollToSection('faq_applicant', $event); collapse()">${FAQ}</a></li>
       </ul>
 
       <!-- Language selector -->
@@ -692,8 +806,8 @@ body { padding-top: var(--gn-navbar-offset) !important; }</css>
         </li>
 
         <li role="presentation">
-          <a ng-href="{{::data.applyUrl}}" class="gn-cta-btn">
-            ${Apply for funding}
+          <a ng-href="?id=application_status" class="gn-cta-btn">
+            ${Application Status}
           </a>
         </li>
       </ul>
@@ -708,10 +822,10 @@ body { padding-top: var(--gn-navbar-offset) !important; }</css>
           </a>
         </li>
 
-        <!-- Apply for funding stays visible when logged in too -->
+        <!-- Apply for funding -->
         <li role="presentation">
-          <a ng-href="{{::data.applyUrl}}" class="gn-cta-btn">
-            ${Apply for funding}
+          <a ng-href="?id=application_status" class="gn-cta-btn">
+            ${Application Status}
           </a>
         </li>
 

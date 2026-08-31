@@ -1,472 +1,1815 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $filter, $timeout, $interval, spUtil, $rootScope) {
-	var c = this;
-	
-	// --- SIDEBAR COLLAPSE SYNC (listens to sidebar widget's broadcast) ---
-	c.sidebarCollapsed = false;
-	$scope.$on('sidebar.toggled', function(event, isCollapsed) {
-		c.sidebarCollapsed = isCollapsed;
-	});
+        <client_script><![CDATA[api.controller = function($scope) {
 
-	// --- TIME FILTER LOGIC ---
-	c.timeFilterLabel = 'Last 12 months'; 
-	c.data.timeFilterMonths = 12;         
+  /* =========================================================
+     GATENOW · REIMBURSEMENTS · Client script
 
-	c.setTimeFilter = function(months, label) {
-		c.timeFilterLabel = label;
-		c.data.timeFilterMonths = months;
+     Tabs, search and both modals run against data already on
+     the page. The only server work is the embedded claim form,
+     which is its own widget.
+     ========================================================= */
 
-		c.server.update().then(function() {
-			c.setFilter(c.activeFilter); 
-		});
-	};
+  var c = this;
 
-	c.showClaimModal = false;
-	c.activeFilter = 'all';
-	c.searchTerm = ''; 
+  c.query = '';
+  c.tab   = 'all';
+  c.open  = null;
+  c.mtab  = 'payment';
+  c.form  = false;
 
-	c.setFilter = function(filter) {
-		c.activeFilter = filter;
-	};
+  c.tabs = [
+    { key: 'all',       label: c.data.t.tabAll },
+    { key: 'submitted', label: c.data.t.tabSubmitted },
+    { key: 'review',    label: c.data.t.tabReview },
+    { key: 'approved',  label: c.data.t.tabApproved },
+    { key: 'paid',      label: c.data.t.tabPaid },
+    { key: 'rejected',  label: c.data.t.tabRejected }
+  ];
 
-	c.filteredClaims = function() {
-		if (!c.data.claims) return [];
-		var results = c.data.claims;
+  /* Attachments only get a tab when there are some. An empty
+     tab is a promise the record cannot keep. */
+  c.modalTabs = [
+    { key: 'payment',     label: c.data.t.mPayment,
+      show: function() { return true; }, count: function() { return 0; } },
+    { key: 'funding',     label: c.data.t.mFunding,
+      show: function() { return true; }, count: function() { return 0; } },
+    { key: 'computation', label: c.data.t.mComputation,
+      show: function() { return true; }, count: function() { return 0; } },
+    { key: 'alternate',   label: c.data.t.mAlternate,
+      show: function() { return true; }, count: function() { return 0; } },
+    { key: 'files',       label: c.data.t.mFiles,
+      show: function(cl) { return cl.files.length > 0; },
+      count: function(cl) { return cl.files.length; } }
+  ];
 
-		if (c.activeFilter !== 'all') {
-			results = results.filter(function(claim) {
-				return claim.bucket === c.activeFilter;
-			});
-		}
 
-		if (c.searchTerm && c.searchTerm.trim() !== '') {
-			var term = c.searchTerm.toLowerCase().trim();
+  /* =====================================================
+     LIST
+     ===================================================== */
 
-			results = results.filter(function(claim) {
-				var matchNumber = claim.number && claim.number.toLowerCase().indexOf(term) > -1;
-				var matchProject = claim.project && claim.project.toLowerCase().indexOf(term) > -1;
-				var periodFrom = claim.period_from ? claim.period_from.toLowerCase() : '';
-				var periodTo = claim.period_to ? claim.period_to.toLowerCase() : '';
-				var matchPeriod = periodFrom.indexOf(term) > -1 || periodTo.indexOf(term) > -1;
-				var matchAmount = claim.amount_requested && claim.amount_requested.toString().toLowerCase().indexOf(term) > -1;
-				var matchSubmitted = claim.submitted_on && claim.submitted_on.toLowerCase().indexOf(term) > -1;
-				var matchState = claim.state_label && claim.state_label.toLowerCase().indexOf(term) > -1;
+  function hit(cl, q) {
+    return (
+      (cl.number  || '').toLowerCase().indexOf(q) !== -1 ||
+      (cl.project || '').toLowerCase().indexOf(q) !== -1 ||
+      (cl.summary || '').toLowerCase().indexOf(q) !== -1 ||
+      (cl.amountText || '').toLowerCase().indexOf(q) !== -1
+    );
+  }
 
-				return matchNumber || matchProject || matchPeriod || matchAmount || matchSubmitted || matchState;
-			});
-		}
-		return results;
-	};
+  function matching() {
+    var q = (c.query || '').trim().toLowerCase();
 
-	c.openCount = function() {
-		if (!c.data.claims) return 0;
-		return c.data.claims.filter(function(x) { return x.bucket === 'open'; }).length;
-	};
+    return (c.data.claims || []).filter(function(cl) {
+      if (c.tab !== 'all' && cl.status !== c.tab) return false;
+      if (q && !hit(cl, q)) return false;
+      return true;
+    });
+  }
 
-	c.paidCount = function() {
-		if (!c.data.claims) return 0;
-		return c.data.claims.filter(function(x) { return x.bucket === 'paid'; }).length;
-	};
+  c.shown = function() { return matching(); };
 
-	c.maxChartValue = function() {
-		if (!c.data.chartData || c.data.chartData.length === 0) return 1000;
-		var max = 0;
-		c.data.chartData.forEach(function(m) {
-			max = Math.max(max, m.claimed, m.paid);
-		});
-		return max > 0 ? max : 1000;
-	};
+  c.setTab = function(key) {
+    if (c.tab === key) return;
+    c.tab = key;
+  };
 
-	c.barHeight = function(value) {
-		if (!value || value <= 0) return 0;
-		var maxVal = c.maxChartValue() * 1.1;
-		return (value / maxVal) * 100;
-	};
+  c.clearAll = function() {
+    c.query = '';
+    c.tab = 'all';
+  };
 
-    // EXACT Y-Axis formatting (removed Math.round)
-	c.getYAxisLabel = function(multiplier) {
-		var val = (c.maxChartValue() * 1.1) * multiplier;
-		return c.formatCurrency(val);
-	};
 
-	c.maxStateAmount = function() {
-		if (!c.data.claimsByState || c.data.claimsByState.length === 0) return 1;
-		var max = 0;
-		c.data.claimsByState.forEach(function(s) { max = Math.max(max, s.amount); });
-		return max > 0 ? max : 1;
-	};
+  /* =====================================================
+     DETAIL
+     ===================================================== */
 
-	c.stateBarWidth = function(amount) {
-		return Math.min((amount / c.maxStateAmount()) * 100, 100);
-	};
+  c.openDetail = function(claim) {
+    c.open = claim || null;
+    /* always land on the first tab, so the tab from the last
+       claim does not carry over to one with no attachments */
+    c.mtab = 'payment';
+  };
 
-	// --- EXACT CALCULATION FORMATTERS (REMOVED 'K' ROUNDING OFF) ---
-	c.formatCurrency = function(val) {
-		if (val === undefined || val === null || val === '') return '$0.00';
-		var num = parseFloat(val);
-		if (isNaN(num)) return '$0.00';
-		// Removed K abbreviation to force perfectly exact numbers (e.g. $1,500.50)
-		return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-	};
+  c.closeDetail = function() { c.open = null; };
 
-	c.formatCurrencyExact = function(val) {
-		if (val === undefined || val === null || val === '') return '$0.00';
-		var num = parseFloat(val);
-		if (isNaN(num)) return '$0.00';
-		return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-	};
+  /* only the boxes that were ticked. Six greyed out checkboxes
+     are six things to read past on the way to the one that
+     matters. */
+  c.typeList = function(claim) {
+    if (!claim) return [];
 
-	c.startNewClaim = function() {
-		c.showClaimModal = true;
-	};
+    var t = claim.types || {};
+    var out = [];
 
-	c.closeClaimModal = function() {
-		c.showClaimModal = false;
-	};
+    if (t.advance)       out.push(c.data.t.mAdvance);
+    if (t.reimbursement) out.push(c.data.t.mReimbursement);
+    if (t.final)         out.push(c.data.t.mFinal);
+    if (t.partial)       out.push(c.data.t.mPartial);
+    if (t.cash)          out.push(c.data.t.mCash);
+    if (t.accrual)       out.push(c.data.t.mAccrual);
 
-	$scope.$on('claim_submitted_successfully', function() {
-		c.showClaimModal = false;
-		c.server.update().then(function() {
-			c.setFilter(c.activeFilter);
-			preFetchAllForms(); 
-		});
-	});
+    return out;
+  };
 
-	// --- BACKGROUND PRE-FETCHING ---
-	function preFetchAllForms() {
-		if (c.data.claims && c.data.claims.length > 0) {
-			c.data.claims.forEach(function(claim) {
-				if (!claim.cachedWidget) {
-					spUtil.get('widget-form', {
-						table: 'x_enno_gatenow_reimbursement',
-						sys_id: claim.sys_id,
-						hideRelatedLists: true,
-						disableUIActions: true
-					}).then(function(response) {
-						if (response && response.data && response.data.f) {
-							if (response.data.f._formatters) response.data.f._formatters = {};
-							if (response.data.f._fields) {
-								for (var key in response.data.f._fields) {
-									var fld = response.data.f._fields[key];
-									if (fld.type === 'formatter' || fld.type === 'journal' || fld.type === 'journal_input' || key.indexOf('activity') > -1) {
-										delete response.data.f._fields[key];
-									}
-								}
-							}
-						}
-						claim.cachedWidget = response;
-					});
-				}
-			});
-		}
-	}
+  c.fileSize = function(bytes) {
+    if (!bytes) return '0 B';
+    var k = 1024;
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + units[i];
+  };
 
-	preFetchAllForms();
 
-	// --- INSTANT VIEW MODAL LOGIC ---
-	c.showViewModal = false;
-	c.recordFormWidget = null;
-	c.viewClaimTitle = '';
+  /* =====================================================
+     NEW CLAIM
+     The form is its own widget, embedded rather than rebuilt.
+     ===================================================== */
 
-	c.viewClaim = function(claim) {
-		c.viewClaimTitle = claim.number;
+  c.openForm = function() {
+    c.open = null;
+    c.form = true;
+  };
 
-		if (claim.cachedWidget) {
-			c.recordFormWidget = claim.cachedWidget;
-			c.loadingForm = false;
-			c.showViewModal = true;
-		} else {
-			c.loadingForm = true;
-			c.recordFormWidget = null;
-			c.showViewModal = true;
+  c.closeForm = function() {
+    c.form = false;
+    /* the new claim will not be in the list until the page data
+       is refetched, so ask for it */
+    c.server.update();
+  };
 
-			spUtil.get('widget-form', {
-				table: 'x_enno_gatenow_reimbursement',
-				sys_id: claim.sys_id,
-				hideRelatedLists: true,
-				disableUIActions: true
-			}).then(function(response) {
-				if (response && response.data && response.data.f) {
-					if (response.data.f._formatters) response.data.f._formatters = {};
-					if (response.data.f._fields) {
-						for (var key in response.data.f._fields) {
-							var fld = response.data.f._fields[key];
-							if (fld.type === 'formatter' || fld.type === 'journal' || fld.type === 'journal_input' || key.indexOf('activity') > -1) {
-								delete response.data.f._fields[key];
-							}
-						}
-					}
-				}
-				claim.cachedWidget = response;
-				c.recordFormWidget = response;
-				c.loadingForm = false;
-			});
-		}
-
-		var cleanupCount = 0;
-		var cleanupInterval = $interval(function() {
-			var $wrapper = $('.read-only-form-wrapper');
-			
-			$wrapper.find('textarea[placeholder*="message"], sp-activity-stream, .ticket-conversation, sn-form-activity-stream')
-			        .closest('.panel, .form-group, fieldset, .row').remove();
-			
-			$wrapper.find('h1, h2, h3, h4, h5, h6, label, legend, div, span').filter(function() {
-				return $(this).text().trim() === 'Activity' && $(this).children().length === 0;
-			}).closest('.panel, .form-group, fieldset, .row, [ng-if]').hide().remove();
-			
-			cleanupCount++;
-			if (cleanupCount > 40) { 
-				$interval.cancel(cleanupInterval);
-			}
-		}, 50);
-	};
-
-	c.closeViewModal = function() {
-		c.showViewModal = false;
-		c.recordFormWidget = null;
-		c.viewClaimTitle = '';
-	};
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>.reimb-kpi-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        <css>/* =========================================================
+   GATENOW · REIMBURSEMENTS
+   Service Portal widget · CSS / SCSS
 
-  label { font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 8px;}
-  .kpi-value { font-size: 36px; font-weight: 800; color: #0f172a; margin: 4px 0 8px; letter-spacing: -1px;}
-  .kpi-value.kpi-green { color: #10b981; }
-  .kpi-sub { font-size: 13px; color: #64748b; }
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
 
-  &amp;.kpi-alert .kpi-value { color: #dc2626; }
-  &amp;.kpi-alert .kpi-sub { color: #64748b; }
+   Same tokens as the other dashboard pages: navy, one accent
+   blue, neutrals built from the navy at different opacities.
+
+   THE ONE PLACE MONEY GETS ITS OWN COLOUR
+   Paid is green. It is the only stage where cash has actually
+   arrived, and on a page about being reimbursed that is the
+   distinction worth carrying a colour. Everything before it is
+   the accent blue at decreasing weight, which reads as a
+   pipeline rather than as four unrelated states.
+
+   TYPE
+     tile      30  700  tabular   headline figures
+     title     26  700  -0.03em   page title
+     panel     15  600  -0.014em  panel headings
+     amount    14  600  tabular   every figure in a table
+     label     11  600   0.14em   uppercase small caps
+   ========================================================= */
+
+/* ---------- overflow overrides ---------- */
+
+.panel,
+.panel-body,
+.sp-widget { overflow: visible !important; }
+
+.gn-layout { overflow: visible !important; }
+
+/* The column holds the rail and lets it decide how wide to be.
+   It used to carry a width through an inline ng-style, which is
+   what put 140px of the rail on top of this page: the column
+   reserved 96 while the rail draws 236.
+
+   The transition moved to the rail, which is the element that
+   actually changes width. Animating a wrapper that never
+   resized was doing nothing. */
+
+.aw-sidebar {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
-.reimb-card {
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  padding: 28px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 
-  &amp;__hdr {
-    margin-bottom: 12px;
-    h3 { margin: 0; font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;}
-    p  { margin: 4px 0 0; font-size: 13px; color: #64748b; }
-  }
+/* ---------- typeface ---------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
 }
 
-.chart-area { display: flex; align-items: flex-end; }
-.bar {
-  width: 20px !important;
-  border-radius: 4px 4px 0 0;
-  transition: height 0.3s ease;
-}
-.bar-claimed { background: #3730a3; }
-.bar-paid    { background: #10b981; }
-
-.reimb-chart-legend {
-  display: flex; gap: 16px; font-size: 12px; color: #475569; font-weight: 500;
-  .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
-  .dot-claimed { background:#3730a3; }
-  .dot-paid { background:#10b981; }
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
 }
 
-.state-list { margin-bottom: 24px; }
-.state-row {
-  margin-bottom: 16px;
-  &amp;__top { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:8px;
-    span:last-child { margin-left:auto; text-align:right; white-space:nowrap; }
-  }
-}
-.state-bar-bg { background:#f1f5f9; border-radius:8px; height:8px; overflow:hidden; }
-.state-bar-fill { height:100%; border-radius:8px; min-width: 6px; }
-.fill-green        { background: #249562; } 
-.fill-indigo       { background: #3542B1; } 
-.fill-indigo-light { background: #7A89F0; } 
-.fill-gray         { background: #ADC1FA; } 
-.fill-yellow       { background: #f59e0b; }
-.fill-red          { background: #dc2626; }
-
-.btn-new-claim {
-  width:100%; background:#4f46e5; color:#fff; border:none; border-radius:8px;
-  padding:14px; font-size:14px; font-weight:600; cursor:pointer; transition: 0.2s;
-  &amp;:hover { background:#4338ca; }
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
 }
 
-.filter-tabs {
-  display:flex; gap:8px;
-  button {
-    background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:6px 16px;
-    font-size:13px; font-weight:600; color:#475569; cursor:pointer; transition: 0.2s;
-    &amp;.active { background:#3730a3; color:#fff; border-color:#3730a3; }
-  }
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
 }
 
-.reimb-table {
-  width:100%; border-collapse:collapse; margin-top:24px; table-layout:fixed;
-  th { text-align:left; font-size:11px; font-weight:800; color:#475569; text-transform:uppercase; padding:12px 8px; border-bottom:1px solid #e2e8f0; letter-spacing: 0.5px;}
-  td { padding:16px 8px; border-bottom:1px solid #f1f5f9; font-size:14px; font-weight:500;}
-  .truncate-cell { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bold-text { font-weight:700; }
-  .text-right { text-align:right; }
-  .text-center { text-align:center; }
-  .state-col { text-align: center; padding-left: 0px; }
-  .lead-col { padding-left: 24px; }
+
+/* ---------- ink ---------- */
+$b-navy:   #0a2540;
+$b-ink-2:  rgba(10, 37, 64, 0.72);
+$b-ink-3:  rgba(10, 37, 64, 0.54);
+$b-ink-4:  rgba(10, 37, 64, 0.38);
+$b-line:   rgba(10, 37, 64, 0.10);
+$b-line-2: rgba(10, 37, 64, 0.06);
+$b-tint:   rgba(10, 37, 64, 0.03);
+
+/* ---------- accent ---------- */
+$b-blue:    #1560e0;
+$b-blue-dk: #0f4cbb;
+$b-blue-1:  rgba(21, 96, 224, 0.08);
+$b-blue-2:  rgba(21, 96, 224, 0.16);
+
+/* ---------- state ---------- */
+$b-green:   #1f8a63;
+$b-green-1: rgba(31, 138, 99, 0.12);
+$b-amber:   #a4741f;
+$b-amber-1: rgba(164, 116, 31, 0.12);
+$b-red:     #b8394a;
+$b-red-1:   rgba(184, 57, 74, 0.10);
+
+$b-white: #ffffff;
+$b-page:  #f4f6fb;
+$b-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
+
+$b-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+.gn-layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: $b-page;
+  font-family: $b-font;
 }
 
-.reimb-table th.state-hdr {
-  text-align: center;
-  padding-left: 0px; 
+/* Without min-width: 0 a flex child refuses to shrink below its
+   own content width, and slides under the rail rather than
+   narrowing. That is the usual cause of a stubborn overlap once
+   the widths are right. */
+.grb {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
 }
 
-.state-pill {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
-  .pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+.grb {
+  min-height: 100vh;
+  padding: 28px 36px 68px;
+  background: $b-page;
+  font-family: $b-font;
+  color: $b-navy;
+  -webkit-font-smoothing: antialiased;
 }
-.pill-paid { background:#ecfdf5; color:#065f46; .pill-dot { background:#10b981; } }
-.pill-approved { background:#e0e7ff; color:#3730a3; .pill-dot { background:#4f46e5; } }
-.pill-in_review { background:#eef2ff; color:#4f46e5; .pill-dot { background:#6366f1; } }
-.pill-submitted { background:#f1f5f9; color:#475569; .pill-dot { background:#94a3b8; } }
-.pill-returned { background:#fef3c7; color:#92400e; .pill-dot { background:#f59e0b; } }
-.pill-rejected { background:#fee2e2; color:#dc2626; .pill-dot { background:#ef4444; } }
 
-.btn-action {
-  border-radius:8px; padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; transition: 0.2s;
-  display:inline-block; width:90px; box-sizing:border-box; text-align:center; border:1px solid transparent;
+.grb *,
+.grb *::before,
+.grb *::after { box-sizing: border-box; }
+
+.grb-right { text-align: right; }
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.grb-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 22px;
 }
-.btn-view    { background:#fff; color:#475569; border-color:#cbd5e1; }
-.btn-view:hover    { background:#f8fafc; }
 
-.custom-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(4px);
+.grb-top__lead { min-width: 0; }
+
+.grb .grb-top__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: $b-navy;
+}
+
+.grb .grb-top__sub {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 10050;
-  padding: 40px;
-  animation: fadeIn 0.2s ease-out;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 7px 0 0;
+  font-size: 13.5px;
+  color: $b-ink-3;
 }
 
-.custom-modal-container {
-  background: #ffffff;
-  width: 100%;
-  max-width: 900px;
-  max-height: 90vh; 
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: scaleUp 0.2s ease-out;
-}
+.grb-top__scope { color: $b-blue-dk; font-weight: 600; }
 
-.custom-modal-header {
-  padding: 24px 32px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  background: #ffffff;
+.grb-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $b-green;
+  box-shadow: 0 0 0 3px $b-green-1;
   flex-shrink: 0;
 }
 
-.custom-modal-header h2 {
+.grb-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.grb-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 330px;
+  height: 42px;
+  padding: 0 12px 0 14px;
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: #0f172a;
+  border: 1px solid $b-line;
+  border-radius: 11px;
+  background: $b-white;
+  font-weight: 400;
+  transition: border-color 0.4s $b-ease, box-shadow 0.4s $b-ease;
 }
 
-.custom-modal-header p {
-  margin: 4px 0 0;
-  font-size: 8px;
-  color: #64748b;
+.grb-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $b-blue-1;
 }
 
-.btn-close-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #64748b;
+.grb-search__icon {
+  font-size: 13px;
+  color: $b-ink-4;
+  flex-shrink: 0;
+}
+
+.grb-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: $b-navy;
+}
+
+.grb-search__field::placeholder { color: $b-ink-4; }
+
+.grb-search__clear {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $b-tint;
+  color: $b-ink-3;
+  font-size: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.btn-close-circle:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+.grb-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: $b-blue;
+  color: $b-white;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(21, 96, 224, 0.28);
 }
 
-.custom-modal-body {
-  background: #f8fafc;
+
+/* =========================================================
+   NOTHING YET
+   ========================================================= */
+
+.grb-blank {
+  max-width: 540px;
+  margin: 70px auto;
+  padding: 52px 34px 46px;
+  border: 1px solid $b-line;
+  border-radius: 18px;
+  background: $b-white;
+  text-align: center;
+}
+
+.grb-blank__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: $b-blue-1;
+  color: $b-blue;
+  font-size: 22px;
+}
+
+.grb .grb-blank__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: $b-navy;
+}
+
+.grb .grb-blank__text {
+  max-width: 48ch;
+  margin: 11px auto 24px;
+  font-size: 15px;
+  line-height: 1.64;
+  color: $b-ink-3;
+}
+
+
+/* =========================================================
+   TILES
+   ========================================================= */
+
+.grb-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.grb-tile {
+  position: relative;
+  padding: 20px 22px 22px;
+  border: 1px solid $b-line;
+  border-radius: 16px;
+  background: $b-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: transform 0.5s $b-ease, box-shadow 0.5s $b-ease;
+}
+
+.grb-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
+}
+
+.grb-tile__rule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: $b-blue-2;
+  transform-origin: left center;
+}
+
+/* paid is the only tile where money has actually landed */
+.grb-tile--paid .grb-tile__rule { background: rgba(31, 138, 99, 0.34); }
+.grb-tile.is-alert .grb-tile__rule { background: rgba(164, 116, 31, 0.34); }
+
+.grb .grb-tile__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $b-ink-4;
+}
+
+.grb .grb-tile__value {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.034em;
+  font-variant-numeric: tabular-nums;
+  color: $b-navy;
+}
+
+.grb-tile--paid .grb-tile__value { color: $b-green; }
+
+.grb .grb-tile__note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: $b-ink-3;
+}
+
+.grb-tile.is-alert .grb-tile__note {
+  color: $b-amber;
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.grb-panel {
+  padding: 22px 24px 24px;
+  margin-bottom: 16px;
+  border: 1px solid $b-line;
+  border-radius: 16px;
+  background: $b-white;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.grb-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.grb-panels .grb-panel { margin-bottom: 0; }
+
+.grb-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 22px;
+}
+
+.grb .grb-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: $b-navy;
+}
+
+.grb .grb-panel__hint {
+  margin: 5px 0 0;
+  max-width: 62ch;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: $b-ink-4;
+}
+
+.grb .grb-panel__empty {
+  margin: 0;
+  padding: 30px 0 8px;
+  font-size: 13.5px;
+  color: $b-ink-4;
+}
+
+.grb-reject {
+  padding: 6px 12px;
+  border: 1px solid rgba(184, 57, 74, 0.26);
+  border-radius: 8px;
+  background: $b-red-1;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $b-red;
+  white-space: nowrap;
+}
+
+.grb .grb-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grb .grb-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: $b-ink-3;
+}
+
+.grb-key__box {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.grb-key__box--claimed { background: $b-blue; }
+.grb-key__box--paid    { background: $b-green; }
+
+
+/* =========================================================
+   PIPELINE
+   Four stages in the order money moves. Blue lightens along the
+   run and paid turns green, so the row reads as a journey with
+   an end rather than four unrelated states.
+   ========================================================= */
+
+.grb-pipe {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.grb-stage { min-width: 0; }
+
+.grb-stage__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.grb-stage__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: $b-ink-2;
+}
+
+.grb-stage__count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+}
+
+.grb-stage__track {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: $b-tint;
+  overflow: hidden;
+}
+
+.grb-stage__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: left center;
+}
+
+.grb-stage--submitted .grb-stage__fill { background: rgba(21, 96, 224, 0.42); }
+.grb-stage--review .grb-stage__fill    { background: rgba(21, 96, 224, 0.62); }
+.grb-stage--approved .grb-stage__fill  { background: $b-blue; }
+.grb-stage--paid .grb-stage__fill      { background: $b-green; }
+
+.grb-stage__value {
+  display: block;
+  margin-top: 11px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.026em;
+  font-variant-numeric: tabular-nums;
+  color: $b-navy;
+}
+
+.grb-stage--paid .grb-stage__value { color: $b-green; }
+
+/* a stage with nothing in it is still part of the run, it just
+   steps back rather than disappearing */
+.grb-stage.is-empty .grb-stage__label,
+.grb-stage.is-empty .grb-stage__value { color: $b-ink-4; }
+
+
+/* =========================================================
+   CLAIMED AGAINST PAID
+   ========================================================= */
+
+.grb-chart {
+  display: flex;
+  gap: 14px;
+}
+
+.grb-chart__axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 168px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+  text-align: right;
+}
+
+.grb-chart__plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 168px;
+}
+
+.grb-chart__line {
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 0;
+  height: 1px;
+  background: $b-line-2;
+}
+
+.grb-chart__line--mid  { top: 50%; }
+.grb-chart__line--base { top: auto; bottom: 0; background: $b-line; }
+
+.grb-chart__cols {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+}
+
+.grb-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+}
+
+.grb-col__pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+  padding-bottom: 22px;
+}
+
+/* min-height so a small month is still a visible mark rather
+   than a gap you have to interpret */
+.grb-col__bar {
+  display: block;
+  width: 16px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  transform-origin: bottom center;
+}
+
+.grb-col__bar--claimed { background: $b-blue; }
+.grb-col__bar--paid    { background: $b-green; }
+
+.grb-col__label {
+  position: absolute;
+  bottom: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $b-ink-4;
+}
+
+
+/* =========================================================
+   PAYMENT TYPES
+   ========================================================= */
+
+.grb-types {
+  display: grid;
+  gap: 13px;
+}
+
+.grb-type {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 14px;
+}
+
+.grb-type__label {
+  font-size: 13px;
+  color: $b-ink-2;
+}
+
+.grb-type__track {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: $b-tint;
+  overflow: hidden;
+}
+
+.grb-type__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: $b-blue;
+  transform-origin: left center;
+}
+
+/* the basis pair is a different kind of fact from the payment
+   pair, so it is drawn a shade back */
+.grb-type--cash .grb-type__fill,
+.grb-type--accrual .grb-type__fill { background: rgba(21, 96, 224, 0.45); }
+
+.grb-type__count {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $b-navy;
+}
+
+.grb-type.is-zero .grb-type__label,
+.grb-type.is-zero .grb-type__count { color: $b-ink-4; }
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.grb-block {
+  border: 1px solid $b-line;
+  border-radius: 16px;
+  background: $b-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.grb-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  padding: 20px 24px;
+}
+
+.grb .grb-block__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $b-navy;
+}
+
+.grb .grb-block__hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: $b-ink-4;
+}
+
+.grb-block__right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.grb-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid $b-line;
+  border-radius: 11px;
+  background: $b-page;
+}
+
+.grb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: $b-ink-3;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.4s $b-ease, color 0.4s $b-ease, border-color 0.4s $b-ease;
+}
+
+.grb-tab:hover { color: $b-navy; }
+
+.grb-tab.is-on {
+  background: $b-white;
+  border-color: $b-line;
+  color: $b-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.06);
+}
+
+.grb-tab__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $b-ink-4;
+  flex-shrink: 0;
+}
+
+.grb-tab__dot--all       { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.24); }
+.grb-tab__dot--submitted { background: rgba(21, 96, 224, 0.42); }
+.grb-tab__dot--review    { background: rgba(21, 96, 224, 0.7); }
+.grb-tab__dot--approved  { background: $b-blue; }
+.grb-tab__dot--paid      { background: $b-green; }
+.grb-tab__dot--rejected  { background: $b-red; }
+
+.grb-tab__count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+}
+
+.grb-table { min-width: 0; }
+
+.grb-table__head,
+.grb-row {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr) 186px 132px 140px 96px;
+  align-items: center;
+  gap: 0 22px;
+  padding: 0 24px;
+}
+
+.grb-table__head {
+  height: 42px;
+  border-top: 1px solid $b-line-2;
+  border-bottom: 1px solid $b-line-2;
+  background: rgba(10, 37, 64, 0.015);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $b-ink-4;
+}
+
+/* the amount column right aligns on both rows, with real space
+   before the state column so the seam does not read as one
+   broken column */
+.grb-table__head &gt; :nth-child(4),
+.grb-row &gt; :nth-child(4) {
+  text-align: right;
+  padding-right: 10px;
+}
+
+.grb-table__head &gt; :nth-child(5),
+.grb-row &gt; :nth-child(5) { padding-left: 22px; }
+
+.grb-table__head &gt; :nth-child(6),
+.grb-row &gt; :nth-child(6) {
+  text-align: right;
+  justify-self: end;
+}
+
+.grb-row {
+  min-height: 66px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid $b-line-2;
+  font-size: 14px;
+  color: $b-ink-2;
+  transition: background 0.4s $b-ease;
+}
+
+.grb-row:last-child { border-bottom: 0; }
+
+.grb-row:hover { background: rgba(21, 96, 224, 0.025); }
+
+.grb-cell--ref {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.grb-cell__top {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $b-navy;
+}
+
+.grb-cell__sub {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+}
+
+.grb-cell--name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: $b-navy;
+}
+
+.grb-cell--date {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-3;
+}
+
+.grb-cell--num {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  font-variant-numeric: tabular-nums;
+  color: $b-navy;
+  white-space: nowrap;
+}
+
+.grb-row--paid .grb-cell--num { color: $b-green; }
+.grb-row--rejected .grb-cell--num { color: $b-ink-4; }
+
+.grb-cell--date.is-blank {
+  font-style: italic;
+  color: $b-ink-4;
+}
+
+.grb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.grb-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.grb-pill--wait { background: $b-tint;    color: $b-ink-3; }
+.grb-pill--ok   { background: $b-blue-1;  color: $b-blue-dk; }
+.grb-pill--good { background: $b-green-1; color: $b-green; }
+.grb-pill--bad  { background: $b-red-1;   color: $b-red; }
+
+.grb-pill--wait .grb-pill__dot { background: $b-ink-4; }
+.grb-pill--ok .grb-pill__dot   { background: $b-blue; }
+.grb-pill--good .grb-pill__dot { background: $b-green; }
+.grb-pill--bad .grb-pill__dot  { background: $b-red; }
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+.grb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.4s $b-ease, border-color 0.4s $b-ease, color 0.4s $b-ease;
+}
+
+.grb-btn--sm {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.grb-btn--primary {
+  background: $b-blue;
+  border-color: $b-blue;
+  color: $b-white;
+}
+
+.grb-btn--primary:hover,
+.grb-btn--primary:focus {
+  background: $b-blue-dk;
+  border-color: $b-blue-dk;
+  color: $b-white;
+}
+
+.grb-btn--ghost {
+  border-color: $b-line;
+  color: $b-ink-2;
+}
+
+.grb-btn--ghost:hover,
+.grb-btn--ghost:focus {
+  border-color: $b-blue-2;
+  color: $b-blue-dk;
+}
+
+.grb-btn:focus-visible,
+.grb-tab:focus-visible,
+.grb-mtab:focus-visible,
+.grb-search__clear:focus-visible {
+  outline: 2px solid $b-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   NO MATCH
+   ========================================================= */
+
+.grb-nomatch {
+  padding: 58px 24px;
+  text-align: center;
+}
+
+.grb .grb-nomatch__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $b-navy;
+}
+
+.grb .grb-nomatch__text {
+  max-width: 44ch;
+  margin: 9px auto 18px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: $b-ink-3;
+}
+
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.grb-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 38px 20px;
   overflow-y: auto;
-  flex-grow: 1;
+  background: rgba(10, 37, 64, 0.42);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
 }
 
-/* --- Enforce Read-Only on Embedded View Form --- */
-.read-only-form-wrapper form {
-  pointer-events: none; 
-  opacity: 0.95;
+.grb-modal__panel {
+  width: 100%;
+  max-width: 760px;
+  border-radius: 18px;
+  background: $b-white;
+  box-shadow: 0 30px 80px rgba(10, 37, 64, 0.3);
+  overflow: hidden;
 }
 
-.read-only-form-wrapper .panel-footer,
-.read-only-form-wrapper .attachment-button,
-.read-only-form-wrapper [title="Add attachment"] {
-  display: none !important;
+.grb-modal__panel--wide { max-width: 1040px; }
+
+.grb-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 20px;
 }
 
-/* --- COMPLETELY REMOVE ACTIVITY &amp; TICKET CONVERSATION --- */
-.read-only-form-wrapper div[ng-if*="formatter"],
-.read-only-form-wrapper div[ng-if*="Formatter"],
-.read-only-form-wrapper div[ng-if*="is_formatter"],
-.read-only-form-wrapper div[ng-switch-when="formatter"],
-.read-only-form-wrapper div[ng-switch-when="formatters"],
-.read-only-form-wrapper sp-form-field[field*="activity"],
-.read-only-form-wrapper sp-widget[widget*="conversation"],
-.read-only-form-wrapper sp-widget[widget*="activity"],
-.read-only-form-wrapper sp-widget[widget*="ticket"],
-.read-only-form-wrapper .ticket-conversation,
-.read-only-form-wrapper .sp-ticket-conversation,
-.read-only-form-wrapper .timeline-container,
-.read-only-form-wrapper .timeline,
-.read-only-form-wrapper .activity-stream,
-.read-only-form-wrapper form div.panel:has(textarea),
-.read-only-form-wrapper form div.panel:has(button[type="submit"]) {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
+.grb-modal__lead { min-width: 0; }
+
+.grb-modal__ref {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+}
+
+.grb .grb-modal__title {
+  margin: 0 0 11px;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.26;
+  letter-spacing: -0.026em;
+  color: $b-navy;
+}
+
+/* the amount sits in the header, because it is the reason
+   anyone opened the record */
+.grb-modal__amount {
+  text-align: right;
+  margin-left: auto;
+  padding-right: 8px;
+  flex-shrink: 0;
+}
+
+.grb-modal__amountLabel {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $b-ink-4;
+}
+
+.grb-modal__amountValue {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: $b-navy;
+}
+
+.grb-modal__x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid $b-line;
+  border-radius: 10px;
+  background: transparent;
+  color: $b-ink-3;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.4s $b-ease, color 0.4s $b-ease;
+}
+
+.grb-modal__x:hover {
+  border-color: $b-blue-2;
+  color: $b-blue-dk;
+}
+
+.grb-mtabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 26px;
+  border-bottom: 1px solid $b-line-2;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.grb-mtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: $b-ink-3;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.4s $b-ease, border-color 0.4s $b-ease;
+}
+
+.grb-mtab:hover { color: $b-navy; }
+
+.grb-mtab.is-on {
+  border-bottom-color: $b-blue;
+  color: $b-blue-dk;
+  font-weight: 600;
+}
+
+.grb-mtab__n {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+}
+
+.grb-modal__body {
+  max-height: 60vh;
+  padding: 22px 26px;
+  overflow-y: auto;
+}
+
+/* the embedded claim form brings its own layout, so this only
+   gives it room */
+.grb-modal__body--form {
+  max-height: 78vh;
+  padding: 0;
+}
+
+.grb .grb-kvs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 30px;
+  margin: 0;
+  padding: 0;
+}
+
+.grb .grb-kvs--one   { grid-template-columns: minmax(0, 1fr); }
+.grb .grb-kvs--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.grb-kv { min-width: 0; }
+
+.grb .grb-kv dt {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: $b-ink-4;
+}
+
+.grb .grb-kv dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: $b-navy;
+  word-break: break-word;
+}
+
+.grb .grb-kv dd.grb-kv--num { font-variant-numeric: tabular-nums; }
+
+.grb .grb-kv dd.grb-kv--lead {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: $b-green;
+}
+
+.grb .grb-kv dd.is-blank {
+  font-weight: 400;
+  font-style: italic;
+  color: $b-ink-4;
+}
+
+.grb .grb-sub {
+  margin: 26px 0 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $b-blue;
+}
+
+/* ticked payment types only */
+.grb .grb-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grb .grb-flags li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid $b-blue-2;
+  border-radius: 999px;
+  background: $b-blue-1;
+  font-size: 13px;
+  font-weight: 600;
+  color: $b-blue-dk;
+}
+
+.grb .grb-flags li i { font-size: 10px; }
+
+/* =========================================================
+   THE ARITHMETIC
+   Laid out in the order the form performs it, with the
+   subtractions marked, so the total at the bottom can be
+   followed rather than taken on trust.
+   ========================================================= */
+
+.grb .grb-calc {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.grb-calc__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 11px 0;
+  border-bottom: 1px solid $b-line-2;
+}
+
+.grb .grb-calc__row dt {
+  margin: 0;
+  font-size: 13.5px;
+  color: $b-ink-2;
+}
+
+.grb .grb-calc__row dd {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: $b-navy;
+}
+
+/* a line that is taken away rather than added */
+.grb-calc__row.is-minus dt { padding-left: 14px; }
+
+.grb .grb-calc__row.is-minus dd {
+  color: $b-ink-3;
+}
+
+.grb .grb-calc__row.is-minus dd::before {
+  content: "\2212 ";
+  color: $b-ink-4;
+}
+
+.grb-calc__row.is-sum {
+  background: $b-tint;
+}
+
+.grb .grb-calc__row.is-sum dt {
+  font-weight: 600;
+  color: $b-navy;
+}
+
+.grb-calc__row.is-total {
+  padding: 15px 0;
+  border-bottom: 0;
+  border-top: 2px solid $b-navy;
+}
+
+.grb .grb-calc__row.is-total dt {
+  font-size: 14px;
+  font-weight: 700;
+  color: $b-navy;
+}
+
+.grb .grb-calc__row.is-total dd {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: $b-green;
+}
+
+.grb-calc__row.is-sum dt,
+.grb-calc__row.is-sum dd { padding: 0 12px; }
+
+.grb .grb-empty {
+  margin: 0;
+  padding: 26px 0;
+  font-size: 13.5px;
+  color: $b-ink-4;
+}
+
+.grb-prose { margin-top: 22px; }
+
+.grb .grb-prose__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: $b-ink-4;
+}
+
+.grb .grb-prose__text {
+  margin: 0;
+  max-width: 72ch;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: $b-ink-2;
+  white-space: pre-line;
+}
+
+.grb .grb-files {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grb-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid $b-line;
+  border-radius: 11px;
+}
+
+.grb-file__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: $b-blue-1;
+  color: $b-blue;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.grb-file__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.grb-file__name {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 500;
+  color: $b-navy;
+}
+
+.grb-file__size {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $b-ink-4;
+}
+
+.grb-file__dl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid $b-line;
+  border-radius: 9px;
+  color: $b-ink-3;
+  font-size: 13px;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: border-color 0.4s $b-ease, color 0.4s $b-ease;
+}
+
+.grb-file__dl:hover,
+.grb-file__dl:focus {
+  border-color: $b-blue-2;
+  color: $b-blue-dk;
+  text-decoration: none;
+}
+
+.grb-modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 16px 26px;
+  border-top: 1px solid $b-line-2;
+  background: $b-page;
 }
 
 
+/* =========================================================
+   MOTION
+   ========================================================= */
 
+@media (prefers-reduced-motion: no-preference) {
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  @keyframes grbRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes grbDrawX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+
+  @keyframes grbGrowY {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
+
+  @keyframes grbFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes grbPanelIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .grb-top   { animation: grbRise 0.6s $b-ease backwards; }
+  .grb-blank { animation: grbRise 0.6s $b-ease 0.08s backwards; }
+  .grb-tile  { animation: grbRise 0.62s $b-ease backwards; }
+
+  .grb-tile--claimed { animation-delay: 0.06s; }
+  .grb-tile--paid    { animation-delay: 0.12s; }
+  .grb-tile--waiting { animation-delay: 0.18s; }
+  .grb-tile--speed   { animation-delay: 0.24s; }
+
+  .grb-tile__rule { animation: grbDrawX 0.7s $b-ease 0.3s backwards; }
+
+  .grb-panel { animation: grbRise 0.62s $b-ease 0.28s backwards; }
+  .grb-block { animation: grbRise 0.62s $b-ease 0.36s backwards; }
+
+  /* the pipeline fills left to right, in the order money moves */
+  .grb-stage__fill { animation: grbDrawX 0.8s $b-ease backwards; }
+
+  .grb-stage--submitted .grb-stage__fill { animation-delay: 0.38s; }
+  .grb-stage--review .grb-stage__fill    { animation-delay: 0.46s; }
+  .grb-stage--approved .grb-stage__fill  { animation-delay: 0.54s; }
+  .grb-stage--paid .grb-stage__fill      { animation-delay: 0.62s; }
+
+  .grb-col__bar { animation: grbGrowY 0.6s $b-ease backwards; }
+
+  .grb-col--n1 .grb-col__bar { animation-delay: 0.42s; }
+  .grb-col--n2 .grb-col__bar { animation-delay: 0.48s; }
+  .grb-col--n3 .grb-col__bar { animation-delay: 0.54s; }
+  .grb-col--n4 .grb-col__bar { animation-delay: 0.60s; }
+  .grb-col--n5 .grb-col__bar { animation-delay: 0.66s; }
+  .grb-col--n6 .grb-col__bar { animation-delay: 0.72s; }
+
+  .grb-type__fill { animation: grbDrawX 0.7s $b-ease 0.46s backwards; }
+
+  /* replays on every tab change, because ng-repeat rebuilds its
+     nodes and the keyframe starts again with them */
+  .grb-row { animation: grbRise 0.42s $b-ease backwards; }
+
+  .grb-row--n1  { animation-delay: 0.02s; }
+  .grb-row--n2  { animation-delay: 0.05s; }
+  .grb-row--n3  { animation-delay: 0.08s; }
+  .grb-row--n4  { animation-delay: 0.11s; }
+  .grb-row--n5  { animation-delay: 0.14s; }
+  .grb-row--n6  { animation-delay: 0.17s; }
+  .grb-row--n7  { animation-delay: 0.20s; }
+  .grb-row--n8  { animation-delay: 0.23s; }
+  .grb-row--n9  { animation-delay: 0.26s; }
+  .grb-row--n10 { animation-delay: 0.29s; }
+
+  .grb-modal { animation: grbFade 0.28s $b-ease backwards; }
+  .grb-modal__panel { animation: grbPanelIn 0.4s $b-ease 0.04s backwards; }
 }
 
-@keyframes scaleUp {
-  from { transform: scale(0.96); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1320px) {
+
+  .grb { padding: 26px 24px 60px; }
+
+  .grb-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .grb-panels { grid-template-columns: minmax(0, 1fr); }
+
+  .grb-table__head,
+  .grb-row {
+    grid-template-columns: 128px minmax(0, 1fr) 156px 118px 128px 88px;
+    gap: 0 16px;
+    padding: 0 18px;
+  }
+}
+
+@media (max-width: 1024px) {
+
+  .grb-pipe {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 24px;
+  }
+}
+
+@media (max-width: 900px) {
+
+  .grb { padding: 22px 16px 52px; }
+
+  .grb-top__right {
+    width: 100%;
+    order: 2;
+  }
+
+  .grb-search { width: 100%; }
+
+  .grb-tiles { grid-template-columns: minmax(0, 1fr); }
+
+  .grb-pipe { grid-template-columns: minmax(0, 1fr); }
+
+  .grb-block__head { align-items: stretch; flex-direction: column; }
+
+  .grb-block__right { justify-content: space-between; }
+
+  .grb-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .grb-tab { flex-shrink: 0; }
+
+  /* six columns at this width leaves four of them two
+     characters wide, so rows stack instead */
+  .grb-table__head { display: none; }
+
+  .grb-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 16px 18px;
+  }
+
+  .grb-cell--name { grid-column: 1 / -1; }
+
+  .grb-row &gt; span::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $b-ink-4;
+  }
+
+  .grb-cell--ref::before,
+  .grb-cell--name::before { display: none; }
+
+  .grb-table__head &gt; :nth-child(4),
+  .grb-row &gt; :nth-child(4) { text-align: left; padding-right: 0; }
+
+  .grb-table__head &gt; :nth-child(5),
+  .grb-row &gt; :nth-child(5) { padding-left: 0; }
+
+  .grb-row &gt; .grb-right {
+    text-align: left;
+    justify-self: start;
+  }
+
+  .grb .grb-kvs,
+  .grb .grb-kvs--three { grid-template-columns: minmax(0, 1fr); }
+
+  .grb-modal { padding: 16px 12px; }
+  .grb-modal__head {
+    flex-wrap: wrap;
+    padding: 20px 18px 14px;
+  }
+  .grb-modal__amount { text-align: left; margin-left: 0; }
+  .grb-mtabs { padding: 0 18px; }
+  .grb-modal__body { padding: 18px; max-height: 66vh; }
+  .grb-modal__foot { padding: 14px 18px; }
+
+  .grb-calc__row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grb * { transition: none; }
+  .grb-tile:hover { transform: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -483,546 +1826,1189 @@
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
-	data.sideBar = $sp.getWidget('sidebar');
-	data.currentPage = 'reimbursements';
+        <script><![CDATA[(function () {
 
-	var loggedInUser = gs.getUserID();
-	var sessionUser = gs.getUser();
-	data.userName = sessionUser.getDisplayName() || 'Unknown User';
+  /* =========================================================
+     GATENOW · REIMBURSEMENTS
+     Service Portal widget · Server script
 
-	var fName = sessionUser.getFirstName() || '';
-	var lName = sessionUser.getLastName() || '';
-	var initials = '';
+     WHAT CHANGED FROM THE VERSION IN USE
 
-	if (fName) initials += fName.charAt(0).toUpperCase();
-	if (lName) initials += lName.charAt(0).toUpperCase();
+     1. GlideRecordSecure on the claim table. The old script
+        used a plain GlideRecord, which reads past the ACLs.
 
-	if (!initials && data.userName !== 'Unknown User') {
-		initials = data.userName.charAt(0).toUpperCase();
-	}
+     2. Claimed to date excluded rejected claims. A rejected
+        claim is not money in flight, and counting it inflated
+        both the headline figure and the paid percentage that
+        divides into it.
 
-	data.userInitials = initials || 'U';
-	var projectId = (input && input['sys_id']) ? input['sys_id'] : $sp.getParameter('sys_id');
+     3. Paid percentage is now of what was approved or paid,
+        not of everything ever submitted. Dividing by claims
+        that were rejected or are still in review makes the
+        number drift down for reasons that are nobody's fault.
 
-	data.claims = [];
-	data.summary = {};
-	data.chartData = [];
-	data.claimsByState = [];
+     4. Average days to payment was calculated and then never
+        shown. It is the single most useful number on the page
+        for an applicant deciding whether to chase, so it is a
+        tile now.
 
-	var STATUS_CONFIG = {
-		paid:        { order: 1, breakdownLabel: 'Paid',                 color: 'green'  },
-		approved:    { order: 2, breakdownLabel: 'Approved for payment', color: 'indigo' },
-		'in review': { order: 3, breakdownLabel: 'In review',          color: 'indigo-light' }, 
-		submitted:   { order: 4, breakdownLabel: 'Submitted',            color: 'gray'   },
-		rejected:    { order: 5, breakdownLabel: 'Rejected',             color: 'red'    }
-	};
+     5. The status list is Submitted, In review, Approved,
+        Rejected, Paid. There is no Returned, so the branch
+        handling it was dead code and is gone.
 
-	var CLAIMED_STATUSES = ['submitted', 'in review', 'approved', 'rejected', 'returned'];
+     Fields are taken from the four form tabs: type of payment,
+     funding and reporting, computation, and the alternate
+     computation for advances.
+     ========================================================= */
 
-	var applicantId = "";
-	var appRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-	appRec.addQuery('user', loggedInUser);
-	appRec.query();
-	if (appRec.next()) {
-		applicantId = appRec.getUniqueValue();
-	}
+  var CLAIM     = 'x_enno_gatenow_reimbursement';
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var PROJECT   = 'x_enno_gatenow_project';
 
-	var reimbRec = new GlideRecord('x_enno_gatenow_reimbursement');
-	var isAdmin = gs.getUserName() === 'admin';
+  var me = gs.getUserID();
 
-	if (projectId) {
-		reimbRec.addQuery('project', projectId);
-	} else if (isAdmin) {
-		// Admin bypass
-	} else if (applicantId) {
-		var projectIds = [];
-		var myProjects = new GlideRecord('x_enno_gatenow_project');
-		myProjects.addQuery('applicant', applicantId);
-		myProjects.query();
-		while (myProjects.next()) {
-			projectIds.push(myProjects.getUniqueValue());
-		}
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
 
-		if (projectIds.length > 0) {
-			reimbRec.addQuery('project', 'IN', projectIds.join(','));
-		} else {
-			reimbRec.addQuery('sys_created_by', gs.getUserName());
-		}
-	} else {
-		reimbRec.addQuery('sys_created_by', gs.getUserName());
-	}
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase().trim();
+  }
 
-	var filterMonths = 12; // Default
-	if (input && input.timeFilterMonths !== undefined) {
-		filterMonths = parseInt(input.timeFilterMonths);
-	} else {
-		data.timeFilterMonths = 12;
-	}
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
 
-	if (filterMonths > 0) {
-		var gdtFilter = new GlideDateTime();
-		gdtFilter.addMonthsLocalTime(-filterMonths);
-		reimbRec.addQuery('sys_created_on', '>=', gdtFilter.getDate());
-	}
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
 
-	reimbRec.orderByDesc('sys_created_on');
-	reimbRec.query();
+  /* currency fields arrive as "USD;1000" or a bare number */
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
 
-	// --- GLIDEAGGREGATE FOR EXACT CALCULATIONS FROM DATABASE ---
-	var ga = new GlideAggregate('x_enno_gatenow_reimbursement');
-	ga.addEncodedQuery(reimbRec.getEncodedQuery());
-	ga.addAggregate('SUM', 'amount_requested');
-	ga.groupBy('status');
-	ga.query();
+  function commas(n) {
+    var s = '' + Math.round(n);
+    var out = '';
+    var c = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      c++;
+      if (c % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return out;
+  }
 
-	var claimedToDate = 0; 
-	var paidTotal = 0;
+  function money(n)  { return n ? '$' + commas(n) : '$0'; }
 
-	var monthMap = {};
-	var stateMap = {};
-	Object.keys(STATUS_CONFIG).forEach(function(k) {
-		stateMap[k] = { count: 0, amount: 0 };
-	});
+  function short(n) {
+    if (!n) return '$0';
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000)    return '$' + Math.round(n / 1000) + 'K';
+    return '$' + commas(n);
+  }
 
-	// Populate EXACT sums using GlideAggregate
-	while (ga.next()) {
-		var rawStatusGa = ga.getValue('status');
-		var statusValGa = (rawStatusGa || '').toString().toLowerCase().trim();
-		if (!statusValGa || !STATUS_CONFIG[statusValGa]) {
-			statusValGa = 'submitted';
-		}
-		var sumAmount = parseFloat(ga.getAggregate('SUM', 'amount_requested')) || 0;
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next */ }
+    }
+    return '';
+  }
 
-		stateMap[statusValGa].amount += sumAmount;
-		claimedToDate += sumAmount;
-		if (statusValGa === 'paid') {
-			paidTotal += sumAmount;
-		}
-	}
+  function money2(gr, names) { return num(pick(gr, names)); }
 
-	var processingDaysSum = 0;
-	var paidCount = 0;
-	var needsActionCount = 0;
-	var needsActionLabel = "";
-	var uniqueProjectsMap = {};
-	var uniqueProjectCount = 0;
-	var primaryProjectName = "";
+  function bool(gr, name) {
+    try {
+      if (!gr.isValidField(name)) return false;
+      var v = '' + gr.getValue(name);
+      return v === 'true' || v === '1';
+    } catch (e) { return false; }
+  }
 
-	var paidRowsBySysId = {};
-	var paidSysIds = [];
+  function text(raw) {
+    if (!raw) return '';
+    return ('' + raw)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
 
-	var projectNameCache = {};
-	function getRealProjectName(projSysId, fallbackDisplayValue) {
-		if (!projSysId) return fallbackDisplayValue;
-		if (projectNameCache.hasOwnProperty(projSysId)) return projectNameCache[projSysId];
 
-		var resolvedName = fallbackDisplayValue;
-		var projGr = new GlideRecordSecure('x_enno_gatenow_project');
-		if (projGr.get(projSysId)) {
-			var candidateFields = ['name', 'title', 'short_description', 'project_name', 'u_name', 'label'];
-			for (var i = 0; i < candidateFields.length; i++) {
-				var fieldVal = projGr.getValue(candidateFields[i]);
-				if (fieldVal) {
-					resolvedName = fieldVal;
-					break;
-				}
-			}
-		}
-		projectNameCache[projSysId] = resolvedName;
-		return resolvedName;
-	}
+  /* ---------- chrome ---------- */
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
 
-	while (reimbRec.next()) {
-		var claim = {};
-		claim.sys_id = reimbRec.getUniqueValue();
-		var projSysId = reimbRec.getValue('project');
-		if (projSysId && !uniqueProjectsMap[projSysId]) {
-			uniqueProjectsMap[projSysId] = true;
-			uniqueProjectCount++;
-		}
-		claim.record_id = claim.sys_id;
-		claim.number = reimbRec.getValue('number');
-		claim.project = getRealProjectName(projSysId, reimbRec.getDisplayValue('project'));
-		claim.period_from = reimbRec.getDisplayValue('from');
-		claim.period_to = reimbRec.getDisplayValue('to');
+  /* the existing claim form is kept rather than rebuilt. It
+     carries twenty five federal fields and four tabs, and there
+     is no version of rewriting that improves on it. */
+  data.claimForm = $sp.getWidget(opt('form_widget', 'reimbursement_form'));
 
-		if (!primaryProjectName && claim.project) {
-			primaryProjectName = claim.project;
-		}
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
 
-		var rawAmount = reimbRec.getValue('amount_requested') || '';
-		if (rawAmount.indexOf(';') > -1) {
-			rawAmount = rawAmount.split(';')[1];
-		}
-		claim.amount_requested = parseFloat(rawAmount) || 0;
 
-		var submittedDisplay = reimbRec.getDisplayValue('sys_created_on');
-		claim.submitted_on = submittedDisplay ? submittedDisplay.split(' ')[0] : '';
+  /* ============================================================
+     STATUS
+     ============================================================ */
 
-		var rawStatus = reimbRec.getValue('status');
-		var statusVal = (rawStatus || '').toString().toLowerCase().trim();
+  var STATUS = {
+    'submitted': { key: 'submitted', label: gs.getMessage('Submitted'),  stage: 1, tone: 'wait' },
+    'in review': { key: 'review',    label: gs.getMessage('In review'),  stage: 2, tone: 'wait' },
+    'approved' : { key: 'approved',  label: gs.getMessage('Approved'),   stage: 3, tone: 'ok'   },
+    'paid'     : { key: 'paid',      label: gs.getMessage('Paid'),       stage: 4, tone: 'good' },
+    'rejected' : { key: 'rejected',  label: gs.getMessage('Rejected'),   stage: 0, tone: 'bad'  }
+  };
 
-		if (!statusVal || !STATUS_CONFIG[statusVal]) {
-			statusVal = 'submitted';
-		}
+  function statusOf(raw) {
+    var v = lower(raw);
+    return STATUS[v] || STATUS['submitted'];
+  }
 
-		claim.state = statusVal;
-		claim.state_class = statusVal.replace(/\s+/g, '_'); 
-		claim.state_label = STATUS_CONFIG[statusVal].breakdownLabel;
 
-		if (statusVal === 'paid') {
-			paidCount++;
-			var createdGdt = reimbRec.getValue('sys_created_on');
-			var paidGdt = reimbRec.getValue('sys_updated_on');
-			if (createdGdt && paidGdt) {
-				var gdStart = new GlideDateTime(createdGdt);
-				var gdEnd = new GlideDateTime(paidGdt);
-				var diffDays = (gdEnd.getNumericValue() - gdStart.getNumericValue()) / 1000 / 60 / 60 / 24;
-				if (diffDays > 0) processingDaysSum += diffDays;
-			}
-			paidSysIds.push(claim.sys_id);
-			paidRowsBySysId[claim.sys_id] = claim;
-		}
+  /* ============================================================
+     SCOPE
+     ============================================================ */
 
-		if (statusVal === 'rejected' || statusVal === 'returned') {
-			needsActionCount++;
-			needsActionLabel = claim.number + " rejected";
-		}
+  var projectIds = [];
+  var projectName = {};
 
-		stateMap[statusVal].count++;
+  try {
 
-		// Calculate Monthly Exact Chart Calculations
-		var createdOn = reimbRec.getValue('sys_created_on');
-		if (createdOn) {
-			var gd = new GlideDateTime(createdOn);
-			var yyyy = gd.getYearLocalTime();
-			var mm = ('0' + gd.getMonthLocalTime()).slice(-2);
-			var monthKey = yyyy + '-' + mm;
+    var applicantIds = [];
+    var ap = new GlideRecordSecure(APPLICANT);
+    ap.addQuery('user', me);
+    ap.query();
+    while (ap.next()) applicantIds.push(ap.getUniqueValue());
 
-			if (!monthMap[monthKey]) {
-				monthMap[monthKey] = { claimed: 0, paid: 0 };
-			}
+    if (applicantIds.length) {
+      var pj = new GlideRecordSecure(PROJECT);
+      pj.addQuery('applicant', 'IN', applicantIds.join(','));
+      pj.query();
+      while (pj.next()) {
+        var pid = pj.getUniqueValue();
+        projectIds.push(pid);
+        /* project_name first. The old script tried name, title
+           and short_description ahead of it, which is why some
+           rows showed a sys_id looking string. */
+        projectName[pid] = pick(pj, ['project_name', 'short_description']) || pj.getValue('number');
+      }
+    }
 
-			if (CLAIMED_STATUSES.indexOf(statusVal) > -1 || statusVal === 'paid') {
-				monthMap[monthKey].claimed = +(monthMap[monthKey].claimed + claim.amount_requested).toFixed(2);
-			}
+  } catch (e) {
+    gs.error('[Reimbursements] scope: ' + e.message);
+  }
 
-			if (statusVal === 'paid') {
-				monthMap[monthKey].paid = +(monthMap[monthKey].paid + claim.amount_requested).toFixed(2);
-			}
-		}
+  /* a project can be passed in to narrow the page to one */
+  var onlyProject = $sp.getParameter('sys_id') || '';
+  if (onlyProject && projectIds.indexOf(onlyProject) === -1) onlyProject = '';
 
-		claim.action_type = 'view';
-		claim.bucket = (statusVal === 'paid') ? 'paid' : 'open';
+  data.onlyProject = onlyProject;
+  data.onlyProjectName = onlyProject ? projectName[onlyProject] : '';
 
-		data.claims.push(claim);
-	}
 
-	if (paidSysIds.length > 0) {
-		var attRec = new GlideRecordSecure('sys_attachment');
-		attRec.addQuery('table_name', 'x_enno_gatenow_reimbursement');
-		attRec.addQuery('table_sys_id', 'IN', paidSysIds.join(','));
-		attRec.orderByDesc('sys_created_on');
-		attRec.query();
-		while (attRec.next()) {
-			var ownerId = attRec.getValue('table_sys_id');
-			var ownerClaim = paidRowsBySysId[ownerId];
-			if (ownerClaim && !ownerClaim.receipt) {
-				ownerClaim.receipt = {
-					sys_id: attRec.getUniqueValue(),
-					file_name: attRec.getValue('file_name'),
-					size_bytes: attRec.getValue('size_bytes')
-				};
-			}
-		}
-	}
+  /* ============================================================
+     CLAIMS
+     ============================================================ */
 
-	data.summary.claimed_to_date = claimedToDate;
-	data.summary.paid = paidTotal;
-	data.summary.paid_pct = claimedToDate > 0 ? parseFloat(((paidTotal / claimedToDate) * 100).toFixed(2)) : 0;
+  data.claims = [];
 
-	data.summary.needs_action_count = needsActionCount;
-	data.summary.needs_action_label = needsActionLabel;
-	data.summary.total_claims = data.claims.length;
+  var counts = { all: 0, submitted: 0, review: 0, approved: 0, paid: 0, rejected: 0 };
+  var value  = { submitted: 0, review: 0, approved: 0, paid: 0, rejected: 0 };
 
-	// NEW: Approved claims count & exact dynamic percentage 
-	data.summary.approved_count = stateMap['approved'] ? stateMap['approved'].count : 0;
-	data.summary.approved_pct = data.summary.total_claims > 0 ? parseFloat(((data.summary.approved_count / data.summary.total_claims) * 100).toFixed(2)) : 0;
-	data.summary.unique_projects = uniqueProjectCount;
-	data.summary.primary_project_name = primaryProjectName || 'No projects yet'; 
+  var payTypes = {
+    advance: 0, reimbursement: 0, final: 0, partial: 0, cash: 0, accrual: 0
+  };
 
-	data.chartData = [];
-	var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var monthMap = {};
+  var payDays = [];
+  var projectsSeen = {};
 
-	for (var i = 5; i >= 0; i--) {
-		var d = new GlideDateTime();
-		d.addMonthsLocalTime(-i);
-		var yyyy = d.getYearLocalTime();
-		var mm = ('0' + d.getMonthLocalTime()).slice(-2);
-		var mKey = yyyy + '-' + mm; 
+  try {
 
-		data.chartData.push({
-			month: months[d.getMonthLocalTime() - 1],
-			claimed: monthMap[mKey] ? monthMap[mKey].claimed : 0,
-			paid: monthMap[mKey] ? monthMap[mKey].paid : 0
-		});
-	}
+    if (projectIds.length) {
 
-	Object.keys(STATUS_CONFIG).sort(function(a, b) { 
-		return STATUS_CONFIG[a].order - STATUS_CONFIG[b].order; 
-	}).forEach(function(key) {
-		data.claimsByState.push({
-			key: key,
-			label: STATUS_CONFIG[key].breakdownLabel,
-			color: STATUS_CONFIG[key].color,
-			count: stateMap[key].count,
-			amount: stateMap[key].amount
-		});
-	});
+      var gr = new GlideRecordSecure(CLAIM);
 
-	data.reimbursementFormWidget = $sp.getWidget('reimbursement_form', { is_admin_mode: isAdmin });
+      if (onlyProject) gr.addQuery('project', onlyProject);
+      else gr.addQuery('project', 'IN', projectIds.join(','));
+
+      gr.orderByDesc('sys_created_on');
+      gr.setLimit(300);
+      gr.query();
+
+      while (gr.next()) {
+
+        var st = statusOf(gr.getValue('status'));
+        var amount = money2(gr, ['amount_requested']);
+        var pid2 = gr.getValue('project');
+        var created = gr.getValue('sys_created_on');
+
+        projectsSeen[pid2] = true;
+
+        counts.all++;
+        counts[st.key]++;
+        value[st.key] += amount;
+
+        /* six month series, claimed against paid */
+        if (created) {
+          var g = new GlideDateTime(created);
+          var mk = g.getYearLocalTime() + '-' + ('0' + g.getMonthLocalTime()).slice(-2);
+          if (!monthMap[mk]) monthMap[mk] = { claimed: 0, paid: 0 };
+
+          /* rejected claims are left out of the claimed line for
+             the same reason they are left out of the headline */
+          if (st.key !== 'rejected') monthMap[mk].claimed += amount;
+          if (st.key === 'paid')     monthMap[mk].paid += amount;
+        }
+
+        /* how long payment actually takes, which the old script
+           worked out and then never showed anyone */
+        if (st.key === 'paid') {
+          var a = toGDT(created);
+          var b = toGDT(gr.getValue('sys_updated_on'));
+          if (a && b) {
+            var days = Math.round((b.getNumericValue() - a.getNumericValue()) / 86400000);
+            if (days >= 0) payDays.push(days);
+          }
+        }
+
+        var isAdvance       = bool(gr, 'advance');
+        var isReimbursement = bool(gr, 'reimbursement');
+        var isFinal         = bool(gr, 'final');
+        var isPartial       = bool(gr, 'partial');
+        var isCash          = bool(gr, 'cash');
+        var isAccrual       = bool(gr, 'accrual');
+
+        if (isAdvance)       payTypes.advance++;
+        if (isReimbursement) payTypes.reimbursement++;
+        if (isFinal)         payTypes.final++;
+        if (isPartial)       payTypes.partial++;
+        if (isCash)          payTypes.cash++;
+        if (isAccrual)       payTypes.accrual++;
+
+        data.claims.push({
+          sysId  : gr.getUniqueValue(),
+          number : gr.getValue('number'),
+          project: projectName[pid2] || gr.getDisplayValue('project'),
+          projectId: pid2,
+          applicant: gr.getDisplayValue('applicant'),
+          program  : gr.getDisplayValue('program'),
+
+          status   : st.key,
+          statusLabel: st.label,
+          tone     : st.tone,
+          stage    : st.stage,
+
+          amount     : amount,
+          amountText : money(amount),
+          amountShort: short(amount),
+
+          from   : fmtDate(pick(gr, ['from'])),
+          to     : fmtDate(pick(gr, ['to'])),
+          created: fmtDate(created),
+
+          summary: pick(gr, ['short_description']),
+          notes  : text(pick(gr, ['description'])),
+
+          /* type of payment requested */
+          types: {
+            advance      : isAdvance,
+            reimbursement: isReimbursement,
+            final        : isFinal,
+            partial      : isPartial,
+            cash         : isCash,
+            accrual      : isAccrual
+          },
+
+          /* funding and reporting details */
+          funding: {
+            partialRequest: pick(gr, ['partial_payment_request_number']),
+            assistanceId  : pick(gr, ['financial_assistance_identification_number']),
+            federalGrant  : pick(gr, ['federal_grant_or_other_identifying_number_assigned_by_federal_agency']),
+            employerId    : pick(gr, ['employer_identification_number'])
+          },
+
+          /* computation of amount of reimbursements */
+          comp: {
+            outlays      : money(money2(gr, ['total_program_outlays_to_date'])),
+            income       : money(money2(gr, ['cumulative_program_income'])),
+            netOutlays   : money(money2(gr, ['net_program_outlays'])),
+            estCash      : money(money2(gr, ['estimated_net_cash_outlays_for_advance_period'])),
+            totalSum     : money(money2(gr, ['total_sum_of_net_program_outlays'])),
+            nonFederal   : money(money2(gr, ['non_federal_share_of_amount'])),
+            federal      : money(money2(gr, ['federal_share_of_amount'])),
+            paidBefore   : money(money2(gr, ['federal_payments_previously_requested'])),
+            nowRequested : money(money2(gr, ['federal_share_now_requested'])),
+            month1       : money(money2(gr, ['request_1st_month'])),
+            month2       : money(money2(gr, ['request_2nd_month'])),
+            month3       : money(money2(gr, ['request_3rd_month']))
+          },
+
+          /* alternate computation for advances only */
+          alt: {
+            cashOutlays: money(money2(gr, ['estimated_federal_cash_outlays_that_will_be_made_during_period_covered_by_the_ad'])),
+            cashOnHand : money(money2(gr, ['estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period']))
+          },
+
+          files: []
+        });
+      }
+    }
+
+  } catch (e) {
+    gs.error('[Reimbursements] read: ' + e.message);
+  }
+
+
+  /* ---------- attachments, in one query ---------- */
+  try {
+    if (data.claims.length) {
+
+      var ids = [];
+      var byId = {};
+
+      for (var k = 0; k < data.claims.length; k++) {
+        ids.push(data.claims[k].sysId);
+        byId[data.claims[k].sysId] = data.claims[k];
+      }
+
+      var at = new GlideRecordSecure('sys_attachment');
+      at.addQuery('table_name', CLAIM);
+      at.addQuery('table_sys_id', 'IN', ids.join(','));
+      at.orderByDesc('sys_created_on');
+      at.query();
+
+      while (at.next()) {
+        var owner = byId[at.getValue('table_sys_id')];
+        if (!owner) continue;
+        owner.files.push({
+          sysId: at.getUniqueValue(),
+          name : at.getValue('file_name'),
+          size : parseInt(at.getValue('size_bytes') || 0, 10),
+          url  : '/sys_attachment.do?sys_id=' + at.getUniqueValue()
+        });
+      }
+    }
+  } catch (e) {
+    gs.info('[Reimbursements] attachments unavailable: ' + e.message);
+  }
+
+  data.counts = counts;
+
+
+  /* ============================================================
+     THE FIGURES
+     ============================================================ */
+
+  /* Rejected money is not in flight, so it is not part of what
+     has been claimed. It gets its own tile instead. */
+  var inFlight = value.submitted + value.review + value.approved + value.paid;
+  var decided  = value.approved + value.paid;
+  var waiting  = value.submitted + value.review;
+
+  var avgDays = 0;
+  if (payDays.length) {
+    var sum = 0;
+    for (var d = 0; d < payDays.length; d++) sum += payDays[d];
+    avgDays = Math.round(sum / payDays.length);
+  }
+
+  var projectCount = 0;
+  for (var ps in projectsSeen) projectCount++;
+
+  data.headline = counts.all + ' ' +
+    (counts.all === 1 ? gs.getMessage('claim') : gs.getMessage('claims')) +
+    '  ·  ' + short(inFlight) + ' ' + gs.getMessage('claimed') +
+    '  ·  ' + short(value.paid) + ' ' + gs.getMessage('paid');
+
+  data.tiles = [
+    {
+      key  : 'claimed',
+      label: gs.getMessage('Claimed to date'),
+      value: short(inFlight),
+      note : counts.all + ' ' + gs.getMessage('claims across') + ' ' + projectCount + ' ' +
+             (projectCount === 1 ? gs.getMessage('project') : gs.getMessage('projects')) +
+             (value.rejected ? '  ·  ' + short(value.rejected) + ' ' + gs.getMessage('rejected, excluded') : '')
+    },
+    {
+      key  : 'paid',
+      label: gs.getMessage('Paid'),
+      value: short(value.paid),
+      /* of what was decided, not of everything ever submitted */
+      note : decided
+               ? Math.round((value.paid / decided) * 100) + '% ' + gs.getMessage('of approved value')
+               : gs.getMessage('nothing approved yet')
+    },
+    {
+      key  : 'waiting',
+      label: gs.getMessage('Awaiting a decision'),
+      value: short(waiting),
+      note : (counts.submitted + counts.review) + ' ' +
+             ((counts.submitted + counts.review) === 1 ? gs.getMessage('claim') : gs.getMessage('claims')) +
+             ' ' + gs.getMessage('with the program office'),
+      alert: (counts.submitted + counts.review) > 0
+    },
+    {
+      key  : 'speed',
+      label: gs.getMessage('Typical time to payment'),
+      /* an average over nothing is not a number */
+      value: payDays.length ? avgDays + ' ' + gs.getMessage('days') : '—',
+      note : payDays.length
+               ? gs.getMessage('measured across') + ' ' + payDays.length + ' ' + gs.getMessage('paid claims')
+               : gs.getMessage('nothing has been paid yet')
+    }
+  ];
+
+
+  /* ---------- the money pipeline ----------
+     Four stages in the order money actually moves. Rejected sits
+     outside it, because a rejected claim did not stop at a stage,
+     it left. */
+  function stageRow(key, label, count, amount) {
+    return {
+      key   : key,
+      label : label,
+      count : count,
+      amount: amount,
+      text  : short(amount),
+      width : inFlight ? Math.max(amount > 0 ? 4 : 0, Math.round((amount / inFlight) * 100)) : 0
+    };
+  }
+
+  data.pipeline = [
+    stageRow('submitted', STATUS['submitted'].label, counts.submitted, value.submitted),
+    stageRow('review',    STATUS['in review'].label, counts.review,    value.review),
+    stageRow('approved',  STATUS['approved'].label,  counts.approved,  value.approved),
+    stageRow('paid',      STATUS['paid'].label,      counts.paid,      value.paid)
+  ];
+
+  data.rejected = {
+    count : counts.rejected,
+    amount: value.rejected,
+    text  : short(value.rejected)
+  };
+
+
+  /* ---------- six months ---------- */
+  var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  data.months = [];
+  var peak = 0;
+
+  for (var i = 5; i >= 0; i--) {
+    var gm = new GlideDateTime();
+    gm.addMonthsLocalTime(-i);
+    var mi = gm.getMonthLocalTime() - 1;
+    var key = gm.getYearLocalTime() + '-' + ('0' + (mi + 1)).slice(-2);
+    var row = monthMap[key] || { claimed: 0, paid: 0 };
+
+    if (row.claimed > peak) peak = row.claimed;
+    if (row.paid > peak) peak = row.paid;
+
+    data.months.push({
+      label  : monthNames[mi],
+      claimed: row.claimed,
+      paid   : row.paid,
+      claimedText: short(row.claimed),
+      paidText   : short(row.paid)
+    });
+  }
+
+  for (var mm = 0; mm < data.months.length; mm++) {
+    data.months[mm].claimedPct = peak ? Math.round((data.months[mm].claimed / peak) * 100) : 0;
+    data.months[mm].paidPct    = peak ? Math.round((data.months[mm].paid / peak) * 100) : 0;
+  }
+
+  data.monthPeak = short(peak);
+  data.monthHalf = short(peak / 2);
+  data.hasMonthData = peak > 0;
+
+
+  /* ---------- how you are asking to be paid ----------
+     Six booleans on the form that nothing has ever reported on.
+     Whether claims are advances or reimbursements, and whether
+     any are marked final, is worth knowing at a glance. */
+  var typeRows = [
+    { key: 'advance',       label: gs.getMessage('Advance'),       count: payTypes.advance },
+    { key: 'reimbursement', label: gs.getMessage('Reimbursement'), count: payTypes.reimbursement },
+    { key: 'partial',       label: gs.getMessage('Partial'),       count: payTypes.partial },
+    { key: 'final',         label: gs.getMessage('Final'),         count: payTypes.final },
+    { key: 'cash',          label: gs.getMessage('Cash basis'),    count: payTypes.cash },
+    { key: 'accrual',       label: gs.getMessage('Accrual basis'), count: payTypes.accrual }
+  ];
+
+  var typePeak = 0;
+  for (var tp = 0; tp < typeRows.length; tp++) {
+    if (typeRows[tp].count > typePeak) typePeak = typeRows[tp].count;
+  }
+
+  data.payTypes = [];
+  for (var tq = 0; tq < typeRows.length; tq++) {
+    data.payTypes.push({
+      key  : typeRows[tq].key,
+      label: typeRows[tq].label,
+      count: typeRows[tq].count,
+      width: typePeak ? Math.round((typeRows[tq].count / typePeak) * 100) : 0
+    });
+  }
+
+  data.hasTypeData = typePeak > 0;
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+
+  data.t = {
+    title : opt('label_title', gs.getMessage('Reimbursements')),
+    search: gs.getMessage('Search by claim, project or amount'),
+
+    pipeTitle: gs.getMessage('Where the money is'),
+    pipeHint : gs.getMessage('Every claim in flight, by the stage it has reached'),
+    pipeEmpty: gs.getMessage('No claims yet, so there is nothing in flight.'),
+    rejected : gs.getMessage('rejected and out of the pipeline'),
+
+    monthTitle: gs.getMessage('Claimed against paid'),
+    monthHint : gs.getMessage('The last six months. The gap between the two bars is money still owed to you.'),
+    monthEmpty: gs.getMessage('Nothing claimed in the last six months.'),
+    keyClaimed: gs.getMessage('Claimed'),
+    keyPaid   : gs.getMessage('Paid'),
+
+    typeTitle: gs.getMessage('How you have asked to be paid'),
+    typeHint : gs.getMessage('Claims can carry more than one of these, so the counts overlap'),
+    typeEmpty: gs.getMessage('No payment types recorded yet.'),
+
+    listTitle: gs.getMessage('All claims'),
+    listHint : gs.getMessage('Newest first'),
+    newClaim : gs.getMessage('New claim'),
+
+    tabAll      : gs.getMessage('All'),
+    tabSubmitted: gs.getMessage('Submitted'),
+    tabReview   : gs.getMessage('In review'),
+    tabApproved : gs.getMessage('Approved'),
+    tabPaid     : gs.getMessage('Paid'),
+    tabRejected : gs.getMessage('Rejected'),
+
+    colClaim  : gs.getMessage('Claim'),
+    colProject: gs.getMessage('Project'),
+    colPeriod : gs.getMessage('Period'),
+    colAmount : gs.getMessage('Amount'),
+    colFiled  : gs.getMessage('Filed'),
+    colState  : gs.getMessage('State'),
+    colAction : gs.getMessage('Action'),
+
+    view : gs.getMessage('View'),
+    close: gs.getMessage('Close'),
+    clear: gs.getMessage('Clear'),
+
+    mPayment    : gs.getMessage('Type of payment'),
+    mFunding    : gs.getMessage('Funding and reporting'),
+    mComputation: gs.getMessage('Computation'),
+    mAlternate  : gs.getMessage('Alternate computation'),
+    mFiles      : gs.getMessage('Attachments'),
+
+    mNumber   : gs.getMessage('Number'),
+    mProject  : gs.getMessage('Project'),
+    mApplicant: gs.getMessage('Applicant'),
+    mProgram  : gs.getMessage('Program'),
+    mAmount   : gs.getMessage('Amount requested'),
+    mSummary  : gs.getMessage('Short description'),
+    mNotes    : gs.getMessage('Description'),
+    mFiled    : gs.getMessage('Filed'),
+    mPeriod   : gs.getMessage('Period covered'),
+    mFrom     : gs.getMessage('From'),
+    mTo       : gs.getMessage('To'),
+
+    mAdvance      : gs.getMessage('Advance'),
+    mReimbursement: gs.getMessage('Reimbursement'),
+    mFinal        : gs.getMessage('Final'),
+    mPartial      : gs.getMessage('Partial'),
+    mCash         : gs.getMessage('Cash'),
+    mAccrual      : gs.getMessage('Accrual'),
+
+    mPartialReq  : gs.getMessage('Partial payment request number'),
+    mAssistance  : gs.getMessage('Financial assistance identification number'),
+    mFederalGrant: gs.getMessage('Federal grant or identifying number'),
+    mEmployerId  : gs.getMessage('Employer identification number'),
+
+    mOutlays     : gs.getMessage('Total program outlays to date'),
+    mIncome      : gs.getMessage('Less cumulative program income'),
+    mNetOutlays  : gs.getMessage('Net program outlays'),
+    mEstCash     : gs.getMessage('Estimated net cash outlays for advance period'),
+    mTotalSum    : gs.getMessage('Total of net outlays and estimated cash outlays'),
+    mNonFederal  : gs.getMessage('Non-federal share of amount'),
+    mFederal     : gs.getMessage('Federal share of amount'),
+    mPaidBefore  : gs.getMessage('Federal payments previously requested'),
+    mNowRequested: gs.getMessage('Federal share now requested'),
+    mMonth1      : gs.getMessage('Request first month'),
+    mMonth2      : gs.getMessage('Request second month'),
+    mMonth3      : gs.getMessage('Request third month'),
+
+    mCashOutlays: gs.getMessage('Estimated federal cash outlays during the advance period'),
+    mCashOnHand : gs.getMessage('Estimated balance of federal cash on hand at the start'),
+
+    mNone     : gs.getMessage('Not provided'),
+    mNoFiles  : gs.getMessage('Nothing attached'),
+    mNotTicked: gs.getMessage('None of these were ticked'),
+
+    emptyTitle: gs.getMessage('No claims yet'),
+    emptyText : gs.getMessage('Claims are filed against a project. Once one is approved and you have spent against it, the money comes back through here.'),
+    emptyBtn  : gs.getMessage('File your first claim'),
+
+    noProjects    : gs.getMessage('You have no projects yet'),
+    noProjectsText: gs.getMessage('Reimbursement claims are filed against a project, and a project opens once you accept an award.'),
+
+    noMatch    : gs.getMessage('Nothing matches this filter'),
+    noMatchText: gs.getMessage('Try another tab, or clear the search.')
+  };
+
+  data.hasProjects = projectIds.length > 0;
+  data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>Sheeba.showkat</sys_created_by>
         <sys_created_on>2026-08-19 08:17:57</sys_created_on>
         <sys_id>0d2e0ea50f720b10712b6af300d1b2c1</sys_id>
-        <sys_mod_count>160</sys_mod_count>
+        <sys_mod_count>205</sys_mod_count>
         <sys_name>Reimbursement</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_0d2e0ea50f720b10712b6af300d1b2c1</sys_update_name>
-        <sys_updated_by>Sheeba.showkat</sys_updated_by>
-        <sys_updated_on>2026-08-24 10:33:12</sys_updated_on>
-        <template><![CDATA[<div class="reimb-dashboard" ng-cloak style="margin: 0 -15px -15px -15px; font-family: 'Inter', Roboto, sans-serif;">
-  <div class="main-layout-flex" style="display:flex; min-height:100vh; align-items:stretch;">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-31 02:49:39</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · REIMBURSEMENTS
+     Service Portal widget · HTML template
 
-  <div class="sidebar" ng-style="{width: c.sidebarCollapsed ? '64px' : '120px'}" style="flex-shrink:0; position:sticky; top:0; height:100vh; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
-  <sp-widget widget="data.sideBar"></sp-widget>
-</div>
+     Same shell and tokens as the other dashboard pages.
 
-    <div class="main-content-scroll" style="flex-grow:1; background:#f8fafc; padding: 0 40px 40px 40px;">
+     The claim form is the existing reimbursement_form widget,
+     opened in a modal. It carries twenty five federal fields
+     across four tabs and there is no version of rewriting it
+     that improves on it.
+     ========================================================= -->
 
-      <!-- ADDED margin-top: 25px HERE -->
-      <div class="reimb-header-wrapper" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; margin-top:25px;">
-        <div class="reimb-header">
-          <h1 style="margin:0; font-size:32px; font-weight:700; color:#0f172a; letter-spacing:-0.5px;">Reimbursements</h1>
-          <p style="color:#64748b; margin-top:8px; font-size:14px; display:flex; align-items:center; gap:6px;">
-            <span style="color:#10b981; font-size:10px;">&#9679;</span>
-            <span>{{c.data.summary.total_claims}} claims across {{c.data.summary.unique_projects}} projects &middot; {{c.formatCurrencyExact(c.data.summary.claimed_to_date)}} claimed &middot; {{c.formatCurrency(c.data.summary.paid)}} paid</span>
-          </p>
-        </div>
-        <div class="header-controls" style="display:flex; gap:12px; align-items:center;">
-          <div class="search-box" style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; display:flex; align-items:center; width:250px;">
-            <i class="fa fa-search" style="color:#94a3b8; margin-right:8px;"></i>
-            <input type="text" ng-model="c.searchTerm" placeholder="Search claims, projects..." style="border:none; outline:none; background:transparent; width:100%; font-size:13px; color:#64748b;" />
-          </div>
-          <div class="btn-group" uib-dropdown>
-            <button id="timeFilterBtn" type="button" uib-dropdown-toggle style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; font-size:13px; color:#475569; font-weight:600; display:flex; align-items:center; gap:8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); cursor:pointer;">
-              <i class="fa fa-calendar-o" style="color:#818cf8;"></i> {{c.timeFilterLabel}} <i class="fa fa-chevron-down" style="font-size:10px; color:#94a3b8;"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-right" uib-dropdown-menu role="menu" aria-labelledby="timeFilterBtn" style="border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 4px; min-width: 160px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
-              <li role="menuitem"><a href="javascript:void(0)" ng-click="c.setTimeFilter(6, 'Last 6 months')" style="padding: 8px 16px; font-size: 13px; color: #334155; font-weight:500;">Last 6 months</a></li>
-              <li role="menuitem"><a href="javascript:void(0)" ng-click="c.setTimeFilter(12, 'Last 12 months')" style="padding: 8px 16px; font-size: 13px; color: #334155; font-weight:500;">Last 12 months</a></li>
-              <li role="menuitem"><a href="javascript:void(0)" ng-click="c.setTimeFilter(0, 'All time')" style="padding: 8px 16px; font-size: 13px; color: #334155; font-weight:500;">All time</a></li>
-            </ul>
-          </div>
-          <div class="avatar" title="{{c.data.userName}}" style="width:40px; height:40px; background:#4f46e5; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">
-            {{c.data.userInitials}}
-          </div>
-        </div>
+<!-- The wrapper holds the rail and nothing more.
+
+     It used to declare a width through an ng-style, which is
+     what caused the overlap: it reserved 96px while the rail
+     draws 236px, so 140px of the rail painted over this page.
+
+     The rail sets its own width, does its own sticking and owns
+     the collapsed state, so the column has nothing left to say. -->
+<div class="gn-layout">
+
+  <!-- SIDEBAR -->
+  <div class="aw-sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+<main class="grb">
+
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="grb-top">
+
+      <div class="grb-top__lead">
+        <h1 class="grb-top__title">{{c.data.t.title}}</h1>
+        <p class="grb-top__sub">
+          <span class="grb-live" aria-hidden="true"></span>
+          {{c.data.headline}}
+          <span class="grb-top__scope" ng-if="c.data.onlyProjectName">
+            &middot; {{c.data.onlyProjectName}}
+          </span>
+        </p>
       </div>
 
-      <!-- KPI cards -->
-      <div class="reimb-kpi-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-bottom:24px;">
-        <div class="reimb-kpi-card">
-          <label>CLAIMED TO DATE</label>
-          <div class="kpi-value">{{c.formatCurrencyExact(c.data.summary.claimed_to_date)}}</div>
-          <div class="kpi-sub">{{c.data.summary.total_claims}} claims across {{c.data.summary.unique_projects}} projects</div>
-        </div>
-        <div class="reimb-kpi-card">
-          <label>PAID</label>
-          <div class="kpi-value kpi-green">{{c.formatCurrency(c.data.summary.paid)}}</div>
-          <div class="kpi-sub">{{c.data.summary.paid_pct}}% of claimed value</div>
-        </div>
-        <div class="reimb-kpi-card">
-          <label>APPROVED CLAIMS</label>
-          <div class="kpi-value">{{c.data.summary.approved_count}}</div>
-          <div class="kpi-sub">{{c.data.summary.approved_pct}}% of total claims</div>
-        </div>
-        <div class="reimb-kpi-card" ng-class="{'kpi-alert': c.data.summary.needs_action_count > 0}">
-          <label>NEEDS YOUR ACTION</label>
-          <div class="kpi-value">{{c.data.summary.needs_action_count}}</div>
-          <div class="kpi-sub">{{c.data.summary.needs_action_label || 'All caught up'}}</div>
-        </div>
+      <div class="grb-top__right">
+
+        <label class="grb-search" ng-if="c.data.claims.length">
+          <i class="fa fa-search grb-search__icon" aria-hidden="true"></i>
+          <input type="text"
+                 class="grb-search__field"
+                 ng-model="c.query"
+                 ng-model-options="{debounce: 120}"
+                 placeholder="{{c.data.t.search}}"
+                 aria-label="{{c.data.t.search}}">
+          <button type="button" class="grb-search__clear" ng-if="c.query" ng-click="c.query = ''"
+                  aria-label="{{c.data.t.clear}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </label>
+
+        <span class="grb-avatar">{{c.data.userInitials}}</span>
+
       </div>
 
-      <!-- Chart & Claims by State -->
-      <div class="reimb-mid-grid" style="display:grid; grid-template-columns:1.35fr 1fr; gap:24px; margin-bottom:24px;">
+    </header>
 
-        <div class="reimb-card" style="display:flex; flex-direction:column;">
-          <div class="reimb-card__hdr" style="display:flex; justify-content:space-between; align-items:flex-start;">
+
+    <!-- ═══════════════ NO PROJECTS ═══════════════ -->
+    <div class="grb-blank" ng-if="!c.data.hasProjects">
+      <span class="grb-blank__mark" aria-hidden="true"><i class="fa fa-money"></i></span>
+      <p class="grb-blank__title">{{c.data.t.noProjects}}</p>
+      <p class="grb-blank__text">{{c.data.t.noProjectsText}}</p>
+    </div>
+
+
+    <!-- ═══════════════ NO CLAIMS ═══════════════ -->
+    <div class="grb-blank" ng-if="c.data.hasProjects && !c.data.claims.length">
+      <span class="grb-blank__mark" aria-hidden="true"><i class="fa fa-money"></i></span>
+      <p class="grb-blank__title">{{c.data.t.emptyTitle}}</p>
+      <p class="grb-blank__text">{{c.data.t.emptyText}}</p>
+      <button type="button" class="grb-btn grb-btn--primary" ng-click="c.openForm()">
+        {{c.data.t.emptyBtn}}
+      </button>
+    </div>
+
+
+    <div ng-if="c.data.hasProjects && c.data.claims.length">
+
+      <!-- ═══════════════ TILES ═══════════════ -->
+      <section class="grb-tiles">
+        <article class="grb-tile"
+                 ng-repeat="t in c.data.tiles track by t.key"
+                 ng-class="['grb-tile--' + t.key, {'is-alert': t.alert}]">
+          <span class="grb-tile__rule" aria-hidden="true"></span>
+          <p class="grb-tile__label">{{t.label}}</p>
+          <p class="grb-tile__value">{{t.value}}</p>
+          <p class="grb-tile__note">{{t.note}}</p>
+        </article>
+      </section>
+
+
+      <!-- ═══════════════ PIPELINE ═══════════════ -->
+      <section class="grb-panel">
+
+        <header class="grb-panel__head">
+          <div>
+            <h2 class="grb-panel__title">{{c.data.t.pipeTitle}}</h2>
+            <p class="grb-panel__hint">{{c.data.t.pipeHint}}</p>
+          </div>
+          <span class="grb-reject" ng-if="c.data.rejected.count">
+            {{c.data.rejected.text}} &middot; {{c.data.rejected.count}} {{c.data.t.rejected}}
+          </span>
+        </header>
+
+        <!-- four stages in the order money actually moves -->
+        <div class="grb-pipe">
+          <div class="grb-stage"
+               ng-repeat="s in c.data.pipeline track by s.key"
+               ng-class="['grb-stage--' + s.key, {'is-empty': !s.count}]">
+
+            <span class="grb-stage__top">
+              <span class="grb-stage__label">{{s.label}}</span>
+              <span class="grb-stage__count">{{s.count}}</span>
+            </span>
+
+            <span class="grb-stage__track">
+              <span class="grb-stage__fill" ng-style="{width: s.width + '%'}"></span>
+            </span>
+
+            <span class="grb-stage__value">{{s.text}}</span>
+
+          </div>
+        </div>
+
+      </section>
+
+
+      <!-- ═══════════════ MONTHS + TYPES ═══════════════ -->
+      <section class="grb-panels">
+
+        <!-- claimed against paid -->
+        <article class="grb-panel">
+
+          <header class="grb-panel__head">
             <div>
-              <h3>Claimed vs paid by month</h3>
-              <p style="color:#94a3b8; font-weight:400;">All projects &middot; last six months</p>
+              <h2 class="grb-panel__title">{{c.data.t.monthTitle}}</h2>
+              <p class="grb-panel__hint">{{c.data.t.monthHint}}</p>
             </div>
-            <div class="reimb-chart-legend">
-              <span style="display:flex; align-items:center;"><span class="legend-dot dot-claimed"></span> Claimed</span>
-              <span style="display:flex; align-items:center;"><span class="legend-dot dot-paid"></span> Paid</span>
-            </div>
-          </div>
+            <ul class="grb-key">
+              <li><span class="grb-key__box grb-key__box--claimed" aria-hidden="true"></span>{{c.data.t.keyClaimed}}</li>
+              <li><span class="grb-key__box grb-key__box--paid" aria-hidden="true"></span>{{c.data.t.keyPaid}}</li>
+            </ul>
+          </header>
 
-          <div class="chart-wrapper" style="display: flex; margin-top: 30px; flex-grow:1;">
-            <div class="y-axis" style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: #94a3b8; padding-right: 15px; height: 180px;">
-              <span>{{c.getYAxisLabel(1.0)}}</span>
-              <span>{{c.getYAxisLabel(0.66)}}</span>
-              <span>{{c.getYAxisLabel(0.33)}}</span>
-              <span>$0.00</span>
-            </div>
-            <div class="chart-area" style="flex-grow: 1; position: relative; height: 180px; border-bottom: 1px solid #e2e8f0;">
-              <div class="grid-line" style="position: absolute; top: 0; width: 100%; border-top: 1px solid #f1f5f9;"></div>
-              <div class="grid-line" style="position: absolute; top: 33.33%; width: 100%; border-top: 1px solid #f1f5f9;"></div>
-              <div class="grid-line" style="position: absolute; top: 66.66%; width: 100%; border-top: 1px solid #f1f5f9;"></div>
+          <div class="grb-chart" ng-if="c.data.hasMonthData">
 
-              <div style="display: flex; position: absolute; width: 100%; height: 100%; top: 0; left: 0; align-items: flex-end; justify-content: space-around; padding: 0 10px;">
-                <div ng-repeat="m in c.data.chartData" style="height: 100%; display: flex; justify-content: center; align-items: flex-end; gap: 8px; width: 40px; z-index:1;">
-                  <div class="bar bar-claimed" ng-if="m.claimed > 0" ng-style="{height: c.barHeight(m.claimed) + '%'}" title="{{c.formatCurrency(m.claimed)}} claimed"></div>
-                  <div class="bar bar-paid" ng-if="m.paid > 0" ng-style="{height: c.barHeight(m.paid) + '%'}" title="{{c.formatCurrency(m.paid)}} paid"></div>
+            <div class="grb-chart__axis">
+              <span>{{c.data.monthPeak}}</span>
+              <span>{{c.data.monthHalf}}</span>
+              <span>$0</span>
+            </div>
+
+            <div class="grb-chart__plot">
+
+              <span class="grb-chart__line" aria-hidden="true"></span>
+              <span class="grb-chart__line grb-chart__line--mid" aria-hidden="true"></span>
+              <span class="grb-chart__line grb-chart__line--base" aria-hidden="true"></span>
+
+              <div class="grb-chart__cols">
+                <div class="grb-col"
+                     ng-repeat="m in c.data.months track by $index"
+                     ng-class="'grb-col--n' + ($index + 1)">
+                  <span class="grb-col__pair">
+                    <span class="grb-col__bar grb-col__bar--claimed"
+                          ng-style="{height: m.claimedPct + '%'}"
+                          title="{{m.claimedText}} {{c.data.t.keyClaimed}}"></span>
+                    <span class="grb-col__bar grb-col__bar--paid"
+                          ng-style="{height: m.paidPct + '%'}"
+                          title="{{m.paidText}} {{c.data.t.keyPaid}}"></span>
+                  </span>
+                  <span class="grb-col__label">{{m.label}}</span>
                 </div>
               </div>
+
+            </div>
+
+          </div>
+
+          <p class="grb-panel__empty" ng-if="!c.data.hasMonthData">{{c.data.t.monthEmpty}}</p>
+
+        </article>
+
+        <!-- how you asked to be paid -->
+        <article class="grb-panel">
+
+          <header class="grb-panel__head">
+            <div>
+              <h2 class="grb-panel__title">{{c.data.t.typeTitle}}</h2>
+              <p class="grb-panel__hint">{{c.data.t.typeHint}}</p>
+            </div>
+          </header>
+
+          <div class="grb-types" ng-if="c.data.hasTypeData">
+            <div class="grb-type"
+                 ng-repeat="p in c.data.payTypes track by p.key"
+                 ng-class="['grb-type--' + p.key, {'is-zero': !p.count}]">
+              <span class="grb-type__label">{{p.label}}</span>
+              <span class="grb-type__track">
+                <span class="grb-type__fill" ng-style="{width: p.width + '%'}"></span>
+              </span>
+              <span class="grb-type__count">{{p.count}}</span>
             </div>
           </div>
-          <div style="display: flex; margin-top: 12px; padding-left: 45px; justify-content: space-around;">
-            <div ng-repeat="m in c.data.chartData" style="text-align: center; font-size: 12px; color: #64748b; font-weight:500; width:40px;">{{m.month}}</div>
-          </div>
-        </div>
 
-        <div class="reimb-card">
-          <div class="reimb-card__hdr">
-            <h3>Claims by state</h3>
-            <p style="color:#94a3b8; font-weight:400;">All projects, current cycle</p>
-          </div>
-          <div class="state-list" style="margin-top:20px;">
-            <div class="state-row" ng-repeat="s in c.data.claimsByState">
-              <div class="state-row__top" style="display:flex; justify-content:space-between; align-items:baseline; width:100%;">
-                <span style="font-weight:500; color:#0f172a;">{{s.label}}</span>
-                <span style="color:#64748b; margin-left:auto; text-align:right; white-space:nowrap;">{{s.count}} &middot; {{c.formatCurrency(s.amount)}}</span>
-              </div>
-              <div class="state-bar-bg">
-                <div class="state-bar-fill" ng-class="'fill-' + s.color" ng-style="{width: c.stateBarWidth(s.amount) + '%'}"></div>
-              </div>
-            </div>
-          </div>
-          <button class="btn-new-claim" ng-click="c.startNewClaim()">New reimbursement claim</button>
-        </div>
-      </div>
+          <p class="grb-panel__empty" ng-if="!c.data.hasTypeData">{{c.data.t.typeEmpty}}</p>
 
-      <!-- All Claims table with dynamic tabs -->
-      <div class="reimb-card">
-        <div class="reimb-card__hdr" style="display:flex; justify-content:space-between; align-items:center;">
+        </article>
+
+      </section>
+
+
+      <!-- ═══════════════ TABLE ═══════════════ -->
+      <section class="grb-block">
+
+        <header class="grb-block__head">
+
           <div>
-            <h3 style="font-weight:800;">All claims</h3>
-            <p style="color:#94a3b8; font-weight:400;">{{c.data.summary.primary_project_name}}<span ng-if="c.data.summary.unique_projects > 1"> and {{c.data.summary.unique_projects - 1}} other project{{c.data.summary.unique_projects > 2 ? 's' : ''}}</span></p>
+            <h2 class="grb-block__title">{{c.data.t.listTitle}}</h2>
+            <p class="grb-block__hint">{{c.data.t.listHint}}</p>
           </div>
-          <div class="filter-tabs">
-            <button ng-class="{active: c.activeFilter === 'all'}" ng-click="c.setFilter('all')">All ({{c.data.summary.total_claims}})</button>
-            <button ng-class="{active: c.activeFilter === 'open'}" ng-click="c.setFilter('open')">Open ({{c.openCount()}})</button>
-            <button ng-class="{active: c.activeFilter === 'paid'}" ng-click="c.setFilter('paid')">Paid ({{c.paidCount()}})</button>
+
+          <div class="grb-block__right">
+
+            <div class="grb-tabs" role="group">
+              <button type="button" class="grb-tab"
+                      ng-repeat="t in c.tabs track by t.key"
+                      ng-class="{'is-on': c.tab === t.key}"
+                      ng-click="c.setTab(t.key)"
+                      ng-attr-aria-pressed="{{c.tab === t.key}}">
+                <span class="grb-tab__dot" ng-class="'grb-tab__dot--' + t.key" aria-hidden="true"></span>
+                {{t.label}}
+                <span class="grb-tab__count">{{c.data.counts[t.key]}}</span>
+              </button>
+            </div>
+
+            <button type="button" class="grb-btn grb-btn--primary" ng-click="c.openForm()">
+              {{c.data.t.newClaim}}
+            </button>
+
           </div>
+
+        </header>
+
+        <div class="grb-table">
+
+          <div class="grb-table__head">
+            <span>{{c.data.t.colClaim}}</span>
+            <span>{{c.data.t.colProject}}</span>
+            <span>{{c.data.t.colPeriod}}</span>
+            <span class="grb-right">{{c.data.t.colAmount}}</span>
+            <span>{{c.data.t.colState}}</span>
+            <span class="grb-right">{{c.data.t.colAction}}</span>
+          </div>
+
+          <div class="grb-row"
+               ng-repeat="cl in c.shown() track by cl.sysId"
+               ng-class="['grb-row--' + cl.status, 'grb-row--n' + (($index % 10) + 1)]">
+
+            <span class="grb-cell--ref" data-label="{{c.data.t.colClaim}}">
+              <span class="grb-cell__top">{{cl.number}}</span>
+              <span class="grb-cell__sub">{{cl.created}}</span>
+            </span>
+
+            <span class="grb-cell--name" data-label="{{c.data.t.colProject}}" title="{{cl.project}}">
+              {{cl.project}}
+            </span>
+
+            <span class="grb-cell--date" data-label="{{c.data.t.colPeriod}}"
+                  ng-class="{'is-blank': !cl.from && !cl.to}">
+              <span ng-if="cl.from || cl.to">{{cl.from || '—'}} &ndash; {{cl.to || '—'}}</span>
+              <span ng-if="!cl.from && !cl.to">{{c.data.t.mNone}}</span>
+            </span>
+
+            <span class="grb-cell--num grb-right" data-label="{{c.data.t.colAmount}}">
+              {{cl.amountText}}
+            </span>
+
+            <span data-label="{{c.data.t.colState}}">
+              <span class="grb-pill" ng-class="'grb-pill--' + cl.tone">
+                <span class="grb-pill__dot" aria-hidden="true"></span>{{cl.statusLabel}}
+              </span>
+            </span>
+
+            <span class="grb-right" data-label="{{c.data.t.colAction}}">
+              <button type="button" class="grb-btn grb-btn--ghost grb-btn--sm"
+                      ng-click="c.openDetail(cl)">{{c.data.t.view}}</button>
+            </span>
+
+          </div>
+
+          <div class="grb-nomatch" ng-if="!c.shown().length">
+            <p class="grb-nomatch__title">{{c.data.t.noMatch}}</p>
+            <p class="grb-nomatch__text">{{c.data.t.noMatchText}}</p>
+            <button type="button" class="grb-btn grb-btn--ghost" ng-click="c.clearAll()">
+              {{c.data.t.clear}}
+            </button>
+          </div>
+
         </div>
 
-        <table class="reimb-table">
-          <colgroup>
-            <col style="width:12%">
-            <col style="width:20%">
-            <col style="width:16%">
-            <col style="width:10%">
-            <col style="width:16%">
-            <col style="width:16%">
-            <col style="width:10%">
-          </colgroup>
-          <thead>
-            <tr>
-              <th class="lead-col">CLAIM</th>
-              <th class="lead-col">PROJECT</th>
-              <th class="lead-col">PERIOD</th>
-              <th class="lead-col">AMOUNT</th>
-              <th class="lead-col">SUBMITTED</th>
-              <th class="state-col state-hdr">STATE</th>
-              <th class="text-center">ACTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr ng-repeat="claim in c.filteredClaims()">
-              <td class="lead-col bold-text" style="color:#0f172a;">{{claim.number}}</td>
-              <td class="lead-col truncate-cell" style="color:#475569;" title="{{claim.project}}">{{claim.project}}</td>
-              <td class="lead-col" style="color:#475569;">{{claim.period_from}} <span ng-if="claim.period_to">-</span> {{claim.period_to}}</td>
-              <td class="lead-col bold-text" style="color:#0f172a;">{{c.formatCurrency(claim.amount_requested)}}</td>
-              <td class="lead-col" style="color:#475569;">{{claim.submitted_on}}</td>
-              <td class="state-col">
-                <span class="state-pill" ng-class="'pill-' + claim.state_class">
-                  <span class="pill-dot"></span>{{claim.state_label}}
+      </section>
+
+    </div>
+
+
+    <!-- ═══════════════ NEW CLAIM ═══════════════ -->
+    <div class="grb-modal" ng-if="c.form" ng-click="c.closeForm()">
+      <div class="grb-modal__panel grb-modal__panel--wide" role="dialog" aria-modal="true"
+           ng-click="$event.stopPropagation()">
+
+        <header class="grb-modal__head">
+          <div>
+            <h2 class="grb-modal__title">{{c.data.t.newClaim}}</h2>
+          </div>
+          <button type="button" class="grb-modal__x" ng-click="c.closeForm()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="grb-modal__body grb-modal__body--form">
+          <sp-widget widget="data.claimForm"></sp-widget>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ═══════════════ DETAIL ═══════════════ -->
+    <div class="grb-modal" ng-if="c.open" ng-click="c.closeDetail()">
+
+      <div class="grb-modal__panel" role="dialog" aria-modal="true" ng-click="$event.stopPropagation()">
+
+        <header class="grb-modal__head">
+
+          <div class="grb-modal__lead">
+            <span class="grb-modal__ref">{{c.open.number}}</span>
+            <h2 class="grb-modal__title">{{c.open.project}}</h2>
+            <span class="grb-pill" ng-class="'grb-pill--' + c.open.tone">
+              <span class="grb-pill__dot" aria-hidden="true"></span>{{c.open.statusLabel}}
+            </span>
+          </div>
+
+          <div class="grb-modal__amount">
+            <span class="grb-modal__amountLabel">{{c.data.t.mAmount}}</span>
+            <span class="grb-modal__amountValue">{{c.open.amountText}}</span>
+          </div>
+
+          <button type="button" class="grb-modal__x" ng-click="c.closeDetail()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+
+        </header>
+
+        <nav class="grb-mtabs">
+          <button type="button" class="grb-mtab"
+                  ng-repeat="m in c.modalTabs track by m.key"
+                  ng-if="m.show(c.open)"
+                  ng-class="{'is-on': c.mtab === m.key}"
+                  ng-click="c.mtab = m.key">
+            {{m.label}}
+            <span class="grb-mtab__n" ng-if="m.count(c.open)">{{m.count(c.open)}}</span>
+          </button>
+        </nav>
+
+        <div class="grb-modal__body">
+
+          <!-- type of payment -->
+          <section ng-if="c.mtab === 'payment'">
+
+            <dl class="grb-kvs">
+              <div class="grb-kv"><dt>{{c.data.t.mNumber}}</dt><dd>{{c.open.number}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mFiled}}</dt><dd>{{c.open.created}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mApplicant}}</dt>
+                <dd ng-class="{'is-blank': !c.open.applicant}">{{c.open.applicant || c.data.t.mNone}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mProgram}}</dt>
+                <dd ng-class="{'is-blank': !c.open.program}">{{c.open.program || c.data.t.mNone}}</dd></div>
+            </dl>
+
+            <h4 class="grb-sub">{{c.data.t.mPayment}}</h4>
+
+            <!-- ticked ones only. Six greyed out boxes are six
+                 things to read past on the way to the one that
+                 matters. -->
+            <ul class="grb-flags" ng-if="c.typeList(c.open).length">
+              <li ng-repeat="f in c.typeList(c.open) track by $index">
+                <i class="fa fa-check" aria-hidden="true"></i>{{f}}
+              </li>
+            </ul>
+
+            <p class="grb-empty" ng-if="!c.typeList(c.open).length">{{c.data.t.mNotTicked}}</p>
+
+            <div class="grb-prose" ng-if="c.open.summary">
+              <p class="grb-prose__label">{{c.data.t.mSummary}}</p>
+              <p class="grb-prose__text">{{c.open.summary}}</p>
+            </div>
+
+            <div class="grb-prose" ng-if="c.open.notes">
+              <p class="grb-prose__label">{{c.data.t.mNotes}}</p>
+              <p class="grb-prose__text">{{c.open.notes}}</p>
+            </div>
+
+          </section>
+
+          <!-- funding and reporting -->
+          <section ng-if="c.mtab === 'funding'">
+
+            <dl class="grb-kvs grb-kvs--one">
+              <div class="grb-kv"><dt>{{c.data.t.mPartialReq}}</dt>
+                <dd ng-class="{'is-blank': !c.open.funding.partialRequest}">{{c.open.funding.partialRequest || c.data.t.mNone}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mAssistance}}</dt>
+                <dd ng-class="{'is-blank': !c.open.funding.assistanceId}">{{c.open.funding.assistanceId || c.data.t.mNone}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mFederalGrant}}</dt>
+                <dd ng-class="{'is-blank': !c.open.funding.federalGrant}">{{c.open.funding.federalGrant || c.data.t.mNone}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mEmployerId}}</dt>
+                <dd ng-class="{'is-blank': !c.open.funding.employerId}">{{c.open.funding.employerId || c.data.t.mNone}}</dd></div>
+            </dl>
+
+            <h4 class="grb-sub">{{c.data.t.mPeriod}}</h4>
+
+            <dl class="grb-kvs">
+              <div class="grb-kv"><dt>{{c.data.t.mFrom}}</dt>
+                <dd ng-class="{'is-blank': !c.open.from}">{{c.open.from || c.data.t.mNone}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mTo}}</dt>
+                <dd ng-class="{'is-blank': !c.open.to}">{{c.open.to || c.data.t.mNone}}</dd></div>
+            </dl>
+
+          </section>
+
+          <!-- computation -->
+          <section ng-if="c.mtab === 'computation'">
+
+            <!-- the arithmetic in the order the form does it, so
+                 the total at the bottom can be followed -->
+            <dl class="grb-calc">
+              <div class="grb-calc__row"><dt>{{c.data.t.mOutlays}}</dt><dd>{{c.open.comp.outlays}}</dd></div>
+              <div class="grb-calc__row is-minus"><dt>{{c.data.t.mIncome}}</dt><dd>{{c.open.comp.income}}</dd></div>
+              <div class="grb-calc__row is-sum"><dt>{{c.data.t.mNetOutlays}}</dt><dd>{{c.open.comp.netOutlays}}</dd></div>
+              <div class="grb-calc__row"><dt>{{c.data.t.mEstCash}}</dt><dd>{{c.open.comp.estCash}}</dd></div>
+              <div class="grb-calc__row is-sum"><dt>{{c.data.t.mTotalSum}}</dt><dd>{{c.open.comp.totalSum}}</dd></div>
+              <div class="grb-calc__row is-minus"><dt>{{c.data.t.mNonFederal}}</dt><dd>{{c.open.comp.nonFederal}}</dd></div>
+              <div class="grb-calc__row is-sum"><dt>{{c.data.t.mFederal}}</dt><dd>{{c.open.comp.federal}}</dd></div>
+              <div class="grb-calc__row is-minus"><dt>{{c.data.t.mPaidBefore}}</dt><dd>{{c.open.comp.paidBefore}}</dd></div>
+              <div class="grb-calc__row is-total"><dt>{{c.data.t.mNowRequested}}</dt><dd>{{c.open.comp.nowRequested}}</dd></div>
+            </dl>
+
+            <h4 class="grb-sub">{{c.data.t.mMonth1}} &middot; {{c.data.t.mMonth2}} &middot; {{c.data.t.mMonth3}}</h4>
+
+            <dl class="grb-kvs grb-kvs--three">
+              <div class="grb-kv"><dt>{{c.data.t.mMonth1}}</dt><dd class="grb-kv--num">{{c.open.comp.month1}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mMonth2}}</dt><dd class="grb-kv--num">{{c.open.comp.month2}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mMonth3}}</dt><dd class="grb-kv--num">{{c.open.comp.month3}}</dd></div>
+            </dl>
+
+          </section>
+
+          <!-- alternate computation -->
+          <section ng-if="c.mtab === 'alternate'">
+            <dl class="grb-kvs grb-kvs--one">
+              <div class="grb-kv"><dt>{{c.data.t.mCashOutlays}}</dt><dd class="grb-kv--num">{{c.open.alt.cashOutlays}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mCashOnHand}}</dt><dd class="grb-kv--num">{{c.open.alt.cashOnHand}}</dd></div>
+              <div class="grb-kv"><dt>{{c.data.t.mAmount}}</dt><dd class="grb-kv--num grb-kv--lead">{{c.open.amountText}}</dd></div>
+            </dl>
+          </section>
+
+          <!-- attachments -->
+          <section ng-if="c.mtab === 'files'">
+            <ul class="grb-files" ng-if="c.open.files.length">
+              <li class="grb-file" ng-repeat="f in c.open.files track by f.sysId">
+                <span class="grb-file__mark" aria-hidden="true"><i class="fa fa-file-o"></i></span>
+                <span class="grb-file__body">
+                  <span class="grb-file__name">{{f.name}}</span>
+                  <span class="grb-file__size">{{c.fileSize(f.size)}}</span>
                 </span>
-              </td>
-              <td class="text-center">
-                <button class="btn-action btn-view" ng-click="c.viewClaim(claim)">View</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+                <a class="grb-file__dl" ng-href="{{f.url}}" target="_blank" rel="noopener">
+                  <i class="fa fa-download" aria-hidden="true"></i>
+                </a>
+              </li>
+            </ul>
+            <p class="grb-empty" ng-if="!c.open.files.length">{{c.data.t.mNoFiles}}</p>
+          </section>
 
-  <!-- NEW CLAIM MODAL OVERLAY -->
-  <div class="custom-modal-backdrop" ng-if="c.showClaimModal" ng-cloak>
-    <div class="custom-modal-container">
-      <div class="custom-modal-header">
-        <div class="header-left">
-          <h2>New Reimbursement Claim</h2>
-          <p>Complete the details below to submit an advance or expense claim.</p>
-        </div>
-        <button type="button" class="btn-close-circle" ng-click="c.closeClaimModal()">
-          <i class="fa fa-times"></i>
-        </button>
-      </div>
-      <div class="custom-modal-body">
-        <sp-widget widget="data.reimbursementFormWidget"></sp-widget>
-      </div>
-    </div>
-  </div>
-
-  <!-- INSTANT READ-ONLY VIEW MODAL (With Loader Fallback) -->
-  <div class="custom-modal-backdrop" ng-if="c.showViewModal" ng-cloak>
-    <div class="custom-modal-container">
-      <div class="custom-modal-header">
-        <div class="header-left">
-          <h2>Claim Details: {{c.viewClaimTitle}}</h2>
-          <p style="margin:4px 0 0; font-size:13px; color:#64748b;">Read-only view of the submitted record.</p>
-        </div>
-        <button type="button" class="btn-close-circle" ng-click="c.closeViewModal()">
-          <i class="fa fa-times"></i>
-        </button>
-      </div>
-
-      <div class="custom-modal-body read-only-form-wrapper" style="position: relative; min-height: 250px; max-height: 75vh; overflow-y: auto;">
-
-        <div ng-if="c.loadingForm" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #94a3b8; width: 100%;">
-          <i class="fa fa-circle-o-notch fa-spin fa-3x" style="color: #4f46e5; margin-bottom: 12px;"></i>
-          <p style="font-size: 14px; font-weight: 500; margin: 0;">Retrieving record...</p>
         </div>
 
-        <sp-widget ng-if="!c.loadingForm && c.recordFormWidget" widget="c.recordFormWidget"></sp-widget>
+        <footer class="grb-modal__foot">
+          <button type="button" class="grb-btn grb-btn--primary" ng-click="c.closeDetail()">
+            {{c.data.t.close}}
+          </button>
+        </footer>
 
       </div>
 
-      <div class="modal-footer-actions" style="padding: 16px 30px; background:#fff; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
-        <button type="button" class="btn btn-default" ng-click="c.closeViewModal()">Close</button>
-      </div>
     </div>
-  </div>
+
+  </main>
+
 </div>]]></template>
     </sp_widget>
 </record_update>

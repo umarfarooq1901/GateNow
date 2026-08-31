@@ -1,250 +1,2201 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $rootScope, $window, $timeout, spUtil) {
+        <client_script><![CDATA[api.controller = function($scope, $timeout, $element, spModal) {
+
+  /* =========================================================
+     GATENOW · REPORTS AND CHANGE REQUESTS · Client script
+
+     Reading is local. The two submits are real writes, so they
+     go to the server and then reload the page data, which is
+     the one time a repaint is the correct thing to do.
+     ========================================================= */
+
   var c = this;
-  
-  // --- SIDEBAR COLLAPSE SYNC ---
-  c.isSidebarCollapsed = ($window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true');
 
-  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
-    c.isSidebarCollapsed = isCollapsed;
-    $timeout(function(){}); // Forces a safe UI digest cycle
-  });
-  // -----------------------------
-  
-  c.activeTab = 'reports';
-  c.searchText = '';
-  
-  c.showForm = false;
-  c.childWidget = null;
+  c.query  = '';
+  c.tab    = 'reports';
+  c.form   = '';       /* '', 'report' or 'change' */
+  c.openR  = null;
+  c.openC  = null;
+  c.saving = false;
+  c.errors = {};
+  c.files  = [];
+  c.dragging = false;
 
-  c.setTab = function(tab) { c.activeTab = tab; };
-  c.updateFilter = function() { c.server.update(); };
+  var UPLOAD = {
+    MAX: 10485760,
+    TYPES: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg', 'image/jpg', 'image/png'
+    ],
+    EXTS: ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']
+  };
+
+  /* the four ratings, each with its own comment field, declared
+     once rather than written out four times in the template */
+  c.ratingGroups = [
+    { key: 'schedule',  choices: 'schedule',  label: c.data.t.fSchedule,
+      comment: 'comments_on_schedule', commentLabel: c.data.t.fCSchedule },
+    { key: 'cost',      choices: 'cost',      label: c.data.t.fCost,
+      comment: 'comments_on_cost',     commentLabel: c.data.t.fCCost },
+    { key: 'resources', choices: 'resources', label: c.data.t.fResources,
+      comment: 'resource_comments',    commentLabel: c.data.t.fCResource },
+    { key: 'scope',     choices: 'scope',     label: c.data.t.fScope,
+      comment: 'comments_on_scope',    commentLabel: c.data.t.fCScope }
+  ];
+
+
+  /* =====================================================
+     LISTS
+     ===================================================== */
+
+  function hit(text, q) {
+    return (text || '').toLowerCase().indexOf(q) !== -1;
+  }
+
+  c.visibleReports = function() {
+    var q = (c.query || '').trim().toLowerCase();
+    if (!q) return c.data.reports || [];
+    return (c.data.reports || []).filter(function(r) {
+      return hit(r.project, q) || hit(r.number, q) || hit(r.period, q) || hit(r.type, q);
+    });
+  };
+
+  c.visibleChanges = function() {
+    var q = (c.query || '').trim().toLowerCase();
+    if (!q) return c.data.changes || [];
+    return (c.data.changes || []).filter(function(ch) {
+      return hit(ch.project, q) || hit(ch.number, q) || hit(ch.title, q) || hit(ch.category, q);
+    });
+  };
+
+
+  /* =====================================================
+     DETAIL
+     ===================================================== */
+
+  c.openReport = function(r) { c.openR = r; c.openC = null; };
+  c.openChange = function(ch) { c.openC = ch; c.openR = null; };
+
+  c.closeDetail = function() { c.openR = null; c.openC = null; };
+
+  /* only the blocks that were actually filled in, so a sparse
+     report does not render six empty headings */
+  c.reportProse = function(r) {
+    if (!r) return [];
+
+    var rows = [
+      { label: c.data.t.fSummary,   value: r.summary },
+      { label: c.data.t.fAchieved,  value: r.achieved },
+      { label: c.data.t.fNextUp,    value: r.nextUp },
+      { label: c.data.t.fCSchedule, value: r.cSchedule },
+      { label: c.data.t.fCCost,     value: r.cCost },
+      { label: c.data.t.fCResource, value: r.cResource },
+      { label: c.data.t.fCScope,    value: r.cScope },
+      { label: c.data.t.fComments,  value: r.comments }
+    ];
+
+    return rows.filter(function(row) { return !!row.value; });
+  };
+
+
+  /* =====================================================
+     FORMS
+     ===================================================== */
+
+  function blankReport() {
+    return {
+      project: '',
+      status_date: c.data.today || '',
+      report_status: '',
+      percent_complete: null,
+      overall_health: '',
+      executive_summary: '',
+      comments: '',
+      achievements_last_month: '',
+      key_activities_next_month: '',
+      schedule: '', comments_on_schedule: '',
+      cost: '', comments_on_cost: '',
+      resources: '', resource_comments: '',
+      scope: '', comments_on_scope: ''
+    };
+  }
+
+  function blankChange() {
+    return {
+      project: '',
+      title: '',
+      category: '',
+      priority: '',
+      impact: '',
+      proposed_change: '',
+      reason_for_change: ''
+    };
+  }
+
+  c.report = blankReport();
+  c.change = blankChange();
+
+  c.startReport = function() {
+    c.report = blankReport();
+
+    /* if only one project is open, there is no choice to make */
+    var open = (c.data.projects || []).filter(function(p) { return p.open; });
+    if (open.length === 1) c.report.project = open[0].sysId;
+
+    c.errors = {};
+    c.files = [];
+    c.form = 'report';
+  };
+
+  c.startChange = function() {
+    c.change = blankChange();
+
+    var openC = (c.data.projects || []).filter(function(p) { return p.open; });
+    if (openC.length === 1) c.change.project = openC[0].sysId;
+
+    c.errors = {};
+    c.files = [];
+    c.form = 'change';
+  };
 
   c.closeForm = function() {
-    c.showForm = false;
-    c.childWidget = null;
-    c.server.update();
+    if (c.saving) return;
+    c.form = '';
+    c.errors = {};
+    c.files = [];
   };
 
-  $rootScope.$on('gn_close_embedded_form', function() {
-    c.closeForm(); 
+  c.errorCount = function() {
+    var n = 0;
+    for (var k in c.errors) { if (c.errors.hasOwnProperty(k)) n++; }
+    return n;
+  };
+
+  function empty(v) {
+    return v === undefined || v === null || v === '' ||
+           (typeof v === 'string' && v.trim() === '');
+  }
+
+
+  /* =====================================================
+     ATTACHMENTS
+
+     A dragged file, and an older .doc, often arrive with an
+     empty or unexpected type, so the extension is the fallback
+     rather than rejecting them silently.
+     ===================================================== */
+
+  function typeOk(file) {
+    if (file.type && UPLOAD.TYPES.indexOf(file.type) !== -1) return true;
+
+    var name = (file.name || '').toLowerCase();
+    for (var i = 0; i < UPLOAD.EXTS.length; i++) {
+      var ext = UPLOAD.EXTS[i];
+      if (name.length > ext.length && name.slice(-ext.length) === ext) return true;
+    }
+    return false;
+  }
+
+  function already(file) {
+    for (var i = 0; i < c.files.length; i++) {
+      if (c.files[i].name === file.name && c.files[i].size === file.size) return true;
+    }
+    return false;
+  }
+
+  c.addFiles = function($files) {
+    if (!$files || !$files.length) return;
+
+    angular.forEach($files, function(file) {
+      if (!file) return;
+
+      if (file.size > UPLOAD.MAX) {
+        spModal.open({
+          title: c.data.t.tooBigTitle,
+          message: '"' + file.name + '" ' + c.data.t.tooBigText,
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+        return;
+      }
+
+      if (!typeOk(file)) {
+        spModal.open({
+          title: c.data.t.badTypeTitle,
+          message: '"' + file.name + '" ' + c.data.t.badTypeText,
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+        return;
+      }
+
+      /* choosing the same file twice would attach it twice */
+      if (already(file)) return;
+
+      c.files.push(file);
+    });
+
+    /* the picker fires outside a digest, so the list needs a
+       nudge to appear */
+    $timeout(function() {});
+  };
+
+  c.removeFile = function(i) {
+    if (i >= 0 && i < c.files.length) c.files.splice(i, 1);
+  };
+
+  c.fileSize = function(bytes) {
+    if (!bytes) return '0 B';
+    var k = 1024;
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + units[i];
+  };
+
+  /* =====================================================
+     FILE INPUT AND DROPZONE WIRING
+
+     ng-file-upload is not part of the Service Portal AngularJS
+     bundle, so ngf-select and ngf-drop never bound and the
+     picker never opened. This wires a native input instead.
+
+     Both forms live inside an ng-if, so their DOM is built
+     fresh every time one opens and the listeners have to be
+     attached then. The freshly created element carries no bound
+     flag, so it wires exactly once per opening.
+     ===================================================== */
+
+  c.pickFiles = function() {
+    var input = $element[0].querySelector('.grc-file-input');
+    if (input) input.click();
+  };
+
+  function bindDropzone() {
+    var drop  = $element[0].querySelector('.grc-drop');
+    var input = $element[0].querySelector('.grc-file-input');
+    if (!drop || !input) return;
+
+    if (drop.getAttribute('data-grc-bound') === '1') return;
+    drop.setAttribute('data-grc-bound', '1');
+
+    input.addEventListener('change', function(e) {
+      var files = e.target.files;
+      $scope.$apply(function() { c.addFiles(files); });
+      /* cleared so the same file can be picked again after it
+         has been removed from the list */
+      e.target.value = '';
+    });
+
+    drop.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!c.dragging) $scope.$apply(function() { c.dragging = true; });
+    });
+
+    drop.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (c.dragging) $scope.$apply(function() { c.dragging = false; });
+    });
+
+    drop.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : null;
+      $scope.$apply(function() {
+        c.dragging = false;
+        if (files && files.length) c.addFiles(files);
+      });
+    });
+  }
+
+  /* either form opening is the cue to wire its dropzone */
+  $scope.$watch(function() { return c.form; }, function(which) {
+    if (which === 'report' || which === 'change') $timeout(bindDropzone);
   });
 
-  c.newChangeRequest = function() {
-    spUtil.get('new_change_request', { actionType: 'Start' }).then(function(response) {
-      c.childWidget = response;
-      c.showForm = true;
+
+  function toBase64(files) {
+    var jobs = [];
+
+    angular.forEach(files, function(file) {
+      jobs.push(new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+
+        reader.onload = function(e) {
+          try {
+            var parts = ('' + e.target.result).split(',');
+            resolve({
+              name: file.name,
+              type: file.type || 'application/octet-stream',
+              size: file.size,
+              data: parts.length > 1 ? parts[1] : parts[0]
+            });
+          } catch (err) { reject(err); }
+        };
+
+        reader.onerror = function() { reject('read failed: ' + file.name); };
+        reader.readAsDataURL(file);
+      }));
     });
-  };
-	
-  c.startNewReport = function() {
-    spUtil.get('new_status_report', { actionType: 'Start' }).then(function(response) {
-      c.childWidget = response;
-      c.showForm = true;
+
+    return Promise.all(jobs);
+  }
+
+
+  /* =====================================================
+     SUBMIT
+     ===================================================== */
+
+  function post(payload, okMessage) {
+    c.server.get(payload).then(function(r) {
+      c.saving = false;
+      var resp = (r && r.data) ? r.data : {};
+
+      if (resp.success) {
+        c.form = '';
+        c.errors = {};
+        c.files = [];
+        spModal.open({
+          title: okMessage,
+          /* the server says so when the record saved but the
+             files did not, and that is worth showing */
+          message: resp.error || '',
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+        /* the reload brings back the new row, the recounted
+           tiles and the repainted heat map in one pass */
+        c.server.update();
+      } else {
+        spModal.open({
+          title: c.data.t.failed,
+          message: resp.error || '',
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+      }
+    }, function() {
+      c.saving = false;
+      spModal.open({
+        title: c.data.t.failed,
+        message: '',
+        buttons: [{ label: c.data.t.ok, primary: true }]
+      });
     });
-  };
-	
-  c.openReport = function(row) {
-    var widgetInput = {
-      actionType: row.action, 
-      project_id: row.project_id,
-      period: row.period,
-      sys_id: row.sys_id,
-      view: row.action === 'View' ? 'true' : 'false'
-    };
-    spUtil.get('status_report_details', widgetInput).then(function(response) {
-      c.childWidget = response;
-      c.showForm = true;
+  }
+
+  /* the files are read before the payload goes, so a failed
+     read never leaves a record with half its evidence */
+  function send(payload, okMessage) {
+    c.saving = true;
+
+    if (!c.files.length) {
+      post(payload, okMessage);
+      return;
+    }
+
+    toBase64(c.files).then(function(files) {
+      $timeout(function() {
+        payload.attachments = files;
+        post(payload, okMessage);
+      });
+    }, function() {
+      $timeout(function() {
+        c.saving = false;
+        spModal.open({
+          title: c.data.t.fileErrTitle,
+          message: c.data.t.fileErrText,
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+      });
     });
+  }
+
+  c.submitReport = function() {
+    if (c.saving) return;
+
+    c.errors = {};
+
+    if (empty(c.report.project))           c.errors.project = c.data.t.eProject;
+    if (empty(c.report.status_date))       c.errors.status_date = c.data.t.eDate;
+    if (empty(c.report.report_status))     c.errors.report_status = c.data.t.eType;
+    if (empty(c.report.overall_health))    c.errors.overall_health = c.data.t.eHealth;
+    if (empty(c.report.executive_summary)) c.errors.executive_summary = c.data.t.eSummary;
+
+    var pct = c.report.percent_complete;
+    if (pct === null || pct === '' || pct < 0 || pct > 100) {
+      c.errors.percent_complete = c.data.t.ePercent;
+    }
+
+    if (c.errorCount()) return;
+
+    var p = angular.copy(c.report);
+    p.action = 'submit_report';
+    send(p, c.data.t.savedReport);
   };
 
-  c.openChange = function(row) {
-    var widgetInput = {
-      sys_id: row.sys_id,
-      actionType: 'View',
-      view: 'true'
-    };
-    spUtil.get('change_request_details', widgetInput).then(function(response) {
-      c.childWidget = response;
-      c.showForm = true;
-    });
+  c.submitChange = function() {
+    if (c.saving) return;
+
+    c.errors = {};
+
+    if (empty(c.change.project))           c.errors.project = c.data.t.eProject;
+    if (empty(c.change.title))             c.errors.title = c.data.t.fTitle + ' ' + c.data.t.eRequired;
+    if (empty(c.change.category))          c.errors.category = c.data.t.fCategory + ' ' + c.data.t.eRequired;
+    if (empty(c.change.priority))          c.errors.priority = c.data.t.fPriority + ' ' + c.data.t.eRequired;
+    if (empty(c.change.impact))            c.errors.impact = c.data.t.fImpact + ' ' + c.data.t.eRequired;
+    if (empty(c.change.proposed_change))   c.errors.proposed_change = c.data.t.fProposed + ' ' + c.data.t.eRequired;
+    if (empty(c.change.reason_for_change)) c.errors.reason_for_change = c.data.t.fReason + ' ' + c.data.t.eRequired;
+
+    if (c.errorCount()) return;
+
+    var q = angular.copy(c.change);
+    q.action = 'submit_change';
+    send(q, c.data.t.savedChange);
   };
-};]]></client_script>
+
+}]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ==========================================
-   LAYOUT — sidebar + main content
-   ========================================== */
+        <css>/* =========================================================
+   GATENOW · REPORTS AND CHANGE REQUESTS
+   Service Portal widget · CSS / SCSS
+
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
+
+   THE HEAT MAP
+   Coloured by the health each report carried, not by whether
+   one was filed. A grid that only says "something arrived" is a
+   grid of green squares telling an applicant nothing they did
+   not already know. Colouring it by health means a run of amber
+   across one row is visible from across the room, which is the
+   entire point of putting it on a page.
+
+   Empty cells are a hairline outline rather than a grey fill,
+   so a missing report reads as absence rather than as a fourth
+   status.
+
+   TYPE
+     tile      30  700  tabular   headline figures
+     title     26  700  -0.03em   page title
+     panel     15  600  -0.014em  panel headings
+     data      14  600  tabular    dates and references
+     label     11  600   0.14em    uppercase small caps
+   ========================================================= */
+
+/* ---------- overflow overrides ---------- */
+
+.panel,
+.panel-body,
+.sp-widget { overflow: visible !important; }
+
+.gn-layout { overflow: visible !important; }
+
+/* The column holds the rail and lets it decide how wide to be.
+   It used to carry a width through an inline ng-style, which is
+   what put 140px of the rail on top of this page: the column
+   reserved 96 while the rail draws 236.
+
+   The transition moved to the rail, which is the element that
+   actually changes width. Animating a wrapper that never
+   resized was doing nothing. */
+
+.aw-sidebar {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+
+/* ---------- typeface ---------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+
+
+/* ---------- ink ---------- */
+$c-navy:   #0a2540;
+$c-ink-2:  rgba(10, 37, 64, 0.72);
+$c-ink-3:  rgba(10, 37, 64, 0.54);
+$c-ink-4:  rgba(10, 37, 64, 0.38);
+$c-line:   rgba(10, 37, 64, 0.10);
+$c-line-2: rgba(10, 37, 64, 0.06);
+$c-tint:   rgba(10, 37, 64, 0.03);
+
+/* ---------- accent ---------- */
+$c-blue:    #1560e0;
+$c-blue-dk: #0f4cbb;
+$c-blue-1:  rgba(21, 96, 224, 0.08);
+$c-blue-2:  rgba(21, 96, 224, 0.16);
+
+/* ---------- the platform's own RAG scale ---------- */
+$c-green:   #1f8a63;
+$c-green-1: rgba(31, 138, 99, 0.12);
+$c-amber:   #a4741f;
+$c-amber-1: rgba(164, 116, 31, 0.12);
+$c-red:     #b8394a;
+$c-red-1:   rgba(184, 57, 74, 0.10);
+$c-red-2:   rgba(184, 57, 74, 0.28);
+
+$c-white: #ffffff;
+$c-page:  #f4f6fb;
+$c-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
+
+$c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
 .gn-layout {
-  margin-left: -15px;
-  margin-right: -15px;
-  margin-top: 35px;
   display: flex;
   align-items: stretch;
   min-height: 100vh;
-  background: #f8fafc;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  position: relative;
+  background: $c-page;
+  font-family: $c-font;
 }
 
-.gn-layout *,
-.gn-layout *::before,
-.gn-layout *::after {
-  box-sizing: border-box;
-}
-
-/* ==========================================
-   SIDEBAR (Default Open State)
-   ========================================== */
-.sidebar {
-  width: 96px;
-  min-width: 96px;
-  flex: 0 0 96px;
-  border-right: 1px solid #e5e7eb;
-  position: sticky;
-  top: 58px; 
-  height: calc(100vh - 58px); 
-  align-self: flex-start;
-  overflow-y: auto;
-  overflow: visible !important; /* Lets Tooltips escape */
-  overscroll-behavior: contain;
-  z-index: 10;
-  scrollbar-width: none;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.sidebar::-webkit-scrollbar { display: none; }
-
-/* --- THE SHRINK TRIGGER --- */
-.sidebar.sidebar-collapsed {
-  width: 60px !important;
-  min-width: 60px !important;
-  flex: 0 0 60px !important;
-}
-
-/* ==========================================
-   MAIN CONTENT WRAPPER
-   ========================================== */
-.gn-dashboard-wrapper {
+/* Without min-width: 0 a flex child refuses to shrink below its
+   own content width, and slides under the rail rather than
+   narrowing. That is the usual cause of a stubborn overlap once
+   the widths are right. */
+.grc {
   flex: 1;
   min-width: 0;
-  box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #f4f7f9;
-  padding: 30px;
+  overflow: visible;
+}
+
+.grc {
   min-height: 100vh;
-  color: #1e293b;
-  transition: all 0.35s ease;
+  padding: 28px 36px 68px;
+  background: $c-page;
+  font-family: $c-font;
+  color: $c-navy;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Typography &amp; Colors */
-.text-green { color: #10b981 !important; }
-.text-orange { color: #d97706 !important; }
-.text-muted { color: #64748b !important; }
-.text-right { text-align: right !important; } 
-.font-bold { font-weight: 600; color: #0f172a; }
+.grc *,
+.grc *::before,
+.grc *::after { box-sizing: border-box; }
 
-/* Global Cards */
-.gn-card {
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  margin-bottom: 24px;
-}
+.grc-right { text-align: right; }
 
-/* Header */
-.gn-header {
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.grc-top {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 22px;
+}
+
+.grc-top__lead { min-width: 0; }
+
+.grc .grc-top__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: $c-navy;
+}
+
+.grc .grc-top__sub {
+  display: flex;
   align-items: center;
-  margin-bottom: 30px;
-
-  h1 { font-size: 28px; font-weight: 800; margin: 0 0 8px 0; color: #111827; }
-  p { margin: 0; color: #64748b; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; &amp;.green { background-color: #10b981; } }
-
-  .gn-header-actions {
-    display: flex; gap: 16px;
-    .search-bar, .date-filter {
-      background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px;
-      display: flex; align-items: center; gap: 10px; color: #475569; font-size: 14px; font-weight: 500;
-    }
-    .search-bar input { border: none; outline: none; width: 220px; background: transparent; &amp;::placeholder { color: #94a3b8; } }
-    .date-dropdown { border: none; background: transparent; outline: none; cursor: pointer; font-family: inherit; font-size: inherit; color: inherit; font-weight: inherit; padding: 0; }
-  }
+  gap: 9px;
+  margin: 7px 0 0;
+  font-size: 13.5px;
+  color: $c-ink-3;
 }
 
-/* KPI Grid */
-.gn-kpi-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px;
-  .kpi-card {
-    padding: 24px; margin-bottom: 0;
-    .kpi-label { font-size: 11px; font-weight: 700; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px; }
-    .kpi-value { font-size: 36px; font-weight: 800; color: #0f172a; line-height: 1; margin-bottom: 12px; }
-    .kpi-subtext { font-size: 13px; color: #64748b; }
-  }
+.grc-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $c-green;
+  box-shadow: 0 0 0 3px $c-green-1;
+  flex-shrink: 0;
 }
 
-/* Compliance Card */
-.compliance-card {
-  padding: 24px;
-  .compliance-header {
-    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;
-    h2 { margin: 0 0 6px 0; font-size: 18px; font-weight: 700; }
-    p { margin: 0; color: #64748b; font-size: 14px; }
-    .compliance-legend {
-      display: flex; gap: 16px; font-size: 13px; color: #475569;
-      span { display: flex; align-items: center; gap: 6px; }
-      .legend-box { width: 12px; height: 12px; border-radius: 3px; &amp;.green { background: #10b981; } &amp;.orange { background: #f59e0b; } &amp;.grey { background: #e2e8f0; } }
-    }
-  }
-
-  .compliance-grid .cg-row {
-    display: grid; grid-template-columns: 200px repeat(6, 1fr); gap: 10px; align-items: center; margin-bottom: 12px;
-    &amp;.cg-header { margin-bottom: 16px; .cg-cell { color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; text-align: center; } }
-    .project-name { text-align: left; color: #1e293b; font-weight: 500; font-size: 14px; }
-    .status-block { height: 32px; border-radius: 6px; width: 100%; &amp;.green { background: #10b981; } &amp;.orange { background: #f59e0b; } &amp;.grey { background: #f1f5f9; border: 1px dashed #cbd5e1; } }
-  }
+.grc-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* Table Card */
-.table-card {
-  padding: 24px;
-  .table-header-controls {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
-    .gn-tabs {
-      display: flex; gap: 10px;
-      .gn-tab {
-        background: transparent; border: 1px solid transparent; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; color: #475569; cursor: pointer;
-        &amp;.active { background: #4f46e5; color: white; }
-      }
-    }
-    .table-actions {
-      display: flex; gap: 12px;
-      button {
-        padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
-        &amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }
-        &amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }
-      }
-    }
-  }
-
-  .gn-table {
-    width: 100%; border-collapse: collapse;
-    th { text-align: left; padding: 16px; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; }
-    td { padding: 16px; font-size: 14px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-    .health-text { font-weight: 600; }
-    .state-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; &amp;.pill-yellow { background: #fef3c7; color: #b45309; } &amp;.pill-green { background: #dcfce7; color: #15803d; } &amp;.pill-blue { background: #e0f2fe; color: #0369a1; } &amp;.pill-grey { background: #f1f5f9; color: #475569; } }
-    .btn-action-primary { background: #4f46e5; color: white; border: none; padding: 6px 20px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; }
-    .btn-action-outline { background: transparent; color: #475569; border: 1px solid #cbd5e1; padding: 6px 20px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; }
-  }
+.grc-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 330px;
+  height: 42px;
+  padding: 0 12px 0 14px;
+  margin: 0;
+  border: 1px solid $c-line;
+  border-radius: 11px;
+  background: $c-white;
+  font-weight: 400;
+  transition: border-color 0.4s $c-ease, box-shadow 0.4s $c-ease;
 }
 
-/* Responsive Adjustments for Layout Wrapper */
-@media (max-width: 768px) {
-  .sidebar { display: none; }
-  .gn-dashboard-wrapper { padding: 16px; }
+.grc-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $c-blue-1;
+}
+
+.grc-search__icon {
+  font-size: 13px;
+  color: $c-ink-4;
+  flex-shrink: 0;
+}
+
+.grc-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: $c-navy;
+}
+
+.grc-search__field::placeholder { color: $c-ink-4; }
+
+.grc-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $c-tint;
+  color: $c-ink-3;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.grc-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: $c-blue;
+  color: $c-white;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(21, 96, 224, 0.28);
+}
+
+
+/* =========================================================
+   NOTHING YET
+   ========================================================= */
+
+.grc-blank {
+  max-width: 520px;
+  margin: 70px auto;
+  padding: 52px 34px 46px;
+  border: 1px solid $c-line;
+  border-radius: 18px;
+  background: $c-white;
+  text-align: center;
+}
+
+.grc-blank__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: $c-blue-1;
+  color: $c-blue;
+  font-size: 22px;
+}
+
+.grc .grc-blank__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: $c-navy;
+}
+
+.grc .grc-blank__text {
+  max-width: 46ch;
+  margin: 11px auto 0;
+  font-size: 15px;
+  line-height: 1.64;
+  color: $c-ink-3;
+}
+
+
+/* =========================================================
+   TILES
+   ========================================================= */
+
+.grc-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.grc-tile {
+  position: relative;
+  padding: 20px 22px 22px;
+  border: 1px solid $c-line;
+  border-radius: 16px;
+  background: $c-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: transform 0.5s $c-ease, box-shadow 0.5s $c-ease;
+}
+
+.grc-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
+}
+
+.grc-tile__rule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: $c-blue-2;
+  transform-origin: left center;
+}
+
+.grc-tile.is-alert .grc-tile__rule { background: rgba(164, 116, 31, 0.34); }
+
+.grc .grc-tile__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $c-ink-4;
+}
+
+.grc .grc-tile__value {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.034em;
+  font-variant-numeric: tabular-nums;
+  color: $c-navy;
+}
+
+.grc .grc-tile__note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: $c-ink-3;
+}
+
+.grc-tile.is-alert .grc-tile__note {
+  color: $c-amber;
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.grc-panel {
+  padding: 22px 24px 24px;
+  margin-bottom: 16px;
+  border: 1px solid $c-line;
+  border-radius: 16px;
+  background: $c-white;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.grc-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.grc-panels .grc-panel { margin-bottom: 0; }
+
+.grc-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 20px;
+}
+
+.grc .grc-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: $c-navy;
+}
+
+.grc .grc-panel__hint {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  color: $c-ink-4;
+}
+
+.grc .grc-panel__empty {
+  margin: 0;
+  padding: 26px 0 6px;
+  font-size: 13.5px;
+  color: $c-ink-4;
+}
+
+.grc .grc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grc .grc-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: $c-ink-3;
+}
+
+.grc-legend__box {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   HEAT MAP
+   ========================================================= */
+
+.grc-panel--heat { overflow-x: auto; }
+
+.grc-heat {
+  display: grid;
+  gap: 6px;
+}
+
+.grc-heat__row {
+  display: grid;
+  grid-template-columns: 220px repeat(6, minmax(0, 1fr));
+  align-items: center;
+  gap: 6px;
+}
+
+.grc-heat__row--head { margin-bottom: 2px; }
+
+.grc-heat__name {
+  min-width: 0;
+  padding-right: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $c-navy;
+}
+
+.grc-heat__month {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  text-align: center;
+  color: $c-ink-4;
+}
+
+.grc-heat__cellwrap { min-width: 0; }
+
+.grc-cell {
+  display: block;
+  height: 34px;
+  border-radius: 7px;
+  transition: transform 0.35s $c-ease, box-shadow 0.35s $c-ease;
+}
+
+.grc-cell:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 16px rgba(10, 37, 64, 0.14);
+}
+
+.grc-cell--green { background: $c-green; }
+.grc-cell--amber { background: $c-amber; }
+.grc-cell--red   { background: $c-red; }
+
+/* absence, drawn as an outline rather than a fourth colour */
+.grc-cell--none {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px $c-line;
+}
+
+.grc-legend__box.grc-cell--none {
+  height: 13px;
+  box-shadow: inset 0 0 0 1px $c-line;
+}
+
+
+/* =========================================================
+   WHERE THE PRESSURE HAS BEEN
+
+   One row per dimension, each a single bar split by how often
+   that dimension was rated green, yellow or red. The month by
+   month version it replaced drew five empty columns when there
+   were five quiet months, which told you about the sample size
+   rather than the projects.
+   ========================================================= */
+
+.grc-dims {
+  display: grid;
+  gap: 12px;
+}
+
+.grc-dim {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 16px;
+}
+
+/* overall is the summary of the four under it, so it is set
+   apart rather than read as a fifth peer */
+.grc-dim.is-lead {
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid $c-line-2;
+}
+
+.grc-dim.is-lead .grc-dim__label {
+  font-weight: 700;
+  color: $c-navy;
+}
+
+.grc-dim__label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $c-ink-2;
+}
+
+.grc-dim__track {
+  display: flex;
+  height: 26px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: $c-tint;
+}
+
+.grc-dim__seg {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+}
+
+.grc-dim__seg--green { background: $c-green; }
+.grc-dim__seg--amber { background: $c-amber; }
+.grc-dim__seg--red   { background: $c-red; }
+
+.grc-dim__count {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-3;
+}
+
+.grc-dim__zero { color: $c-ink-4; }
+
+
+/* =========================================================
+   CHANGE REQUEST OUTCOMES AND CATEGORIES
+   ========================================================= */
+
+.grc-outcome {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid $c-line-2;
+}
+
+.grc-outcome__track {
+  display: flex;
+  height: 34px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: $c-tint;
+}
+
+.grc-outcome__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $c-white;
+  transform-origin: left center;
+}
+
+.grc-outcome__seg--good  { background: $c-green; }
+.grc-outcome__seg--wait  { background: $c-blue; }
+.grc-outcome__seg--bad   { background: $c-red; }
+.grc-outcome__seg--draft { background: rgba(10, 37, 64, 0.28); }
+
+.grc .grc-outcome__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grc .grc-outcome__key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: $c-ink-3;
+}
+
+.grc .grc-outcome__key strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $c-navy;
+}
+
+.grc-outcome__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.grc-outcome__dot--good  { background: $c-green; }
+.grc-outcome__dot--wait  { background: $c-blue; }
+.grc-outcome__dot--bad   { background: $c-red; }
+.grc-outcome__dot--draft { background: rgba(10, 37, 64, 0.28); }
+
+
+/* =========================================================
+   CATEGORY BARS
+   ========================================================= */
+
+.grc-bars {
+  display: grid;
+  gap: 15px;
+}
+
+.grc-bar { min-width: 0; }
+
+.grc-bar__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 7px;
+}
+
+.grc-bar__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $c-navy;
+}
+
+.grc-bar__count {
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-3;
+}
+
+.grc-bar__track {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: $c-tint;
+  overflow: hidden;
+}
+
+.grc-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: $c-blue;
+  transform-origin: left center;
+}
+
+.grc-bar--2 .grc-bar__fill { background: rgba(21, 96, 224, 0.72); }
+.grc-bar--3 .grc-bar__fill { background: rgba(21, 96, 224, 0.55); }
+.grc-bar--4 .grc-bar__fill { background: rgba(21, 96, 224, 0.42); }
+.grc-bar--5 .grc-bar__fill { background: rgba(21, 96, 224, 0.32); }
+.grc-bar--6 .grc-bar__fill { background: rgba(21, 96, 224, 0.24); }
+
+
+/* =========================================================
+   STILL TO REPORT
+   ========================================================= */
+
+.grc-due {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(164, 116, 31, 0.26);
+  border-left: 3px solid $c-amber;
+  border-radius: 14px;
+  background: $c-amber-1;
+}
+
+.grc-due__lead { min-width: 0; }
+
+.grc .grc-due__title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $c-amber;
+}
+
+.grc .grc-due__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grc .grc-due__list li {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  color: $c-navy;
+}
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.grc-block {
+  border: 1px solid $c-line;
+  border-radius: 16px;
+  background: $c-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.grc-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  padding: 20px 24px;
+}
+
+.grc-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid $c-line;
+  border-radius: 11px;
+  background: $c-page;
+}
+
+.grc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: $c-ink-3;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.4s $c-ease, color 0.4s $c-ease, border-color 0.4s $c-ease;
+}
+
+.grc-tab:hover { color: $c-navy; }
+
+.grc-tab.is-on {
+  background: $c-white;
+  border-color: $c-line;
+  color: $c-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.06);
+}
+
+.grc-tab__count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-4;
+}
+
+.grc-block__acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grc-table { min-width: 0; }
+
+.grc-table__head,
+.grc-row {
+  display: grid;
+  align-items: center;
+  gap: 0 22px;
+  padding: 0 24px;
+}
+
+.grc-table--reports .grc-table__head,
+.grc-table--reports .grc-row {
+  grid-template-columns: 128px minmax(0, 1fr) 148px 124px 118px 96px;
+}
+
+.grc-table--changes .grc-table__head,
+.grc-table--changes .grc-row {
+  grid-template-columns: 152px minmax(0, 1fr) 124px 124px 150px 96px;
+}
+
+.grc-table__head {
+  height: 42px;
+  border-top: 1px solid $c-line-2;
+  border-bottom: 1px solid $c-line-2;
+  background: rgba(10, 37, 64, 0.015);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $c-ink-4;
+}
+
+.grc-table__head &gt; .grc-right,
+.grc-row &gt; .grc-right {
+  text-align: right;
+  justify-self: end;
+}
+
+.grc-row {
+  min-height: 64px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid $c-line-2;
+  font-size: 14px;
+  color: $c-ink-2;
+  transition: background 0.4s $c-ease;
+}
+
+.grc-row:last-child { border-bottom: 0; }
+
+.grc-row:hover { background: rgba(21, 96, 224, 0.025); }
+
+.grc-cell--ref {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $c-navy;
+}
+
+.grc-cell--name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: $c-navy;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.grc-cell__top,
+.grc-cell__sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.grc-cell__sub {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: $c-ink-4;
+}
+
+.grc-cell--muted { color: $c-ink-3; }
+
+.grc-cell--date {
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-3;
+}
+
+.grc .grc-empty {
+  margin: 0;
+  padding: 52px 24px;
+  text-align: center;
+  font-size: 14px;
+  color: $c-ink-4;
+}
+
+
+/* ---------- rag text and pills ---------- */
+
+.grc-rag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.grc-rag__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.grc-rag--green { color: $c-green; }
+.grc-rag--amber { color: $c-amber; }
+.grc-rag--red   { color: $c-red; }
+.grc-rag--none  { color: $c-ink-4; font-weight: 400; }
+
+.grc-rag--green .grc-rag__dot { background: $c-green; }
+.grc-rag--amber .grc-rag__dot { background: $c-amber; }
+.grc-rag--red .grc-rag__dot   { background: $c-red; }
+.grc-rag--none .grc-rag__dot  {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.24);
+}
+
+.grc-pill {
+  display: inline-flex;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.grc-pill--good  { background: $c-green-1; color: $c-green; }
+.grc-pill--wait  { background: $c-blue-1;  color: $c-blue-dk; }
+.grc-pill--bad   { background: $c-red-1;   color: $c-red; }
+.grc-pill--draft { background: $c-tint;    color: $c-ink-3; }
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+.grc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.4s $c-ease, border-color 0.4s $c-ease, color 0.4s $c-ease;
+}
+
+.grc-btn--sm {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.grc-btn--primary {
+  background: $c-blue;
+  border-color: $c-blue;
+  color: $c-white;
+}
+
+.grc-btn--primary:hover,
+.grc-btn--primary:focus {
+  background: $c-blue-dk;
+  border-color: $c-blue-dk;
+  color: $c-white;
+}
+
+.grc-btn--ghost {
+  border-color: $c-line;
+  color: $c-ink-2;
+}
+
+.grc-btn--ghost:hover,
+.grc-btn--ghost:focus {
+  border-color: $c-blue-2;
+  color: $c-blue-dk;
+}
+
+.grc-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.grc-btn:focus-visible,
+.grc-tab:focus-visible,
+.grc-search__clear:focus-visible {
+  outline: 2px solid $c-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.grc-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  background: rgba(10, 37, 64, 0.42);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.grc-modal__panel {
+  width: 100%;
+  max-width: 720px;
+  border-radius: 18px;
+  background: $c-white;
+  box-shadow: 0 30px 80px rgba(10, 37, 64, 0.3);
+  overflow: hidden;
+}
+
+.grc-modal__panel--wide { max-width: 900px; }
+
+.grc-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 20px;
+  border-bottom: 1px solid $c-line-2;
+}
+
+.grc-modal__lead { min-width: 0; }
+
+.grc-modal__ref {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-4;
+}
+
+.grc .grc-modal__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.26;
+  letter-spacing: -0.026em;
+  color: $c-navy;
+}
+
+.grc .grc-modal__hint,
+.grc-modal__meta {
+  display: block;
+  margin: 7px 0 0;
+  font-size: 13px;
+  color: $c-ink-4;
+}
+
+.grc-modal__x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid $c-line;
+  border-radius: 10px;
+  background: transparent;
+  color: $c-ink-3;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.4s $c-ease, color 0.4s $c-ease;
+}
+
+.grc-modal__x:hover {
+  border-color: $c-blue-2;
+  color: $c-blue-dk;
+}
+
+.grc-modal__body {
+  max-height: 62vh;
+  padding: 22px 26px;
+  overflow-y: auto;
+}
+
+.grc-modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 26px;
+  border-top: 1px solid $c-line-2;
+  background: $c-page;
+}
+
+
+/* ---------- form ---------- */
+
+.grc-errors {
+  padding: 14px 17px 15px;
+  margin-bottom: 20px;
+  border: 1px solid $c-red-2;
+  border-radius: 12px;
+  background: $c-red-1;
+}
+
+.grc .grc-errors ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: $c-red;
+}
+
+.grc-fields {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 18px 16px;
+}
+
+.grc-field--full    { grid-column: span 12; }
+.grc-field--half    { grid-column: span 6; }
+.grc-field--third   { grid-column: span 4; }
+.grc-field--quarter { grid-column: span 3; }
+
+.grc-field { min-width: 0; }
+
+.grc-field label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: $c-navy;
+}
+
+.grc-field input[type="text"],
+.grc-field input[type="number"],
+.grc-field input[type="date"],
+.grc-field select,
+.grc-field textarea,
+.grc-rate input,
+.grc-rate select,
+.grc-rate textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid $c-line;
+  border-radius: 10px;
+  background: $c-white;
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: $c-navy;
+  transition: border-color 0.35s $c-ease, box-shadow 0.35s $c-ease;
+}
+
+.grc-field textarea,
+.grc-rate textarea {
+  min-height: auto;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.grc-field input:focus,
+.grc-field select:focus,
+.grc-field textarea:focus,
+.grc-rate select:focus,
+.grc-rate textarea:focus {
+  outline: 0;
+  border-color: rgba(21, 96, 224, 0.5);
+  box-shadow: 0 0 0 3px $c-blue-1;
+}
+
+/* the error state is a border and a message, not a red field.
+   Filling the input red makes the value hard to read at exactly
+   the moment you need to fix it. */
+.grc-field input.has-error,
+.grc-field select.has-error,
+.grc-field textarea.has-error {
+  border-color: $c-red-2;
+  background: $c-red-1;
+}
+
+.grc .grc-sub {
+  grid-column: span 12;
+  margin: 8px 0 -6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $c-blue;
+}
+
+.grc-pick {
+  position: relative;
+  display: block;
+}
+
+.grc-pick select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  cursor: pointer;
+}
+
+.grc-pick i {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  margin-top: -7px;
+  font-size: 14px;
+  color: $c-ink-4;
+  pointer-events: none;
+}
+
+/* rating and its comment on one line, which is how the platform
+   form groups them */
+.grc-rate {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.grc-rate__pick { min-width: 0; }
+.grc-rate__note { min-width: 0; }
+
+.grc-rate label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: $c-navy;
+}
+
+
+/* ---------- upload ---------- */
+
+.grc-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 22px 26px;
+  border: 1.5px dashed $c-line;
+  border-radius: 14px;
+  background: $c-tint;
+  text-align: center;
+  transition: border-color 0.4s $c-ease, background 0.4s $c-ease;
+}
+
+/* The native input is hidden rather than removed, because
+   display:none stops some browsers firing click() on a file
+   input programmatically and that would kill the button.
+
+   The element also carries these rules inline, since a portal
+   theme styles input[type=file] and would otherwise render the
+   browser's own control above the drop zone. This rule is the
+   belt to that inline brace. */
+.grc .grc-drop input.grc-file-input,
+.grc-file-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.grc-drop.is-over {
+  border-color: $c-blue;
+  background: $c-blue-1;
+}
+
+.grc-drop__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 13px;
+  border-radius: 50%;
+  background: $c-white;
+  border: 1px solid $c-line;
+  color: $c-blue;
+  font-size: 16px;
+}
+
+.grc .grc-drop__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: $c-navy;
+}
+
+.grc .grc-drop__text {
+  margin: 5px 0 14px;
+  font-size: 13px;
+  color: $c-ink-3;
+}
+
+.grc .grc-drop__note {
+  margin: 9px 0 0;
+  font-size: 12px;
+  color: $c-ink-4;
+}
+
+.grc .grc-files {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grc-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 13px;
+  border: 1px solid $c-line;
+  border-radius: 11px;
+  background: $c-white;
+}
+
+.grc-file__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: $c-blue-1;
+  color: $c-blue;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.grc-file__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.grc-file__name {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $c-navy;
+}
+
+.grc-file__size {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-4;
+}
+
+.grc-file__x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: $c-ink-4;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.35s $c-ease, color 0.35s $c-ease;
+}
+
+.grc-file__x:hover {
+  background: $c-red-1;
+  color: $c-red;
+}
+
+
+/* ---------- report detail ---------- */
+
+.grc-ragrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.grc-ragrid__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: $c-tint;
+  border-left: 3px solid transparent;
+}
+
+.grc-ragrid__item--green { background: $c-green-1; border-left-color: $c-green; }
+.grc-ragrid__item--amber { background: $c-amber-1; border-left-color: $c-amber; }
+.grc-ragrid__item--red   { background: $c-red-1;   border-left-color: $c-red; }
+
+.grc-ragrid__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: $c-ink-4;
+}
+
+.grc-ragrid__value {
+  font-size: 13px;
+  font-weight: 600;
+  color: $c-navy;
+}
+
+.grc .grc-kvs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 30px;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.grc-kv { min-width: 0; }
+
+.grc .grc-kv dt {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: $c-ink-4;
+}
+
+.grc .grc-kv dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: $c-navy;
+}
+
+.grc .grc-kv dd.is-blank {
+  font-weight: 400;
+  font-style: italic;
+  color: $c-ink-4;
+}
+
+.grc-prose { margin-top: 20px; }
+
+.grc .grc-prose__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: $c-ink-4;
+}
+
+/* the line breaks the author typed are kept */
+.grc .grc-prose__text {
+  margin: 0;
+  max-width: 74ch;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: $c-ink-2;
+  white-space: pre-line;
+}
+
+
+/* =========================================================
+   MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  @keyframes grcRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes grcDrawX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+
+  @keyframes grcFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes grcPanelIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .grc-top  { animation: grcRise 0.6s $c-ease backwards; }
+  .grc-tile { animation: grcRise 0.62s $c-ease backwards; }
+
+  .grc-tile--due     { animation-delay: 0.06s; }
+  .grc-tile--reports { animation-delay: 0.12s; }
+  .grc-tile--health  { animation-delay: 0.18s; }
+  .grc-tile--changes { animation-delay: 0.24s; }
+
+  .grc-tile__rule { animation: grcDrawX 0.7s $c-ease 0.3s backwards; }
+
+  .grc-panel { animation: grcRise 0.62s $c-ease 0.28s backwards; }
+  .grc-due   { animation: grcRise 0.6s $c-ease 0.34s backwards; }
+  .grc-block { animation: grcRise 0.62s $c-ease 0.38s backwards; }
+
+  /* the heat map fills in row by row */
+  .grc-heat__row { animation: grcFade 0.5s $c-ease backwards; }
+
+  .grc-heat__row--n1 { animation-delay: 0.38s; }
+  .grc-heat__row--n2 { animation-delay: 0.44s; }
+  .grc-heat__row--n3 { animation-delay: 0.50s; }
+  .grc-heat__row--n4 { animation-delay: 0.56s; }
+  .grc-heat__row--n5 { animation-delay: 0.62s; }
+  .grc-heat__row--n6 { animation-delay: 0.68s; }
+  .grc-heat__row--n7 { animation-delay: 0.74s; }
+  .grc-heat__row--n8 { animation-delay: 0.80s; }
+
+  /* each dimension bar draws from its own left edge */
+  .grc-dim__seg { animation: grcDrawX 0.7s $c-ease backwards; }
+
+  .grc-dim--overall .grc-dim__seg   { animation-delay: 0.42s; }
+  .grc-dim--schedule .grc-dim__seg  { animation-delay: 0.48s; }
+  .grc-dim--cost .grc-dim__seg      { animation-delay: 0.54s; }
+  .grc-dim--resources .grc-dim__seg { animation-delay: 0.60s; }
+  .grc-dim--scope .grc-dim__seg     { animation-delay: 0.66s; }
+
+  .grc-outcome__seg { animation: grcDrawX 0.7s $c-ease 0.44s backwards; }
+
+  .grc-bar__fill { animation: grcDrawX 0.8s $c-ease backwards; }
+
+  .grc-bar--1 .grc-bar__fill { animation-delay: 0.44s; }
+  .grc-bar--2 .grc-bar__fill { animation-delay: 0.50s; }
+  .grc-bar--3 .grc-bar__fill { animation-delay: 0.56s; }
+  .grc-bar--4 .grc-bar__fill { animation-delay: 0.62s; }
+  .grc-bar--5 .grc-bar__fill { animation-delay: 0.68s; }
+  .grc-bar--6 .grc-bar__fill { animation-delay: 0.74s; }
+
+  /* replays on every tab change, because ng-repeat rebuilds its
+     nodes and the keyframe starts again with them */
+  .grc-row { animation: grcRise 0.42s $c-ease backwards; }
+
+  .grc-row--n1  { animation-delay: 0.02s; }
+  .grc-row--n2  { animation-delay: 0.05s; }
+  .grc-row--n3  { animation-delay: 0.08s; }
+  .grc-row--n4  { animation-delay: 0.11s; }
+  .grc-row--n5  { animation-delay: 0.14s; }
+  .grc-row--n6  { animation-delay: 0.17s; }
+  .grc-row--n7  { animation-delay: 0.20s; }
+  .grc-row--n8  { animation-delay: 0.23s; }
+  .grc-row--n9  { animation-delay: 0.26s; }
+  .grc-row--n10 { animation-delay: 0.29s; }
+
+  .grc-modal { animation: grcFade 0.28s $c-ease backwards; }
+  .grc-modal__panel { animation: grcPanelIn 0.4s $c-ease 0.04s backwards; }
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1280px) {
+
+  .grc { padding: 26px 24px 60px; }
+
+  .grc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .grc-panels { grid-template-columns: minmax(0, 1fr); }
+
+  .grc-heat__row { grid-template-columns: 170px repeat(6, minmax(0, 1fr)); }
+}
+
+@media (max-width: 980px) {
+
+  .grc { padding: 22px 16px 52px; }
+
+  .grc-top__right {
+    width: 100%;
+    order: 2;
+  }
+
+  .grc-search { width: 100%; }
+
+  .grc-tiles { grid-template-columns: minmax(0, 1fr); }
+
+  /* the heat map keeps its shape but drops the project column,
+     which is the first thing to go when width runs out */
+  .grc-heat__row { grid-template-columns: 116px repeat(6, minmax(0, 1fr)); }
+
+  .grc-heat__name { font-size: 12.5px; }
+
+  .grc-cell { height: 28px; }
+
+  .grc-block__head { align-items: stretch; flex-direction: column; }
+
+  .grc-block__acts .grc-btn { flex: 1; }
+
+  /* six columns at this width leaves four of them two
+     characters wide, so rows stack instead */
+  .grc-table__head { display: none; }
+
+  .grc-table--reports .grc-row,
+  .grc-table--changes .grc-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 16px 18px;
+  }
+
+  .grc-cell--name { grid-column: 1 / -1; }
+
+  .grc-row &gt; span::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $c-ink-4;
+  }
+
+  .grc-cell--name::before { display: none; }
+
+  .grc-row &gt; .grc-right {
+    text-align: left;
+    justify-self: start;
+  }
+
+  .grc-ragrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .grc-dim { grid-template-columns: 78px minmax(0, 1fr) 36px; gap: 12px; }
+
+  .grc-rate { grid-template-columns: minmax(0, 1fr); }
+
+  .grc-field--half,
+  .grc-field--third,
+  .grc-field--quarter { grid-column: span 12; }
+
+  .grc .grc-kvs { grid-template-columns: minmax(0, 1fr); }
+
+  .grc-modal { padding: 18px 12px; }
+  .grc-modal__head { padding: 20px 18px 16px; }
+  .grc-modal__body { padding: 18px; max-height: 66vh; }
+  .grc-modal__foot { padding: 14px 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grc * { transition: none; }
+  .grc-tile:hover { transform: none; }
+  .grc-cell:hover { transform: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -252,246 +2203,929 @@
         <docs/>
         <field_list/>
         <has_preview>true</has_preview>
-        <id>report___change_request</id>
+        <id>report_change_request</id>
         <internal>false</internal>
         <link><![CDATA[function link(scope, element, attrs, controller) {
   
 }]]></link>
-        <name>Reprot &amp; Change Request</name>
+        <name>Report &amp; Change Requests</name>
         <option_schema/>
         <public>false</public>
         <roles/>
-        <script><![CDATA[(function() {
-    // 1. LOAD SIDEBAR WIDGET
-    data.sideBar = $sp.getWidget('sidebar');
+        <script><![CDATA[(function () {
 
-    var currentUser = gs.getUserID();
-    
-    // Read the dropdown value from the Client (Default to 3 if loading for the first time)
-    data.filterMonths = (input && input.filterMonths) ? input.filterMonths : '3';
+  /* =========================================================
+     GATENOW · REPORTS AND CHANGE REQUESTS
+     Service Portal widget · Server script
 
-    data.kpis = {
-        totalReports: 0,
-        projectCount: 0,
-        onTimeRate: 100, 
-        totalChanges: 0,
-        approvedChanges: 0,
-        openChanges: 0,
-        dueThisMonth: 0
-    };
-    data.reports = [];
-    data.changes = [];
-    data.compliance = { months: [], projects: [] };
+     One page for everything an applicant files against a live
+     project: the monthly status report and the change request.
+     Reading what has been filed, and filing the next one.
 
-    /* ==========================================
-       1. GET APPLICANT RECORD FOR CURRENT USER
-       ========================================== */
-    var myApplicantIds = [];
-    var grApp = new GlideRecord('x_enno_gatenow_service_applicants');
-    grApp.addQuery('user', currentUser);
-    grApp.query();
-    while (grApp.next()) {
-        myApplicantIds.push(grApp.getUniqueValue());
-    }
+     Field names are taken from the two forms you sent:
 
-    /* ==========================================
-       2. GET PROJECTS FOR THOSE APPLICANT IDS
-       ========================================== */
-    var myProjects = [];
-    var projectMap = {};
-    
-    var grProjects = new GlideRecord('x_enno_gatenow_project');
-    var qcP = grProjects.addQuery('applicant', 'IN', myApplicantIds.join(','));
-    qcP.addOrCondition('applicant.user', currentUser); 
-    grProjects.orderByDesc('sys_created_on');
-    grProjects.query();
-    
-    while (grProjects.next()) {
-        var pId = grProjects.getUniqueValue();
-        myProjects.push(pId);
-        projectMap[pId] = grProjects.getValue('project_name') || grProjects.getValue('name') || grProjects.getValue('number');
-    }
-    
-    data.kpis.projectCount = myProjects.length;
+       status report
+         project, status_date, report_status, number,
+         percent_complete, overall_health, executive_summary,
+         comments, achievements_last_month,
+         key_activities_next_month, schedule,
+         comments_on_schedule, cost, comments_on_cost,
+         resources, resource_comments, scope, comments_on_scope
 
-    /* ==========================================
-       3. BUILD COMPLIANCE GRID (LAST 6 MONTHS)
-       ========================================== */
-    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    var monthKeys = []; 
-    var compMap = {};   
-    
-    for (var i = 5; i >= 0; i--) {
-        var gdt = new GlideDateTime();
-        gdt.addMonthsLocalTime(-i);
-        var mIdx = gdt.getMonthLocalTime() - 1; 
-        var yyyy = gdt.getYearLocalTime();
-        var mm = ('0' + (mIdx + 1)).slice(-2); 
-        
-        data.compliance.months.push(monthNames[mIdx]);
-        monthKeys.push(yyyy + '-' + mm);
-    }
+       change request
+         number, priority, impact, category, approval, project,
+         title, proposed_change, reason_for_change
 
-    for (var p = 0; p < myProjects.length; p++) {
-        var projId = myProjects[p];
-        compMap[projId] = { name: projectMap[projId], map: {} };
-    }
+     The change table is x_enno_gatenow_request_change, which is
+     the name your working script uses. A second candidate is
+     tested in case the other spelling exists on your instance.
 
-    /* ==========================================
-       4. FETCH REPORTS & CHANGES (WITH DATE FILTER)
-       ========================================== */
-    var lateReportsCount = 0;
-    var reportsThisMonthCount = 0;
-    
-    var gdtNow = new GlideDateTime();
-    var currentMonthPrefix = gdtNow.getYearLocalTime() + '-' + ('0' + gdtNow.getMonthLocalTime()).slice(-2);
+     GlideRecordSecure throughout, and both inserts verify the
+     project belongs to the person signed in before writing.
+     ========================================================= */
 
-    // Build the dynamic Date Filter string
-    var dateFilterQuery = '';
-    if (data.filterMonths !== 'all') {
-        // Creates a native ServiceNow query (e.g., sys_created_on >= Last 3 Months)
-        dateFilterQuery = 'sys_created_on>=javascript:gs.monthsAgoStart(' + data.filterMonths + ')';
-    }
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var PROJECT   = 'x_enno_gatenow_project';
+  var REPORT    = 'x_enno_gatenow_status_report';
 
-    if (myProjects.length > 0) {
-        
-        // --- FETCH STATUS REPORTS ---
-        var grReport = new GlideRecord('x_enno_gatenow_status_report');
-        grReport.addQuery('project', 'IN', myProjects.join(','));
-        if (dateFilterQuery) grReport.addEncodedQuery(dateFilterQuery); // Apply Dropdown Filter
-        grReport.orderByDesc('status_date');
-        grReport.query();
+  var CHANGE_TABLES = ['x_enno_gatenow_request_change', 'x_enno_gatenow_change_request'];
 
-        while(grReport.next()) {
-            var rawDate = grReport.getValue('status_date');
-            var dateToUse = rawDate || grReport.getValue('sys_created_on'); 
-            var periodFormatted = dateToUse ? getMonthYear(dateToUse) : 'Unknown Period';
-            
-            var healthVal = grReport.getValue('overall_health');
-            var healthLabel = grReport.getDisplayValue('overall_health');
-            var stateLabel = grReport.getDisplayValue('report_status') || 'Submitted';
-            var proj_id = grReport.getValue('project');
+  var me = gs.getUserID();
 
-            if (dateToUse) {
-                var monthKey = dateToUse.substring(0, 7); 
-                if (monthKey === currentMonthPrefix) reportsThisMonthCount++;
+  data.success = false;
+  data.error   = '';
+  data.savedAs = '';
 
-                if (compMap[proj_id]) {
-                    var boxColor = 'green'; 
-                    if (stateLabel.toLowerCase().indexOf('late') > -1) {
-                        boxColor = 'orange';
-                        lateReportsCount++; 
-                    }
-                    compMap[proj_id].map[monthKey] = boxColor;
-                }
-            }
+  if (typeof input === 'undefined' || input === null) input = {};
 
-            data.reports.push({
-                sys_id: grReport.getUniqueValue(),
-                project_id: proj_id,
-                period: periodFormatted,
-                project_name: projectMap[proj_id],
-                submitted: grReport.getDisplayValue('sys_created_on').split(' ')[0],
-                health: healthLabel,
-                health_color: healthVal ? healthVal.toLowerCase() : 'grey',
-                state: stateLabel,
-                state_color: mapStateColor(stateLabel),
-                action: 'View'
-            });
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function param(key, dflt) {
+    try {
+      if (input && input[key] !== undefined && input[key] !== null) return input[key];
+    } catch (e) { /* fall through */ }
+    return dflt;
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  function monthKey(value) {
+    if (!value) return '';
+    return ('' + value).substring(0, 7);
+  }
+
+  function cleanDate(v) {
+    if (!v) return '';
+    v = String(v);
+    if (v.indexOf('T') > -1) return v.split('T')[0];
+    var m = v.match(/\d{4}-\d{2}-\d{2}/);
+    return m ? m[0] : v;
+  }
+
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
         }
-        data.kpis.totalReports = data.reports.length;
+      } catch (e) { /* next */ }
+    }
+    return '';
+  }
 
-        if (data.kpis.totalReports > 0) {
-            data.kpis.onTimeRate = Math.round(((data.kpis.totalReports - lateReportsCount) / data.kpis.totalReports) * 100);
-        }
+  /* the long fields are HTML areas, and raw markup was leaking
+     into the list views */
+  function text(raw, cap) {
+    if (!raw) return '';
+    var s = ('' + raw)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (cap && s.length > cap) s = s.substring(0, cap).replace(/\s+\S*$/, '') + '...';
+    return s;
+  }
 
-        data.kpis.dueThisMonth = data.kpis.projectCount - reportsThisMonthCount;
-        if (data.kpis.dueThisMonth < 0) data.kpis.dueThisMonth = 0;
+  /* GlideRecord here rather than GlideRecordSecure, because
+     isValid answers whether the table exists at all. No query
+     runs and no data is read. Every actual read and write below
+     goes through GlideRecordSecure. */
+  /* Attachments arrive as base64 from the browser. A file with
+     no data is skipped rather than written as an empty record. */
+  function attach(table, sysId, files) {
+    if (!files || !files.length) return 0;
 
-        // --- FETCH CHANGE REQUESTS ---
-        var grChange = new GlideRecord('x_enno_gatenow_request_change');
-        var qcC = grChange.addQuery('project', 'IN', myProjects.join(','));
-        qcC.addOrCondition('parent', 'IN', myProjects.join(','));
-        if (dateFilterQuery) grChange.addEncodedQuery(dateFilterQuery); // Apply Dropdown Filter
-        grChange.orderByDesc('sys_created_on');
-        grChange.query();
+    var rec = new GlideRecordSecure(table);
+    if (!rec.get(sysId)) return 0;
 
-        while(grChange.next()) {
-            var changeState = grChange.getDisplayValue('approval') || grChange.getDisplayValue('state');
-            var stLower = changeState.toLowerCase();
-            
-            if (stLower.indexOf('approve') > -1) {
-                data.kpis.approvedChanges++;
-            } else if (stLower.indexOf('open') > -1 || stLower.indexOf('request') > -1 || stLower.indexOf('review') > -1) {
-                data.kpis.openChanges++;
-            }
-            
-            var linkedProjectId = grChange.getValue('project') || grChange.getValue('parent');
-            
-            var actionBtn = 'View';
-            if (stLower.indexOf('info requested') > -1) actionBtn = 'Update';
-            else if (stLower.indexOf('review') > -1) actionBtn = 'Open';
+    var done = 0;
 
-            data.changes.push({
-                sys_id: grChange.getUniqueValue(),
-                number: grChange.getValue('number') || '', 
-                project_id: linkedProjectId,
-                project_name: projectMap[linkedProjectId],
-                type: grChange.getDisplayValue('type') || grChange.getDisplayValue('category'),
-                raised: formatDateShort(grChange.getValue('sys_created_on')), 
-                state: changeState,
-                state_color: mapStateColor(changeState),
-                action: actionBtn
-            });
-        }
-        data.kpis.totalChanges = data.changes.length;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!f || !f.data) continue;
+      try {
+        var id = new GlideSysAttachment().writeBase64(
+          rec, f.name, f.type || 'application/octet-stream', f.data);
+        if (id) done++;
+        else gs.error('[Reports] attachment rejected: ' + f.name);
+      } catch (e) {
+        gs.error('[Reports] attachment failed on ' + f.name + ': ' + e.message);
+      }
     }
 
-    /* ==========================================
-       5. FINALIZE HEAT MAP ARRAYS FOR HTML
-       ========================================== */
-    for (var key in compMap) {
-        var projHistory = [];
-        for (var k = 0; k < monthKeys.length; k++) {
-            projHistory.push(compMap[key].map[monthKeys[k]] || 'grey');
-        }
-        data.compliance.projects.push({
-            name: compMap[key].name,
-            history: projHistory
+    return done;
+  }
+
+  function firstValidTable(list) {
+    for (var i = 0; i < list.length; i++) {
+      try {
+        var probe = new GlideRecord(list[i]);
+        if (probe.isValid()) return list[i];
+      } catch (e) { /* next candidate */ }
+    }
+    return list[0];
+  }
+
+  var CHANGE = firstValidTable(CHANGE_TABLES);
+
+  /* Green, Yellow and Red are the platform's own words, so they
+     are kept rather than translated into something friendlier
+     that would not match the record. */
+  function rag(value) {
+    var v = lower(value);
+    if (v.indexOf('red') !== -1)    return { key: 'red',   label: gs.getMessage('Red') };
+    if (v.indexOf('yellow') !== -1) return { key: 'amber', label: gs.getMessage('Yellow') };
+    if (v.indexOf('green') !== -1)  return { key: 'green', label: gs.getMessage('Green') };
+    return { key: 'none', label: gs.getMessage('Not set') };
+  }
+
+
+  /* ============================================================
+     WHOSE PROJECTS
+     ============================================================ */
+
+  var projectIds = [];
+  var projectName = {};
+
+  data.projects = [];
+
+  try {
+
+    var applicantIds = [];
+    var ap = new GlideRecordSecure(APPLICANT);
+    ap.addQuery('user', me);
+    ap.query();
+    while (ap.next()) applicantIds.push(ap.getUniqueValue());
+
+    if (applicantIds.length) {
+      var pj = new GlideRecordSecure(PROJECT);
+      pj.addQuery('applicant', 'IN', applicantIds.join(','));
+      pj.orderBy('project_name');
+      pj.query();
+
+      while (pj.next()) {
+        var pid = pj.getUniqueValue();
+        var nm  = pick(pj, ['project_name', 'short_description']) || pj.getValue('number');
+
+        projectIds.push(pid);
+        projectName[pid] = nm;
+
+        data.projects.push({
+          sysId  : pid,
+          number : pj.getValue('number'),
+          name   : nm,
+          phase  : pj.getDisplayValue('phase'),
+          percent: parseInt(pj.getValue('percent_complete') || 0, 10) || 0,
+          open   : lower(pj.getDisplayValue('phase')).indexOf('closed') === -1 &&
+                   lower(pj.getDisplayValue('phase')).indexOf('cancel') === -1
         });
+      }
     }
 
-    /* ==========================================
-       FORMATTING HELPER FUNCTIONS
-       ========================================== */
-    function getMonthYear(dateString) {
-        if (!dateString) return '';
-        var parts = dateString.split('-'); 
-        if (parts.length >= 2) {
-            var mIdx = parseInt(parts[1], 10) - 1;
-            return monthNames[mIdx] + ' ' + parts[0];
+  } catch (e) {
+    gs.error('[Reports] project lookup: ' + e.message);
+  }
+
+  function ownsProject(id) {
+    return !!id && projectIds.indexOf('' + id) !== -1;
+  }
+
+
+  /* ============================================================
+     WRITE ACTIONS
+     ============================================================ */
+
+  var action = String(param('action', ''));
+
+  if (action === 'submit_report') {
+    try {
+
+      var rProject = String(param('project', ''));
+
+      if (!ownsProject(rProject)) {
+        data.error = gs.getMessage('That project is not one of yours.');
+      } else {
+
+        var rec = new GlideRecordSecure(REPORT);
+        rec.initialize();
+
+        rec.setValue('project', rProject);
+
+        var sd = cleanDate(param('status_date', ''));
+        if (sd) rec.setValue('status_date', sd);
+
+        rec.setValue('report_status', param('report_status', ''));
+
+        var pcRaw = param('percent_complete', '');
+        if (pcRaw !== '' && pcRaw !== null) rec.setValue('percent_complete', pcRaw);
+
+        rec.setValue('overall_health', param('overall_health', ''));
+        rec.setValue('executive_summary', param('executive_summary', ''));
+        rec.setValue('comments', param('comments', ''));
+        rec.setValue('achievements_last_month', param('achievements_last_month', ''));
+        rec.setValue('key_activities_next_month', param('key_activities_next_month', ''));
+
+        rec.setValue('schedule', param('schedule', ''));
+        rec.setValue('comments_on_schedule', param('comments_on_schedule', ''));
+        rec.setValue('cost', param('cost', ''));
+        rec.setValue('comments_on_cost', param('comments_on_cost', ''));
+        rec.setValue('resources', param('resources', ''));
+        rec.setValue('resource_comments', param('resource_comments', ''));
+        rec.setValue('scope', param('scope', ''));
+        rec.setValue('comments_on_scope', param('comments_on_scope', ''));
+
+        var newReport = rec.insert();
+
+        if (newReport) {
+
+          var rFiles = param('attachments', []);
+          var rDone  = attach(REPORT, newReport, rFiles);
+
+          data.success = true;
+          data.savedAs = 'report';
+          data.attached = rDone;
+
+          /* the record is in, but the applicant needs to know the
+             documents are not */
+          if (rFiles && rFiles.length && rDone === 0) {
+            data.error = gs.getMessage('The report was filed but the attachments did not upload. Open the report and add them.');
+          }
+
+        } else {
+          data.error = gs.getMessage('The report did not save. Nothing was lost, try again.');
         }
-        return dateString;
-    }
+      }
 
-    function formatDateShort(dateString) {
-        if (!dateString) return '';
-        var parts = dateString.split(' ')[0].split('-'); 
-        if (parts.length === 3) {
-            var d = parseInt(parts[2], 10); 
-            var m = parseInt(parts[1], 10) - 1;
-            return d + ' ' + monthNames[m] + ' ' + parts[0];
+    } catch (e) {
+      gs.error('[Reports] report insert: ' + e.toString());
+      data.error = gs.getMessage('Something went wrong saving the report.') + ' ' + e.message;
+    }
+  }
+
+  if (action === 'submit_change') {
+    try {
+
+      var cProject = String(param('project', ''));
+
+      if (!ownsProject(cProject)) {
+        data.error = gs.getMessage('That project is not one of yours.');
+      } else {
+
+        var chg = new GlideRecordSecure(CHANGE);
+        chg.initialize();
+
+        chg.setValue('project', cProject);
+        chg.setValue('title', param('title', ''));
+        chg.setValue('category', param('category', ''));
+        chg.setValue('priority', param('priority', ''));
+        chg.setValue('impact', param('impact', ''));
+        chg.setValue('proposed_change', param('proposed_change', ''));
+        chg.setValue('reason_for_change', param('reason_for_change', ''));
+
+        /* Submitting is the act of requesting. Leaving it at Not
+           Yet Requested would file something nobody looks at. */
+        chg.setValue('approval', 'Requested');
+
+        var newChange = chg.insert();
+
+        if (newChange) {
+
+          var cFiles = param('attachments', []);
+          var cDone  = attach(CHANGE, newChange, cFiles);
+
+          data.success = true;
+          data.savedAs = 'change';
+          data.attached = cDone;
+
+          if (cFiles && cFiles.length && cDone === 0) {
+            data.error = gs.getMessage('The change request was raised but the attachments did not upload. Open it and add them.');
+          }
+
+        } else {
+          data.error = gs.getMessage('The change request did not save. Nothing was lost, try again.');
         }
-        return dateString;
+      }
+
+    } catch (e) {
+      gs.error('[Reports] change insert: ' + e.toString());
+      data.error = gs.getMessage('Something went wrong saving the change request.') + ' ' + e.message;
+    }
+  }
+
+
+  /* ============================================================
+     CHROME
+     ============================================================ */
+
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
+
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
+
+
+  /* ============================================================
+     READ
+     ============================================================ */
+
+  data.reports = [];
+  data.changes = [];
+
+  var MONTHS = 6;
+  var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  var monthKeys = [];
+  data.months = [];
+
+  for (var i = MONTHS - 1; i >= 0; i--) {
+    var g = new GlideDateTime();
+    g.addMonthsLocalTime(-i);
+    var mi = g.getMonthLocalTime() - 1;
+    var yr = g.getYearLocalTime();
+    data.months.push(monthNames[mi]);
+    monthKeys.push(yr + '-' + ('0' + (mi + 1)).slice(-2));
+  }
+
+  var thisMonth = monthKeys[monthKeys.length - 1];
+
+  /* heat map cell per project per month */
+  var grid = {};
+  for (var gp = 0; gp < projectIds.length; gp++) {
+    grid[projectIds[gp]] = {};
+  }
+
+  /* health counts per month, for the trend strip */
+  var trend = {};
+  for (var tk = 0; tk < monthKeys.length; tk++) {
+    trend[monthKeys[tk]] = { green: 0, amber: 0, red: 0 };
+  }
+
+  var reportedThisMonth = {};
+  var healthTotals = { green: 0, amber: 0, red: 0, none: 0 };
+
+  /* Every dimension counted separately. Overall health alone
+     says a project is amber; this says which of the four things
+     made it amber, which is the part worth knowing. */
+  var dims = {
+    overall  : { green: 0, amber: 0, red: 0, none: 0 },
+    schedule : { green: 0, amber: 0, red: 0, none: 0 },
+    cost     : { green: 0, amber: 0, red: 0, none: 0 },
+    resources: { green: 0, amber: 0, red: 0, none: 0 },
+    scope    : { green: 0, amber: 0, red: 0, none: 0 }
+  };
+
+  try {
+
+    if (projectIds.length) {
+
+      var rp = new GlideRecordSecure(REPORT);
+      rp.addQuery('project', 'IN', projectIds.join(','));
+      rp.orderByDesc('status_date');
+      rp.setLimit(300);
+      rp.query();
+
+      while (rp.next()) {
+
+        var raw   = rp.getValue('status_date') || rp.getValue('sys_created_on');
+        var mk    = monthKey(raw);
+        var pid2  = rp.getValue('project');
+        var h     = rag(rp.getValue('overall_health'));
+
+        if (grid[pid2] && grid[pid2][mk] === undefined) {
+          grid[pid2][mk] = h.key;
+        }
+
+        if (trend[mk]) {
+          if (h.key === 'green') trend[mk].green++;
+          else if (h.key === 'amber') trend[mk].amber++;
+          else if (h.key === 'red') trend[mk].red++;
+        }
+
+        if (mk === thisMonth) reportedThisMonth[pid2] = true;
+
+        healthTotals[h.key]++;
+
+        var dSchedule  = rag(rp.getValue('schedule'));
+        var dCost      = rag(rp.getValue('cost'));
+        var dResources = rag(rp.getValue('resources'));
+        var dScope     = rag(rp.getValue('scope'));
+
+        dims.overall[h.key]++;
+        dims.schedule[dSchedule.key]++;
+        dims.cost[dCost.key]++;
+        dims.resources[dResources.key]++;
+        dims.scope[dScope.key]++;
+
+        data.reports.push({
+          sysId    : rp.getUniqueValue(),
+          number   : rp.getValue('number'),
+          projectId: pid2,
+          project  : projectName[pid2] || '',
+          period   : mk ? (monthNames[parseInt(mk.substring(5, 7), 10) - 1] + ' ' + mk.substring(0, 4)) : '',
+          date     : fmtDate(raw),
+          monthKey : mk,
+          type     : rp.getDisplayValue('report_status'),
+          percent  : parseInt(rp.getValue('percent_complete') || 0, 10) || 0,
+          health   : h,
+          schedule : dSchedule,
+          cost     : dCost,
+          resources: dResources,
+          scope    : dScope,
+          summary  : text(rp.getValue('executive_summary')),
+          comments : text(rp.getValue('comments')),
+          achieved : text(rp.getValue('achievements_last_month')),
+          nextUp   : text(rp.getValue('key_activities_next_month')),
+          cSchedule: text(rp.getValue('comments_on_schedule')),
+          cCost    : text(rp.getValue('comments_on_cost')),
+          cResource: text(rp.getValue('resource_comments')),
+          cScope   : text(rp.getValue('comments_on_scope'))
+        });
+      }
     }
 
-    function mapStateColor(stateStr) {
-        var s = (stateStr || '').toLowerCase();
-        if (s.indexOf('accept') > -1 || s.indexOf('approve') > -1) return 'green';
-        if (s.indexOf('review') > -1) return 'blue';
-        if (s.indexOf('info') > -1 || s.indexOf('late') > -1 || s.indexOf('due') > -1) return 'yellow';
-        return 'grey';
+  } catch (e) {
+    gs.error('[Reports] report read: ' + e.message);
+  }
+
+  /* ---------- change requests ---------- */
+  var byCategory = {};
+  var approval = { requested: 0, approved: 0, rejected: 0, notyet: 0 };
+
+  try {
+
+    if (projectIds.length) {
+
+      var ch = new GlideRecordSecure(CHANGE);
+      ch.addQuery('project', 'IN', projectIds.join(','));
+      ch.orderByDesc('sys_created_on');
+      ch.setLimit(300);
+      ch.query();
+
+      while (ch.next()) {
+
+        var appr = lower(ch.getDisplayValue('approval'));
+
+        var state = appr.indexOf('approved') !== -1 ? 'good'
+                  : appr.indexOf('rejected') !== -1 ? 'bad'
+                  : appr.indexOf('requested') !== -1 && appr.indexOf('not yet') === -1 ? 'wait'
+                  : 'draft';
+
+        if (state === 'good')       approval.approved++;
+        else if (state === 'bad')   approval.rejected++;
+        else if (state === 'wait')  approval.requested++;
+        else                        approval.notyet++;
+
+        var cat = ch.getDisplayValue('category') || gs.getMessage('Uncategorised');
+        byCategory[cat] = (byCategory[cat] || 0) + 1;
+
+        var cpid = ch.getValue('project');
+
+        data.changes.push({
+          sysId    : ch.getUniqueValue(),
+          number   : ch.getValue('number'),
+          projectId: cpid,
+          project  : projectName[cpid] || '',
+          title    : pick(ch, ['title', 'short_description']),
+          category : ch.getDisplayValue('category'),
+          priority : ch.getDisplayValue('priority'),
+          impact   : ch.getDisplayValue('impact'),
+          approval : ch.getDisplayValue('approval'),
+          state    : state,
+          proposed : text(ch.getValue('proposed_change')),
+          reason   : text(ch.getValue('reason_for_change')),
+          raised   : fmtDate(ch.getValue('sys_created_on'))
+        });
+      }
     }
+
+  } catch (e) {
+    gs.error('[Reports] change read: ' + e.message);
+  }
+
+
+  /* ============================================================
+     ANALYTICS
+     ============================================================ */
+
+  /* ---------- heat map ----------
+     Coloured by the health the report carried, not merely by
+     whether one was filed. A grid of green squares that only
+     means "something was submitted" tells an applicant nothing
+     they did not already know. */
+  data.heat = [];
+
+  for (var hp = 0; hp < projectIds.length; hp++) {
+    var hid = projectIds[hp];
+    var cells = [];
+
+    for (var hm = 0; hm < monthKeys.length; hm++) {
+      var key = monthKeys[hm];
+      var val = grid[hid][key];
+
+      cells.push({
+        key  : val || 'none',
+        month: data.months[hm],
+        label: val ? rag(val === 'amber' ? 'yellow' : val).label : gs.getMessage('No report')
+      });
+    }
+
+    data.heat.push({
+      sysId: hid,
+      name : projectName[hid],
+      cells: cells
+    });
+  }
+
+  data.heatLegend = [
+    { key: 'green', label: gs.getMessage('Green') },
+    { key: 'amber', label: gs.getMessage('Yellow') },
+    { key: 'red',   label: gs.getMessage('Red') },
+    { key: 'none',  label: gs.getMessage('No report') }
+  ];
+
+  /* ---------- where the pressure is ----------
+     The month by month strip was replaced. With a handful of
+     reports it drew five empty columns and one filled one,
+     which is a chart of how little data there is rather than a
+     chart of anything useful.
+
+     This asks a question the data can answer at any volume:
+     across everything you have filed, which of the four things
+     has gone amber or red most often. One report still produces
+     four honest rows. */
+  function dimRow(key, label) {
+    var d = dims[key];
+    var rated = d.green + d.amber + d.red;
+
+    return {
+      key  : key,
+      label: label,
+      green: d.green,
+      amber: d.amber,
+      red  : d.red,
+      none : d.none,
+      rated: rated,
+      pctGreen: rated ? Math.round((d.green / rated) * 100) : 0,
+      pctAmber: rated ? Math.round((d.amber / rated) * 100) : 0,
+      pctRed  : rated ? Math.round((d.red   / rated) * 100) : 0
+    };
+  }
+
+  data.dims = [
+    dimRow('overall',   gs.getMessage('Overall')),
+    dimRow('schedule',  gs.getMessage('Schedule')),
+    dimRow('cost',      gs.getMessage('Cost')),
+    dimRow('resources', gs.getMessage('Resources')),
+    dimRow('scope',     gs.getMessage('Scope'))
+  ];
+
+  data.dimsRated = healthTotals.green + healthTotals.amber + healthTotals.red;
+
+  /* ---------- change requests by category ---------- */
+  var catRows = [];
+  for (var cn in byCategory) catRows.push({ label: cn, count: byCategory[cn] });
+  catRows.sort(function (a, b) { return b.count - a.count; });
+
+  var catTop = catRows.length ? catRows[0].count : 0;
+
+  data.byCategory = [];
+  for (var cr = 0; cr < catRows.length && cr < 6; cr++) {
+    data.byCategory.push({
+      label: catRows[cr].label,
+      count: catRows[cr].count,
+      width: catTop ? Math.max(6, Math.round((catRows[cr].count / catTop) * 100)) : 0
+    });
+  }
+
+  var apprTotal = approval.approved + approval.rejected +
+                  approval.requested + approval.notyet;
+
+  data.approval = approval;
+
+  data.approvalSplit = [
+    { key: 'good',  label: gs.getMessage('Approved'),  count: approval.approved,
+      pct: apprTotal ? Math.round((approval.approved / apprTotal) * 100) : 0 },
+    { key: 'wait',  label: gs.getMessage('Requested'), count: approval.requested,
+      pct: apprTotal ? Math.round((approval.requested / apprTotal) * 100) : 0 },
+    { key: 'bad',   label: gs.getMessage('Rejected'),  count: approval.rejected,
+      pct: apprTotal ? Math.round((approval.rejected / apprTotal) * 100) : 0 },
+    { key: 'draft', label: gs.getMessage('Not yet requested'), count: approval.notyet,
+      pct: apprTotal ? Math.round((approval.notyet / apprTotal) * 100) : 0 }
+  ];
+
+  data.approvalTotal = apprTotal;
+
+
+  /* ---------- who still owes a report this month ---------- */
+  data.due = [];
+
+  for (var dp = 0; dp < data.projects.length; dp++) {
+    var proj = data.projects[dp];
+    if (proj.open && !reportedThisMonth[proj.sysId]) {
+      data.due.push({ sysId: proj.sysId, name: proj.name, number: proj.number });
+    }
+  }
+
+
+  /* ---------- tiles ---------- */
+  var totalReports = data.reports.length;
+  var openChanges  = approval.requested + approval.notyet;
+
+  data.tiles = [
+    {
+      key  : 'due',
+      label: gs.getMessage('Reports due this month'),
+      value: '' + data.due.length,
+      note : data.due.length
+               ? gs.getMessage('open projects with nothing filed yet')
+               : gs.getMessage('every open project has reported'),
+      alert: data.due.length > 0
+    },
+    {
+      key  : 'reports',
+      label: gs.getMessage('Reports filed'),
+      value: '' + totalReports,
+      note : gs.getMessage('across') + ' ' + data.projects.length + ' ' +
+             (data.projects.length === 1 ? gs.getMessage('project') : gs.getMessage('projects'))
+    },
+    {
+      key  : 'health',
+      label: gs.getMessage('Reported green'),
+      /* a percentage over no reports is undefined, not zero */
+      value: totalReports ? Math.round((healthTotals.green / totalReports) * 100) + '%' : '—',
+      note : totalReports
+               ? healthTotals.amber + ' ' + gs.getMessage('yellow') + ', ' +
+                 healthTotals.red + ' ' + gs.getMessage('red')
+               : gs.getMessage('nothing reported yet')
+    },
+    {
+      key  : 'changes',
+      label: gs.getMessage('Change requests'),
+      value: '' + data.changes.length,
+      note : approval.approved + ' ' + gs.getMessage('approved') + ', ' +
+             openChanges + ' ' + gs.getMessage('waiting')
+    }
+  ];
+
+
+  /* ============================================================
+     CHOICES
+
+     Read from the dictionary, with the values from your forms as
+     the fallback for when sys_choice is not readable by an
+     external account.
+
+     ADJUST the fallback values if any differ from the
+     dictionary, because a wrong value saves an empty field
+     without complaining.
+     ============================================================ */
+
+  var FALLBACK = {
+    report_status: [
+      { value: 'Monthly Report',  label: 'Monthly Report' },
+      { value: 'Baseline Report', label: 'Baseline Report' },
+      { value: 'Final Report',    label: 'Final Report' }
+    ],
+    health: [
+      { value: 'Green',  label: 'Green' },
+      { value: 'Yellow', label: 'Yellow' },
+      { value: 'Red',    label: 'Red' }
+    ],
+    priority: [
+      { value: '1 - Critical', label: '1 - Critical' },
+      { value: '2 - High',     label: '2 - High' },
+      { value: '3 - Moderate', label: '3 - Moderate' },
+      { value: '4 - Low',      label: '4 - Low' },
+      { value: '5 - Planning', label: '5 - Planning' }
+    ],
+    impact: [
+      { value: '1 - High',   label: '1 - High' },
+      { value: '2 - Medium', label: '2 - Medium' },
+      { value: '3 - Low',    label: '3 - Low' }
+    ],
+    category: [
+      { value: 'Resource', label: 'Resource' },
+      { value: 'Scope',    label: 'Scope' },
+      { value: 'Schedule', label: 'Schedule' },
+      { value: 'Cost',     label: 'Cost' }
+    ]
+  };
+
+  function choicesFor(table, element, fallbackKey) {
+
+    var out = [];
+
+    try {
+      var c = new GlideRecordSecure('sys_choice');
+      c.addQuery('name', table);
+      c.addQuery('element', element);
+
+      /* language is often blank on scoped choices and inactive
+         is frequently null rather than false, and filtering on
+         both is what returns an empty list */
+      var lang = c.addQuery('language', 'en');
+      lang.addOrCondition('language', '');
+      lang.addOrCondition('language', 'NULL');
+
+      var act = c.addQuery('inactive', false);
+      act.addOrCondition('inactive', '');
+
+      c.orderBy('sequence');
+      c.query();
+
+      while (c.next()) {
+        var v = c.getValue('value');
+        if (!v) continue;
+        out.push({ value: v, label: c.getValue('label') || v });
+      }
+    } catch (e) {
+      gs.info('[Reports] sys_choice unreadable for ' + element);
+    }
+
+    return out.length ? out : (FALLBACK[fallbackKey] || []);
+  }
+
+  data.choices = {
+    reportStatus: choicesFor(REPORT, 'report_status', 'report_status'),
+    health      : choicesFor(REPORT, 'overall_health', 'health'),
+    schedule    : choicesFor(REPORT, 'schedule', 'health'),
+    cost        : choicesFor(REPORT, 'cost', 'health'),
+    resources   : choicesFor(REPORT, 'resources', 'health'),
+    scope       : choicesFor(REPORT, 'scope', 'health'),
+    priority    : choicesFor(CHANGE, 'priority', 'priority'),
+    impact      : choicesFor(CHANGE, 'impact', 'impact'),
+    category    : choicesFor(CHANGE, 'category', 'category')
+  };
+
+  data.today = new GlideDate().getValue();
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+
+  data.t = {
+    title : opt('label_title', gs.getMessage('Reports and change requests')),
+    search: gs.getMessage('Search by project, reference or title'),
+
+    /* The old heading named the component rather than saying
+       what it shows. Nobody looks at a page to see a heat map. */
+    heatTitle: gs.getMessage('Six months at a glance'),
+    heatHint : gs.getMessage('One square per project per month. The colour is the health that report carried, and an empty square means nothing was filed.'),
+    heatEmpty: gs.getMessage('No projects to report on yet.'),
+
+    dimsTitle: gs.getMessage('Where the pressure has been'),
+    dimsHint : gs.getMessage('Across every report you have filed, how often each of the four went amber or red'),
+    dimsEmpty: gs.getMessage('Nothing has been reported yet, so there is nothing to compare.'),
+    dimsRated: gs.getMessage('rated'),
+
+    catTitle: gs.getMessage('What you have asked to change'),
+    catHint : gs.getMessage('Every change request you have raised, by outcome and by category'),
+    catEmpty: gs.getMessage('No change requests raised yet.'),
+
+    dueTitle: gs.getMessage('Still to report this month'),
+    dueNone : gs.getMessage('Every open project has reported this month.'),
+
+    tabReports: gs.getMessage('Status reports'),
+    tabChanges: gs.getMessage('Change requests'),
+
+    newReport: gs.getMessage('Submit a report'),
+    newChange: gs.getMessage('Raise a change request'),
+    cancel   : gs.getMessage('Cancel'),
+    submit   : gs.getMessage('Submit'),
+    saving   : gs.getMessage('Saving'),
+    view     : gs.getMessage('View'),
+    close    : gs.getMessage('Close'),
+    clear    : gs.getMessage('Clear'),
+
+    colPeriod : gs.getMessage('Period'),
+    colProject: gs.getMessage('Project'),
+    colType   : gs.getMessage('Type'),
+    colHealth : gs.getMessage('Health'),
+    colFiled  : gs.getMessage('Filed'),
+    colRef    : gs.getMessage('Reference'),
+    colTitle  : gs.getMessage('Title'),
+    colCat    : gs.getMessage('Category'),
+    colRaised : gs.getMessage('Raised'),
+    colState  : gs.getMessage('Approval'),
+    colAction : gs.getMessage('Action'),
+
+    fProject   : gs.getMessage('Project'),
+    fStatusDate: gs.getMessage('Status date'),
+    fType      : gs.getMessage('Report status'),
+    fPercent   : gs.getMessage('Percent complete'),
+    fOverall   : gs.getMessage('Overall health'),
+    fSummary   : gs.getMessage('Executive summary'),
+    fComments  : gs.getMessage('Comments'),
+    fAchieved  : gs.getMessage('Achievements last month'),
+    fNextUp    : gs.getMessage('Key activities next month'),
+    fSchedule  : gs.getMessage('Schedule'),
+    fCSchedule : gs.getMessage('Comments on schedule'),
+    fCost      : gs.getMessage('Cost'),
+    fCCost     : gs.getMessage('Comments on cost'),
+    fResources : gs.getMessage('Resources'),
+    fCResource : gs.getMessage('Resource comments'),
+    fScope     : gs.getMessage('Scope'),
+    fCScope    : gs.getMessage('Comments on scope'),
+
+    fTitle    : gs.getMessage('Title'),
+    fCategory : gs.getMessage('Category'),
+    fPriority : gs.getMessage('Priority'),
+    fImpact   : gs.getMessage('Impact'),
+    fProposed : gs.getMessage('Proposed change'),
+    fReason   : gs.getMessage('Reason for change'),
+    fFiles    : gs.getMessage('Supporting documents'),
+
+    dropTitle : gs.getMessage('Drop files here'),
+    dropText  : gs.getMessage('PDF, Word or image files, up to 10MB each'),
+    dropBtn   : gs.getMessage('Choose files'),
+    dropNote  : gs.getMessage('Optional. Anything that backs up what you have written.'),
+    remove    : gs.getMessage('Remove'),
+
+    tooBigTitle : gs.getMessage('File too large'),
+    tooBigText  : gs.getMessage('is over the 10MB limit.'),
+    badTypeTitle: gs.getMessage('File type not supported'),
+    badTypeText : gs.getMessage('is not a PDF, Word document or image.'),
+    fileErrTitle: gs.getMessage('Could not read your files'),
+    fileErrText : gs.getMessage('Something went wrong preparing the attachments. Try again, or remove them and submit without.'),
+
+    secOverall : gs.getMessage('Overall status'),
+    secRatings : gs.getMessage('Schedule, cost, resources and scope'),
+    secDetail  : gs.getMessage('The change'),
+
+    choose : gs.getMessage('Choose one'),
+    none   : gs.getMessage('Not provided'),
+    notSet : gs.getMessage('Not set'),
+    required: gs.getMessage('Every field on this form is required'),
+
+    eProject : gs.getMessage('Choose the project this is for'),
+    eDate    : gs.getMessage('Status date is required'),
+    eType    : gs.getMessage('Report status is required'),
+    ePercent : gs.getMessage('Percent complete must be between 0 and 100'),
+    eHealth  : gs.getMessage('Overall health is required'),
+    eSummary : gs.getMessage('Executive summary is required'),
+    eRequired: gs.getMessage('is required'),
+
+    savedReport: gs.getMessage('Report filed'),
+    savedChange: gs.getMessage('Change request raised'),
+    failed     : gs.getMessage('That did not save'),
+    ok         : gs.getMessage('OK'),
+
+    emptyReports: gs.getMessage('No reports filed yet'),
+    emptyChanges: gs.getMessage('No change requests raised yet'),
+    emptyProjects: gs.getMessage('You have no projects yet'),
+    emptyProjectsText: gs.getMessage('Reports and change requests are filed against a project, and a project opens once you accept an award.'),
+
+    noMatch: gs.getMessage('Nothing matches this search')
+  };
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -499,209 +3133,867 @@
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-08-19 08:10:57</sys_created_on>
         <sys_id>44bc4ee193fa0b10d444c9b877373ce1</sys_id>
-        <sys_mod_count>23</sys_mod_count>
-        <sys_name>Reprot &amp; Change Request</sys_name>
+        <sys_mod_count>34</sys_mod_count>
+        <sys_name>Report &amp; Change Requests</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_44bc4ee193fa0b10d444c9b877373ce1</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-08-24 09:21:40</sys_updated_on>
-        <template><![CDATA[<!-- Master Flexbox Layout Container -->
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-31 02:48:42</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · REPORTS AND CHANGE REQUESTS
+     Service Portal widget · HTML template
+
+     Reading what has been filed, and filing the next one, on
+     one page. The forms open in place rather than on another
+     page, because the analytics above them are the context for
+     deciding what to write.
+     ========================================================= -->
+
+<!-- The wrapper holds the rail and nothing more.
+
+     It used to declare a width through an ng-style, which is
+     what caused the overlap: it reserved 96px while the rail
+     draws 236px, so 140px of the rail painted over this page.
+
+     The rail sets its own width, does its own sticking and owns
+     the collapsed state, so the column has nothing left to say. -->
 <div class="gn-layout">
 
-  <!-- DYNAMIC SIDEBAR WRAPPER: Now uses a clean CSS class to trigger the shrink -->
-  <div class="sidebar" ng-class="{'sidebar-collapsed': c.isSidebarCollapsed}">
+  <!-- SIDEBAR -->
+  <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
-  <!-- ==========================================
-       MAIN CONTENT: DASHBOARD
-       ========================================== -->
-  <div class="gn-dashboard-wrapper" ng-cloak>
-    
-    <!-- ==========================================
-         DASHBOARD VIEW (Hides when a form is open)
-         ========================================== -->
-    <div ng-if="!c.showForm">
-      
-      <!-- Header -->
-      <div class="gn-header">
-        <div class="gn-header-title">
-          <h1>Reports & Change Requests</h1>
-          <p>
-            <span class="status-dot green"></span>
-            {{c.data.kpis.totalReports}} status reports &middot; {{c.data.kpis.totalChanges}} change requests &middot; {{c.data.kpis.onTimeRate}}% on-time
-          </p>
-        </div>
-        <div class="gn-header-actions">
-          <div class="search-bar">
-            <i class="fa fa-search"></i>
-            <input type="text" placeholder="Search programs, applications..." ng-model="c.searchText">
-          </div>
-          <div class="date-filter">
-            <i class="fa fa-calendar-o"></i> 
-            <select ng-model="c.data.filterMonths" ng-change="c.updateFilter()" class="date-dropdown">
-              <option value="3">Last 3 months</option>
-              <option value="6">Last 6 months</option>
-              <option value="12">Last 12 months</option>
-              <option value="all">All time</option>
-            </select>
-          </div>
-        </div>
+<main class="grc">
+
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="grc-top">
+
+      <div class="grc-top__lead">
+        <h1 class="grc-top__title">{{c.data.t.title}}</h1>
+        <p class="grc-top__sub">
+          <span class="grc-live" aria-hidden="true"></span>
+          {{c.data.reports.length}} {{c.data.t.tabReports | lowercase}}
+          &middot; {{c.data.changes.length}} {{c.data.t.tabChanges | lowercase}}
+        </p>
       </div>
 
-      <!-- KPI Grid -->
-      <div class="gn-kpi-grid">
-        <div class="gn-card kpi-card">
-          <div class="kpi-label">REPORTS SUBMITTED</div>
-          <div class="kpi-value">{{c.data.kpis.totalReports}}</div>
-          <div class="kpi-subtext">Across {{c.data.kpis.projectCount}} projects</div>
-        </div>
-        <div class="gn-card kpi-card">
-          <div class="kpi-label">ON-TIME RATE</div>
-          <div class="kpi-value text-green">{{c.data.kpis.onTimeRate}}%</div>
-        </div>
-        <div class="gn-card kpi-card">
-          <div class="kpi-label">CHANGE REQUESTS</div>
-          <div class="kpi-value">{{c.data.kpis.totalChanges}}</div>
-          <div class="kpi-subtext">{{c.data.kpis.approvedChanges}} approved &middot; {{c.data.kpis.openChanges}} open</div>
-        </div>
-        <div class="gn-card kpi-card">
-          <div class="kpi-label">DUE THIS MONTH</div>
-          <div class="kpi-value text-orange">{{c.data.kpis.dueThisMonth}}</div>
-        </div>
+      <div class="grc-top__right">
+
+        <label class="grc-search" ng-if="c.data.projects.length">
+          <i class="fa fa-search grc-search__icon" aria-hidden="true"></i>
+          <input type="text"
+                 class="grc-search__field"
+                 ng-model="c.query"
+                 ng-model-options="{debounce: 120}"
+                 placeholder="{{c.data.t.search}}"
+                 aria-label="{{c.data.t.search}}">
+          <button type="button" class="grc-search__clear" ng-if="c.query" ng-click="c.query = ''"
+                  aria-label="{{c.data.t.clear}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </label>
+
+        <span class="grc-avatar">{{c.data.userInitials}}</span>
+
       </div>
 
-      <!-- Reporting Compliance -->
-      <div class="gn-card compliance-card">
-        <div class="compliance-header">
-          <div>
-            <h2>Reporting compliance</h2>
-            <p>Monthly status report per project, last six periods</p>
-          </div>
-          <div class="compliance-legend">
-            <span><div class="legend-box green"></div> On time</span>
-            <span><div class="legend-box orange"></div> Late</span>
-            <span><div class="legend-box grey"></div> Due / not required</span>
-          </div>
-        </div>
+    </header>
 
-        <div class="compliance-grid">
-          <!-- Months Header -->
-          <div class="cg-row cg-header">
-            <div class="cg-cell project-name"></div>
-            <div class="cg-cell" ng-repeat="month in c.data.compliance.months">{{month}}</div>
-          </div>
-          
-          <!-- Project Rows -->
-          <div class="cg-row" ng-repeat="proj in c.data.compliance.projects">
-            <div class="cg-cell project-name">{{proj.name}}</div>
-            <div class="cg-cell" ng-repeat="status in proj.history track by $index">
-              <div class="status-block" ng-class="status"></div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Data Table -->
-      <div class="gn-card table-card">
-        <div class="table-header-controls">
-          <div class="gn-tabs">
-            <button class="gn-tab" ng-class="{'active': c.activeTab === 'reports'}" ng-click="c.setTab('reports')">
-              Status reports ({{c.data.reports.length}})
-            </button>
-            <button class="gn-tab" ng-class="{'active': c.activeTab === 'changes'}" ng-click="c.setTab('changes')">
-              Change requests ({{c.data.changes.length}})
-            </button>
-          </div>
-          <div class="table-actions">
-            <button class="btn-outline" ng-click="c.newChangeRequest()">New change request</button>
-            <button class="btn-primary" ng-click="c.startNewReport()">Submit report</button>
-          </div>
-        </div>
-
-        <!-- STATUS REPORTS TABLE -->
-        <table class="gn-table" ng-if="c.activeTab === 'reports'">
-          <thead>
-            <tr>
-              <th>PERIOD</th>
-              <th>PROJECT</th>
-              <th>SUBMITTED</th>
-              <th>HEALTH</th>
-              <th>STATE</th>
-              <th class="text-center action-col">ACTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr ng-repeat="row in c.data.reports | filter:c.searchText">
-              <td class="font-bold">{{row.period}}</td>
-              <td>{{row.project_name}}</td>
-              <td class="text-muted">{{row.submitted || '&mdash;'}}</td>
-              <td>
-                <span ng-if="row.health" class="health-text" ng-class="'text-' + row.health_color">{{row.health}}</span>
-                <span ng-if="!row.health" class="text-muted">&mdash;</span>
-              </td>
-              <td>
-                <span class="state-pill" ng-class="'pill-' + row.state_color">{{row.state}}</span>
-              </td>
-              <td class="text-center action-col">
-                <button ng-if="row.action === 'Start'" class="btn-action-primary" ng-click="c.openReport(row)">Start</button>
-                <button ng-if="row.action === 'View'" class="btn-action-outline" ng-click="c.openReport(row)">View</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- CHANGE REQUESTS TABLE -->
-        <table class="gn-table" ng-if="c.activeTab === 'changes'">
-          <thead>
-            <tr>
-              <th>REFERENCE</th>
-              <th>PROJECT</th>
-              <th>TYPE</th>
-              <th>RAISED</th>
-              <th>STATE</th>
-              <th class="text-center action-col">ACTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr ng-repeat="row in c.data.changes | filter:c.searchText">
-              <td class="font-bold">{{row.number}}</td>
-              <td>{{row.project_name}}</td>
-              <td class="text-muted">{{row.type || '&mdash;'}}</td>
-              <td>{{row.raised}}</td>
-              <td>
-                <span class="state-pill" ng-class="'pill-' + row.state_color">{{row.state}}</span>
-              </td>
-              <td class="text-center action-col">
-                <button ng-class="row.action === 'Update' ? 'btn-action-primary' : 'btn-action-outline'" ng-click="c.openChange(row)">
-                  {{row.action}}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-    </div> <!-- End of Dashboard View -->
-
-    <!-- ==========================================
-         EMBEDDED FORM VIEW (Shows when a button is clicked)
-         ========================================== -->
-    <div ng-if="c.showForm" class="gn-embedded-form">
-      
-      <!-- Back Button -->
-      <button class="btn-outline" ng-click="c.closeForm()" style="margin-bottom: 24px; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
-        <i class="fa fa-arrow-left"></i> Back to Dashboard
-      </button>
-      
-      <!-- Child Widget Rendered Here -->
-      <sp-widget widget="c.childWidget"></sp-widget>
-      
+    <!-- ═══════════════ NO PROJECTS ═══════════════ -->
+    <div class="grc-blank" ng-if="!c.data.projects.length">
+      <span class="grc-blank__mark" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
+      <p class="grc-blank__title">{{c.data.t.emptyProjects}}</p>
+      <p class="grc-blank__text">{{c.data.t.emptyProjectsText}}</p>
     </div>
 
-  </div> <!-- End of Dashboard Wrapper -->
+
+    <div ng-if="c.data.projects.length">
+
+      <!-- ═══════════════ TILES ═══════════════ -->
+      <section class="grc-tiles">
+        <article class="grc-tile"
+                 ng-repeat="t in c.data.tiles track by t.key"
+                 ng-class="['grc-tile--' + t.key, {'is-alert': t.alert}]">
+          <span class="grc-tile__rule" aria-hidden="true"></span>
+          <p class="grc-tile__label">{{t.label}}</p>
+          <p class="grc-tile__value">{{t.value}}</p>
+          <p class="grc-tile__note">{{t.note}}</p>
+        </article>
+      </section>
+
+
+      <!-- ═══════════════ HEAT MAP ═══════════════ -->
+      <section class="grc-panel grc-panel--heat">
+
+        <header class="grc-panel__head">
+          <div>
+            <h2 class="grc-panel__title">{{c.data.t.heatTitle}}</h2>
+            <p class="grc-panel__hint">{{c.data.t.heatHint}}</p>
+          </div>
+          <ul class="grc-legend">
+            <li ng-repeat="l in c.data.heatLegend track by l.key">
+              <span class="grc-legend__box" ng-class="'grc-cell--' + l.key" aria-hidden="true"></span>
+              {{l.label}}
+            </li>
+          </ul>
+        </header>
+
+        <div class="grc-heat" ng-if="c.data.heat.length">
+
+          <div class="grc-heat__row grc-heat__row--head">
+            <span class="grc-heat__name"></span>
+            <span class="grc-heat__month" ng-repeat="m in c.data.months track by $index">{{m}}</span>
+          </div>
+
+          <div class="grc-heat__row"
+               ng-repeat="row in c.data.heat track by row.sysId"
+               ng-class="'grc-heat__row--n' + (($index % 8) + 1)">
+            <span class="grc-heat__name" title="{{row.name}}">{{row.name}}</span>
+            <span class="grc-heat__cellwrap" ng-repeat="cell in row.cells track by $index">
+              <span class="grc-cell"
+                    ng-class="'grc-cell--' + cell.key"
+                    title="{{row.name}} · {{cell.month}} · {{cell.label}}"></span>
+            </span>
+          </div>
+
+        </div>
+
+        <p class="grc-panel__empty" ng-if="!c.data.heat.length">{{c.data.t.heatEmpty}}</p>
+
+      </section>
+
+
+      <!-- ═══════════════ TREND + CATEGORY ═══════════════ -->
+      <section class="grc-panels">
+
+        <!-- where the pressure has been -->
+        <article class="grc-panel">
+
+          <header class="grc-panel__head">
+            <div>
+              <h2 class="grc-panel__title">{{c.data.t.dimsTitle}}</h2>
+              <p class="grc-panel__hint">{{c.data.t.dimsHint}}</p>
+            </div>
+          </header>
+
+          <div class="grc-dims" ng-if="c.data.dimsRated">
+            <div class="grc-dim"
+                 ng-repeat="d in c.data.dims track by d.key"
+                 ng-class="['grc-dim--' + d.key, {'is-lead': d.key === 'overall'}]">
+
+              <span class="grc-dim__label">{{d.label}}</span>
+
+              <span class="grc-dim__track">
+                <span class="grc-dim__seg grc-dim__seg--green" ng-if="d.green"
+                      ng-style="{width: d.pctGreen + '%'}" title="{{d.green}} green"></span>
+                <span class="grc-dim__seg grc-dim__seg--amber" ng-if="d.amber"
+                      ng-style="{width: d.pctAmber + '%'}" title="{{d.amber}} yellow"></span>
+                <span class="grc-dim__seg grc-dim__seg--red" ng-if="d.red"
+                      ng-style="{width: d.pctRed + '%'}" title="{{d.red}} red"></span>
+              </span>
+
+              <span class="grc-dim__count">
+                <span ng-if="d.rated">{{d.rated}}</span>
+                <span class="grc-dim__zero" ng-if="!d.rated">&mdash;</span>
+              </span>
+
+            </div>
+          </div>
+
+          <p class="grc-panel__empty" ng-if="!c.data.dimsRated">{{c.data.t.dimsEmpty}}</p>
+
+        </article>
+
+        <!-- change requests by category -->
+        <article class="grc-panel">
+
+          <header class="grc-panel__head">
+            <div>
+              <h2 class="grc-panel__title">{{c.data.t.catTitle}}</h2>
+              <p class="grc-panel__hint">{{c.data.t.catHint}}</p>
+            </div>
+          </header>
+
+          <div class="grc-outcome" ng-if="c.data.approvalTotal">
+            <span class="grc-outcome__track">
+              <span class="grc-outcome__seg"
+                    ng-repeat="a in c.data.approvalSplit track by a.key"
+                    ng-if="a.count"
+                    ng-class="'grc-outcome__seg--' + a.key"
+                    ng-style="{width: a.pct + '%'}"
+                    title="{{a.count}} {{a.label}}">{{a.count}}</span>
+            </span>
+            <ul class="grc-outcome__key">
+              <li ng-repeat="a in c.data.approvalSplit track by a.key" ng-if="a.count">
+                <span class="grc-outcome__dot" ng-class="'grc-outcome__dot--' + a.key" aria-hidden="true"></span>
+                {{a.label}} <strong>{{a.count}}</strong>
+              </li>
+            </ul>
+          </div>
+
+          <div class="grc-bars" ng-if="c.data.byCategory.length">
+            <div class="grc-bar"
+                 ng-repeat="b in c.data.byCategory track by $index"
+                 ng-class="'grc-bar--' + ($index + 1)">
+              <span class="grc-bar__row">
+                <span class="grc-bar__name">{{b.label}}</span>
+                <span class="grc-bar__count">{{b.count}}</span>
+              </span>
+              <span class="grc-bar__track">
+                <span class="grc-bar__fill" ng-style="{width: b.width + '%'}"></span>
+              </span>
+            </div>
+          </div>
+
+          <p class="grc-panel__empty" ng-if="!c.data.byCategory.length">{{c.data.t.catEmpty}}</p>
+
+        </article>
+
+      </section>
+
+
+      <!-- ═══════════════ STILL TO REPORT ═══════════════ -->
+      <section class="grc-due" ng-if="c.data.due.length">
+        <div class="grc-due__lead">
+          <p class="grc-due__title">{{c.data.t.dueTitle}}</p>
+          <ul class="grc-due__list">
+            <li ng-repeat="d in c.data.due track by d.sysId">{{d.name}}</li>
+          </ul>
+        </div>
+        <button type="button" class="grc-btn grc-btn--primary" ng-click="c.startReport()">
+          {{c.data.t.newReport}}
+        </button>
+      </section>
+
+
+      <!-- ═══════════════ TABLE ═══════════════ -->
+      <section class="grc-block">
+
+        <header class="grc-block__head">
+
+          <div class="grc-tabs" role="group">
+            <button type="button" class="grc-tab"
+                    ng-class="{'is-on': c.tab === 'reports'}"
+                    ng-click="c.tab = 'reports'">
+              {{c.data.t.tabReports}}
+              <span class="grc-tab__count">{{c.data.reports.length}}</span>
+            </button>
+            <button type="button" class="grc-tab"
+                    ng-class="{'is-on': c.tab === 'changes'}"
+                    ng-click="c.tab = 'changes'">
+              {{c.data.t.tabChanges}}
+              <span class="grc-tab__count">{{c.data.changes.length}}</span>
+            </button>
+          </div>
+
+          <div class="grc-block__acts">
+            <button type="button" class="grc-btn grc-btn--ghost" ng-click="c.startChange()">
+              {{c.data.t.newChange}}
+            </button>
+            <button type="button" class="grc-btn grc-btn--primary" ng-click="c.startReport()">
+              {{c.data.t.newReport}}
+            </button>
+          </div>
+
+        </header>
+
+
+        <!-- reports -->
+        <div ng-if="c.tab === 'reports'">
+
+          <div class="grc-table grc-table--reports">
+
+            <div class="grc-table__head">
+              <span>{{c.data.t.colPeriod}}</span>
+              <span>{{c.data.t.colProject}}</span>
+              <span>{{c.data.t.colType}}</span>
+              <span>{{c.data.t.colFiled}}</span>
+              <span>{{c.data.t.colHealth}}</span>
+              <span class="grc-right">{{c.data.t.colAction}}</span>
+            </div>
+
+            <div class="grc-row"
+                 ng-repeat="r in c.visibleReports() track by r.sysId"
+                 ng-class="'grc-row--n' + (($index % 10) + 1)">
+
+              <span class="grc-cell--ref" data-label="{{c.data.t.colPeriod}}">{{r.period}}</span>
+
+              <span class="grc-cell--name" data-label="{{c.data.t.colProject}}" title="{{r.project}}">
+                {{r.project}}
+              </span>
+
+              <span class="grc-cell--muted" data-label="{{c.data.t.colType}}">{{r.type || '—'}}</span>
+
+              <span class="grc-cell--date" data-label="{{c.data.t.colFiled}}">{{r.date}}</span>
+
+              <span data-label="{{c.data.t.colHealth}}">
+                <span class="grc-rag" ng-class="'grc-rag--' + r.health.key">
+                  <span class="grc-rag__dot" aria-hidden="true"></span>{{r.health.label}}
+                </span>
+              </span>
+
+              <span class="grc-right" data-label="{{c.data.t.colAction}}">
+                <button type="button" class="grc-btn grc-btn--ghost grc-btn--sm"
+                        ng-click="c.openReport(r)">{{c.data.t.view}}</button>
+              </span>
+
+            </div>
+
+            <p class="grc-empty" ng-if="!c.visibleReports().length">
+              {{c.query ? c.data.t.noMatch : c.data.t.emptyReports}}
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <!-- changes -->
+        <div ng-if="c.tab === 'changes'">
+
+          <div class="grc-table grc-table--changes">
+
+            <div class="grc-table__head">
+              <span>{{c.data.t.colRef}}</span>
+              <span>{{c.data.t.colProject}}</span>
+              <span>{{c.data.t.colCat}}</span>
+              <span>{{c.data.t.colRaised}}</span>
+              <span>{{c.data.t.colState}}</span>
+              <span class="grc-right">{{c.data.t.colAction}}</span>
+            </div>
+
+            <div class="grc-row"
+                 ng-repeat="ch in c.visibleChanges() track by ch.sysId"
+                 ng-class="'grc-row--n' + (($index % 10) + 1)">
+
+              <span class="grc-cell--ref" data-label="{{c.data.t.colRef}}">{{ch.number}}</span>
+
+              <span class="grc-cell--name" data-label="{{c.data.t.colProject}}">
+                <span class="grc-cell__top" title="{{ch.project}}">{{ch.project}}</span>
+                <span class="grc-cell__sub" ng-if="ch.title" title="{{ch.title}}">{{ch.title}}</span>
+              </span>
+
+              <span class="grc-cell--muted" data-label="{{c.data.t.colCat}}">{{ch.category || '—'}}</span>
+
+              <span class="grc-cell--date" data-label="{{c.data.t.colRaised}}">{{ch.raised}}</span>
+
+              <span data-label="{{c.data.t.colState}}">
+                <span class="grc-pill" ng-class="'grc-pill--' + ch.state">{{ch.approval || '—'}}</span>
+              </span>
+
+              <span class="grc-right" data-label="{{c.data.t.colAction}}">
+                <button type="button" class="grc-btn grc-btn--ghost grc-btn--sm"
+                        ng-click="c.openChange(ch)">{{c.data.t.view}}</button>
+              </span>
+
+            </div>
+
+            <p class="grc-empty" ng-if="!c.visibleChanges().length">
+              {{c.query ? c.data.t.noMatch : c.data.t.emptyChanges}}
+            </p>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <!-- ═══════════════ REPORT FORM ═══════════════ -->
+    <div class="grc-modal" ng-if="c.form === 'report'" ng-click="c.closeForm()">
+
+      <div class="grc-modal__panel grc-modal__panel--wide" role="dialog" aria-modal="true"
+           ng-click="$event.stopPropagation()">
+
+        <header class="grc-modal__head">
+          <div>
+            <h2 class="grc-modal__title">{{c.data.t.newReport}}</h2>
+            <p class="grc-modal__hint">{{c.data.t.required}}</p>
+          </div>
+          <button type="button" class="grc-modal__x" ng-click="c.closeForm()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="grc-modal__body">
+
+          <div class="grc-errors" ng-if="c.errorCount()">
+            <ul>
+              <li ng-repeat="(k, m) in c.errors">{{m}}</li>
+            </ul>
+          </div>
+
+          <div class="grc-fields">
+
+            <div class="grc-field grc-field--half">
+              <label for="grc_r_project">{{c.data.t.fProject}}</label>
+              <div class="grc-pick">
+                <select id="grc_r_project" ng-model="c.report.project"
+                        ng-class="{'has-error': c.errors.project}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="p in c.data.projects track by p.sysId" value="{{p.sysId}}">
+                    {{p.name}}
+                  </option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="grc-field grc-field--quarter">
+              <label for="grc_r_date">{{c.data.t.fStatusDate}}</label>
+              <input id="grc_r_date" type="date" ng-model="c.report.status_date"
+                     ng-class="{'has-error': c.errors.status_date}">
+            </div>
+
+            <div class="grc-field grc-field--quarter">
+              <label for="grc_r_pct">{{c.data.t.fPercent}}</label>
+              <input id="grc_r_pct" type="number" min="0" max="100" step="1"
+                     ng-model="c.report.percent_complete"
+                     ng-class="{'has-error': c.errors.percent_complete}">
+            </div>
+
+            <div class="grc-field grc-field--half">
+              <label for="grc_r_type">{{c.data.t.fType}}</label>
+              <div class="grc-pick">
+                <select id="grc_r_type" ng-model="c.report.report_status"
+                        ng-class="{'has-error': c.errors.report_status}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="o in c.data.choices.reportStatus track by o.value" value="{{o.value}}">{{o.label}}</option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="grc-field grc-field--half">
+              <label for="grc_r_health">{{c.data.t.fOverall}}</label>
+              <div class="grc-pick">
+                <select id="grc_r_health" ng-model="c.report.overall_health"
+                        ng-class="{'has-error': c.errors.overall_health}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="o in c.data.choices.health track by o.value" value="{{o.value}}">{{o.label}}</option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <p class="grc-sub">{{c.data.t.secOverall}}</p>
+
+            <div class="grc-field grc-field--full">
+              <label for="grc_r_sum">{{c.data.t.fSummary}}</label>
+              <textarea id="grc_r_sum" rows="4" ng-model="c.report.executive_summary"
+                        ng-class="{'has-error': c.errors.executive_summary}"></textarea>
+            </div>
+
+            <div class="grc-field grc-field--half">
+              <label for="grc_r_ach">{{c.data.t.fAchieved}}</label>
+              <textarea id="grc_r_ach" rows="3" ng-model="c.report.achievements_last_month"></textarea>
+            </div>
+
+            <div class="grc-field grc-field--half">
+              <label for="grc_r_next">{{c.data.t.fNextUp}}</label>
+              <textarea id="grc_r_next" rows="3" ng-model="c.report.key_activities_next_month"></textarea>
+            </div>
+
+            <div class="grc-field grc-field--full">
+              <label for="grc_r_com">{{c.data.t.fComments}}</label>
+              <textarea id="grc_r_com" rows="3" ng-model="c.report.comments"></textarea>
+            </div>
+
+            <p class="grc-sub">{{c.data.t.secRatings}}</p>
+
+            <!-- the four ratings, each with its comment beside it,
+                 which is how the platform form groups them -->
+            <div class="grc-rate grc-field--full" ng-repeat="g in c.ratingGroups track by g.key">
+
+              <div class="grc-rate__pick">
+                <label for="grc_r_{{g.key}}">{{g.label}}</label>
+                <div class="grc-pick">
+                  <select id="grc_r_{{g.key}}" ng-model="c.report[g.key]">
+                    <option value="">{{c.data.t.choose}}</option>
+                    <option ng-repeat="o in c.data.choices[g.choices] track by o.value" value="{{o.value}}">{{o.label}}</option>
+                  </select>
+                  <i class="fa fa-angle-down" aria-hidden="true"></i>
+                </div>
+              </div>
+
+              <div class="grc-rate__note">
+                <label for="grc_r_{{g.comment}}">{{g.commentLabel}}</label>
+                <textarea id="grc_r_{{g.comment}}" rows="2" ng-model="c.report[g.comment]"></textarea>
+              </div>
+
+            </div>
+
+            <p class="grc-sub">{{c.data.t.fFiles}}</p>
+
+            <div class="grc-field--full">
+
+              <!-- ng-file-upload is not part of the Service Portal
+                   AngularJS bundle, so ngf-select and ngf-drop never
+                   bound and nothing happened on click or drop. This is
+                   a native file input, hidden, driven by the controller
+                   which wires change, dragover, dragleave and drop
+                   itself when the form opens. -->
+              <div class="grc-drop" ng-class="{'is-over': c.dragging}">
+
+                <!-- Hidden inline rather than by class alone. A file
+                     input is styled by the portal theme, and if this
+                     stylesheet loads after that one, or has not been
+                     saved yet, the browser's own "Choose Files / No
+                     file chosen" control shows up above the drop zone.
+                     Inline wins over both.
+
+                     Not display:none, because some browsers refuse to
+                     fire click() on a file input that is not rendered,
+                     which would kill the button below. -->
+                <input type="file"
+                       class="grc-file-input"
+                       multiple
+                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                       tabindex="-1"
+                       aria-hidden="true"
+                       style="position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; overflow: hidden; border: 0; padding: 0; margin: 0; pointer-events: none;">
+
+                <span class="grc-drop__mark" aria-hidden="true"><i class="fa fa-paperclip"></i></span>
+                <p class="grc-drop__title">{{c.data.t.dropTitle}}</p>
+                <p class="grc-drop__text">{{c.data.t.dropText}}</p>
+
+                <button type="button" class="grc-btn grc-btn--ghost grc-btn--sm"
+                        ng-click="c.pickFiles()">
+                  {{c.data.t.dropBtn}}
+                </button>
+
+              </div>
+
+              <p class="grc-drop__note">{{c.data.t.dropNote}}</p>
+
+              <ul class="grc-files" ng-if="c.files.length">
+                <li class="grc-file" ng-repeat="f in c.files track by ($index + f.name)">
+                  <span class="grc-file__mark" aria-hidden="true"><i class="fa fa-file-o"></i></span>
+                  <span class="grc-file__body">
+                    <span class="grc-file__name">{{f.name}}</span>
+                    <span class="grc-file__size">{{c.fileSize(f.size)}}</span>
+                  </span>
+                  <button type="button" class="grc-file__x" ng-click="c.removeFile($index)"
+                          aria-label="{{c.data.t.remove}}">
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                  </button>
+                </li>
+              </ul>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <footer class="grc-modal__foot">
+          <button type="button" class="grc-btn grc-btn--ghost" ng-click="c.closeForm()"
+                  ng-disabled="c.saving">{{c.data.t.cancel}}</button>
+          <button type="button" class="grc-btn grc-btn--primary" ng-click="c.submitReport()"
+                  ng-disabled="c.saving">
+            {{c.saving ? c.data.t.saving : c.data.t.submit}}
+          </button>
+        </footer>
+
+      </div>
+
+    </div>
+
+
+    <!-- ═══════════════ CHANGE FORM ═══════════════ -->
+    <div class="grc-modal" ng-if="c.form === 'change'" ng-click="c.closeForm()">
+
+      <div class="grc-modal__panel" role="dialog" aria-modal="true" ng-click="$event.stopPropagation()">
+
+        <header class="grc-modal__head">
+          <div>
+            <h2 class="grc-modal__title">{{c.data.t.newChange}}</h2>
+            <p class="grc-modal__hint">{{c.data.t.required}}</p>
+          </div>
+          <button type="button" class="grc-modal__x" ng-click="c.closeForm()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="grc-modal__body">
+
+          <div class="grc-errors" ng-if="c.errorCount()">
+            <ul>
+              <li ng-repeat="(k, m) in c.errors">{{m}}</li>
+            </ul>
+          </div>
+
+          <div class="grc-fields">
+
+            <div class="grc-field grc-field--full">
+              <label for="grc_c_project">{{c.data.t.fProject}}</label>
+              <div class="grc-pick">
+                <select id="grc_c_project" ng-model="c.change.project"
+                        ng-class="{'has-error': c.errors.project}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="p in c.data.projects track by p.sysId" value="{{p.sysId}}">{{p.name}}</option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="grc-field grc-field--full">
+              <label for="grc_c_title">{{c.data.t.fTitle}}</label>
+              <input id="grc_c_title" type="text" ng-model="c.change.title"
+                     ng-class="{'has-error': c.errors.title}">
+            </div>
+
+            <div class="grc-field grc-field--third">
+              <label for="grc_c_cat">{{c.data.t.fCategory}}</label>
+              <div class="grc-pick">
+                <select id="grc_c_cat" ng-model="c.change.category"
+                        ng-class="{'has-error': c.errors.category}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="o in c.data.choices.category track by o.value" value="{{o.value}}">{{o.label}}</option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="grc-field grc-field--third">
+              <label for="grc_c_pri">{{c.data.t.fPriority}}</label>
+              <div class="grc-pick">
+                <select id="grc_c_pri" ng-model="c.change.priority"
+                        ng-class="{'has-error': c.errors.priority}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="o in c.data.choices.priority track by o.value" value="{{o.value}}">{{o.label}}</option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="grc-field grc-field--third">
+              <label for="grc_c_imp">{{c.data.t.fImpact}}</label>
+              <div class="grc-pick">
+                <select id="grc_c_imp" ng-model="c.change.impact"
+                        ng-class="{'has-error': c.errors.impact}">
+                  <option value="">{{c.data.t.choose}}</option>
+                  <option ng-repeat="o in c.data.choices.impact track by o.value" value="{{o.value}}">{{o.label}}</option>
+                </select>
+                <i class="fa fa-angle-down" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="grc-field grc-field--full">
+              <label for="grc_c_prop">{{c.data.t.fProposed}}</label>
+              <textarea id="grc_c_prop" rows="4" ng-model="c.change.proposed_change"
+                        ng-class="{'has-error': c.errors.proposed_change}"></textarea>
+            </div>
+
+            <div class="grc-field grc-field--full">
+              <label for="grc_c_reason">{{c.data.t.fReason}}</label>
+              <textarea id="grc_c_reason" rows="4" ng-model="c.change.reason_for_change"
+                        ng-class="{'has-error': c.errors.reason_for_change}"></textarea>
+            </div>
+
+            <p class="grc-sub">{{c.data.t.fFiles}}</p>
+
+            <div class="grc-field--full">
+
+              <!-- ng-file-upload is not part of the Service Portal
+                   AngularJS bundle, so ngf-select and ngf-drop never
+                   bound and nothing happened on click or drop. This is
+                   a native file input, hidden, driven by the controller
+                   which wires change, dragover, dragleave and drop
+                   itself when the form opens. -->
+              <div class="grc-drop" ng-class="{'is-over': c.dragging}">
+
+                <!-- Hidden inline rather than by class alone. A file
+                     input is styled by the portal theme, and if this
+                     stylesheet loads after that one, or has not been
+                     saved yet, the browser's own "Choose Files / No
+                     file chosen" control shows up above the drop zone.
+                     Inline wins over both.
+
+                     Not display:none, because some browsers refuse to
+                     fire click() on a file input that is not rendered,
+                     which would kill the button below. -->
+                <input type="file"
+                       class="grc-file-input"
+                       multiple
+                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                       tabindex="-1"
+                       aria-hidden="true"
+                       style="position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; overflow: hidden; border: 0; padding: 0; margin: 0; pointer-events: none;">
+
+                <span class="grc-drop__mark" aria-hidden="true"><i class="fa fa-paperclip"></i></span>
+                <p class="grc-drop__title">{{c.data.t.dropTitle}}</p>
+                <p class="grc-drop__text">{{c.data.t.dropText}}</p>
+
+                <button type="button" class="grc-btn grc-btn--ghost grc-btn--sm"
+                        ng-click="c.pickFiles()">
+                  {{c.data.t.dropBtn}}
+                </button>
+
+              </div>
+
+              <p class="grc-drop__note">{{c.data.t.dropNote}}</p>
+
+              <ul class="grc-files" ng-if="c.files.length">
+                <li class="grc-file" ng-repeat="f in c.files track by ($index + f.name)">
+                  <span class="grc-file__mark" aria-hidden="true"><i class="fa fa-file-o"></i></span>
+                  <span class="grc-file__body">
+                    <span class="grc-file__name">{{f.name}}</span>
+                    <span class="grc-file__size">{{c.fileSize(f.size)}}</span>
+                  </span>
+                  <button type="button" class="grc-file__x" ng-click="c.removeFile($index)"
+                          aria-label="{{c.data.t.remove}}">
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                  </button>
+                </li>
+              </ul>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <footer class="grc-modal__foot">
+          <button type="button" class="grc-btn grc-btn--ghost" ng-click="c.closeForm()"
+                  ng-disabled="c.saving">{{c.data.t.cancel}}</button>
+          <button type="button" class="grc-btn grc-btn--primary" ng-click="c.submitChange()"
+                  ng-disabled="c.saving">
+            {{c.saving ? c.data.t.saving : c.data.t.submit}}
+          </button>
+        </footer>
+
+      </div>
+
+    </div>
+
+
+    <!-- ═══════════════ REPORT DETAIL ═══════════════ -->
+    <div class="grc-modal" ng-if="c.openR" ng-click="c.closeDetail()">
+
+      <div class="grc-modal__panel" role="dialog" aria-modal="true" ng-click="$event.stopPropagation()">
+
+        <header class="grc-modal__head">
+          <div class="grc-modal__lead">
+            <span class="grc-modal__ref">{{c.openR.number}}</span>
+            <h2 class="grc-modal__title">{{c.openR.project}}</h2>
+            <span class="grc-modal__meta">
+              {{c.openR.period}}<span ng-if="c.openR.type"> &middot; {{c.openR.type}}</span>
+              &middot; {{c.openR.percent}}%
+            </span>
+          </div>
+          <button type="button" class="grc-modal__x" ng-click="c.closeDetail()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="grc-modal__body">
+
+          <!-- the four ratings plus overall, side by side -->
+          <div class="grc-ragrid">
+            <span class="grc-ragrid__item" ng-class="'grc-ragrid__item--' + c.openR.health.key">
+              <span class="grc-ragrid__label">{{c.data.t.fOverall}}</span>
+              <span class="grc-ragrid__value">{{c.openR.health.label}}</span>
+            </span>
+            <span class="grc-ragrid__item" ng-class="'grc-ragrid__item--' + c.openR.schedule.key">
+              <span class="grc-ragrid__label">{{c.data.t.fSchedule}}</span>
+              <span class="grc-ragrid__value">{{c.openR.schedule.label}}</span>
+            </span>
+            <span class="grc-ragrid__item" ng-class="'grc-ragrid__item--' + c.openR.cost.key">
+              <span class="grc-ragrid__label">{{c.data.t.fCost}}</span>
+              <span class="grc-ragrid__value">{{c.openR.cost.label}}</span>
+            </span>
+            <span class="grc-ragrid__item" ng-class="'grc-ragrid__item--' + c.openR.resources.key">
+              <span class="grc-ragrid__label">{{c.data.t.fResources}}</span>
+              <span class="grc-ragrid__value">{{c.openR.resources.label}}</span>
+            </span>
+            <span class="grc-ragrid__item" ng-class="'grc-ragrid__item--' + c.openR.scope.key">
+              <span class="grc-ragrid__label">{{c.data.t.fScope}}</span>
+              <span class="grc-ragrid__value">{{c.openR.scope.label}}</span>
+            </span>
+          </div>
+
+          <div class="grc-prose" ng-repeat="p in c.reportProse(c.openR) track by $index">
+            <p class="grc-prose__label">{{p.label}}</p>
+            <p class="grc-prose__text">{{p.value}}</p>
+          </div>
+
+        </div>
+
+        <footer class="grc-modal__foot">
+          <button type="button" class="grc-btn grc-btn--primary" ng-click="c.closeDetail()">
+            {{c.data.t.close}}
+          </button>
+        </footer>
+
+      </div>
+
+    </div>
+
+
+    <!-- ═══════════════ CHANGE DETAIL ═══════════════ -->
+    <div class="grc-modal" ng-if="c.openC" ng-click="c.closeDetail()">
+
+      <div class="grc-modal__panel" role="dialog" aria-modal="true" ng-click="$event.stopPropagation()">
+
+        <header class="grc-modal__head">
+          <div class="grc-modal__lead">
+            <span class="grc-modal__ref">{{c.openC.number}}</span>
+            <h2 class="grc-modal__title">{{c.openC.title || c.openC.project}}</h2>
+            <span class="grc-modal__meta">{{c.openC.project}} &middot; {{c.openC.raised}}</span>
+          </div>
+          <button type="button" class="grc-modal__x" ng-click="c.closeDetail()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="grc-modal__body">
+
+          <dl class="grc-kvs">
+            <div class="grc-kv"><dt>{{c.data.t.colState}}</dt>
+              <dd><span class="grc-pill" ng-class="'grc-pill--' + c.openC.state">{{c.openC.approval || c.data.t.notSet}}</span></dd>
+            </div>
+            <div class="grc-kv"><dt>{{c.data.t.fCategory}}</dt>
+              <dd ng-class="{'is-blank': !c.openC.category}">{{c.openC.category || c.data.t.none}}</dd></div>
+            <div class="grc-kv"><dt>{{c.data.t.fPriority}}</dt>
+              <dd ng-class="{'is-blank': !c.openC.priority}">{{c.openC.priority || c.data.t.none}}</dd></div>
+            <div class="grc-kv"><dt>{{c.data.t.fImpact}}</dt>
+              <dd ng-class="{'is-blank': !c.openC.impact}">{{c.openC.impact || c.data.t.none}}</dd></div>
+          </dl>
+
+          <div class="grc-prose" ng-if="c.openC.proposed">
+            <p class="grc-prose__label">{{c.data.t.fProposed}}</p>
+            <p class="grc-prose__text">{{c.openC.proposed}}</p>
+          </div>
+
+          <div class="grc-prose" ng-if="c.openC.reason">
+            <p class="grc-prose__label">{{c.data.t.fReason}}</p>
+            <p class="grc-prose__text">{{c.openC.reason}}</p>
+          </div>
+
+        </div>
+
+        <footer class="grc-modal__foot">
+          <button type="button" class="grc-btn grc-btn--primary" ng-click="c.closeDetail()">
+            {{c.data.t.close}}
+          </button>
+        </footer>
+
+      </div>
+
+    </div>
+
+  </main>
 
 </div>]]></template>
     </sp_widget>

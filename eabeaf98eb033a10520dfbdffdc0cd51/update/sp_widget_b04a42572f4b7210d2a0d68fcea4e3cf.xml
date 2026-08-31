@@ -1,28 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $location, $anchorScroll) {
-
-  /* =========================================================
-     GATENOW LANDING · HERO · Client script
-     ========================================================= */
-
+        <client_script><![CDATA[api.controller = function($scope, $location, $anchorScroll, $window, $timeout) {
   var c = this;
-
-  /* When the secondary link is an on-page anchor such as
-     #how-applying-works, scroll to that section instead of
-     letting the browser jump and rewrite the portal URL. */
-  c.onSecondary = function(event) {
-
-    var target = c.data.secondaryUrl;
-
-    if (!target || target.charAt(0) !== '#') return;
-
+  c.modal = { show: false };
+  c.checkLoginAndRedirect = function(event) {
     event.preventDefault();
-
+    if (c.data.isLoggedIn) {
+      c.modal = {
+        show: true,
+        type: 'success',
+        title: 'Welcome back!',
+        message: 'You\'re logged in. Click below to go to your dashboard.',
+        confirmLabel: 'Go now',
+        confirmAction: function() { $window.location.href = c.data.dashboardUrl; }
+      };
+    } else {
+      c.modal = {
+        show: true,
+        type: 'info',
+        title: 'Create your account',
+        message: 'You need to register before accessing the dashboard.',
+        confirmLabel: 'Register now',
+        confirmAction: function() { $window.location.href = c.data.registerUrl; }
+      };
+    }
+  };
+  c.onSecondary = function(event) {
+    var target = c.data.secondaryUrl;
+    if (!target || target.charAt(0) !== '#') return;
+    event.preventDefault();
     var id = target.substring(1);
     var el = document.getElementById(id);
-
     if (el && el.scrollIntoView) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
@@ -30,282 +39,448 @@
       $anchorScroll();
     }
   };
-
-}]]></client_script>
+};]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* =========================================================&#13;
-   GATENOW LANDING · HERO&#13;
-   Service Portal widget · CSS / SCSS&#13;
-&#13;
-   Selectors are written out in full. The Service Portal Sass&#13;
-   compiler does not support parent selector concatenation&#13;
-   (&amp;__line, &amp;--primary).&#13;
-   ========================================================= */&#13;
-&#13;
-/* ---------- typeface ----------&#13;
-   Self hosted so the widget makes no external request. Upload the&#13;
-   four Outfit woff2 files as Image records (db_image) inside this&#13;
-   scoped application, named exactly as referenced below. Images in&#13;
-   a scoped app are served from the instance at /&lt;name&gt;, so these&#13;
-   URLs stay valid on any instance the app is installed on.&#13;
-&#13;
-   Outfit is licensed under the SIL Open Font License 1.1, which&#13;
-   permits redistribution. Attach OFL.txt to the application before&#13;
-   submitting, since the Store review checks bundled font licences.&#13;
-&#13;
-   If the files are not uploaded, nothing breaks. The stack below&#13;
-   falls through to the platform UI font.&#13;
-   ------------------------------------------------------------- */&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 400;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 500;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 600;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 700;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- palette ---------- */&#13;
-$gnl-navy:      #0a2540;   // headline, dark text&#13;
-$gnl-blue:      #1560e0;   // primary accent&#13;
-$gnl-blue-dk:   #0f4cbb;   // pressed state&#13;
-$gnl-blue-soft: #e8f0fe;   // tinted fills&#13;
-$gnl-body:      #55677f;   // supporting copy&#13;
-$gnl-white:     #ffffff;&#13;
-&#13;
-$gnl-shadow-soft: 0 12px 30px rgba(16, 54, 110, 0.10);&#13;
-$gnl-shadow-btn:  0 14px 30px rgba(21, 96, 224, 0.30);&#13;
-&#13;
-$gnl-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   SECTION&#13;
-   ========================================================= */&#13;
-&#13;
-.gnl-hero {&#13;
-  position: relative;&#13;
-  width: 100%;&#13;
-  padding: 112px 24px 130px;&#13;
-  font-family: $gnl-font;&#13;
-  color: $gnl-navy;&#13;
-  text-align: center;&#13;
-  overflow: hidden;&#13;
-  background-color: #f2f7fe;&#13;
-  background-image:&#13;
-    radial-gradient(900px 520px at 50% -12%, rgba(206, 226, 252, 0.85), rgba(206, 226, 252, 0) 70%),&#13;
-    radial-gradient(760px 520px at 100% 42%, rgba(214, 231, 253, 0.70), rgba(214, 231, 253, 0) 66%),&#13;
-    radial-gradient(680px 460px at 0% 76%, rgba(226, 238, 253, 0.75), rgba(226, 238, 253, 0) 64%),&#13;
-    linear-gradient(180deg, #f4f8fe 0%, #e9f1fd 52%, #f3f8fe 100%);&#13;
-}&#13;
-&#13;
-.gnl-hero *,&#13;
-.gnl-hero *::before,&#13;
-.gnl-hero *::after { box-sizing: border-box; }&#13;
-&#13;
-/* No element level margin reset here. A selector such as&#13;
-   .gnl-hero p outranks .gnl-sub and would silently cancel its&#13;
-   margin. Margins are set on the component classes instead. */&#13;
-&#13;
-.gnl-hero a { text-decoration: none; }&#13;
-.gnl-hero a:hover,&#13;
-.gnl-hero a:focus { text-decoration: none; }&#13;
-&#13;
-.gnl-hero :focus-visible {&#13;
-  outline: 2px solid $gnl-blue;&#13;
-  outline-offset: 3px;&#13;
-}&#13;
-&#13;
-.gnl-hero__inner {&#13;
-  max-width: 1080px;&#13;
-  margin: 0 auto;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   HEADLINE&#13;
-   ========================================================= */&#13;
-&#13;
-.gnl-hero .gnl-title {&#13;
-  margin: 0;&#13;
-  font-size: 88px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1.14;&#13;
-  letter-spacing: -0.028em;&#13;
-  color: $gnl-navy;&#13;
-}&#13;
-&#13;
-@supports (font-size: clamp(38px, 6.1vw, 88px)) {&#13;
-  .gnl-hero .gnl-title { font-size: clamp(38px, 6.1vw, 88px); }&#13;
-}&#13;
-&#13;
-.gnl-title__line { display: block; }&#13;
-&#13;
-.gnl-title__accent { color: $gnl-blue; }&#13;
-&#13;
-/* the full stops stay navy even on the accented line, and the&#13;
-   negative tracking is cancelled so they do not crowd the word */&#13;
-.gnl-title__stop {&#13;
-  color: $gnl-navy;&#13;
-  margin-left: 0.05em;&#13;
-  letter-spacing: 0;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   SUPPORTING COPY&#13;
-   ========================================================= */&#13;
-&#13;
-.gnl-hero .gnl-sub {&#13;
-  display: block;&#13;
-  max-width: 742px;&#13;
-  margin: 46px auto 0;&#13;
-  padding: 0;&#13;
-  font-size: 20px;&#13;
-  font-weight: 400;&#13;
-  line-height: 1.58;&#13;
-  letter-spacing: -0.005em;&#13;
-  color: $gnl-body;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   CALLS TO ACTION&#13;
-   ========================================================= */&#13;
-&#13;
-.gnl-hero .gnl-actions {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  flex-wrap: wrap;&#13;
-  gap: 24px;&#13;
-  margin-top: 58px;&#13;
-}&#13;
-&#13;
-.gnl-btn {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  gap: 16px;&#13;
-  height: 72px;&#13;
-  padding: 0 44px;&#13;
-  border-radius: 999px;&#13;
-  font-size: 17.5px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.01em;&#13;
-  transition: background 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease, color 0.22s ease;&#13;
-}&#13;
-&#13;
-.gnl-btn--primary {&#13;
-  background: $gnl-blue;&#13;
-  color: $gnl-white;&#13;
-  box-shadow: $gnl-shadow-btn;&#13;
-}&#13;
-&#13;
-.gnl-btn--primary:hover {&#13;
-  background: $gnl-blue-dk;&#13;
-  color: $gnl-white;&#13;
-  box-shadow: 0 18px 38px rgba(21, 96, 224, 0.38);&#13;
-  transform: translateY(-2px);&#13;
-}&#13;
-&#13;
-.gnl-btn--ghost {&#13;
-  background: $gnl-white;&#13;
-  color: $gnl-navy;&#13;
-  padding: 0 42px 0 17px;&#13;
-  box-shadow: $gnl-shadow-soft;&#13;
-}&#13;
-&#13;
-.gnl-btn--ghost:hover {&#13;
-  color: $gnl-navy;&#13;
-  box-shadow: 0 16px 36px rgba(16, 54, 110, 0.16);&#13;
-  transform: translateY(-2px);&#13;
-}&#13;
-&#13;
-.gnl-play {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  width: 38px;&#13;
-  height: 38px;&#13;
-  border-radius: 50%;&#13;
-  background: $gnl-blue-soft;&#13;
-  color: $gnl-blue;&#13;
-  font-size: 11px;&#13;
-  flex-shrink: 0;&#13;
-}&#13;
-&#13;
-.gnl-play i { margin-left: 2px; }&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   RESPONSIVE&#13;
-   ========================================================= */&#13;
-&#13;
-@media (max-width: 900px) {&#13;
-  .gnl-hero { padding: 76px 20px 92px; }&#13;
-  .gnl-hero .gnl-sub { font-size: 18px; margin-top: 34px; }&#13;
-  .gnl-hero .gnl-actions { margin-top: 42px; gap: 16px; }&#13;
-  .gnl-btn { height: 64px; padding: 0 34px; font-size: 16.5px; }&#13;
-  .gnl-btn--ghost { padding: 0 32px 0 14px; }&#13;
-}&#13;
-&#13;
-@media (max-width: 620px) {&#13;
-  .gnl-hero { padding: 56px 18px 68px; }&#13;
-&#13;
-  .gnl-hero .gnl-title { letter-spacing: -0.03em; }&#13;
-  .gnl-hero .gnl-sub { font-size: 16px; }&#13;
-&#13;
-  .gnl-hero .gnl-actions {&#13;
-    flex-direction: column;&#13;
-    align-items: stretch;&#13;
-    gap: 12px;&#13;
-  }&#13;
-&#13;
-  .gnl-btn {&#13;
-    width: 100%;&#13;
-    height: 58px;&#13;
-    font-size: 16px;&#13;
-  }&#13;
-&#13;
-  .gnl-btn--ghost { padding: 0 20px; }&#13;
-}&#13;
-&#13;
-@media (prefers-reduced-motion: reduce) {&#13;
-  .gnl-hero * { transition: none; }&#13;
-  .gnl-btn:hover { transform: none; }&#13;
+        <css>/* =========================================================
+   GATENOW LANDING · HERO
+   Service Portal widget · CSS / SCSS
+
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation
+   (&amp;__line, &amp;--primary).
+   ========================================================= */
+
+/* ---------- typeface ----------
+   Self hosted so the widget makes no external request. Upload the
+   four Outfit woff2 files as Image records (db_image) inside this
+   scoped application, named exactly as referenced below. Images in
+   a scoped app are served from the instance at /&lt;name&gt;, so these
+   URLs stay valid on any instance the app is installed on.
+
+   Outfit is licensed under the SIL Open Font License 1.1, which
+   permits redistribution. Attach OFL.txt to the application before
+   submitting, since the Store review checks bundled font licences.
+
+   If the files are not uploaded, nothing breaks. The stack below
+   falls through to the platform UI font.
+   ------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+
+
+/* ---------- palette ---------- */
+$gnl-navy:      #0a2540;   // headline, dark text
+$gnl-blue:      #1560e0;   // primary accent
+$gnl-blue-dk:   #0f4cbb;   // pressed state
+$gnl-blue-soft: #e8f0fe;   // tinted fills
+$gnl-body:      #55677f;   // supporting copy
+$gnl-white:     #ffffff;
+
+$gnl-shadow-soft: 0 12px 30px rgba(16, 54, 110, 0.10);
+$gnl-shadow-btn:  0 14px 30px rgba(21, 96, 224, 0.30);
+
+$gnl-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   SECTION
+   ========================================================= */
+
+.gnl-hero {
+  position: relative;
+  width: 100%;
+  padding: 112px 24px 130px;
+  font-family: $gnl-font;
+  color: $gnl-navy;
+  text-align: center;
+  overflow: hidden;
+  background-color: #f2f7fe;
+  background-image:
+    radial-gradient(900px 520px at 50% -12%, rgba(206, 226, 252, 0.85), rgba(206, 226, 252, 0) 70%),
+    radial-gradient(760px 520px at 100% 42%, rgba(214, 231, 253, 0.70), rgba(214, 231, 253, 0) 66%),
+    radial-gradient(680px 460px at 0% 76%, rgba(226, 238, 253, 0.75), rgba(226, 238, 253, 0) 64%),
+    linear-gradient(180deg, #f4f8fe 0%, #e9f1fd 52%, #f3f8fe 100%);
+}
+
+.gnl-hero *,
+.gnl-hero *::before,
+.gnl-hero *::after { box-sizing: border-box; }
+
+/* No element level margin reset here. A selector such as
+   .gnl-hero p outranks .gnl-sub and would silently cancel its
+   margin. Margins are set on the component classes instead. */
+
+.gnl-hero a { text-decoration: none; }
+.gnl-hero a:hover,
+.gnl-hero a:focus { text-decoration: none; }
+
+.gnl-hero :focus-visible {
+  outline: 2px solid $gnl-blue;
+  outline-offset: 3px;
+}
+
+.gnl-hero__inner {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+
+/* =========================================================
+   HEADLINE
+   ========================================================= */
+
+.gnl-hero .gnl-title {
+  margin: 0;
+  font-size: 88px;
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -0.028em;
+  color: $gnl-navy;
+}
+
+@supports (font-size: clamp(38px, 6.1vw, 88px)) {
+  .gnl-hero .gnl-title { font-size: clamp(38px, 6.1vw, 88px); }
+}
+
+.gnl-title__line { display: block; }
+
+.gnl-title__accent { color: $gnl-blue; }
+
+/* the full stops stay navy even on the accented line, and the
+   negative tracking is cancelled so they do not crowd the word */
+.gnl-title__stop {
+  color: $gnl-navy;
+  margin-left: 0.05em;
+  letter-spacing: 0;
+}
+
+
+/* =========================================================
+   SUPPORTING COPY
+   ========================================================= */
+
+.gnl-hero .gnl-sub {
+  display: block;
+  max-width: 742px;
+  margin: 46px auto 0;
+  padding: 0;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.58;
+  letter-spacing: -0.005em;
+  color: $gnl-body;
+}
+
+
+/* =========================================================
+   CALLS TO ACTION
+   ========================================================= */
+
+.gnl-hero .gnl-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-top: 58px;
+}
+
+.gnl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 72px;
+  padding: 0 44px;
+  border-radius: 999px;
+  font-size: 17.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease, color 0.22s ease;
+}
+
+.gnl-btn--primary {
+  background: $gnl-blue;
+  color: $gnl-white;
+  box-shadow: $gnl-shadow-btn;
+}
+
+.gnl-btn--primary:hover {
+  background: $gnl-blue-dk;
+  color: $gnl-white;
+  box-shadow: 0 18px 38px rgba(21, 96, 224, 0.38);
+  transform: translateY(-2px);
+}
+
+.gnl-btn--ghost {
+  background: $gnl-white;
+  color: $gnl-navy;
+  padding: 0 42px 0 17px;
+  box-shadow: $gnl-shadow-soft;
+}
+
+.gnl-btn--ghost:hover {
+  color: $gnl-navy;
+  box-shadow: 0 16px 36px rgba(16, 54, 110, 0.16);
+  transform: translateY(-2px);
+}
+
+.gnl-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: $gnl-blue-soft;
+  color: $gnl-blue;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.gnl-play i { margin-left: 2px; }
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .gnl-hero { padding: 76px 20px 92px; }
+  .gnl-hero .gnl-sub { font-size: 18px; margin-top: 34px; }
+  .gnl-hero .gnl-actions { margin-top: 42px; gap: 16px; }
+  .gnl-btn { height: 64px; padding: 0 34px; font-size: 16.5px; }
+  .gnl-btn--ghost { padding: 0 32px 0 14px; }
+}
+
+@media (max-width: 620px) {
+  .gnl-hero { padding: 56px 18px 68px; }
+
+  .gnl-hero .gnl-title { letter-spacing: -0.03em; }
+  .gnl-hero .gnl-sub { font-size: 16px; }
+
+  .gnl-hero .gnl-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .gnl-btn {
+    width: 100%;
+    height: 58px;
+    font-size: 16px;
+  }
+
+  .gnl-btn--ghost { padding: 0 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gnl-hero * { transition: none; }
+  .gnl-btn:hover { transform: none; }
+}
+
+
+/* =========================================================
+   GATENOW LANDING · MODAL
+   Login / registration confirmation dialog
+   ========================================================= */
+
+.gn-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 37, 64, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: gnFadeIn 0.2s ease-out;
+}
+
+.gn-modal {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: $gnl-white;
+  border-radius: 24px;
+  padding: 44px 38px 36px;
+  text-align: center;
+  font-family: $gnl-font;
+  box-shadow: 0 30px 60px rgba(10, 37, 64, 0.22);
+  animation: gnPopIn 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.gn-modal-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gn-modal-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.gn-icon-success {
+  background: $gnl-blue-soft;
+  color: #1e8e3e;
+}
+
+.gn-icon-info {
+  background: $gnl-blue-soft;
+  color: $gnl-blue;
+}
+
+.gn-modal-title {
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: $gnl-navy;
+}
+
+.gn-modal-message {
+  margin: 0 0 30px;
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  color: $gnl-body;
+}
+
+.gn-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gn-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  padding: 0 32px;
+  border: none;
+  border-radius: 999px;
+  background: $gnl-blue;
+  color: $gnl-white;
+  font-family: $gnl-font;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: $gnl-shadow-btn;
+  transition: background 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
+}
+
+.gn-btn-primary:hover {
+  background: $gnl-blue-dk;
+  box-shadow: 0 18px 38px rgba(21, 96, 224, 0.38);
+  transform: translateY(-2px);
+}
+
+.gn-btn-text {
+  background: none;
+  border: none;
+  padding: 6px;
+  font-family: $gnl-font;
+  font-size: 14px;
+  font-weight: 500;
+  color: $gnl-body;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+
+.gn-btn-text:hover {
+  color: $gnl-navy;
+}
+.gn-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $gnl-body;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.gn-modal-close:hover {
+  background: $gnl-blue-soft;
+  color: $gnl-navy;
+}
+
+@keyframes gnFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gnPopIn {
+  from { opacity: 0; transform: scale(0.92) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 620px) {
+  .gn-modal {
+    padding: 36px 26px 28px;
+    border-radius: 20px;
+  }
+  .gn-modal-title { font-size: 21px; }
+  .gn-modal-message { font-size: 14.5px; }
+  .gn-btn-primary { height: 52px; font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gn-modal-overlay,
+  .gn-modal { animation: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
         <docs/>
         <field_list/>
-        <has_preview>false</has_preview>
+        <has_preview>true</has_preview>
         <id>hero-section-applicant</id>
         <internal>false</internal>
         <link><![CDATA[function link(scope, element, attrs, controller) {
@@ -315,58 +490,33 @@ $gnl-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
         <option_schema/>
         <public>true</public>
         <roles/>
-        <script><![CDATA[(function () {
-
-  /* =========================================================
-     GATENOW LANDING · HERO
-     Service Portal widget · Server script
-
-     Every string is a widget option with a fallback, so the
-     copy can be edited without touching code.
-     ========================================================= */
-
-  function opt(name, fallback) {
-    var v = (typeof options === 'undefined') ? null : options[name];
-    return (v === null || v === undefined || v === '') ? fallback : v;
-  }
-
-  /* ---------- copy ---------- */
-  data.headlineOne        = opt('headline_one', 'Win the funding');
-  data.headlineTwoLead    = opt('headline_two_lead', 'Skip the');
-  data.headlineTwoAccent  = opt('headline_two_accent', 'paperwork');
-  data.subhead            = opt('subhead',
-    'Everything you need to find the right funding, apply with confidence, and manage your grant journey all in one place, from your first application through award and beyond.');
-
-  /* ---------- actions ---------- */
-  data.primaryLabel   = opt('primary_label', "See what's open");
-  data.primaryUrl     = opt('primary_url', '?id=opportunities');
-  data.secondaryLabel = opt('secondary_label', 'How applying works');
-  data.secondaryUrl   = opt('secondary_url', '#how-applying-works');
-
+        <script><![CDATA[(function() {
+  data.headlineOne       = options.headline_one        || 'Win the funding';
+  data.headlineTwoLead   = options.headline_two_lead   || 'Skip the';
+  data.headlineTwoAccent = options.headline_two_accent || 'paperwork';
+  data.subhead           = options.subhead             || 'Everything you need to find the right funding, apply with confidence, and manage your grant journey all in one place, from your first application through award and beyond.';
+  data.primaryLabel      = options.primary_label       || 'See what\'s open';
+  data.primaryUrl        = options.primary_url         || '';
+  data.dashboardLabel    = options.dashboard_label     || 'Dashboard';
+  data.dashboardUrl      = options.dashboard_url       || '?id=applicant_dashboard';
+  data.registerUrl       = options.register_url        || '?id=applicant_intake';
+  data.isLoggedIn = gs.getSession().isLoggedIn();
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-19 08:35:12</sys_created_on>
         <sys_id>b04a42572f4b7210d2a0d68fcea4e3cf</sys_id>
-        <sys_mod_count>43</sys_mod_count>
+        <sys_mod_count>82</sys_mod_count>
         <sys_name>Hero Section Applicant</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b04a42572f4b7210d2a0d68fcea4e3cf</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-24 10:07:28</sys_updated_on>
-        <template><![CDATA[<!-- =========================================================
-     GATENOW LANDING · HERO
-     Service Portal widget · HTML template
-     ========================================================= -->
-
-<section class="gnl-hero">
-
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-28 04:05:37</sys_updated_on>
+        <template><![CDATA[<section class="gnl-hero">
   <div class="gnl-hero__inner">
-
-    <!-- headline -->
     <h1 class="gnl-title">
       <span class="gnl-title__line">
         {{c.data.headlineOne}}<span class="gnl-title__stop">.</span>
@@ -376,29 +526,44 @@ $gnl-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
         <span class="gnl-title__accent">{{c.data.headlineTwoAccent}}</span><span class="gnl-title__stop">.</span>
       </span>
     </h1>
-
-    <!-- supporting copy -->
     <p class="gnl-sub">{{c.data.subhead}}</p>
-
-    <!-- calls to action -->
     <div class="gnl-actions">
-
-      <a class="gnl-btn gnl-btn--primary" ng-href="{{c.data.primaryUrl}}">
+      <a class="gnl-btn gnl-btn--primary"
+         ng-href="{{c.data.primaryUrl}}">
         {{c.data.primaryLabel}}
       </a>
-
       <a class="gnl-btn gnl-btn--ghost"
-         ng-if="c.data.secondaryLabel"
-         ng-href="{{c.data.secondaryUrl}}"
-         ng-click="c.onSecondary($event)">
-        <span class="gnl-play"><i class="fa fa-play"></i></span>
-        {{c.data.secondaryLabel}}
+         ng-href="{{c.data.dashboardUrl}}"
+         ng-click="c.checkLoginAndRedirect($event)">
+        <i class="fa fa-th-large" aria-hidden="true"></i>
+        {{c.data.dashboardLabel}}
       </a>
-
     </div>
-
   </div>
-
+  <div class="gn-modal-overlay" ng-if="c.modal.show">
+    <div class="gn-modal">
+      <button class="gn-modal-close" ng-click="c.modal.show = false" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="gn-modal-icon" ng-class="{'gn-icon-success': c.modal.type === 'success', 'gn-icon-info': c.modal.type === 'info'}">
+        <svg ng-if="c.modal.type === 'success'" viewBox="0 0 24 24" fill="none">
+          <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg ng-if="c.modal.type === 'info'" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+          <path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3 class="gn-modal-title">{{c.modal.title}}</h3>
+      <p class="gn-modal-message">{{c.modal.message}}</p>
+      <div class="gn-modal-actions">
+        <button class="gn-btn-primary" ng-click="c.modal.confirmAction()">{{c.modal.confirmLabel}}</button>
+        <button class="gn-btn-text" ng-if="c.modal.cancelLabel" ng-click="c.modal.show = false">{{c.modal.cancelLabel}}</button>
+      </div>
+    </div>
+  </div>
 </section>]]></template>
     </sp_widget>
 </record_update>

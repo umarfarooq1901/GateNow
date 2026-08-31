@@ -1,183 +1,1689 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function(spUtil, $rootScope, $window, $timeout) {
+        <client_script><![CDATA[api.controller = function($scope) {
+
+  /* =========================================================
+     GATENOW · MY PROJECTS · Client script
+
+     Tabs, search and the modal all run against data already on
+     the page. No writes, so nothing goes back to the server.
+     ========================================================= */
+
   var c = this;
 
-  // --- SIDEBAR COLLAPSE SYNC ---
-  c.isSidebarCollapsed = $window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true';
+  c.query = '';
+  c.tab   = 'all';
+  c.open  = null;
+  c.mtab  = 'overview';
 
-  $rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
-    $timeout(function() {
-      c.isSidebarCollapsed = isCollapsed;
+  c.tabs = [
+    { key: 'all',     label: c.data.t.tabAll },
+    { key: 'active',  label: c.data.t.tabActive },
+    { key: 'done',    label: c.data.t.tabDone },
+    { key: 'stopped', label: c.data.t.tabStopped }
+  ];
+
+  /* Each modal tab declares whether it should exist at all, so a
+     project with no risks does not get an empty tab, and neither
+     does an instance with no risk table. */
+  c.modalTabs = [
+    {
+      key: 'overview', label: c.data.t.mOverview,
+      show: function() { return true; },
+      count: function() { return 0; }
+    },
+    {
+      key: 'reports', label: c.data.t.mReports,
+      show: function(p) { return p.reports.length > 0; },
+      count: function(p) { return p.reports.length; }
+    },
+    {
+      key: 'changes', label: c.data.t.mChanges,
+      show: function(p) { return p.changes.length > 0; },
+      count: function(p) { return p.changes.length; }
+    },
+    {
+      key: 'claims', label: c.data.t.mClaims,
+      show: function(p) { return p.claims.length > 0; },
+      count: function(p) { return p.claims.length; }
+    },
+    {
+      key: 'risks', label: c.data.t.mRisks,
+      show: function(p) { return c.data.hasRisks && p.risks.length > 0; },
+      count: function(p) { return p.risks.length; }
+    },
+    {
+      key: 'issues', label: c.data.t.mIssues,
+      show: function(p) { return c.data.hasIssues && p.issues.length > 0; },
+      count: function(p) { return p.issues.length; }
+    }
+  ];
+
+  function hit(p, q) {
+    return (
+      (p.name    || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.number  || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.program || '').toLowerCase().indexOf(q) !== -1 ||
+      (p.award   || '').toLowerCase().indexOf(q) !== -1
+    );
+  }
+
+  function matching() {
+    var q = (c.query || '').trim().toLowerCase();
+
+    var out = (c.data.projects || []).filter(function(p) {
+      if (c.tab !== 'all' && p.group !== c.tab) return false;
+      if (q && !hit(p, q)) return false;
+      return true;
     });
-  });
-  // -----------------------------
 
-  // State variables for inline view
-  c.showProjectDetails = false;
-  c.projectDetailsWidget = null;
-  c.hideParentBackButton = false; // Tracks if a child form is open
-
-  // Open the project details inline
-  c.openProject = function(sysId) {
-    // Note: Update 'project_details_widget' to the exact ID of your project view widget
-    spUtil.get('each_project_detail', { sys_id: sysId }).then(function(response) {
-      c.projectDetailsWidget = response;
-      c.showProjectDetails = true;
+    /* a project reporting red is the one worth reading first,
+       whichever tab is open */
+    out.sort(function(x, y) {
+      var rank = { red: 0, amber: 1, green: 2 };
+      return rank[x.health] - rank[y.health];
     });
+
+    return out;
+  }
+
+  c.total = function() {
+    var n = matching().length;
+    return n === 1 ? n + ' project' : n + ' projects';
   };
 
-  // Close the inline view
-  c.closeProjectDetails = function() {
-    c.showProjectDetails = false;
-    c.projectDetailsWidget = null;
-    c.hideParentBackButton = false; // Reset the button state
-    c.server.update(); // Refresh dashboard KPIs
+  c.shown = function() { return matching(); };
+
+  c.onChange = function() {};
+
+  c.setTab = function(key) {
+    if (c.tab === key) return;
+    c.tab = key;
   };
 
-  // Listen for the child widget saying it's done
-  $rootScope.$on('gn_close_project_details', function() {
-    c.closeProjectDetails();
-  });
+  c.clearSearch = function() { c.query = ''; };
 
-  // ADDED: Listen for when a child form (like Status Report) opens/closes
-  $rootScope.$on('gn_child_form_toggled', function(event, isFormOpen) {
-    c.hideParentBackButton = isFormOpen;
-  });
+  c.clearAll = function() {
+    c.query = '';
+    c.tab = 'all';
+  };
+
+
+  /* =====================================================
+     DETAIL
+     ===================================================== */
+
+  c.openDetail = function(project) {
+    c.open = project || null;
+    /* always land on overview, so the tab from the last project
+       does not carry over to one that has no such list */
+    c.mtab = 'overview';
+  };
+
+  c.closeDetail = function() {
+    c.open = null;
+  };
+
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* Force full transparency and visible overflow on wrapper elements for tooltips */
+        <css>/* =========================================================
+   GATENOW · MY PROJECTS
+   Service Portal widget · CSS / SCSS
+
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
+
+   Same tokens as the other dashboard pages: navy, one accent
+   blue, neutrals built from the navy at different opacities.
+
+   THE ONE EXCEPTION
+   Project health is a red, amber, green scale that the platform
+   already publishes on the record, and reporting it in anything
+   other than those three colours would be its own kind of lie.
+   So this page carries all three, desaturated to sit inside the
+   palette rather than shouting over it. They appear only where
+   health is being reported, never as decoration.
+
+   TYPE
+     tile      30  700  tabular   headline figures
+     title     26  700  -0.03em   page title
+     name      19  600  -0.018em  project name
+     percent   22  700  tabular   completion figure
+     body      15  400             descriptions
+     data      14  600  tabular    dates and amounts
+     label     11  600   0.14em    uppercase small caps
+   ========================================================= */
+
+/* ---------- overflow overrides ---------- */
+
 .panel,
 .panel-body,
-.sp-widget {
-  overflow: visible !important;
+.sp-widget { overflow: visible !important; }
+
+.gn-layout { overflow: visible !important; }
+
+/* The column holds the rail and lets it decide how wide to be.
+   It used to carry a width through an inline ng-style, which is
+   what put 140px of the rail on top of this page: the column
+   reserved 96 while the rail draws 236.
+
+   The transition moved to the rail, which is the element that
+   actually changes width. Animating a wrapper that never
+   resized was doing nothing. */
+
+.aw-sidebar {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
-/* ==========================================
-   LAYOUT — sidebar + main content
-   ========================================== */
+
+/* ---------- typeface ---------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+
+
+/* ---------- ink ---------- */
+$r-navy:   #0a2540;
+$r-ink-2:  rgba(10, 37, 64, 0.72);
+$r-ink-3:  rgba(10, 37, 64, 0.54);
+$r-ink-4:  rgba(10, 37, 64, 0.38);
+$r-line:   rgba(10, 37, 64, 0.10);
+$r-line-2: rgba(10, 37, 64, 0.06);
+$r-tint:   rgba(10, 37, 64, 0.03);
+
+/* ---------- accent ---------- */
+$r-blue:    #1560e0;
+$r-blue-dk: #0f4cbb;
+$r-blue-1:  rgba(21, 96, 224, 0.08);
+$r-blue-2:  rgba(21, 96, 224, 0.16);
+
+/* ---------- health, the platform's own scale ---------- */
+$r-green:   #1f8a63;
+$r-green-1: rgba(31, 138, 99, 0.12);
+$r-amber:   #a4741f;
+$r-amber-1: rgba(164, 116, 31, 0.12);
+$r-red:     #b8394a;
+$r-red-1:   rgba(184, 57, 74, 0.10);
+
+$r-white: #ffffff;
+$r-page:  #f4f6fb;
+$r-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
+
+$r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
 .gn-layout {
-  margin-left: -15px;
-  margin-right: -15px;
-  margin-top: 35px;
   display: flex;
   align-items: stretch;
   min-height: 100vh;
-  background: #f8fafc;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  position: relative;
-  overflow: visible !important; /* ALLOW TOOLTIPS */
-}
-.gn-layout *,
-.gn-layout *::before,
-.gn-layout *::after {
-  box-sizing: border-box;
+  background: $r-page;
+  font-family: $r-font;
 }
 
-/* ==========================================
-   SIDEBAR
-   ========================================== */
-.sidebar {
-  flex-shrink: 0;
-  border-right: 1px solid #e5e7eb;
-  position: sticky;
-  
-  top: 58px; 
-  
-  /* FIX 2: Calculate the height so the bottom doesn't get cut off off-screen */
-  height: calc(100vh - 58px); 
-  
-  align-self: flex-start;
-  
-  /* CRITICAL: Hides scrollbar track while ensuring tooltips can escape */
-  overflow-y: hidden !important; 
-  overflow-x: visible !important;
-  overflow: visible !important; 
-  
-  overscroll-behavior: contain;
-  z-index: 10;
-  scrollbar-width: none;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sidebar::-webkit-scrollbar { display: none; }
-
-/* ==========================================
-   MAIN CONTENT WRAPPER
-   ========================================== */
-.gn-projects-wrapper {
+/* Without min-width: 0 a flex child refuses to shrink below its
+   own content width, and slides under the rail rather than
+   narrowing. That is the usual cause of a stubborn overlap once
+   the widths are right. */
+.gpr {
   flex: 1;
   min-width: 0;
-  padding: 30px;
-  box-sizing: border-box;
-  color: #1e293b;
-  overflow: visible !important;
-  transition: width 0.35s ease;
+  overflow: visible;
 }
 
-/* ==========================================
-   PROJECT UTILITIES &amp; CARDS
-   ========================================== */
-.text-green { color: #10b981 !important; }
-.text-orange { color: #d97706 !important; }
-.text-dark { color: #0f172a !important; }
-.font-bold { font-weight: 700 !important; }
-.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gpr {
+  min-height: 100vh;
+  padding: 28px 36px 68px;
+  background: $r-page;
+  font-family: $r-font;
+  color: $r-navy;
+  -webkit-font-smoothing: antialiased;
+}
 
-/* Cards */
-.gn-card { background: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 24px; }
-.gn-dash-row { display: flex; gap: 24px; margin-bottom: 30px; .health-card { flex: 0 0 40%; } .budget-card { flex: 1; } }
+.gpr *,
+.gpr *::before,
+.gpr *::after { box-sizing: border-box; }
 
-.card-header { margin-bottom: 20px; h2 { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; } p { font-size: 13px; color: #64748b; margin: 0; } }
 
-/* Segmented Health Bar */
-.segmented-bar {
-  display: flex; height: 36px; border-radius: 6px; overflow: hidden; margin-bottom: 24px;
-  .segment { display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; font-weight: 700; transition: width 0.3s ease;
-    &amp;.green { background-color: #10b981; } &amp;.yellow { background-color: #eab308; color: #78350f; } &amp;.grey { background-color: #e2e8f0; color: #475569; }
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.gpr-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 22px;
+}
+
+.gpr-top__lead { min-width: 0; }
+
+.gpr .gpr-top__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: $r-navy;
+}
+
+.gpr .gpr-top__sub {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 7px 0 0;
+  font-size: 13.5px;
+  color: $r-ink-3;
+}
+
+.gpr-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $r-green;
+  box-shadow: 0 0 0 3px $r-green-1;
+  flex-shrink: 0;
+}
+
+.gpr-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gpr-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 330px;
+  height: 42px;
+  padding: 0 12px 0 14px;
+  margin: 0;
+  border: 1px solid $r-line;
+  border-radius: 11px;
+  background: $r-white;
+  font-weight: 400;
+  transition: border-color 0.4s $r-ease, box-shadow 0.4s $r-ease;
+}
+
+.gpr-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $r-blue-1;
+}
+
+.gpr-search__icon {
+  font-size: 13px;
+  color: $r-ink-4;
+  flex-shrink: 0;
+}
+
+.gpr-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: $r-navy;
+}
+
+.gpr-search__field::placeholder { color: $r-ink-4; }
+
+.gpr-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $r-tint;
+  color: $r-ink-3;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.gpr-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: $r-blue;
+  color: $r-white;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(21, 96, 224, 0.28);
+}
+
+
+/* =========================================================
+   NOTHING YET
+   ========================================================= */
+
+.gpr-blank {
+  max-width: 520px;
+  margin: 70px auto;
+  padding: 52px 34px 46px;
+  border: 1px solid $r-line;
+  border-radius: 18px;
+  background: $r-white;
+  text-align: center;
+}
+
+.gpr-blank__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: $r-blue-1;
+  color: $r-blue;
+  font-size: 22px;
+}
+
+.gpr .gpr-blank__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: $r-navy;
+}
+
+.gpr .gpr-blank__text {
+  max-width: 46ch;
+  margin: 11px auto 24px;
+  font-size: 15px;
+  line-height: 1.64;
+  color: $r-ink-3;
+}
+
+
+/* =========================================================
+   TILES
+   ========================================================= */
+
+.gpr-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.gpr-tile {
+  position: relative;
+  padding: 20px 22px 22px;
+  border: 1px solid $r-line;
+  border-radius: 16px;
+  background: $r-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: transform 0.5s $r-ease, box-shadow 0.5s $r-ease;
+}
+
+.gpr-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
+}
+
+.gpr-tile__rule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: $r-blue-2;
+  transform-origin: left center;
+}
+
+.gpr-tile.is-alert .gpr-tile__rule { background: rgba(164, 116, 31, 0.34); }
+
+.gpr .gpr-tile__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-tile__value {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.034em;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+.gpr .gpr-tile__note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: $r-ink-3;
+}
+
+.gpr-tile.is-alert .gpr-tile__note {
+  color: $r-amber;
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.gpr-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.gpr-panel {
+  padding: 22px 24px 24px;
+  border: 1px solid $r-line;
+  border-radius: 16px;
+  background: $r-white;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.gpr-panel__head { margin-bottom: 20px; }
+
+.gpr .gpr-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: $r-navy;
+}
+
+.gpr .gpr-panel__hint {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-panel__empty {
+  margin: 0;
+  padding: 22px 0 4px;
+  font-size: 13.5px;
+  color: $r-ink-4;
+}
+
+
+/* ---------- health split ---------- */
+
+.gpr-split {
+  display: flex;
+  height: 42px;
+  border-radius: 11px;
+  overflow: hidden;
+  background: $r-tint;
+}
+
+.gpr-split__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $r-white;
+  transition: width 0.6s $r-ease;
+}
+
+.gpr-split__seg--green { background: $r-green; }
+.gpr-split__seg--amber { background: $r-amber; }
+.gpr-split__seg--red   { background: $r-red; }
+
+.gpr .gpr-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gpr .gpr-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: $r-ink-3;
+}
+
+.gpr-key__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gpr-key__dot--green { background: $r-green; }
+.gpr-key__dot--amber { background: $r-amber; }
+.gpr-key__dot--red   { background: $r-red; }
+
+.gpr-key__label { color: $r-ink-3; }
+
+.gpr-key__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+
+/* ---------- completion bars ---------- */
+
+.gpr-bars {
+  display: grid;
+  gap: 15px;
+}
+
+.gpr-bar { min-width: 0; }
+
+.gpr-bar__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 7px;
+}
+
+.gpr-bar__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $r-navy;
+}
+
+.gpr-bar__pct {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-3;
+}
+
+.gpr-bar__track {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: $r-tint;
+  overflow: hidden;
+}
+
+.gpr-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: $r-blue;
+  transform-origin: left center;
+}
+
+/* the bar takes the project's own health, so a project at 80
+   percent and reporting red does not read as fine */
+.gpr-bar__fill--green { background: $r-blue; }
+.gpr-bar__fill--amber { background: $r-amber; }
+.gpr-bar__fill--red   { background: $r-red; }
+
+
+/* =========================================================
+   TABS
+   ========================================================= */
+
+.gpr-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid $r-line;
+}
+
+.gpr-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gpr-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: $r-ink-2;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.4s $r-ease, border-color 0.4s $r-ease, color 0.4s $r-ease;
+}
+
+.gpr-tab:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: $r-navy;
+}
+
+.gpr-tab.is-on {
+  background: $r-white;
+  border-color: $r-line;
+  color: $r-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
+}
+
+.gpr-tab__count {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-range {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-4;
+}
+
+
+/* =========================================================
+   PROJECT CARD
+   ========================================================= */
+
+.gpr-list {
+  display: grid;
+  gap: 14px;
+}
+
+.gpr-card {
+  position: relative;
+  padding: 22px 26px 20px 28px;
+  border: 1px solid $r-line;
+  border-radius: 16px;
+  background: $r-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: border-color 0.5s $r-ease, box-shadow 0.5s $r-ease;
+}
+
+.gpr-card:hover {
+  border-color: $r-blue-2;
+  box-shadow: 0 14px 34px rgba(10, 37, 64, 0.08);
+}
+
+.gpr-card__rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+}
+
+.gpr-card--green .gpr-card__rail { background: $r-green; }
+.gpr-card--amber .gpr-card__rail { background: $r-amber; }
+.gpr-card--red .gpr-card__rail   { background: $r-red; }
+
+/* a project reporting red is the one worth reading first */
+.gpr-card--red { background: linear-gradient(180deg, rgba(184, 57, 74, 0.035) 0%, $r-white 42%); }
+
+.gpr-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.gpr-card__lead { min-width: 0; }
+
+.gpr-card__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.gpr-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gpr-health__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gpr-health--green { color: $r-green; }
+.gpr-health--amber { color: $r-amber; }
+.gpr-health--red   { color: $r-red; }
+
+.gpr-health--green .gpr-health__dot { background: $r-green; }
+.gpr-health--amber .gpr-health__dot { background: $r-amber; }
+.gpr-health--red .gpr-health__dot   { background: $r-red; }
+
+.gpr-card__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $r-ink-4;
+}
+
+.gpr-card__sep { color: rgba(10, 37, 64, 0.22); }
+
+.gpr-due {
+  padding: 3px 9px;
+  border: 1px solid $r-line;
+  border-radius: 6px;
+  background: $r-tint;
+  color: $r-ink-3;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* past its planned end date, which is worth saying out loud */
+.gpr-due.is-late {
+  border-color: rgba(184, 57, 74, 0.28);
+  background: $r-red-1;
+  color: $r-red;
+}
+
+.gpr .gpr-card__name {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.018em;
+  color: $r-navy;
+}
+
+.gpr .gpr-card__desc {
+  max-width: 72ch;
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: $r-ink-3;
+}
+
+.gpr-card__figure {
+  text-align: right;
+  min-width: 0;
+}
+
+.gpr-figure__value {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+.gpr-figure__label {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $r-ink-4;
+}
+
+.gpr-card__track {
+  display: block;
+  height: 6px;
+  margin-bottom: 18px;
+  border-radius: 999px;
+  background: $r-tint;
+  overflow: hidden;
+}
+
+.gpr-card__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: left center;
+}
+
+.gpr-card__fill--green { background: $r-blue; }
+.gpr-card__fill--amber { background: $r-amber; }
+.gpr-card__fill--red   { background: $r-red; }
+
+
+/* ---------- phase track ---------- */
+
+.gpr-phase {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.gpr-phase__step { min-width: 0; }
+
+.gpr-phase__bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: $r-line-2;
+  transform-origin: left center;
+}
+
+.gpr-phase__name {
+  display: block;
+  margin-top: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $r-ink-4;
+}
+
+.gpr-phase__step.is-done .gpr-phase__bar { background: rgba(21, 96, 224, 0.35); }
+.gpr-phase__step.is-done .gpr-phase__name { color: $r-ink-3; }
+
+.gpr-phase__step.is-now .gpr-phase__bar { background: $r-blue; }
+
+.gpr-phase__step.is-now .gpr-phase__name {
+  color: $r-blue-dk;
+  font-weight: 700;
+}
+
+/* cancelled did not reach the last phase, it stopped */
+.gpr-phase.is-stopped .gpr-phase__bar { background: rgba(10, 37, 64, 0.14); }
+.gpr-phase.is-stopped .gpr-phase__name { color: $r-ink-4; }
+
+
+/* ---------- foot ---------- */
+
+.gpr-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding-top: 16px;
+  border-top: 1px solid $r-line-2;
+}
+
+.gpr .gpr-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+  padding: 0;
+}
+
+.gpr-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gpr .gpr-fact dt {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-fact dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+.gpr .gpr-fact dd.is-blank {
+  font-weight: 400;
+  font-style: italic;
+  color: $r-ink-4;
+}
+
+.gpr-card__right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.gpr .gpr-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gpr .gpr-counts li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  background: $r-tint;
+  font-size: 12px;
+  color: $r-ink-3;
+  white-space: nowrap;
+}
+
+.gpr-counts__n {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+/* a count of zero is still worth showing, but not worth
+   drawing the eye to */
+.gpr .gpr-counts li.is-zero { opacity: 0.5; }
+.gpr .gpr-counts li.is-zero .gpr-counts__n { color: $r-ink-4; }
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+.gpr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.4s $r-ease, border-color 0.4s $r-ease, color 0.4s $r-ease;
+}
+
+.gpr-btn--primary {
+  background: $r-blue;
+  border-color: $r-blue;
+  color: $r-white;
+}
+
+.gpr-btn--primary:hover,
+.gpr-btn--primary:focus {
+  background: $r-blue-dk;
+  border-color: $r-blue-dk;
+  color: $r-white;
+  text-decoration: none;
+}
+
+.gpr-btn--ghost {
+  border-color: $r-line;
+  color: $r-ink-2;
+}
+
+.gpr-btn--ghost:hover,
+.gpr-btn--ghost:focus {
+  border-color: $r-blue-2;
+  color: $r-blue-dk;
+  text-decoration: none;
+}
+
+.gpr-btn:focus-visible,
+.gpr-tab:focus-visible,
+.gpr-mtab:focus-visible,
+.gpr-search__clear:focus-visible {
+  outline: 2px solid $r-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   NO MATCH
+   ========================================================= */
+
+.gpr-nomatch {
+  padding: 62px 24px;
+  border: 1px dashed $r-line;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.gpr .gpr-nomatch__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $r-navy;
+}
+
+.gpr .gpr-nomatch__text {
+  max-width: 44ch;
+  margin: 9px auto 18px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: $r-ink-3;
+}
+
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.gpr-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  background: rgba(10, 37, 64, 0.42);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.gpr-modal__panel {
+  width: 100%;
+  max-width: 880px;
+  border-radius: 18px;
+  background: $r-white;
+  box-shadow: 0 30px 80px rgba(10, 37, 64, 0.3);
+  overflow: hidden;
+}
+
+.gpr-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 18px;
+}
+
+.gpr-modal__lead { min-width: 0; }
+
+.gpr-modal__ref {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-modal__title {
+  margin: 0 0 11px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.24;
+  letter-spacing: -0.026em;
+  color: $r-navy;
+}
+
+.gpr-modal__phase {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid $r-line;
+  color: $r-ink-4;
+}
+
+.gpr-modal__x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid $r-line;
+  border-radius: 10px;
+  background: transparent;
+  color: $r-ink-3;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.4s $r-ease, color 0.4s $r-ease;
+}
+
+.gpr-modal__x:hover {
+  border-color: $r-blue-2;
+  color: $r-blue-dk;
+}
+
+/* the related lists, as tabs rather than one long scroll */
+.gpr-mtabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 26px;
+  border-bottom: 1px solid $r-line-2;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gpr-mtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: $r-ink-3;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.4s $r-ease, border-color 0.4s $r-ease;
+}
+
+.gpr-mtab:hover { color: $r-navy; }
+
+.gpr-mtab.is-on {
+  border-bottom-color: $r-blue;
+  color: $r-blue-dk;
+  font-weight: 600;
+}
+
+.gpr-mtab__n {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-4;
+}
+
+.gpr-modal__body {
+  max-height: 58vh;
+  padding: 22px 26px;
+  overflow-y: auto;
+}
+
+.gpr .gpr-kvs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.gpr-kv { min-width: 0; }
+
+.gpr .gpr-kv dt {
+  margin: 0 0 3px;
+  font-size: 12px;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-kv dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: -0.008em;
+  color: $r-navy;
+  word-break: break-word;
+}
+
+.gpr .gpr-kv dd.gpr-kv--num { font-variant-numeric: tabular-nums; }
+
+.gpr .gpr-kv dd.is-blank {
+  font-weight: 400;
+  font-style: italic;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-sub {
+  margin: 24px 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $r-blue;
+}
+
+.gpr-prose { margin-top: 18px; }
+
+.gpr .gpr-prose__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: $r-ink-4;
+}
+
+/* the line breaks the author typed are kept */
+.gpr .gpr-prose__text {
+  margin: 0;
+  max-width: 74ch;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: $r-ink-2;
+  white-space: pre-line;
+}
+
+.gpr .gpr-empty {
+  margin: 0;
+  padding: 34px 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: $r-ink-4;
+}
+
+
+/* ---------- status report ---------- */
+
+.gpr-report {
+  padding: 18px 20px 20px;
+  margin-bottom: 12px;
+  border: 1px solid $r-line;
+  border-radius: 13px;
+}
+
+.gpr-report:last-child { margin-bottom: 0; }
+
+.gpr-report__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid $r-line-2;
+}
+
+.gpr-report__num {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+.gpr-report__type {
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: $r-blue-1;
+  color: $r-blue-dk;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.gpr-report__date {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-4;
+}
+
+.gpr-health--sm { margin-left: auto; }
+
+/* four ratings side by side, so one red is visible without
+   reading any of them */
+.gpr-rag {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gpr-rag__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: $r-tint;
+  border-left: 3px solid transparent;
+}
+
+.gpr-rag__item--green { background: $r-green-1; border-left-color: $r-green; }
+.gpr-rag__item--amber { background: $r-amber-1; border-left-color: $r-amber; }
+.gpr-rag__item--red   { background: $r-red-1;   border-left-color: $r-red; }
+
+.gpr-rag__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $r-ink-4;
+}
+
+.gpr-rag__value {
+  font-size: 13px;
+  font-weight: 600;
+  color: $r-navy;
+}
+
+
+/* ---------- generic related item ---------- */
+
+.gpr-item {
+  padding: 15px 18px 16px;
+  margin-bottom: 10px;
+  border: 1px solid $r-line;
+  border-radius: 12px;
+}
+
+.gpr-item:last-child { margin-bottom: 0; }
+
+.gpr-item__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.gpr-item__num {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+.gpr-item__amount {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $r-navy;
+}
+
+.gpr-item__date {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-item__title {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: $r-navy;
+}
+
+.gpr .gpr-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: $r-ink-4;
+}
+
+.gpr .gpr-item__meta strong {
+  font-weight: 600;
+  color: $r-ink-2;
+}
+
+.gpr .gpr-item__text {
+  margin: 0;
+  max-width: 74ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: $r-ink-3;
+  white-space: pre-line;
+}
+
+.gpr-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gpr-pill--good { background: $r-green-1; color: $r-green; }
+.gpr-pill--ok   { background: $r-blue-1;  color: $r-blue-dk; }
+.gpr-pill--wait { background: $r-tint;    color: $r-ink-3; }
+.gpr-pill--bad  { background: $r-red-1;   color: $r-red; }
+
+.gpr-modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 16px 26px;
+  border-top: 1px solid $r-line-2;
+  background: $r-page;
+}
+
+
+/* =========================================================
+   MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  @keyframes gprRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
+
+  @keyframes gprDrawX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+
+  @keyframes gprVeil {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes gprPanelIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .gpr-top  { animation: gprRise 0.6s $r-ease backwards; }
+  .gpr-tile { animation: gprRise 0.62s $r-ease backwards; }
+
+  .gpr-tile--active   { animation-delay: 0.06s; }
+  .gpr-tile--progress { animation-delay: 0.12s; }
+  .gpr-tile--open     { animation-delay: 0.18s; }
+  .gpr-tile--paid     { animation-delay: 0.24s; }
+
+  .gpr-tile__rule { animation: gprDrawX 0.7s $r-ease 0.3s backwards; }
+
+  .gpr-panel { animation: gprRise 0.62s $r-ease 0.28s backwards; }
+
+  .gpr-bar__fill { animation: gprDrawX 0.8s $r-ease backwards; }
+
+  .gpr-bar--1 .gpr-bar__fill { animation-delay: 0.40s; }
+  .gpr-bar--2 .gpr-bar__fill { animation-delay: 0.46s; }
+  .gpr-bar--3 .gpr-bar__fill { animation-delay: 0.52s; }
+  .gpr-bar--4 .gpr-bar__fill { animation-delay: 0.58s; }
+  .gpr-bar--5 .gpr-bar__fill { animation-delay: 0.64s; }
+  .gpr-bar--6 .gpr-bar__fill { animation-delay: 0.70s; }
+
+  .gpr-filters { animation: gprRise 0.6s $r-ease 0.34s backwards; }
+
+  /* replays on every tab change, because ng-repeat rebuilds its
+     nodes and the keyframe starts again with them */
+  .gpr-card { animation: gprRise 0.5s $r-ease backwards; }
+
+  .gpr-card--n1  { animation-delay: 0.02s; }
+  .gpr-card--n2  { animation-delay: 0.05s; }
+  .gpr-card--n3  { animation-delay: 0.08s; }
+  .gpr-card--n4  { animation-delay: 0.11s; }
+  .gpr-card--n5  { animation-delay: 0.14s; }
+  .gpr-card--n6  { animation-delay: 0.17s; }
+  .gpr-card--n7  { animation-delay: 0.20s; }
+  .gpr-card--n8  { animation-delay: 0.23s; }
+  .gpr-card--n9  { animation-delay: 0.26s; }
+  .gpr-card--n10 { animation-delay: 0.29s; }
+
+  .gpr-card__fill  { animation: gprDrawX 0.7s $r-ease 0.1s backwards; }
+  .gpr-phase__bar  { animation: gprDrawX 0.5s $r-ease 0.16s backwards; }
+
+  .gpr-modal { animation: gprVeil 0.28s $r-ease backwards; }
+  .gpr-modal__panel { animation: gprPanelIn 0.4s $r-ease 0.04s backwards; }
 }
 
-.health-metrics {
-  display: flex; justify-content: space-between;
-  .metric { display: flex; flex-direction: column; gap: 6px; .label { font-size: 12px; font-weight: 600; color: #94a3b8; } .value { font-size: 20px; font-weight: 800; color: #0f172a; } }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1280px) {
+
+  .gpr { padding: 26px 24px 60px; }
+
+  .gpr-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .gpr-panels { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Budget Utilisation */
-.legend { display: flex; gap: 12px; font-size: 13px; font-weight: 600; color: #475569; span { display: flex; align-items: center; gap: 6px; } .dot { width: 10px; height: 10px; border-radius: 50%; } .dot.blue { background-color: #4f46e5; } .dot.grey { background-color: #e2e8f0; } }
+@media (max-width: 900px) {
 
-.budget-list {
-  display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px;
-  .bi-header { display: flex; justify-content: space-between; margin-bottom: 8px; .bi-name { font-size: 13px; font-weight: 700; color: #1e293b; } .bi-stats { font-size: 13px; color: #64748b; } }
-  .bi-bar-bg { height: 10px; background-color: #f1f5f9; border-radius: 5px; overflow: hidden; .bi-bar-fill { height: 100%; background-color: #4f46e5; border-radius: 5px; transition: width 0.3s ease; } }
+  .gpr { padding: 22px 16px 52px; }
+
+  .gpr-top__right {
+    width: 100%;
+    order: 2;
+  }
+
+  .gpr-search { width: 100%; }
+
+  .gpr-tiles { grid-template-columns: minmax(0, 1fr); }
+
+  .gpr-tabs {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gpr-tab { flex-shrink: 0; }
+
+  .gpr-card__head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .gpr-card__figure {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    text-align: left;
+  }
+
+  .gpr-figure__label { margin-top: 0; }
+
+  /* five phase labels do not fit across a phone, so only the
+     current one keeps its name */
+  .gpr-phase { gap: 5px; }
+
+  .gpr-phase__name { display: none; }
+
+  .gpr-phase__step.is-now .gpr-phase__name {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .gpr-card__foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .gpr-card__right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .gpr-rag { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .gpr .gpr-kvs { grid-template-columns: minmax(0, 1fr); }
+
+  .gpr-modal { padding: 18px 12px; }
+  .gpr-modal__head { padding: 20px 18px 14px; }
+  .gpr-mtabs { padding: 0 18px; }
+  .gpr-modal__body { padding: 18px; max-height: 64vh; }
+  .gpr-modal__foot { padding: 14px 18px; }
 }
-.budget-footer { font-size: 13px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 16px; }
 
-/* Project Cards Grid */
-.gn-project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
-.gn-project-card {
-  background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 24px; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s;
-  &amp;:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border-color: #cbd5e1; }
-  .pc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; .state-pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; } .pill-green { background: #dcfce7; color: #15803d; } .pill-yellow { background: #fef3c7; color: #b45309; } .pill-red { background: #fee2e2; color: #b91c1c; } .proj-number { font-size: 12px; font-weight: 600; color: #94a3b8; } }
-  .pc-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 20px 0; }
-  .pc-completion { margin-bottom: 20px; .lbl { font-size: 13px; color: #64748b; } .val { font-size: 14px; font-weight: 700; color: #0f172a; } .pc-bar-bg { height: 6px; background-color: #f1f5f9; border-radius: 3px; margin-top: 8px; overflow: hidden; .pc-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; } .bg-green { background-color: #10b981; } .bg-yellow { background-color: #eab308; } .bg-red { background-color: #ef4444; } } }
-  .pc-details { border-top: 1px solid #f1f5f9; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; .pc-row { display: flex; justify-content: space-between; font-size: 13px; .lbl { color: #64748b; } .val { color: #334155; text-align: right;} } }
-}
-
-/* Empty State */
-.gn-empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 80px 20px; text-align: center;
-  .empty-icon { width: 56px; height: 56px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 24px; margin-bottom: 20px; }
-  h2 { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 10px 0; }
-  p { font-size: 14px; color: #64748b; line-height: 1.5; margin: 0; }
-}
-
-.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
-
-/* Responsive Adjustments for Layout Wrapper */
-@media (max-width: 768px) {
-  .sidebar { display: none; }
-  .gn-projects-wrapper { padding: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .gpr * { transition: none; }
+  .gpr-tile:hover { transform: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -194,382 +1700,1065 @@
         <option_schema/>
         <public>false</public>
         <roles/>
-        <script><![CDATA[(function() {
-    // 1. LOAD SIDEBAR WIDGET
-    data.sideBar = $sp.getWidget('sidebar');
+        <script><![CDATA[(function () {
 
-    var currentUser = gs.getUserID();
-    
-    data.loading = true;
-    data.projects = [];
-    data.kpis = {
-        activeProjects: 0,
-        countGreen: 0,
-        countYellow: 0,
-        countRed: 0,
-        countGrey: 0,
-        pctGreen: 0,
-        pctYellow: 0,
-        pctRed: 0,
-        pctGrey: 0,
-        avgCompletion: 0,
-        reportsOnTime: 100, 
-        openChanges: 0
-    };
-    data.budgetInsight = "";
+  /* =========================================================
+     GATENOW · MY PROJECTS
+     Service Portal widget · Server script
 
-    /* ==========================================
-       2. GET APPLICANT RECORD FOR CURRENT USER
-       ========================================== */
-    var myApplicantIds = [];
-    var grApp = new GlideRecord('x_enno_gatenow_service_applicants');
-    grApp.addQuery('user', currentUser);
-    grApp.query();
-    while (grApp.next()) {
-        myApplicantIds.push(grApp.getUniqueValue());
+     Scoped to the projects belonging to the signed in
+     applicant, with the related records the applicant actually
+     needs: status reports, change requests, reimbursements,
+     risks and issues.
+
+     Audit history and audit records are deliberately not read.
+     They are an administrative trail, not something an
+     applicant has any use for, and pulling them would double
+     the query count for nothing.
+
+     Field names are taken from the project form: project_name,
+     program_manager, status, phase, percent_complete,
+     description, award, applicant, program, and the four dates.
+
+     GlideRecordSecure throughout.
+     ========================================================= */
+
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var PROJECT   = 'x_enno_gatenow_project';
+  var REPORT    = 'x_enno_gatenow_status_report';
+  var CHANGE    = 'x_enno_gatenow_change_request';
+  var CLAIM     = 'x_enno_gatenow_reimbursement';
+
+  /* The risk and issue table names are not on any screenshot, so
+     each candidate is tested with isValid before it is used and
+     skipped quietly if it is not there. Add the real name to the
+     front of either list when you know it. */
+  var RISK_TABLES  = ['x_enno_gatenow_risk', 'x_enno_gatenow_project_risk'];
+  var ISSUE_TABLES = ['x_enno_gatenow_issue', 'x_enno_gatenow_project_issue'];
+
+  var me = gs.getUserID();
+
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  function daysUntil(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    try {
+      var ms = GlideDateTime.subtract(new GlideDateTime(), g).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return null; }
+  }
+
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function commas(n) {
+    var s = '' + Math.round(n);
+    var out = '';
+    var c = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      c++;
+      if (c % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return out;
+  }
+
+  function fmtFull(n)  { return n > 0 ? '$' + commas(n) : ''; }
+
+  function fmtShort(n) {
+    if (!n) return '$0';
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000)    return '$' + Math.round(n / 1000) + 'K';
+    return '$' + commas(n);
+  }
+
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
+        }
+      } catch (e) { /* next */ }
+    }
+    return '';
+  }
+
+  /* the long fields on these records are HTML areas, and the
+     screenshots show raw <p> tags leaking into the list view */
+  function text(raw, cap) {
+    if (!raw) return '';
+    var s = ('' + raw)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (cap && s.length > cap) s = s.substring(0, cap).replace(/\s+\S*$/, '') + '...';
+    return s;
+  }
+
+  function firstValidTable(list) {
+    for (var i = 0; i < list.length; i++) {
+      try {
+        var probe = new GlideRecord(list[i]);
+        if (probe.isValid()) return list[i];
+      } catch (e) { /* next */ }
+    }
+    return '';
+  }
+
+
+  /* ---------- chrome ---------- */
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
+
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
+
+
+  /* ============================================================
+     PHASE AND HEALTH
+     ============================================================ */
+
+  /* Cancelled sits outside the run rather than at the end of it,
+     because a cancelled project did not reach the last phase, it
+     stopped. */
+  var PHASES = ['initiating', 'planning', 'executing', 'delivering', 'closed complete'];
+
+  data.phaseTrack = [
+    gs.getMessage('Initiating'),
+    gs.getMessage('Planning'),
+    gs.getMessage('Executing'),
+    gs.getMessage('Delivering'),
+    gs.getMessage('Closed')
+  ];
+
+  function phaseIndex(label) {
+    var v = lower(label);
+    if (v.indexOf('cancel') !== -1) return -1;
+    for (var i = 0; i < PHASES.length; i++) {
+      if (v.indexOf(PHASES[i]) !== -1) return i;
+    }
+    if (v.indexOf('closed') !== -1) return 4;
+    return 0;
+  }
+
+  function healthOf(label) {
+    var v = lower(label);
+    if (v.indexOf('red') !== -1)    return { key: 'red',    label: gs.getMessage('Critical') };
+    if (v.indexOf('yellow') !== -1) return { key: 'amber',  label: gs.getMessage('At risk') };
+    return { key: 'green', label: gs.getMessage('On track') };
+  }
+
+
+  /* ============================================================
+     WHICH PROJECTS
+     ============================================================ */
+
+  var applicantIds = [];
+
+  try {
+    var ap = new GlideRecordSecure(APPLICANT);
+    ap.addQuery('user', me);
+    ap.query();
+    while (ap.next()) applicantIds.push(ap.getUniqueValue());
+  } catch (e) {
+    gs.error('[MyProjects] applicant lookup: ' + e.message);
+  }
+
+  data.projects = [];
+
+  var counts = { all: 0, active: 0, done: 0, stopped: 0 };
+  var health = { green: 0, amber: 0, red: 0 };
+  var progressSum = 0;
+  var claimedPaid = 0;
+  var openActions = 0;
+
+  var riskTable  = firstValidTable(RISK_TABLES);
+  var issueTable = firstValidTable(ISSUE_TABLES);
+
+  data.hasRisks  = !!riskTable;
+  data.hasIssues = !!issueTable;
+
+  /* one small helper so the five related lists read the same */
+  function relatedList(table, projectId, limit, mapper) {
+    var out = [];
+    if (!table) return out;
+    try {
+      var gr = new GlideRecordSecure(table);
+      gr.addQuery('project', projectId);
+      gr.orderByDesc('sys_created_on');
+      gr.setLimit(limit);
+      gr.query();
+      while (gr.next()) out.push(mapper(gr));
+    } catch (e) {
+      gs.info('[MyProjects] ' + table + ' unavailable: ' + e.message);
+    }
+    return out;
+  }
+
+  try {
+
+    if (applicantIds.length) {
+
+      var pj = new GlideRecordSecure(PROJECT);
+      pj.addQuery('applicant', 'IN', applicantIds.join(','));
+      pj.orderByDesc('sys_updated_on');
+      pj.setLimit(50);
+      pj.query();
+
+      while (pj.next()) {
+
+        var projectId = pj.getUniqueValue();
+        var phaseLabel = pj.getDisplayValue('phase') || '';
+        var pIndex = phaseIndex(phaseLabel);
+        var h = healthOf(pj.getDisplayValue('status'));
+
+        var group;
+        if (pIndex === -1) group = 'stopped';
+        else if (pIndex >= 4) group = 'done';
+        else group = 'active';
+
+        var pct = parseInt(pj.getValue('percent_complete') || 0, 10);
+        if (isNaN(pct)) pct = 0;
+
+        /* ---- status reports ---- */
+        var reports = relatedList(REPORT, projectId, 6, function (gr) {
+          return {
+            number : gr.getValue('number'),
+            date   : fmtDate(pick(gr, ['status_date', 'sys_created_on'])),
+            type   : gr.getDisplayValue('report_status'),
+            pct    : parseInt(gr.getValue('percent_complete') || 0, 10) || 0,
+            health : healthOf(gr.getDisplayValue('overall_health')),
+            schedule: healthOf(gr.getDisplayValue('schedule')),
+            cost    : healthOf(gr.getDisplayValue('cost')),
+            resource: healthOf(gr.getDisplayValue('resources')),
+            scope   : healthOf(gr.getDisplayValue('scope')),
+            summary : text(gr.getValue('executive_summary'), 600),
+            achieved: text(gr.getValue('achievements_last_month'), 400),
+            nextUp  : text(gr.getValue('key_activities_next_month'), 400)
+          };
+        });
+
+        /* ---- change requests ---- */
+        var changes = relatedList(CHANGE, projectId, 10, function (gr) {
+          var ap = lower(gr.getValue('approval'));
+          return {
+            number  : gr.getValue('number'),
+            title   : pick(gr, ['title', 'short_description']),
+            category: gr.getDisplayValue('category'),
+            priority: gr.getDisplayValue('priority'),
+            impact  : gr.getDisplayValue('impact'),
+            approval: gr.getDisplayValue('approval'),
+            state   : ap.indexOf('approved') !== -1 ? 'good'
+                    : ap.indexOf('rejected') !== -1 ? 'bad'
+                    : 'wait',
+            reason  : text(gr.getValue('reason_for_change'), 300),
+            proposed: text(gr.getValue('proposed_change'), 300),
+            created : fmtDate(gr.getValue('sys_created_on'))
+          };
+        });
+
+        /* ---- reimbursements ---- */
+        var claims = relatedList(CLAIM, projectId, 10, function (gr) {
+          var st = lower(gr.getDisplayValue('status'));
+          var amount = num(pick(gr, ['amount_requested', 'federal_share_now_requested', 'total']));
+          return {
+            number : gr.getValue('number'),
+            status : gr.getDisplayValue('status'),
+            state  : st.indexOf('paid') !== -1     ? 'good'
+                   : st.indexOf('rejected') !== -1 ? 'bad'
+                   : st.indexOf('approved') !== -1 ? 'ok'
+                   : 'wait',
+            amount : amount,
+            amountText: fmtFull(amount),
+            summary: pick(gr, ['short_description']),
+            created: fmtDate(gr.getValue('sys_created_on'))
+          };
+        });
+
+        /* ---- risks and issues ---- */
+        function riskish(gr) {
+          return {
+            number  : gr.getValue('number'),
+            title   : pick(gr, ['short_description', 'title', 'description']),
+            state   : gr.getDisplayValue('state') || gr.getDisplayValue('status'),
+            priority: gr.getDisplayValue('priority') || gr.getDisplayValue('impact'),
+            created : fmtDate(gr.getValue('sys_created_on'))
+          };
+        }
+
+        var risks  = relatedList(riskTable, projectId, 10, riskish);
+        var issues = relatedList(issueTable, projectId, 10, riskish);
+
+        /* anything sitting on an approval or a payment is an open
+           thread the applicant may need to chase */
+        var waiting = 0;
+        for (var ci = 0; ci < changes.length; ci++) if (changes[ci].state === 'wait') waiting++;
+        for (var li = 0; li < claims.length; li++)  if (claims[li].state === 'wait' || claims[li].state === 'ok') waiting++;
+
+        var paid = 0;
+        for (var pi = 0; pi < claims.length; pi++) {
+          if (claims[pi].state === 'good') paid += claims[pi].amount;
+        }
+
+        data.projects.push({
+          sysId    : projectId,
+          number   : pj.getValue('number'),
+          name     : pick(pj, ['project_name', 'short_description']) || pj.getValue('number'),
+          program  : pj.getDisplayValue('program'),
+          award    : pj.getDisplayValue('award'),
+          applicant: pj.getDisplayValue('applicant'),
+          manager  : pj.getDisplayValue('program_manager'),
+          description: text(pj.getValue('description'), 400),
+          notes    : text(pick(pj, ['notes', 'work_notes']), 600),
+
+          phase     : phaseLabel,
+          phaseIndex: pIndex,
+          group     : group,
+          health    : h.key,
+          healthLabel: h.label,
+          percent   : pct,
+
+          actualStart : fmtDate(pj.getValue('actual_start_date')),
+          plannedStart: fmtDate(pj.getValue('planned_start_date')),
+          actualEnd   : fmtDate(pj.getValue('actual_end_date')),
+          plannedEnd  : fmtDate(pj.getValue('planned_end_date')),
+          daysToEnd   : daysUntil(pj.getValue('planned_end_date')),
+
+          reports : reports,
+          changes : changes,
+          claims  : claims,
+          risks   : risks,
+          issues  : issues,
+
+          counts: {
+            reports: reports.length,
+            changes: changes.length,
+            claims : claims.length,
+            risks  : risks.length,
+            issues : issues.length
+          },
+
+          waiting  : waiting,
+          paidText : fmtFull(paid),
+          latest   : reports.length ? reports[0] : null
+        });
+
+        counts.all++;
+        counts[group]++;
+        health[h.key]++;
+        progressSum += pct;
+        claimedPaid += paid;
+        openActions += waiting;
+      }
     }
 
-    var myProjects = [];
-    var grProj = new GlideRecord('x_enno_gatenow_project');
-    
-    var qcP = grProj.addQuery('applicant', 'IN', myApplicantIds.join(','));
-    qcP.addOrCondition('applicant.user', currentUser); 
-    grProj.orderByDesc('sys_created_on');
-    grProj.query();
+  } catch (e) {
+    gs.error('[MyProjects] ' + e.message);
+  }
 
-    var totalCompletion = 0;
-    var insightProject = null; 
-    
-    while (grProj.next()) {
-        var pId = grProj.getUniqueValue();
-        myProjects.push(pId);
-        
-        var pct = parseFloat(grProj.getValue('percent_complete')) || 0;
-        totalCompletion += pct;
+  data.counts = counts;
 
-        // Fetch Financials
-        var awardedRaw = 0;
-        var spentRaw = 0;
-        
-        var awardSid = grProj.getValue('award');
-        if (awardSid) {
-            var awardRec = new GlideRecord('x_enno_gatenow_grant_awards');
-            if (awardRec.get(awardSid)) {
-                awardedRaw = parseFloat(awardRec.getValue('build_grant_amount')) || 0;
-            }
-        }
-        
-        if (awardedRaw === 0) {
-            var appSid = grProj.getValue('applicant');
-            if(appSid) {
-                var appRec2 = new GlideRecord('x_enno_gatenow_service_applicants');
-                if(appRec2.get(appSid)) {
-                    awardedRaw = parseFloat(appRec2.getValue('requested_budget')) || 0;
-                }
-            }
-        }
 
-        spentRaw = awardedRaw * (pct / 100); 
-        var budgetPct = awardedRaw > 0 ? Math.round((spentRaw / awardedRaw) * 100) : 0;
+  /* ---------- header line ---------- */
+  data.headline = counts.all + ' ' +
+    (counts.all === 1 ? gs.getMessage('project') : gs.getMessage('projects')) +
+    '  ·  ' + counts.active + ' ' + gs.getMessage('in delivery');
 
-        var projObj = {
-            sys_id: pId,
-            number: grProj.getValue('number') || '',
-            name: grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number'),
-            percentComplete: pct,
-            awardedRaw: awardedRaw,
-            spentRaw: spentRaw,
-            budgetPct: budgetPct,
-            awardedFormatted: formatShortCurrency(awardedRaw),
-            spentFormatted: formatShortCurrency(spentRaw),
-            
-            healthColor: 'grey',
-            healthLabel: 'No Status',
-            isBehind: false, 
-            
-            // Replaced hardcoded fields with actual table data
-            status: grProj.getDisplayValue('status') || 'Unknown',
-            phase: grProj.getDisplayValue('phase') || 'Unknown'
-        };
 
-        // --- Fetch Latest Health from Status Report ---
-        var grReport = new GlideRecord('x_enno_gatenow_status_report');
-        grReport.addQuery('project', pId);
-        grReport.orderByDesc('status_date');
-        grReport.setLimit(1);
-        grReport.query();
-        if (grReport.next()) {
-            var hVal = grReport.getValue('overall_health') || 'green';
-            projObj.healthColor = hVal.toLowerCase();
-            
-            if (projObj.healthColor === 'yellow') {
-                projObj.healthLabel = 'At risk';
-                projObj.isBehind = true;
-                insightProject = projObj; 
-            } else if (projObj.healthColor === 'red') {
-                projObj.healthLabel = 'Critical';
-                projObj.isBehind = true;
-                insightProject = projObj; 
-            } else {
-                projObj.healthLabel = 'On track';
-            }
-        }
+  /* ---------- tiles ---------- */
+  var avgPct = counts.all ? Math.round(progressSum / counts.all) : 0;
 
-        // --- Fetch Open Change Requests (for Dashboard KPIs) ---
-        var grChange = new GlideRecord('x_enno_gatenow_request_change');
-        var qcC = grChange.addQuery('project', pId);
-        qcC.addOrCondition('parent', pId);
-        grChange.query();
-        while(grChange.next()) {
-            var stateStr = (grChange.getDisplayValue('approval') || grChange.getDisplayValue('state') || '').toLowerCase();
-            if (stateStr.indexOf('open') > -1 || stateStr.indexOf('request') > -1 || stateStr.indexOf('review') > -1) {
-                // Increment top-level KPI counter
-                data.kpis.openChanges++;
-            }
-        }
-
-        // Properly categorize Health for the top Bar
-        if (projObj.healthColor === 'green') data.kpis.countGreen++;
-        else if (projObj.healthColor === 'yellow') data.kpis.countYellow++;
-        else if (projObj.healthColor === 'red') data.kpis.countRed++;
-        else data.kpis.countGrey++;
-
-        data.projects.push(projObj);
+  data.tiles = [
+    {
+      key  : 'active',
+      label: gs.getMessage('In delivery'),
+      value: '' + counts.active,
+      note : counts.done + ' ' + gs.getMessage('closed') +
+             (counts.stopped ? ', ' + counts.stopped + ' ' + gs.getMessage('cancelled') : '')
+    },
+    {
+      key  : 'progress',
+      label: gs.getMessage('Average completion'),
+      value: avgPct + '%',
+      note : gs.getMessage('across every project you hold')
+    },
+    {
+      key  : 'open',
+      label: gs.getMessage('Waiting on a decision'),
+      value: '' + openActions,
+      /* changes awaiting approval and claims not yet paid are
+         the two things that actually stall delivery */
+      note : gs.getMessage('change requests and claims in flight'),
+      alert: openActions > 0
+    },
+    {
+      key  : 'paid',
+      label: gs.getMessage('Reimbursed to date'),
+      value: fmtShort(claimedPaid),
+      note : gs.getMessage('claims marked paid')
     }
+  ];
 
-    // ==========================================
-    // 3. CALCULATE KPI AGGREGATIONS
-    // ==========================================
-    data.kpis.activeProjects = myProjects.length;
-    
-    if (data.kpis.activeProjects > 0) {
-        data.kpis.avgCompletion = Math.round(totalCompletion / data.kpis.activeProjects);
-        
-        data.kpis.pctGreen = Math.round((data.kpis.countGreen / data.kpis.activeProjects) * 100);
-        data.kpis.pctYellow = Math.round((data.kpis.countYellow / data.kpis.activeProjects) * 100);
-        data.kpis.pctRed = Math.round((data.kpis.countRed / data.kpis.activeProjects) * 100);
-        
-        data.kpis.pctGrey = 100 - (data.kpis.pctGreen + data.kpis.pctYellow + data.kpis.pctRed); 
-        if (data.kpis.pctGrey < 0) data.kpis.pctGrey = 0;
-    }
 
-    // ==========================================
-    // 4. DYNAMIC INSIGHTS & REPORTS ON TIME
-    // ==========================================
-    
-    if (insightProject) {
-        data.budgetInsight = insightProject.name + " requires attention — " + insightProject.budgetPct + "% spent at " + insightProject.percentComplete + "% completion.";
-    } else if (data.kpis.activeProjects > 0) {
-        data.budgetInsight = "All projects are spending within expected parameters.";
-    }
+  /* ---------- health split ---------- */
+  var hTotal = health.green + health.amber + health.red;
 
-    if (myProjects.length > 0) {
-        var totalRep = 0;
-        var lateRep = 0;
-        var grRepAll = new GlideRecord('x_enno_gatenow_status_report');
-        grRepAll.addQuery('project', 'IN', myProjects.join(','));
-        grRepAll.query();
-        while(grRepAll.next()) {
-            totalRep++;
-            var repState = (grRepAll.getDisplayValue('report_status') || '').toLowerCase();
-            if (repState.indexOf('late') > -1) {
-                lateRep++;
-            }
-        }
-        if (totalRep > 0) {
-            data.kpis.reportsOnTime = Math.round(((totalRep - lateRep) / totalRep) * 100);
-        }
-    }
+  data.health = [
+    { key: 'green', label: gs.getMessage('On track'), count: health.green,
+      pct: hTotal ? Math.round((health.green / hTotal) * 100) : 0 },
+    { key: 'amber', label: gs.getMessage('At risk'), count: health.amber,
+      pct: hTotal ? Math.round((health.amber / hTotal) * 100) : 0 },
+    { key: 'red', label: gs.getMessage('Critical'), count: health.red,
+      pct: hTotal ? Math.round((health.red / hTotal) * 100) : 0 }
+  ];
 
-    data.loading = false;
+  data.healthTotal = hTotal;
 
-    /* ==========================================
-       FORMATTING HELPER FUNCTIONS
-       ========================================== */
-    function formatShortCurrency(amount) {
-        if (!amount || isNaN(amount)) return '$0';
-        if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-        if (amount >= 1000) return '$' + (amount / 1000).toFixed(0) + 'K';
-        return '$' + amount.toString();
-    }
+
+  /* ---------- completion by project ---------- */
+  data.progressRows = [];
+
+  var sorted = data.projects.slice(0).sort(function (a, b) { return b.percent - a.percent; });
+
+  for (var s = 0; s < sorted.length && s < 6; s++) {
+    data.progressRows.push({
+      label : sorted[s].name,
+      pct   : sorted[s].percent,
+      health: sorted[s].health
+    });
+  }
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+
+  data.t = {
+    title  : opt('label_title', gs.getMessage('My projects')),
+    search : gs.getMessage('Search by project, program or reference'),
+
+    tabAll    : gs.getMessage('All'),
+    tabActive : gs.getMessage('In delivery'),
+    tabDone   : gs.getMessage('Closed'),
+    tabStopped: gs.getMessage('Cancelled'),
+
+    healthTitle: gs.getMessage('Project health'),
+    healthHint : gs.getMessage('Self reported on the latest status report'),
+    healthEmpty: gs.getMessage('No projects to report on yet.'),
+
+    progTitle: gs.getMessage('Completion by project'),
+    progHint : gs.getMessage('Percent complete on the project record'),
+
+    listTitle: gs.getMessage('All projects'),
+    listHint : gs.getMessage('Sorted by last update'),
+
+    manager  : gs.getMessage('Program manager'),
+    started  : gs.getMessage('Started'),
+    dueBy    : gs.getMessage('Due'),
+    overdue  : gs.getMessage('overdue'),
+    daysLeft : gs.getMessage('days left'),
+    complete : gs.getMessage('complete'),
+    notSet   : gs.getMessage('Not set'),
+
+    cReports: gs.getMessage('Reports'),
+    cChanges: gs.getMessage('Changes'),
+    cClaims : gs.getMessage('Claims'),
+    cRisks  : gs.getMessage('Risks'),
+    cIssues : gs.getMessage('Issues'),
+
+    view : gs.getMessage('View project'),
+    close: gs.getMessage('Close'),
+
+    mOverview  : gs.getMessage('Overview'),
+    mDates     : gs.getMessage('Dates'),
+    mLatest    : gs.getMessage('Latest status report'),
+    mReports   : gs.getMessage('Status reports'),
+    mChanges   : gs.getMessage('Change requests'),
+    mClaims    : gs.getMessage('Reimbursements'),
+    mRisks     : gs.getMessage('Risks'),
+    mIssues    : gs.getMessage('Issues'),
+    mNotes     : gs.getMessage('Notes'),
+
+    mProgram   : gs.getMessage('Program'),
+    mAward     : gs.getMessage('Award'),
+    mApplicant : gs.getMessage('Application'),
+    mPhase     : gs.getMessage('Phase'),
+    mHealth    : gs.getMessage('Health'),
+    mPercent   : gs.getMessage('Percent complete'),
+    mReference : gs.getMessage('Reference'),
+    mDesc      : gs.getMessage('Description'),
+
+    mActualStart : gs.getMessage('Actual start'),
+    mPlannedStart: gs.getMessage('Planned start'),
+    mActualEnd   : gs.getMessage('Actual end'),
+    mPlannedEnd  : gs.getMessage('Planned end'),
+
+    mSchedule : gs.getMessage('Schedule'),
+    mCost     : gs.getMessage('Cost'),
+    mResources: gs.getMessage('Resources'),
+    mScope    : gs.getMessage('Scope'),
+    mSummary  : gs.getMessage('Executive summary'),
+    mAchieved : gs.getMessage('Achievements last month'),
+    mNextUp   : gs.getMessage('Key activities next month'),
+
+    mApproval : gs.getMessage('Approval'),
+    mCategory : gs.getMessage('Category'),
+    mPriority : gs.getMessage('Priority'),
+    mImpact   : gs.getMessage('Impact'),
+    mAmount   : gs.getMessage('Amount'),
+    mStatus   : gs.getMessage('Status'),
+    mRaised   : gs.getMessage('Raised'),
+    mNone     : gs.getMessage('Not provided'),
+    mEmptyList: gs.getMessage('Nothing recorded'),
+
+    emptyTitle: gs.getMessage('No projects yet'),
+    emptyText : gs.getMessage('A project opens once you accept an award. Everything after that, reports, claims and changes, runs from here.'),
+    emptyBtn  : gs.getMessage('Go to my awards'),
+
+    noMatch    : gs.getMessage('Nothing matches this filter'),
+    noMatchText: gs.getMessage('Try another tab, or clear the search.'),
+    clear      : gs.getMessage('Clear')
+  };
+
+  data.pages = {
+    awards: opt('awards_page', 'x_enno_gatenow_awards')
+  };
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-08-20 07:47:26</sys_created_on>
         <sys_id>2ab093f593fe8b10d444c9b877373c93</sys_id>
-        <sys_mod_count>25</sys_mod_count>
+        <sys_mod_count>37</sys_mod_count>
         <sys_name>New Project</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_2ab093f593fe8b10d444c9b877373c93</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-08-25 07:16:14</sys_updated_on>
-        <template><![CDATA[<div class="gn-layout">
-  
-  <!-- ==========================================
-       SIDEBAR WIDGET (Dynamic Width applied)
-       ========================================== -->
-  <div class="sidebar" ng-style="{'width': c.isSidebarCollapsed ? '64px' : '96px', 'min-width': c.isSidebarCollapsed ? '64px' : '96px', 'max-width': c.isSidebarCollapsed ? '64px' : '96px', 'flex': c.isSidebarCollapsed ? '0 0 64px' : '0 0 96px'}">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-31 02:47:52</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · MY PROJECTS
+     Service Portal widget · HTML template
+
+     Same shell and tokens as the other dashboard pages.
+
+     Each project card carries a phase track and a completion
+     bar, then a row of counts for the five related lists. The
+     detail modal holds those lists in full, which is the part
+     of the platform form an applicant actually needs.
+     ========================================================= -->
+
+<!-- The wrapper holds the rail and nothing more.
+
+     It used to declare a width through an ng-style, which is
+     what caused the overlap: it reserved 96px while the rail
+     draws 236px, so 140px of the rail painted over this page.
+
+     The rail sets its own width, does its own sticking and owns
+     the collapsed state, so the column has nothing left to say. -->
+<div class="gn-layout">
+
+  <!-- SIDEBAR -->
+  <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
-  <!-- ==========================================
-       MAIN CONTENT: PROJECTS DASHBOARD
-       ========================================== -->
-  <div class="gn-projects-wrapper" ng-cloak>
-    
-    <div ng-if="!c.showProjectDetails">
-      
-      <div ng-if="c.data.projects.length > 0">
-        <!-- Top Dashboards Row -->
-        <div class="gn-dash-row">
-          
-          <!-- Portfolio Health Card -->
-          <div class="gn-card health-card">
-            <div class="card-header">
-              <h2>Portfolio health</h2>
-              <p>{{c.data.kpis.activeProjects}} active projects &middot; reported this month</p>
-            </div>
-            
-            <div class="segmented-bar">
-              <div class="segment green" ng-style="{'width': c.data.kpis.pctGreen + '%'}">
-                <span ng-if="c.data.kpis.countGreen > 0">{{c.data.kpis.countGreen}} on track</span>
-              </div>
-              <div class="segment yellow" ng-style="{'width': c.data.kpis.pctYellow + '%'}">
-                <span ng-if="c.data.kpis.countYellow > 0">{{c.data.kpis.countYellow}} at risk</span>
-              </div>
-              <!-- ADDED RED SEGMENT -->
-              <div class="segment" style="background-color: #ef4444;" ng-style="{'width': c.data.kpis.pctRed + '%'}">
-                <span ng-if="c.data.kpis.countRed > 0" style="color: white; padding-left: 8px;">{{c.data.kpis.countRed}} critical</span>
-              </div>
-              <!-- GREY SEGMENT -->
-              <div class="segment grey" ng-style="{'width': c.data.kpis.pctGrey + '%'}">
-                <span ng-if="c.data.kpis.countGrey > 0">{{c.data.kpis.countGrey}}</span>
-              </div>
-            </div>
-            
-            <div class="health-metrics">
-              <div class="metric">
-                <span class="label">Avg completion</span>
-                <span class="value">{{c.data.kpis.avgCompletion}}%</span>
-              </div>
-              <div class="metric">
-                <span class="label">Reports on time</span>
-                <span class="value text-green">{{c.data.kpis.reportsOnTime}}%</span>
-              </div>
-              <div class="metric">
-                <span class="label">Open change reqs</span>
-                <span class="value">{{c.data.kpis.openChanges}}</span>
-              </div>
-            </div>
-          </div>
+<main class="gpr">
 
-          <!-- Budget Utilisation Card -->
-          <div class="gn-card budget-card">
-            <div class="card-header flex-between">
-              <div>
-                <h2>Budget utilisation</h2>
-                <p>Spent against awarded value per project</p>
-              </div>
-              <div class="legend">
-                <span><div class="dot blue"></div> Spent</span>
-                <span><div class="dot grey"></div> Awarded</span>
-              </div>
-            </div>
-            
-            <div class="budget-list">
-              <!-- UPDATED: Added track by proj.sys_id -->
-              <div class="budget-item" ng-repeat="proj in c.data.projects track by proj.sys_id">
-                <div class="bi-header">
-                  <span class="bi-name">{{proj.name}}</span>
-                  <span class="bi-stats">{{proj.spentFormatted}} / {{proj.awardedFormatted}} &middot; {{proj.budgetPct}}%</span>
-                </div>
-                <div class="bi-bar-bg">
-                  <!-- ADDED DYNAMIC COLOR LOGIC FOR THE BUDGET BAR -->
-                  <div class="bi-bar-fill" 
-                       ng-style="{'width': proj.budgetPct + '%', 'background-color': proj.isBehind ? '#f59e0b' : '#4f46e5'}">
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="budget-footer" ng-if="c.data.budgetInsight">
-              {{c.data.budgetInsight}}
-            </div>
-          </div>
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="gpr-top">
 
-        </div>
-
-        <!-- Project Cards Grid -->
-        <div class="gn-project-grid">
-          <!-- UPDATED: Added track by proj.sys_id -->
-          <div class="gn-project-card" ng-repeat="proj in c.data.projects track by proj.sys_id" ng-click="c.openProject(proj.sys_id)">
-            <div class="pc-header">
-              <span class="state-pill" ng-class="'pill-' + proj.healthColor">{{proj.healthLabel}}</span>
-              <span class="proj-number">{{proj.number}}</span>
-            </div>
-            
-            <h3 class="pc-title">{{proj.name}}</h3>
-            
-            <div class="pc-completion">
-              <div class="flex-between">
-                <span class="lbl">Completion</span>
-                <span class="val">{{proj.percentComplete}}%</span>
-              </div>
-              <div class="pc-bar-bg">
-                <div class="pc-bar-fill" ng-class="'bg-' + proj.healthColor" ng-style="{'width': proj.percentComplete + '%'}"></div>
-              </div>
-            </div>
-            
-            <div class="pc-details">
-             <div class="pc-row">
-                <span class="lbl">Status</span>
-                <span class="val text-dark">{{proj.status}}</span>
-              </div>
-              <div class="pc-row" ng-if="proj.healthColor === 'green'">
-                <span class="lbl">Report due</span>
-                <span class="val font-bold text-orange">{{proj.reportDue}}</span>
-              </div>
-
-              <div class="pc-row">
-                <span class="lbl">Phase</span>
-                <span class="val text-dark">{{proj.phase}}</span>
-              </div>
-              <div class="pc-row" ng-if="proj.healthColor !== 'green'">
-                <span class="lbl">Change request</span>
-                <span class="val font-bold text-dark">{{proj.changeRequest}}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="gpr-top__lead">
+        <h1 class="gpr-top__title">{{c.data.t.title}}</h1>
+        <p class="gpr-top__sub">
+          <span class="gpr-live" aria-hidden="true"></span>
+          {{c.data.headline}}
+        </p>
       </div>
 
-      <!-- Empty State -->
-      <div class="gn-empty-state" ng-if="c.data.projects.length === 0 && !c.data.loading">
-        <div class="empty-icon">
-          <i class="fa fa-briefcase"></i>
-        </div>
-        <h2>No projects yet</h2>
-        <p>Projects are created automatically once you acknowledge an<br>award. Nothing to set up.</p>
+      <div class="gpr-top__right">
+
+        <label class="gpr-search" ng-if="c.data.projects.length">
+          <i class="fa fa-search gpr-search__icon" aria-hidden="true"></i>
+          <input type="text"
+                 class="gpr-search__field"
+                 ng-model="c.query"
+                 ng-change="c.onChange()"
+                 ng-model-options="{debounce: 120}"
+                 placeholder="{{c.data.t.search}}"
+                 aria-label="{{c.data.t.search}}">
+          <button type="button" class="gpr-search__clear" ng-if="c.query" ng-click="c.clearSearch()"
+                  aria-label="{{c.data.t.clear}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </label>
+
+        <span class="gpr-avatar">{{c.data.userInitials}}</span>
+
       </div>
 
-    </div> <!-- End Dashboard View -->
+    </header>
 
-    <!-- ==========================================
-         EMBEDDED PROJECT DETAILS VIEW
-         ========================================== -->
-    <div ng-if="c.showProjectDetails" class="gn-embedded-view">
-      
-      <!-- ADDED: ng-if to hide this button when a child form in Widget 2 is opened -->
-      <button ng-if="!c.hideParentBackButton" class="btn-outline" ng-click="c.closeProjectDetails()" style="margin-bottom: 24px; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
-        <i class="fa fa-arrow-left"></i> Back to Projects
-      </button>
-      
-      <sp-widget widget="c.projectDetailsWidget"></sp-widget>
+
+    <!-- ═══════════════ NOTHING YET ═══════════════ -->
+    <div class="gpr-blank" ng-if="!c.data.projects.length">
+      <span class="gpr-blank__mark" aria-hidden="true"><i class="fa fa-briefcase"></i></span>
+      <p class="gpr-blank__title">{{c.data.t.emptyTitle}}</p>
+      <p class="gpr-blank__text">{{c.data.t.emptyText}}</p>
+      <a class="gpr-btn gpr-btn--primary" ng-href="?id={{c.data.pages.awards}}">{{c.data.t.emptyBtn}}</a>
     </div>
 
-  </div> <!-- End Projects Wrapper -->
+
+    <div ng-if="c.data.projects.length">
+
+      <!-- ═══════════════ TILES ═══════════════ -->
+      <section class="gpr-tiles">
+        <article class="gpr-tile"
+                 ng-repeat="t in c.data.tiles track by t.key"
+                 ng-class="['gpr-tile--' + t.key, {'is-alert': t.alert}]">
+          <span class="gpr-tile__rule" aria-hidden="true"></span>
+          <p class="gpr-tile__label">{{t.label}}</p>
+          <p class="gpr-tile__value">{{t.value}}</p>
+          <p class="gpr-tile__note">{{t.note}}</p>
+        </article>
+      </section>
+
+
+      <!-- ═══════════════ PANELS ═══════════════ -->
+      <section class="gpr-panels">
+
+        <!-- health -->
+        <article class="gpr-panel">
+
+          <header class="gpr-panel__head">
+            <h2 class="gpr-panel__title">{{c.data.t.healthTitle}}</h2>
+            <p class="gpr-panel__hint">{{c.data.t.healthHint}}</p>
+          </header>
+
+          <div class="gpr-split" ng-if="c.data.healthTotal">
+            <span class="gpr-split__seg"
+                  ng-repeat="h in c.data.health track by h.key"
+                  ng-class="'gpr-split__seg--' + h.key"
+                  ng-if="h.count"
+                  ng-style="{width: h.pct + '%'}">{{h.count}}</span>
+          </div>
+
+          <ul class="gpr-key" ng-if="c.data.healthTotal">
+            <li ng-repeat="h in c.data.health track by h.key">
+              <span class="gpr-key__dot" ng-class="'gpr-key__dot--' + h.key" aria-hidden="true"></span>
+              <span class="gpr-key__label">{{h.label}}</span>
+              <span class="gpr-key__count">{{h.count}}</span>
+            </li>
+          </ul>
+
+          <p class="gpr-panel__empty" ng-if="!c.data.healthTotal">{{c.data.t.healthEmpty}}</p>
+
+        </article>
+
+        <!-- completion -->
+        <article class="gpr-panel">
+
+          <header class="gpr-panel__head">
+            <h2 class="gpr-panel__title">{{c.data.t.progTitle}}</h2>
+            <p class="gpr-panel__hint">{{c.data.t.progHint}}</p>
+          </header>
+
+          <div class="gpr-bars">
+            <div class="gpr-bar"
+                 ng-repeat="r in c.data.progressRows track by $index"
+                 ng-class="'gpr-bar--' + ($index + 1)">
+              <span class="gpr-bar__row">
+                <span class="gpr-bar__name" title="{{r.label}}">{{r.label}}</span>
+                <span class="gpr-bar__pct">{{r.pct}}%</span>
+              </span>
+              <span class="gpr-bar__track">
+                <span class="gpr-bar__fill" ng-class="'gpr-bar__fill--' + r.health"
+                      ng-style="{width: r.pct + '%'}"></span>
+              </span>
+            </div>
+          </div>
+
+        </article>
+
+      </section>
+
+
+      <!-- ═══════════════ TABS ═══════════════ -->
+      <div class="gpr-filters">
+
+        <div class="gpr-tabs" role="group">
+          <button type="button" class="gpr-tab"
+                  ng-repeat="t in c.tabs track by t.key"
+                  ng-class="{'is-on': c.tab === t.key}"
+                  ng-click="c.setTab(t.key)"
+                  ng-attr-aria-pressed="{{c.tab === t.key}}">
+            {{t.label}}
+            <span class="gpr-tab__count">{{c.data.counts[t.key]}}</span>
+          </button>
+        </div>
+
+        <p class="gpr-range" ng-if="c.total()">{{c.total()}}</p>
+
+      </div>
+
+
+      <!-- ═══════════════ PROJECTS ═══════════════ -->
+      <div class="gpr-list">
+
+        <article class="gpr-card"
+                 ng-repeat="p in c.shown() track by p.sysId"
+                 ng-class="['gpr-card--' + p.health, 'gpr-card--n' + (($index % 10) + 1)]">
+
+          <span class="gpr-card__rail" aria-hidden="true"></span>
+
+          <div class="gpr-card__head">
+
+            <div class="gpr-card__lead">
+
+              <span class="gpr-card__top">
+                <span class="gpr-health" ng-class="'gpr-health--' + p.health">
+                  <span class="gpr-health__dot" aria-hidden="true"></span>{{p.healthLabel}}
+                </span>
+                <span class="gpr-card__meta">
+                  <span ng-if="p.program">{{p.program}}</span>
+                  <span class="gpr-card__sep" ng-if="p.program" aria-hidden="true">&middot;</span>
+                  <span>{{p.number}}</span>
+                </span>
+                <span class="gpr-due" ng-if="p.group === 'active' && p.daysToEnd !== null"
+                      ng-class="{'is-late': p.daysToEnd < 0}">
+                  {{p.daysToEnd < 0 ? (-p.daysToEnd + ' ' + c.data.t.overdue) : (p.daysToEnd + ' ' + c.data.t.daysLeft)}}
+                </span>
+              </span>
+
+              <h2 class="gpr-card__name">{{p.name}}</h2>
+              <p class="gpr-card__desc" ng-if="p.description">{{p.description}}</p>
+
+            </div>
+
+            <div class="gpr-card__figure">
+              <span class="gpr-figure__value">{{p.percent}}%</span>
+              <span class="gpr-figure__label">{{c.data.t.complete}}</span>
+            </div>
+
+          </div>
+
+          <!-- completion -->
+          <span class="gpr-card__track">
+            <span class="gpr-card__fill" ng-class="'gpr-card__fill--' + p.health"
+                  ng-style="{width: p.percent + '%'}"></span>
+          </span>
+
+          <!-- phase -->
+          <div class="gpr-phase" ng-class="{'is-stopped': p.phaseIndex === -1}">
+            <div class="gpr-phase__step"
+                 ng-repeat="ph in c.data.phaseTrack track by $index"
+                 ng-class="{'is-done': $index < p.phaseIndex,
+                            'is-now': $index === p.phaseIndex}">
+              <span class="gpr-phase__bar" aria-hidden="true"></span>
+              <span class="gpr-phase__name">{{ph}}</span>
+            </div>
+          </div>
+
+          <div class="gpr-card__foot">
+
+            <dl class="gpr-facts">
+              <div class="gpr-fact">
+                <dt>{{c.data.t.started}}</dt>
+                <dd ng-class="{'is-blank': !p.actualStart}">{{p.actualStart || c.data.t.notSet}}</dd>
+              </div>
+              <div class="gpr-fact">
+                <dt>{{c.data.t.dueBy}}</dt>
+                <dd ng-class="{'is-blank': !p.plannedEnd}">{{p.plannedEnd || c.data.t.notSet}}</dd>
+              </div>
+              <div class="gpr-fact" ng-if="p.manager">
+                <dt>{{c.data.t.manager}}</dt>
+                <dd>{{p.manager}}</dd>
+              </div>
+            </dl>
+
+            <div class="gpr-card__right">
+
+              <ul class="gpr-counts">
+                <li ng-class="{'is-zero': !p.counts.reports}">
+                  <span class="gpr-counts__n">{{p.counts.reports}}</span>{{c.data.t.cReports}}
+                </li>
+                <li ng-class="{'is-zero': !p.counts.changes}">
+                  <span class="gpr-counts__n">{{p.counts.changes}}</span>{{c.data.t.cChanges}}
+                </li>
+                <li ng-class="{'is-zero': !p.counts.claims}">
+                  <span class="gpr-counts__n">{{p.counts.claims}}</span>{{c.data.t.cClaims}}
+                </li>
+                <li ng-if="c.data.hasRisks" ng-class="{'is-zero': !p.counts.risks}">
+                  <span class="gpr-counts__n">{{p.counts.risks}}</span>{{c.data.t.cRisks}}
+                </li>
+                <li ng-if="c.data.hasIssues" ng-class="{'is-zero': !p.counts.issues}">
+                  <span class="gpr-counts__n">{{p.counts.issues}}</span>{{c.data.t.cIssues}}
+                </li>
+              </ul>
+
+              <button type="button" class="gpr-btn gpr-btn--ghost" ng-click="c.openDetail(p)">
+                {{c.data.t.view}}
+              </button>
+
+            </div>
+
+          </div>
+
+        </article>
+
+      </div>
+
+
+      <div class="gpr-nomatch" ng-if="!c.shown().length">
+        <p class="gpr-nomatch__title">{{c.data.t.noMatch}}</p>
+        <p class="gpr-nomatch__text">{{c.data.t.noMatchText}}</p>
+        <button type="button" class="gpr-btn gpr-btn--ghost" ng-click="c.clearAll()">{{c.data.t.clear}}</button>
+      </div>
+
+    </div>
+
+
+    <!-- ═══════════════ DETAIL ═══════════════ -->
+    <div class="gpr-modal" ng-if="c.open" ng-click="c.closeDetail()">
+
+      <div class="gpr-modal__panel" role="dialog" aria-modal="true"
+           aria-labelledby="gprModalTitle" ng-click="$event.stopPropagation()">
+
+        <header class="gpr-modal__head">
+
+          <div class="gpr-modal__lead">
+            <span class="gpr-modal__ref">{{c.open.number}}</span>
+            <h2 class="gpr-modal__title" id="gprModalTitle">{{c.open.name}}</h2>
+            <span class="gpr-health" ng-class="'gpr-health--' + c.open.health">
+              <span class="gpr-health__dot" aria-hidden="true"></span>{{c.open.healthLabel}}
+              <span class="gpr-modal__phase">{{c.open.phase}}</span>
+            </span>
+          </div>
+
+          <button type="button" class="gpr-modal__x" ng-click="c.closeDetail()"
+                  aria-label="{{c.data.t.close}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+
+        </header>
+
+        <nav class="gpr-mtabs">
+          <button type="button" class="gpr-mtab"
+                  ng-repeat="m in c.modalTabs track by m.key"
+                  ng-if="m.show(c.open)"
+                  ng-class="{'is-on': c.mtab === m.key}"
+                  ng-click="c.mtab = m.key">
+            {{m.label}}
+            <span class="gpr-mtab__n" ng-if="m.count(c.open)">{{m.count(c.open)}}</span>
+          </button>
+        </nav>
+
+        <div class="gpr-modal__body">
+
+          <!-- overview -->
+          <section ng-if="c.mtab === 'overview'">
+
+            <dl class="gpr-kvs">
+              <div class="gpr-kv"><dt>{{c.data.t.mProgram}}</dt><dd ng-class="{'is-blank': !c.open.program}">{{c.open.program || c.data.t.mNone}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mAward}}</dt><dd ng-class="{'is-blank': !c.open.award}">{{c.open.award || c.data.t.mNone}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mApplicant}}</dt><dd ng-class="{'is-blank': !c.open.applicant}">{{c.open.applicant || c.data.t.mNone}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.manager}}</dt><dd ng-class="{'is-blank': !c.open.manager}">{{c.open.manager || c.data.t.mNone}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mPhase}}</dt><dd>{{c.open.phase}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mPercent}}</dt><dd class="gpr-kv--num">{{c.open.percent}}%</dd></div>
+            </dl>
+
+            <div class="gpr-prose" ng-if="c.open.description">
+              <p class="gpr-prose__label">{{c.data.t.mDesc}}</p>
+              <p class="gpr-prose__text">{{c.open.description}}</p>
+            </div>
+
+            <div class="gpr-prose" ng-if="c.open.notes">
+              <p class="gpr-prose__label">{{c.data.t.mNotes}}</p>
+              <p class="gpr-prose__text">{{c.open.notes}}</p>
+            </div>
+
+            <h4 class="gpr-sub">{{c.data.t.mDates}}</h4>
+            <dl class="gpr-kvs">
+              <div class="gpr-kv"><dt>{{c.data.t.mActualStart}}</dt><dd ng-class="{'is-blank': !c.open.actualStart}">{{c.open.actualStart || c.data.t.notSet}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mPlannedStart}}</dt><dd ng-class="{'is-blank': !c.open.plannedStart}">{{c.open.plannedStart || c.data.t.notSet}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mActualEnd}}</dt><dd ng-class="{'is-blank': !c.open.actualEnd}">{{c.open.actualEnd || c.data.t.notSet}}</dd></div>
+              <div class="gpr-kv"><dt>{{c.data.t.mPlannedEnd}}</dt><dd ng-class="{'is-blank': !c.open.plannedEnd}">{{c.open.plannedEnd || c.data.t.notSet}}</dd></div>
+            </dl>
+
+          </section>
+
+          <!-- status reports -->
+          <section ng-if="c.mtab === 'reports'">
+
+            <div class="gpr-report" ng-repeat="r in c.open.reports track by $index">
+
+              <header class="gpr-report__head">
+                <span class="gpr-report__num">{{r.number}}</span>
+                <span class="gpr-report__type" ng-if="r.type">{{r.type}}</span>
+                <span class="gpr-report__date">{{r.date}}</span>
+                <span class="gpr-health gpr-health--sm" ng-class="'gpr-health--' + r.health.key">
+                  <span class="gpr-health__dot" aria-hidden="true"></span>{{r.health.label}}
+                </span>
+              </header>
+
+              <!-- the four ratings, side by side rather than in a
+                   list, so a red one is visible at a glance -->
+              <div class="gpr-rag">
+                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.schedule.key">
+                  <span class="gpr-rag__label">{{c.data.t.mSchedule}}</span>
+                  <span class="gpr-rag__value">{{r.schedule.label}}</span>
+                </span>
+                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.cost.key">
+                  <span class="gpr-rag__label">{{c.data.t.mCost}}</span>
+                  <span class="gpr-rag__value">{{r.cost.label}}</span>
+                </span>
+                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.resource.key">
+                  <span class="gpr-rag__label">{{c.data.t.mResources}}</span>
+                  <span class="gpr-rag__value">{{r.resource.label}}</span>
+                </span>
+                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.scope.key">
+                  <span class="gpr-rag__label">{{c.data.t.mScope}}</span>
+                  <span class="gpr-rag__value">{{r.scope.label}}</span>
+                </span>
+              </div>
+
+              <div class="gpr-prose" ng-if="r.summary">
+                <p class="gpr-prose__label">{{c.data.t.mSummary}}</p>
+                <p class="gpr-prose__text">{{r.summary}}</p>
+              </div>
+
+              <div class="gpr-prose" ng-if="r.achieved">
+                <p class="gpr-prose__label">{{c.data.t.mAchieved}}</p>
+                <p class="gpr-prose__text">{{r.achieved}}</p>
+              </div>
+
+              <div class="gpr-prose" ng-if="r.nextUp">
+                <p class="gpr-prose__label">{{c.data.t.mNextUp}}</p>
+                <p class="gpr-prose__text">{{r.nextUp}}</p>
+              </div>
+
+            </div>
+
+            <p class="gpr-empty" ng-if="!c.open.reports.length">{{c.data.t.mEmptyList}}</p>
+
+          </section>
+
+          <!-- change requests -->
+          <section ng-if="c.mtab === 'changes'">
+
+            <div class="gpr-item" ng-repeat="ch in c.open.changes track by $index">
+              <div class="gpr-item__head">
+                <span class="gpr-item__num">{{ch.number}}</span>
+                <span class="gpr-pill" ng-class="'gpr-pill--' + ch.state">{{ch.approval}}</span>
+                <span class="gpr-item__date">{{ch.created}}</span>
+              </div>
+              <p class="gpr-item__title" ng-if="ch.title">{{ch.title}}</p>
+              <p class="gpr-item__meta">
+                <span ng-if="ch.category">{{c.data.t.mCategory}}: <strong>{{ch.category}}</strong></span>
+                <span ng-if="ch.priority">{{c.data.t.mPriority}}: <strong>{{ch.priority}}</strong></span>
+                <span ng-if="ch.impact">{{c.data.t.mImpact}}: <strong>{{ch.impact}}</strong></span>
+              </p>
+              <p class="gpr-item__text" ng-if="ch.reason">{{ch.reason}}</p>
+            </div>
+
+            <p class="gpr-empty" ng-if="!c.open.changes.length">{{c.data.t.mEmptyList}}</p>
+
+          </section>
+
+          <!-- reimbursements -->
+          <section ng-if="c.mtab === 'claims'">
+
+            <div class="gpr-item" ng-repeat="cl in c.open.claims track by $index">
+              <div class="gpr-item__head">
+                <span class="gpr-item__num">{{cl.number}}</span>
+                <span class="gpr-pill" ng-class="'gpr-pill--' + cl.state">{{cl.status}}</span>
+                <span class="gpr-item__amount">{{cl.amountText || '—'}}</span>
+                <span class="gpr-item__date">{{cl.created}}</span>
+              </div>
+              <p class="gpr-item__text" ng-if="cl.summary">{{cl.summary}}</p>
+            </div>
+
+            <p class="gpr-empty" ng-if="!c.open.claims.length">{{c.data.t.mEmptyList}}</p>
+
+          </section>
+
+          <!-- risks -->
+          <section ng-if="c.mtab === 'risks'">
+            <div class="gpr-item" ng-repeat="rk in c.open.risks track by $index">
+              <div class="gpr-item__head">
+                <span class="gpr-item__num">{{rk.number}}</span>
+                <span class="gpr-pill gpr-pill--wait" ng-if="rk.state">{{rk.state}}</span>
+                <span class="gpr-item__date">{{rk.created}}</span>
+              </div>
+              <p class="gpr-item__title" ng-if="rk.title">{{rk.title}}</p>
+            </div>
+            <p class="gpr-empty" ng-if="!c.open.risks.length">{{c.data.t.mEmptyList}}</p>
+          </section>
+
+          <!-- issues -->
+          <section ng-if="c.mtab === 'issues'">
+            <div class="gpr-item" ng-repeat="is in c.open.issues track by $index">
+              <div class="gpr-item__head">
+                <span class="gpr-item__num">{{is.number}}</span>
+                <span class="gpr-pill gpr-pill--wait" ng-if="is.state">{{is.state}}</span>
+                <span class="gpr-item__date">{{is.created}}</span>
+              </div>
+              <p class="gpr-item__title" ng-if="is.title">{{is.title}}</p>
+            </div>
+            <p class="gpr-empty" ng-if="!c.open.issues.length">{{c.data.t.mEmptyList}}</p>
+          </section>
+
+        </div>
+
+        <footer class="gpr-modal__foot">
+          <button type="button" class="gpr-btn gpr-btn--primary" ng-click="c.closeDetail()">
+            {{c.data.t.close}}
+          </button>
+        </footer>
+
+      </div>
+
+    </div>
+
+  </main>
 
 </div>]]></template>
     </sp_widget>

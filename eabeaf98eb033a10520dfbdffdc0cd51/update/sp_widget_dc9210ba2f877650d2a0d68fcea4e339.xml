@@ -1,40 +1,93 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $timeout, spModal, $window, spUtil, $location) {
+        <client_script><![CDATA[api.controller = function($scope, $timeout, $window, $location, $element, spModal) {
+
+  /* =========================================================
+     GATENOW · APPLICANT INTAKE · Client script
+
+     FIXES
+
+     1. The flicker on Continue.
+        nextStep() called saveDraft(), which called
+        c.server.get(). Every server call re-runs the server
+        script and replaces c.data, and Angular repaints the
+        widget while that happens. What you saw as "a glimpse of
+        the previous tab" was the widget rebuilding. Draft saving
+        is gone, so Continue now only changes a number and
+        nothing round trips.
+
+     2. Uploads.
+        The step used ng-file-upload (ngf-select / ngf-drop),
+        which is not part of the Service Portal AngularJS bundle,
+        so the directives never bound and nothing happened on
+        click or drop. It now uses a native <input type="file">;
+        this controller wires the change / drag / drop events
+        itself once step 5 renders. The type check keeps its
+        extension fallback, because a dragged or older .doc file
+        often arrives with an empty or unexpected MIME type.
+
+     3. Every field required.
+        Middle name, organisation and the demographic selects are
+        all validated. SSN is the single exception and is only
+        required when the applicant type is Individual, since an
+        organisation does not have one.
+     ========================================================= */
+
   var c = this;
 
   var CONFIG = {
     MAX_FILE_SIZE: 10485760,
-    ALLOWED_FILE_TYPES: [
+    TYPES: [
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'image/jpeg', 'image/jpg', 'image/png'
-    ]
+    ],
+    EXTS: ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']
   };
 
-  // ─── Date Helpers to prevent Timezone Shifts ────────────────
-  function createLocalDate(dateString) {
-    if (!dateString || typeof dateString !== 'string') return dateString;
-    var parts = dateString.split('-'); 
-    if (parts.length === 3) {
-      return new Date(parts[0], parts[1] - 1, parts[2]);
-    }
-    return dateString;
+
+  /* =====================================================
+     DATES
+     Parsed by hand so a value never shifts a day across a
+     timezone boundary.
+     ===================================================== */
+
+  function toLocalDate(s) {
+    if (!s || typeof s !== 'string') return s;
+    var p = s.split('-');
+    return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : s;
   }
 
-  function formatLocalDate(dateObj) {
-    if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj)) return '';
-    var y = dateObj.getFullYear();
-    var m = dateObj.getMonth() + 1;
-    var d = dateObj.getDate();
-    return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
+  function fromLocalDate(d) {
+    if (!d || !(d instanceof Date) || isNaN(d)) return '';
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
   }
 
-  // ─── State ─────────────────────────────────────────────────
+  function dateText(v) {
+    if (!v) return '';
+    return (v instanceof Date) ? fromLocalDate(v) : v;
+  }
+
+
+  /* =====================================================
+     STATE
+     ===================================================== */
+
+  c.steps = [
+    { n: 1, label: c.data.t.s1, note: c.data.t.s1n },
+    { n: 2, label: c.data.t.s2, note: c.data.t.s2n },
+    { n: 3, label: c.data.t.s3, note: c.data.t.s3n },
+    { n: 4, label: c.data.t.s4, note: c.data.t.s4n },
+    { n: 5, label: c.data.t.s5, note: c.data.t.s5n },
+    { n: 6, label: c.data.t.s6, note: c.data.t.s6n }
+  ];
+
+  c.totalSteps     = c.steps.length;
   c.currentStep    = 1;
-  c.totalSteps     = 5;
   c.completedSteps = [];
   c.errors         = {};
   c.saving         = false;
@@ -45,9 +98,20 @@
   c.draftResumed   = false;
   c.successBanner  = false;
   c.successMessage = '';
-  c.countdown      = 4;
+  c.countdown      = 5;
+  c.confirmed      = false;
 
-  // ─── Form init ─────────────────────────────────────────────
+  c.demoFields = [
+    { key: 'gender',             label: c.data.t.gender },
+    { key: 'race',               label: c.data.t.race },
+    { key: 'ethnicity',          label: c.data.t.ethnicity },
+    { key: 'education_level',    label: c.data.t.education },
+    { key: 'marital_status',     label: c.data.t.marital },
+    { key: 'military_status',    label: c.data.t.military },
+    { key: 'disability_status',  label: c.data.t.disability },
+    { key: 'tribal_affiliation', label: c.data.t.tribal }
+  ];
+
   c.form = angular.merge({
     first_name: '', middle_name: '', last_name: '',
     email: '', phone_number: '', country: '',
@@ -59,21 +123,19 @@
     education_level: '', marital_status: '',
     military_status: '', disability_status: '',
     citizenship_status: '', tribal_affiliation: '',
-    grant_program: '', // Left blank initially to prevent overwrite bugs
+    grant_program: '', program_category: '',
     proposal_title: '', short_description: '',
     proposal_description: '',
     project_goals_and_objectives: '',
     project_activities_methodology: '',
     organization: '',
-    requested_budget:   null,
+    requested_budget: null,
     project_start_date: '', project_end_date: ''
   }, c.data.prefill || {});
 
-  // Apply Date Fixes to Form Init
-  if (c.form.birthdate)          c.form.birthdate          = createLocalDate(c.form.birthdate);
-  if (c.form.project_start_date) c.form.project_start_date = createLocalDate(c.form.project_start_date);
-  if (c.form.project_end_date)   c.form.project_end_date   = createLocalDate(c.form.project_end_date);
-
+  if (c.form.birthdate)          c.form.birthdate          = toLocalDate(c.form.birthdate);
+  if (c.form.project_start_date) c.form.project_start_date = toLocalDate(c.form.project_start_date);
+  if (c.form.project_end_date)   c.form.project_end_date   = toLocalDate(c.form.project_end_date);
 
   if (c.data.alreadySubmitted) c.formBlocked = true;
 
@@ -82,1136 +144,1326 @@
     c.draftResumed = true;
   }
 
-  // ─── Safely Autopopulate Grant Program ─────────────────────
-  // 1. Get the target program (Draft takes priority over URL)
-  var targetProgram = '';
-  if (c.data.prefill && c.data.prefill.grant_program) {
-      targetProgram = c.data.prefill.grant_program;
-  } else if (c.data.program_param) {
-      targetProgram = c.data.program_param;
-  }
+  /* the program comes from the saved record first, then the URL */
+  var target = (c.data.prefill && c.data.prefill.grant_program)
+                 ? c.data.prefill.grant_program
+                 : (c.data.program_param || '');
 
-  // 2. Wait for the DOM to render the dropdown options, then assign
   $timeout(function() {
-      if (targetProgram) {
-          c.form.grant_program = String(targetProgram).trim();
-      }
+    if (target) c.form.grant_program = String(target).trim();
   });
 
-  // ─── program_category: live watch ──────────────────────────
-  $scope.$watch(function() { return c.form.grant_program; }, function(newVal) {
-    if (!newVal) { 
-        c.form.program_category = ''; 
-        return; 
-    }
-    
-    // Look up category in the array
-    for (var i = 0; i < c.data.programs.length; i++) {
-      if (c.data.programs[i].sys_id === newVal) {
-        c.form.program_category = c.data.programs[i].category || '';
+  /* category is derived from the program, never typed */
+  $scope.$watch(function() { return c.form.grant_program; }, function(val) {
+    if (!val) { c.form.program_category = ''; return; }
+
+    var list = c.data.programs || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].sys_id === val) {
+        c.form.program_category = list[i].category || '';
         return;
       }
     }
-    
-    // Fallback if array lookup fails but draft had it saved
-    if (c.data.prefill && c.data.prefill.program_category) {
-        c.form.program_category = c.data.prefill.program_category;
-    } else {
-        c.form.program_category = '';
-    }
+
+    c.form.program_category = (c.data.prefill && c.data.prefill.program_category) || '';
   });
 
-  // ─── Redirect helper ───────────────────────────────────────
-  function goToDashboard(delayMs) {
-    $timeout(function() {
-      $location.url('/applicant?id=applicant_dashboard');
-    }, delayMs || 4000);
+
+  /* =====================================================
+     RAIL
+     ===================================================== */
+
+  c.stepTitle = function() {
+    for (var i = 0; i < c.steps.length; i++) {
+      if (c.steps[i].n === c.currentStep) return c.steps[i].label;
+    }
+    return '';
+  };
+
+  c.stepHint = function() {
+    var h = [c.data.t.h1, c.data.t.h2, c.data.t.h3, c.data.t.h4, c.data.t.h5, c.data.t.h6];
+    return h[c.currentStep - 1] || '';
+  };
+
+  c.isDone = function(n) { return c.completedSteps.indexOf(n) !== -1; };
+
+  /* One predicate drives both the tick and the number, so they can
+     never appear together. A step shows a tick once it is completed
+     AND you have moved off it; the step you are standing on always
+     shows its number, even after it has been completed. */
+  c.stepShowsCheck = function(n) {
+    return c.isDone(n) && c.currentStep !== n;
+  };
+
+  c.progress = function() {
+    return Math.round((c.completedSteps.length / c.totalSteps) * 100);
+  };
+
+  c.errorCount = function() {
+    var n = 0;
+    for (var k in c.errors) { if (c.errors.hasOwnProperty(k)) n++; }
+    return n;
+  };
+
+  c.left = function(val, max) {
+    return (max - (val || '').length) + ' ' + c.data.t.charsLeft;
+  };
+
+  function programField(field) {
+    var list = c.data.programs || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].sys_id === c.form.grant_program) return list[i][field] || '';
+    }
+    return '';
   }
 
-  function startCountdown(from) {
-    c.countdown = from || 4;
+  c.programName = function() { return programField('name'); };
+
+  c.programMeta = function() {
+    var bits = [];
+    var num = programField('number');
+    var cat = programField('category');
+    if (num) bits.push(num);
+    if (cat) bits.push(cat);
+    return bits.join('  ·  ');
+  };
+
+
+  /* =====================================================
+     VALIDATION
+     Everything is required. SSN is the one exception, asked
+     only of individual applicants.
+     ===================================================== */
+
+  function empty(v) {
+    return v === undefined || v === null || v === '' ||
+           (typeof v === 'string' && v.trim() === '');
+  }
+
+  c.validateStep = function(step) {
+    c.errors = {};
+    var ok = true;
+
+    function need(field, msg) {
+      if (empty(c.form[field])) { c.errors[field] = msg; ok = false; }
+    }
+
+    if (step === 1) {
+      need('first_name', c.data.t.eFirst);
+      need('middle_name', c.data.t.eMiddle);
+      need('last_name', c.data.t.eLast);
+
+      if (empty(c.form.email)) { c.errors.email = c.data.t.eEmail; ok = false; }
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.form.email)) {
+        c.errors.email = c.data.t.eEmailBad; ok = false;
+      }
+
+      need('phone_number', c.data.t.ePhone);
+      need('birthdate', c.data.t.eDob);
+      need('street', c.data.t.eStreet);
+      need('city', c.data.t.eCity);
+      need('zip_postal_code', c.data.t.eZip);
+      need('country', c.data.t.eCountry);
+    }
+
+    else if (step === 2) {
+      need('citizenship_status', c.data.t.eCitizen);
+
+      /* An organisation does not have a social security number,
+         so it is only demanded of individuals. Applicant type is
+         chosen on step three, so a blank type does not block
+         this step. */
+      if (c.form.applicant_type === 'Individual') {
+        need('ssn', c.data.t.eSsn);
+      }
+
+      for (var i = 0; i < c.demoFields.length; i++) {
+        need(c.demoFields[i].key,
+             c.demoFields[i].label + ' ' + c.data.t.eIsRequired);
+      }
+    }
+
+    else if (step === 3) {
+      need('grant_program', c.data.t.eProgram);
+      need('applicant_type', c.data.t.eAType);
+      need('organization', c.data.t.eOrg);
+      need('identity_type', c.data.t.eIType);
+      need('uei', c.data.t.eUei);
+      need('tin_ein', c.data.t.eTin);
+    }
+
+    else if (step === 4) {
+      need('proposal_title', c.data.t.eTitle);
+      need('short_description', c.data.t.eShort);
+      need('proposal_description', c.data.t.eDesc);
+      need('project_goals_and_objectives', c.data.t.eGoals);
+      need('project_activities_methodology', c.data.t.eMethod);
+
+      if (!c.form.requested_budget || c.form.requested_budget <= 0) {
+        c.errors.requested_budget = c.data.t.eBudget; ok = false;
+      }
+
+      need('project_start_date', c.data.t.eStart);
+      need('project_end_date', c.data.t.eEnd);
+
+      if (c.form.project_start_date && c.form.project_end_date) {
+        if (new Date(c.form.project_end_date) <= new Date(c.form.project_start_date)) {
+          c.errors.project_end_date = c.data.t.eOrder; ok = false;
+        }
+      }
+    }
+
+    else if (step === 5) {
+      if (!c.uploadedFiles.length) {
+        c.errors.documents = c.data.t.eDocs; ok = false;
+      }
+    }
+
+    else if (step === 6) {
+      if (!c.uploadedFiles.length) {
+        c.errors.documents = c.data.t.eDocs; ok = false;
+      }
+      if (!c.confirmed) {
+        c.errors.confirmed = c.data.t.eConfirm; ok = false;
+      }
+    }
+
+    if (!ok) scrollToErrors();
+
+    return ok;
+  };
+
+  /* scoped to this widget rather than the whole document, so a
+     second widget on the page cannot be scrolled to by mistake */
+  function scrollToErrors() {
+    $timeout(function() {
+      var box = $element[0].querySelector('.gni-errors');
+      if (box && box.scrollIntoView) {
+        box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 80);
+  }
+
+
+  /* =====================================================
+     NAVIGATION
+     No server call here. That was the flicker.
+     ===================================================== */
+
+  function toTop() {
+    $timeout(function() {
+      $window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 60);
+  }
+
+  function markDone(step) {
+    if (c.completedSteps.indexOf(step) === -1) c.completedSteps.push(step);
+  }
+
+  c.nextStep = function() {
+    if (c.saving) return;
+    if (!c.validateStep(c.currentStep)) return;
+    markDone(c.currentStep);
+    c.currentStep++;
+    c.errors = {};
+    toTop();
+  };
+
+  c.prevStep = function() {
+    if (c.currentStep <= 1 || c.saving) return;
+    c.errors = {};
+    c.currentStep--;
+    toTop();
+  };
+
+  c.goToStep = function(step) {
+    if (c.formBlocked || c.saving) return;
+    if (step < 1 || step > c.totalSteps || step === c.currentStep) return;
+
+    /* back is always allowed, forward has to pass the step you
+       are standing on */
+    if (step > c.currentStep) {
+      if (!c.validateStep(c.currentStep)) return;
+      markDone(c.currentStep);
+    }
+
+    c.errors = {};
+    c.currentStep = step;
+    toTop();
+  };
+
+
+  /* =====================================================
+     REVIEW
+     ===================================================== */
+
+  function row(label, value) { return { label: label, value: value }; }
+
+  function choiceLabel(field, value) {
+    var list = (c.data.choices || {})[field] || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].value === value) return list[i].label;
+    }
+    return value || '';
+  }
+
+  function money(v) {
+    if (!v) return '';
+    var s = '' + Math.round(v);
+    var out = '';
+    var n = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      n++;
+      if (n % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return '$' + out;
+  }
+
+  c.recap = function() {
+    var f = c.form;
+
+    return [
+      {
+        step: 1,
+        title: c.data.t.s1,
+        rows: [
+          row(c.data.t.firstName, [f.first_name, f.middle_name, f.last_name].join(' ').replace(/\s+/g, ' ').trim()),
+          row(c.data.t.email, f.email),
+          row(c.data.t.phone, f.phone_number),
+          row(c.data.t.birthdate, dateText(f.birthdate)),
+          row(c.data.t.address, [f.street, f.city, f.zip_postal_code, f.country].filter(Boolean).join(', '))
+        ]
+      },
+      {
+        step: 2,
+        title: c.data.t.s2,
+        rows: [
+          row(c.data.t.citizenship, choiceLabel('citizenship_status', f.citizenship_status)),
+          row(c.data.t.gender, choiceLabel('gender', f.gender)),
+          row(c.data.t.race, choiceLabel('race', f.race)),
+          row(c.data.t.ethnicity, choiceLabel('ethnicity', f.ethnicity)),
+          row(c.data.t.education, choiceLabel('education_level', f.education_level)),
+          row(c.data.t.marital, choiceLabel('marital_status', f.marital_status)),
+          row(c.data.t.military, choiceLabel('military_status', f.military_status)),
+          row(c.data.t.disability, choiceLabel('disability_status', f.disability_status)),
+          row(c.data.t.tribal, choiceLabel('tribal_affiliation', f.tribal_affiliation))
+        ]
+      },
+      {
+        step: 3,
+        title: c.data.t.s3,
+        rows: [
+          row(c.data.t.program, c.programName()),
+          row(c.data.t.category, f.program_category),
+          row(c.data.t.applicantType, choiceLabel('applicant_type', f.applicant_type)),
+          row(c.data.t.organisation, f.organization),
+          row(c.data.t.identityType, choiceLabel('identity_type', f.identity_type)),
+          row(c.data.t.uei, f.uei),
+          row(c.data.t.tin, f.tin_ein)
+        ]
+      },
+      {
+        step: 4,
+        title: c.data.t.s4,
+        rows: [
+          row(c.data.t.proposalTitle, f.proposal_title),
+          row(c.data.t.shortDesc, f.short_description),
+          row(c.data.t.budget, money(f.requested_budget)),
+          row(c.data.t.startDate, dateText(f.project_start_date)),
+          row(c.data.t.endDate, dateText(f.project_end_date))
+        ]
+      }
+    ];
+  };
+
+
+  /* =====================================================
+     FILES
+     ===================================================== */
+
+  /* A dragged file, and an older .doc, often arrive with an
+     empty or unexpected type, which a strict MIME check rejects
+     without saying why. The extension is the fallback. */
+  function typeOk(file) {
+    if (file.type && CONFIG.TYPES.indexOf(file.type) !== -1) return true;
+
+    var name = (file.name || '').toLowerCase();
+    for (var i = 0; i < CONFIG.EXTS.length; i++) {
+      var ext = CONFIG.EXTS[i];
+      if (name.length > ext.length && name.slice(-ext.length) === ext) return true;
+    }
+    return false;
+  }
+
+  function alreadyAdded(file) {
+    for (var i = 0; i < c.uploadedFiles.length; i++) {
+      var f = c.uploadedFiles[i];
+      if (f.name === file.name && f.size === file.size) return true;
+    }
+    return false;
+  }
+
+  c.addFiles = function($files) {
+    if (!$files || !$files.length) return;
+
+    angular.forEach($files, function(file) {
+      if (!file) return;
+
+      if (file.size > CONFIG.MAX_FILE_SIZE) {
+        spModal.open({
+          title: c.data.t.tooBigTitle,
+          message: '"' + file.name + '" ' + c.data.t.tooBigText,
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+        return;
+      }
+
+      if (!typeOk(file)) {
+        spModal.open({
+          title: c.data.t.badTypeTitle,
+          message: '"' + file.name + '" ' + c.data.t.badTypeText,
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+        return;
+      }
+
+      /* choosing the same file twice would attach it twice */
+      if (alreadyAdded(file)) return;
+
+      c.uploadedFiles.push(file);
+    });
+
+    if (c.uploadedFiles.length) delete c.errors.documents;
+  };
+
+  c.removeFile = function(i) {
+    if (i >= 0 && i < c.uploadedFiles.length) c.uploadedFiles.splice(i, 1);
+  };
+
+  c.formatFileSize = function(bytes) {
+    if (!bytes) return '0 B';
+    var k = 1024;
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + units[i];
+  };
+
+  function toBase64(files) {
+    var jobs = [];
+
+    angular.forEach(files, function(file) {
+      jobs.push(new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+
+        reader.onload = function(e) {
+          try {
+            var parts = ('' + e.target.result).split(',');
+            resolve({
+              name: file.name,
+              /* the server needs a type, and a dragged file may
+                 not have one */
+              type: file.type || 'application/octet-stream',
+              size: file.size,
+              data: parts.length > 1 ? parts[1] : parts[0]
+            });
+          } catch (err) { reject(err); }
+        };
+
+        reader.onerror = function() { reject('read failed: ' + file.name); };
+        reader.readAsDataURL(file);
+      }));
+    });
+
+    return Promise.all(jobs);
+  }
+
+
+  /* =====================================================
+     FILE INPUT + DROPZONE WIRING
+     Replaces ng-file-upload, which Service Portal does not
+     bundle. Step 5 lives inside an ng-if, so its DOM is built
+     fresh each time the step opens; the listeners are therefore
+     (re)attached whenever step 5 renders. The freshly-created
+     element carries no bound flag, so it wires exactly once.
+     ===================================================== */
+
+  c.pickFiles = function() {
+    var input = $element[0].querySelector('.gni-file-input');
+    if (input) input.click();
+  };
+
+  function bindDropzone() {
+    var drop  = $element[0].querySelector('.gni-drop');
+    var input = $element[0].querySelector('.gni-file-input');
+    if (!drop || !input) return;
+
+    if (drop.getAttribute('data-gni-bound') === '1') return;
+    drop.setAttribute('data-gni-bound', '1');
+
+    /* native picker */
+    input.addEventListener('change', function(e) {
+      var files = e.target.files;
+      $scope.$apply(function() { c.addFiles(files); });
+      /* clear so the same file can be re-picked after removal */
+      e.target.value = '';
+    });
+
+    /* drag and drop */
+    drop.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!c.isDragging) $scope.$apply(function() { c.isDragging = true; });
+    });
+
+    drop.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (c.isDragging) $scope.$apply(function() { c.isDragging = false; });
+    });
+
+    drop.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : null;
+      $scope.$apply(function() {
+        c.isDragging = false;
+        if (files && files.length) c.addFiles(files);
+      });
+    });
+  }
+
+  $scope.$watch(function() { return c.currentStep; }, function(step) {
+    if (step === 5) $timeout(bindDropzone);
+  });
+
+
+  /* =====================================================
+     SUBMIT
+     ===================================================== */
+
+  function payload() {
+    var p = angular.copy(c.form);
+
+    p.birthdate          = dateText(p.birthdate);
+    p.project_start_date = dateText(p.project_start_date);
+    p.project_end_date   = dateText(p.project_end_date);
+
+    p.action = 'save_applicant';
+    p.applicant_sys_id = c.data.applicant_sys_id || '';
+
+    return p;
+  }
+
+  c.submit = function() {
+    if (c.saving) return;
+    if (!c.validateStep(6)) return;
+
+    c.saving = true;
+    c.uploadProgress = 10;
+
+    var p = payload();
+
+    if (c.uploadedFiles.length) {
+      toBase64(c.uploadedFiles).then(function(files) {
+        /* the promise resolves outside a digest */
+        $timeout(function() {
+          p.attachments = files;
+          c.uploadProgress = 55;
+          send(p);
+        });
+      }, function() {
+        $timeout(function() {
+          c.saving = false;
+          c.uploadProgress = 0;
+          spModal.open({
+            title: c.data.t.fileErrTitle,
+            message: c.data.t.fileErrText,
+            buttons: [{ label: c.data.t.ok, primary: true }]
+          });
+        });
+      });
+    } else {
+      send(p);
+    }
+  };
+
+  function send(p) {
+    c.server.get(p).then(function(r) {
+      c.uploadProgress = 100;
+      var resp = (r && r.data) ? r.data : {};
+
+      if (resp.success) {
+        done(c.data.t.submitted, resp.error);
+      } else if (resp.alreadySubmitted) {
+        c.formBlocked = true;
+        done(c.data.t.already, '');
+      } else {
+        c.saving = false;
+        c.uploadProgress = 0;
+        spModal.open({
+          title: c.data.t.submitErrTitle,
+          message: resp.error || c.data.t.submitErrText,
+          buttons: [{ label: c.data.t.ok, primary: true }]
+        });
+      }
+    }, function() {
+      c.saving = false;
+      c.uploadProgress = 0;
+      spModal.open({
+        title: c.data.t.connErrTitle,
+        message: c.data.t.connErrText,
+        buttons: [{ label: c.data.t.ok, primary: true }]
+      });
+    });
+  }
+
+  /* warn is set when the record saved but the attachments did
+     not, so the applicant is told rather than left assuming */
+  function done(msg, warn) {
+    c.successBanner  = true;
+    c.successMessage = msg;
+    c.successWarning = warn || '';
+    c.uploadProgress = 0;
+    c.countdown = warn ? 12 : 5;
+
+    $timeout(function() {
+      $window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+
     (function tick() {
       $timeout(function() {
         c.countdown--;
         if (c.countdown > 0) tick();
+        else $location.url(c.data.dashboardUrl);
       }, 1000);
     })();
   }
 
-  function showSuccessBanner(msg) {
-    c.successBanner  = true;
-    c.successMessage = msg;
-    $timeout(function() {
-      $window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 50);
-    startCountdown(4);
-    goToDashboard(4000);
-  }
 
-  // ─── Step helpers ──────────────────────────────────────────
-  c.getStepTitle = function() {
-    var titles = {
-      1: 'Personal Information', 2: 'Demographics',
-      3: 'Organization & Identity', 4: 'Proposal Details',
-      5: 'Supporting Documents'
-    };
-    return titles[c.currentStep] || '';
-  };
+  /* =====================================================
+     CANCEL
+     ===================================================== */
 
-  c.goToStep = function(step) {
-    if (c.formBlocked) return;
-    if (step >= 1 && step <= c.totalSteps && !c.saving) {
-      c.errors = {};
-      c.currentStep = step;
-      $timeout(function() { $window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
-    }
-  };
-
-  // ─── Validation ────────────────────────────────────────────
-  c.validateStep = function(step) {
-    c.errors = {};
-    var isValid = true;
-
-    function checkEmpty(val) {
-      return val === undefined || val === null || val === '' ||
-             (typeof val === 'string' && val.trim() === '');
-    }
-    function setError(field, msg) { c.errors[field] = msg; isValid = false; }
-
-    if (step === 1) {
-      if (checkEmpty(c.form.first_name))      setError('first_name',      'First name is required');
-      if (checkEmpty(c.form.last_name))       setError('last_name',       'Last name is required');
-      if (checkEmpty(c.form.email))           setError('email',           'Email is required');
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.form.email))
-                                              setError('email',           'Please enter a valid email address');
-      if (checkEmpty(c.form.phone_number))    setError('phone_number',    'Phone number is required');
-      if (checkEmpty(c.form.birthdate))       setError('birthdate',       'Date of birth is required');
-      if (checkEmpty(c.form.street))          setError('street',          'Street address is required');
-      if (checkEmpty(c.form.city))            setError('city',            'City is required');
-      if (checkEmpty(c.form.zip_postal_code)) setError('zip_postal_code', 'Zip/Postal code is required');
-      if (checkEmpty(c.form.country))         setError('country',         'Country is required');
-    }
-    else if (step === 2) {
-      if (checkEmpty(c.form.ssn))                setError('ssn',                'SSN is required');
-      if (checkEmpty(c.form.gender))             setError('gender',             'Gender is required');
-      if (checkEmpty(c.form.race))               setError('race',               'Race is required');
-      if (checkEmpty(c.form.ethnicity))          setError('ethnicity',          'Ethnicity is required');
-      if (checkEmpty(c.form.education_level))    setError('education_level',    'Education level is required');
-      if (checkEmpty(c.form.marital_status))     setError('marital_status',     'Marital status is required');
-      if (checkEmpty(c.form.military_status))    setError('military_status',    'Military status is required');
-      if (checkEmpty(c.form.disability_status))  setError('disability_status',  'Disability status is required');
-      if (checkEmpty(c.form.citizenship_status)) setError('citizenship_status', 'Citizenship status is required');
-    }
-    else if (step === 3) {
-      if (checkEmpty(c.form.applicant_type)) setError('applicant_type', 'Applicant type is required');
-      if (checkEmpty(c.form.identity_type))  setError('identity_type',  'Identity type is required');
-      if (checkEmpty(c.form.uei))            setError('uei',            'UEI is required');
-      if (checkEmpty(c.form.tin_ein))        setError('tin_ein',        'TIN/EIN is required');
-      if (checkEmpty(c.form.grant_program))  setError('grant_program',  'Grant program is required');
-    }
-    else if (step === 4) {
-      if (checkEmpty(c.form.proposal_title))
-        setError('proposal_title', 'Proposal title is required');
-      if (checkEmpty(c.form.short_description))
-        setError('short_description', 'Short description is required');
-      if (checkEmpty(c.form.proposal_description))
-        setError('proposal_description', 'Proposal description is required');
-      if (checkEmpty(c.form.project_goals_and_objectives))
-        setError('project_goals_and_objectives', 'Project goals and objectives are required');
-      if (checkEmpty(c.form.project_activities_methodology))
-        setError('project_activities_methodology', 'Project activities and methodology are required');
-      if (!c.form.requested_budget || c.form.requested_budget <= 0)
-        setError('requested_budget', 'Requested budget must be greater than 0');
-      if (checkEmpty(c.form.project_start_date))
-        setError('project_start_date', 'Project start date is required');
-      if (checkEmpty(c.form.project_end_date))
-        setError('project_end_date', 'Project end date is required');
-      if (c.form.project_start_date && c.form.project_end_date) {
-        if (new Date(c.form.project_end_date) <= new Date(c.form.project_start_date))
-          setError('project_end_date', 'End date must be after start date');
-      }
-    }
-    else if (step === 5) {
-      if (!c.uploadedFiles || c.uploadedFiles.length === 0)
-        setError('documents', 'Please upload at least one supporting document');
-    }
-
-    if (!isValid) {
-      $timeout(function() {
-        var firstError = document.querySelector('.field-error');
-        if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-    }
-    return isValid;
-  };
-
-  // ─── Navigation ────────────────────────────────────────────
-  c.nextStep = function() {
-    if (c.validateStep(c.currentStep)) {
-      if (c.completedSteps.indexOf(c.currentStep) === -1)
-        c.completedSteps.push(c.currentStep);
-      c.currentStep++;
-      $timeout(function() { $window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
-    }
-  };
-
-  c.prevStep = function() {
-    if (c.currentStep > 1) {
-      c.errors = {};
-      c.currentStep--;
-      $timeout(function() { $window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
-    }
-  };
-
-  // ─── Modal tooltip cleanup ─────────────────────────────────
-  function removeModalTooltip() {
-    $timeout(function() {
-      var btns = document.querySelectorAll('.modal-header .close, .modal .close');
-      angular.forEach(btns, function(btn) {
-        btn.removeAttribute('data-original-title');
-        btn.removeAttribute('title');
-        btn.blur();
-      });
-      var primary = document.querySelector('.modal-footer .btn-primary');
-      if (primary) primary.focus();
-    }, 100);
-  }
-
-  // ─── File handling ─────────────────────────────────────────
-  c.onFilesSelected = function($files) { if ($files && $files.length) c.addFiles($files); };
-  c.onFilesDrop     = function($files) { c.isDragging = false; if ($files && $files.length) c.addFiles($files); };
-
-  c.addFiles = function($files) {
-    angular.forEach($files, function(file) {
-      if (file.size > CONFIG.MAX_FILE_SIZE) {
-        spModal.open({ title: 'File Too Large',
-          message: '"' + file.name + '" exceeds the 10MB limit.',
-          buttons: [{ label: 'OK', primary: true }] });
-        removeModalTooltip(); return;
-      }
-      if (CONFIG.ALLOWED_FILE_TYPES.indexOf(file.type) === -1) {
-        spModal.open({ title: 'Invalid File Type',
-          message: '"' + file.name + '" is not supported. Upload PDF, Word, or image files only.',
-          buttons: [{ label: 'OK', primary: true }] });
-        removeModalTooltip(); return;
-      }
-      c.uploadedFiles.push(file);
-    });
-  };
-
-  c.removeFile = function(index) {
-    if (index >= 0 && index < c.uploadedFiles.length)
-      c.uploadedFiles.splice(index, 1);
-  };
-
-  c.formatFileSize = function(bytes) {
-    if (!bytes || bytes === 0) return '0 Bytes';
-    var k = 1024, sizes = ['Bytes','KB','MB','GB'];
-    var i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  // ─── Base64 converter ──────────────────────────────────────
-  c.convertFilesToBase64 = function(files) {
-    var promises = [];
-    angular.forEach(files, function(file) {
-      promises.push(new Promise(function(resolve, reject) {
-        var reader = new FileReader();
-        reader.onload  = function(e) {
-          try { resolve({ name: file.name, type: file.type, size: file.size,
-                          data: e.target.result.split(',')[1] }); }
-          catch(err) { reject('Failed to process: ' + file.name); }
-        };
-        reader.onerror = function() { reject('Failed to read: ' + file.name); };
-        reader.readAsDataURL(file);
-      }));
-    });
-    return Promise.all(promises);
-  };
-
-  // ─── Submit ────────────────────────────────────────────────
-  c.submitted = false;
-  c.submit = function() {
-    if (!c.validateStep(5)) return;
-    c.submitted      = true;
-    c.saving         = true;
-    c.uploadProgress = 0;
-
-    var payload              = angular.copy(c.form);
-    
-    // Convert Dates back to strict strings before sending to server
-    if (payload.birthdate instanceof Date)          payload.birthdate          = formatLocalDate(payload.birthdate);
-    if (payload.project_start_date instanceof Date) payload.project_start_date = formatLocalDate(payload.project_start_date);
-    if (payload.project_end_date instanceof Date)   payload.project_end_date   = formatLocalDate(payload.project_end_date);
-
-
-    payload.action           = 'save_applicant';
-    payload.applicant_sys_id = c.data.applicant_sys_id || '';
-
-    if (c.uploadedFiles && c.uploadedFiles.length > 0) {
-      c.uploadProgress = 10;
-      c.convertFilesToBase64(c.uploadedFiles).then(
-        function(filesData) {
-          payload.attachments = filesData;
-          c.uploadProgress    = 50;
-          c.submitToServer(payload);
-        },
-        function() {
-          c.saving = false; c.uploadProgress = 0;
-          spModal.open({ title: 'File Error',
-            message: 'Unable to process files. Please try again.',
-            buttons: [{ label: 'OK', primary: true }] });
-          removeModalTooltip();
-        }
-      );
-    } else {
-      c.submitToServer(payload);
-    }
-  };
-
-  c.submitToServer = function(payload) {
-    c.server.get(payload).then(
-      function(response) {
-        c.uploadProgress = 0;
-        var resp = response && response.data ? response.data : {};
-
-        if (resp.success) {
-          c.saving = true;
-          showSuccessBanner('Application submitted successfully! Taking you to your dashboard...');
-
-        } else if (resp.alreadySubmitted) {
-          c.saving      = true;
-          c.formBlocked = true;
-          showSuccessBanner('You have already submitted an application for this program. Redirecting to dashboard...');
-
-        } else {
-          c.saving = false;
-          spModal.open({ title: 'Submission Error',
-            message: resp.error || 'Unable to submit application. Please try again.',
-            buttons: [{ label: 'OK', primary: true }] });
-          removeModalTooltip();
-        }
-      },
-      function() {
-        c.saving         = false;
-        c.uploadProgress = 0;
-        spModal.open({ title: 'Connection Error',
-          message: 'Unable to submit. Check your connection and try again.',
-          buttons: [{ label: 'OK', primary: true }] });
-        removeModalTooltip();
-      }
-    );
-  };
-
-  // ─── Cancel ────────────────────────────────────────────────
   c.cancel = function() {
     spModal.open({
-      title:   'Cancel Application?',
-      message: 'Are you sure you want to cancel? All unsaved progress will be lost.',
-      buttons: [{ label: 'No, Continue', cancel: true }, { label: 'Yes, Cancel', primary: true }]
+      title: c.data.t.cancelTitle,
+      message: c.data.t.cancelText,
+      buttons: [
+        { label: c.data.t.keepGoing, cancel: true },
+        { label: c.data.t.discard, primary: true }
+      ]
     }).then(function() {
-      $location.url('/applicant?id=applicant_dashboard');
+      $location.url(c.data.dashboardUrl);
     });
-    removeModalTooltip();
   };
 
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ─── Reset ───────────────────────────────────────────── */
-.multistep-grant-form-wrapper *,
-.multistep-grant-form-wrapper *::before,
-.multistep-grant-form-wrapper *::after {
-  box-sizing: border-box;
-}
-
-/* ─── Wrapper ─────────────────────────────────────────── */
-.multistep-grant-form-wrapper {
-  font-family: 'Inter', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-  max-width: 1000px;
-margin: 0 auto;
-  padding: 32px 20px 48px;
-  margin-top: 24px;    
-}
-
-/* ════════════════════════════════════════════════════════
-   PROGRESS BAR
-════════════════════════════════════════════════════════ */
-.form-progress-bar {
-  background: linear-gradient(114deg, rgb(84, 60, 168) 17%, rgb(88, 107, 199) 114%);
-  border-radius: 16px;
-  padding: 28px 36px;
-  margin-bottom: 28px;
-}
-
-.progress-steps-container {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-}
-
-.progress-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 0 0 auto;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-/* Step circle — default */
-.step-circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.30);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-  position: relative;
-  transition: all 0.25s ease;
-  backdrop-filter: blur(4px);
-}
-
-.step-number {
-  font-size: 15px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.60);
-  transition: opacity 0.25s ease;
-}
-
-.step-check-icon {
-  position: absolute;
-  font-size: 18px;
-  color: #ffffff;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.step-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
-  text-align: center;
-  letter-spacing: 0.02em;
-  transition: color 0.25s ease;
-  white-space: nowrap;
-}
-
-/* Active step */
-.progress-step.step-active .step-circle {
-  background: #ffffff;
-  border-color: #ffffff;
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25);
-}
-
-.progress-step.step-active .step-number {
-  color: #5443ad;
-}
-
-.progress-step.step-active .step-label {
-  color: #ffffff;
-  font-weight: 600;
-}
-
-/* Completed step */
-.progress-step.step-completed .step-circle {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.70);
-}
-
-.progress-step.step-completed .step-number {
-  opacity: 0;
-}
-
-.progress-step.step-completed .step-check-icon {
-  opacity: 1;
-}
-
-.progress-step.step-completed .step-label {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-/* Connector line */
-.progress-connector {
-  flex: 1;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.20);
-  margin: 0 10px 28px 10px;
-  transition: background 0.25s ease;
-  border-radius: 2px;
-}
-
-.progress-connector.connector-completed {
-  background: rgba(255, 255, 255, 0.70);
-}
-
-/* ════════════════════════════════════════════════════════
-   PAGE HEADER
-════════════════════════════════════════════════════════ */
-.multistep-page-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.header-icon-badge {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: linear-gradient(114deg, rgb(84, 60, 168) 17%, rgb(88, 107, 199) 114%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 22px;
-  flex-shrink: 0;
-  box-shadow: 0 4px 14px rgba(84, 60, 168, 0.35);
-}
-
-.header-content-group { flex: 1; }
-
-.page-main-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 3px 0;
-  letter-spacing: -0.02em;
-}
-
-.page-main-subtitle {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0;
-}
-
-/* ════════════════════════════════════════════════════════
-   FORM CONTAINER
-════════════════════════════════════════════════════════ */
-.multistep-form-container {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 32px;
-  border: 1px solid #e9eaf0;
-  box-shadow: 0 4px 24px rgba(84, 60, 168, 0.07);
-}
-
-.form-step-content {
-  min-height: 380px;
-}
-
-/* ════════════════════════════════════════════════════════
-   SECTION BLOCK
-════════════════════════════════════════════════════════ */
-.form-section-block {
-  margin-bottom: 28px;
-}
-
-.section-block-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1.5px solid #f0f0f5;
-}
-
-.section-header-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: rgba(84, 60, 168, 0.10);
-  color: #5443ad;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.section-block-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 3px 0;
-}
-
-.section-block-subtitle {
-  font-size: 13px;
-  color: #6b7280;
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* ════════════════════════════════════════════════════════
-   FORM FIELDS
-════════════════════════════════════════════════════════ */
-.form-fields-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-}
-
-.form-field-wrapper {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-field-full {
-  grid-column: 1 / -1;
-}
-
-.field-input-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 6px;
-  display: block;
-}
-
-.field-required-mark {
-  color: #ef4444;
-  font-weight: 700;
-  margin-left: 2px;
-}
-
-.field-optional-mark {
-  color: #9ca3af;
-  font-weight: 400;
-  font-size: 12px;
-  margin-left: 3px;
-}
-
-/* Inputs, selects, textareas */
-.field-text-input,
-.field-select-input,
-.field-textarea-input {
-  width: 100%;
-  padding: 10px 13px;
-  font-size: 13.5px;
-  color: #0f172a;
-  background: #f9f9fc;
-  border: 1.5px solid #e2e4ed;
-  border-radius: 9px;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  font-family: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.field-text-input:focus,
-.field-select-input:focus,
-.field-textarea-input:focus {
-  outline: none;
-  border-color: #5443ad;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(84, 60, 168, 0.12);
-}
-
-.field-text-input::placeholder,
-.field-textarea-input::placeholder {
-  color: #c0bfca;
-}
-
-.field-select-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239ca3af' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 13px center;
-  padding-right: 36px;
-  cursor: pointer;
-}
-
-.field-textarea-input {
-  resize: vertical;
-  min-height: 110px;
-  line-height: 1.6;
-}
-
-/* Error state */
-.field-error {
-  border-color: #ef4444 !important;
-  background: #fff8f8 !important;
-}
-
-.field-error:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
-}
-
-.field-error-text {
-  font-size: 12px;
-  color: #ef4444;
-  margin-top: 5px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Help text */
-.field-help-text {
-  font-size: 11.5px;
-  color: #94a3b8;
-  margin-top: 5px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  line-height: 1.4;
-}
-
-/* Budget input prefix */
-.field-input-group {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-group-prefix {
-  position: absolute;
-  left: 13px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #6b7280;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.field-input-with-prefix {
-  padding-left: 28px;
-}
-
-.field-date-input {
-  max-width: 200px;
-}
-
-/* ════════════════════════════════════════════════════════
-   FILE UPLOAD — Step 5
-════════════════════════════════════════════════════════ */
-.upload-documents-info-box {
-  background: rgba(84, 60, 168, 0.05);
-  border: 1px solid rgba(84, 60, 168, 0.15);
-  border-radius: 10px;
-  padding: 16px 18px;
-  margin-bottom: 16px;
-}
-
-.upload-info-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #5443ad;
-  margin: 0 0 10px 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.upload-checklist {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.upload-checklist li {
-  font-size: 12.5px;
-  color: #4b5563;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.upload-checklist li i {
-  color: #5443ad;
-  font-size: 10px;
-}
-
-/* Drop zone */
-.file-upload-zone {
-  border: 2px dashed #d0cde8;
-  border-radius: 12px;
-  padding: 40px 24px;
-  text-align: center;
-  background: #fafafe;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.file-upload-zone:hover,
-.file-drag-over {
-  border-color: #5443ad;
-  background: rgba(84, 60, 168, 0.04);
-}
-
-.upload-icon-wrapper {
-  font-size: 40px;
-  color: #a89fd8;
-  margin-bottom: 12px;
-}
-
-.upload-instruction {
-  font-size: 14px;
-  color: #374151;
-  margin: 0 0 14px 0;
-}
-
-.upload-browse-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px 22px;
-  background: #5443ad;
-  color: #ffffff;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.18s ease, transform 0.18s ease;
-  margin-bottom: 12px;
-}
-
-.upload-browse-button:hover {
-  background: #4536a0;
-  transform: translateY(-1px);
-}
-
-.upload-file-input { display: none; }
-
-.upload-help-text {
-  font-size: 11.5px;
-  color: #94a3b8;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-/* Uploaded files list */
-.uploaded-files-list {
-  margin-top: 16px;
-  border: 1px solid #e9eaf0;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.uploaded-files-header {
-  background: #f5f4fc;
-  padding: 11px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border-bottom: 1px solid #e9eaf0;
-}
-
-.uploaded-files-header i { color: #5443ad; }
-
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 16px;
-  border-bottom: 1px solid #f3f3f7;
-  transition: background 0.18s ease;
-}
-
-.file-item:last-child { border-bottom: none; }
-.file-item:hover { background: #faf9fe; }
-
-.file-item-icon {
-  font-size: 22px;
-  color: #5443ad;
-  width: 28px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.file-item-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.file-item-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1f2937;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-item-size {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.file-item-remove {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  border: 1px solid #e9eaf0;
-  background: #ffffff;
-  color: #9ca3af;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.file-item-remove:hover {
-  background: #ef4444;
-  border-color: #ef4444;
-  color: #ffffff;
-}
-
-/* Upload progress */
-.upload-progress-bar {
-  margin-top: 14px;
-  height: 28px;
-  background: #f0eff8;
-  border-radius: 8px;
-  position: relative;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #5443ad 0%, #7c6bc9 100%);
-  border-radius: 8px;
-  transition: width 0.3s ease;
-}
-
-.progress-bar-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-/* ════════════════════════════════════════════════════════
-   NAVIGATION BUTTONS
-════════════════════════════════════════════════════════ */
-.multistep-nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 28px;
-  padding-top: 22px;
-  border-top: 1.5px solid #f0f0f5;
-  flex-wrap: wrap;
-}
-
-.nav-actions-spacer { flex: 1; }
-
-.btn-nav-back,
-.btn-nav-next,
-.btn-nav-submit,
-.btn-nav-save-draft,
-.btn-nav-cancel {
-  padding: 10px 22px;
-  font-size: 13.5px;
-  font-weight: 600;
-  border-radius: 9px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: inherit;
-  white-space: nowrap;
-}
-
-/* Back */
-.btn-nav-back {
-  background: #f4f3fc;
-  color: #5443ad;
-  border: 1.5px solid #e2dff5;
-}
-.btn-nav-back:hover {
-  background: #eceaf8;
-  border-color: #c8c2ee;
-}
-
-/* Cancel */
-.btn-nav-cancel {
-  background: transparent;
-  color: #9ca3af;
-  border: 1.5px solid #e5e7eb;
-}
-.btn-nav-cancel:hover {
-  background: #f9fafb;
-  color: #6b7280;
-  border-color: #d1d5db;
-}
-
-/* Save Draft */
-.btn-nav-save-draft {
-  background: #f4f3fc;
-  color: #5443ad;
-  border: 1.5px solid #e2dff5;
-}
-.btn-nav-save-draft:hover {
-  background: #eceaf8;
-  border-color: #c8c2ee;
-}
-
-/* ════════════════════════════════════════════════════════
-   ALERTS — Draft resumed &amp; Already submitted
-════════════════════════════════════════════════════════ */
-.gn-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px 20px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-  font-size: 13.5px;
-  font-family: inherit;
-
-  &gt; i {
-    font-size: 18px;
-    margin-top: 2px;
-    flex-shrink: 0;
-  }
-
-  &gt; div {
-    flex: 1;
-    min-width: 0;
-  }
-
-  strong {
-    display: block;
-    font-weight: 700;
-    margin-bottom: 4px;
-    font-size: 14px;
-  }
-
-  p {
-    margin: 0;
-    line-height: 1.6;
-    opacity: 0.88;
-  }
-
-  &amp;--error {
-    background: #fff2f2;
-    border: 1.5px solid #fecaca;
-    color: #b91c1c;
-
-    &gt; i { color: #ef4444; }
-  }
-
-  &amp;--info {
-    background: #f0f0fe;
-    border: 1.5px solid #c7c3f0;
-    color: #4536a0;
-
-    &gt; i { color: #5443ad; }
-  }
-}
-
-.gn-alert-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  transition: opacity 0.18s ease;
-
-  &amp;:hover { opacity: 0.75; }
-}
-
-
-/* Next */
-.btn-nav-next {
-  background: linear-gradient(114deg, rgb(84, 60, 168) 17%, rgb(88, 107, 199) 114%);
-  color: #ffffff;
-  box-shadow: 0 4px 14px rgba(84, 60, 168, 0.30);
-}
-.btn-nav-next:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(84, 60, 168, 0.38);
-}
-
-/* Submit */
-.btn-nav-submit {
-  background: linear-gradient(114deg, rgb(84, 60, 168) 17%, rgb(88, 107, 199) 114%);
-  color: #ffffff;
-  box-shadow: 0 4px 14px rgba(84, 60, 168, 0.30);
-}
-.btn-nav-submit:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(84, 60, 168, 0.38);
-}
-
-/* Disabled */
-.btn-nav-back:disabled,
-.btn-nav-next:disabled,
-.btn-nav-submit:disabled,
-.btn-nav-save-draft:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* ════════════════════════════════════════════════════════
-   RESPONSIVE
-════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  .multistep-grant-form-wrapper { padding: 16px 14px 40px; }
-
-  .form-progress-bar { padding: 20px 16px; }
-
-  .progress-step    { transform: scale(0.88); }
-  .step-label       { font-size: 10px; }
-  .progress-connector { margin: 0 4px 26px 4px; }
-
-  .multistep-form-container { padding: 20px 18px; }
-
-  .form-fields-grid { grid-template-columns: 1fr; }
-
-  .page-main-title  { font-size: 20px; }
-
-  .multistep-nav-actions { flex-wrap: wrap; }
-
-  .btn-nav-back,
-  .btn-nav-next,
-  .btn-nav-submit   { flex: 1 1 100%; justify-content: center; }
-
-  .btn-nav-cancel,
-  .btn-nav-save-draft { flex: 1; justify-content: center; }
-
-  .nav-actions-spacer { display: none; }
-}
-
-@media (max-width: 480px) {
-  .form-progress-bar { padding: 16px 10px; }
-  .step-circle       { width: 36px; height: 36px; }
-  .step-number       { font-size: 13px; }
-  .header-icon-badge { width: 44px; height: 44px; font-size: 18px; }
-  .page-main-title   { font-size: 18px; }
-}
-</css>
+        <css>/* =========================================================&#13;
+   GATENOW · APPLICANT INTAKE&#13;
+   Complete widget stylesheet (SCSS)&#13;
+&#13;
+   This REPLACES the widget's CSS field in full. Paste the whole&#13;
+   block; do not keep the old partial patch alongside it.&#13;
+&#13;
+   It styles every class the HTML template emits, and folds in the&#13;
+   four fixes from the patch (money alignment, the required note,&#13;
+   the success-screen warning, the scrollable file list). The dead&#13;
+   .gni-opt / .gni-saved rules are simply gone.&#13;
+&#13;
+   THEME&#13;
+   All colour/shape decisions live in the token block below as CSS&#13;
+   custom properties. To share one look across every GateNow widget,&#13;
+   lift that block into the Service Portal Theme's CSS as :root { ... }&#13;
+   and delete it here — this sheet will then inherit it. Palette is&#13;
+   the navy (#0a2540) you were already using, plus the amber warning&#13;
+   tone, a success green, and an error red.&#13;
+   ========================================================= */&#13;
+&#13;
+.gni {&#13;
+&#13;
+  /* ---------- theme tokens (lift to :root to share) ---------- */&#13;
+  --gni-ink:        #0a2540;                 // primary navy&#13;
+  --gni-ink-hover:  #14395e;                 // navy, one step lighter&#13;
+  --gni-ink-90:     rgba(10, 37, 64, 0.90);&#13;
+  --gni-ink-70:     rgba(10, 37, 64, 0.70);&#13;
+  --gni-ink-54:     rgba(10, 37, 64, 0.54);&#13;
+  --gni-ink-40:     rgba(10, 37, 64, 0.40);&#13;
+  --gni-ink-16:     rgba(10, 37, 64, 0.16);&#13;
+  --gni-ink-12:     rgba(10, 37, 64, 0.12);&#13;
+  --gni-ink-10:     rgba(10, 37, 64, 0.10);&#13;
+  --gni-ink-06:     rgba(10, 37, 64, 0.06);&#13;
+  --gni-ink-04:     rgba(10, 37, 64, 0.04);&#13;
+&#13;
+  // interactive blue — buttons, active step, progress, focus, links.&#13;
+  // Text stays --gni-ink (above) so it keeps contrast. To go lighter&#13;
+  // or darker, change these three; everything reroutes from here.&#13;
+  --gni-brand:      #2563eb;                  // primary blue&#13;
+  --gni-brand-hover:#1d4ed8;                  // one step darker (hover)&#13;
+  --gni-brand-16:   rgba(37, 99, 235, 0.16);&#13;
+  --gni-brand-10:   rgba(37, 99, 235, 0.10);&#13;
+  --gni-brand-08:   rgba(37, 99, 235, 0.08);&#13;
+&#13;
+  --gni-ok:         #1f8a52;                  // success green&#13;
+  --gni-ok-bg:      rgba(31, 138, 82, 0.10);&#13;
+&#13;
+  --gni-warn:       #8a6119;                  // amber (from the patch)&#13;
+  --gni-warn-bd:    rgba(164, 116, 31, 0.30);&#13;
+  --gni-warn-bg:    rgba(164, 116, 31, 0.09);&#13;
+&#13;
+  --gni-err:        #c8372d;                  // error red&#13;
+  --gni-err-bd:     rgba(200, 55, 45, 0.40);&#13;
+  --gni-err-bg:     rgba(200, 55, 45, 0.07);&#13;
+&#13;
+  --gni-surface:    #ffffff;&#13;
+  --gni-canvas:     #f4f6f9;                  // page behind the card&#13;
+  --gni-line:       rgba(10, 37, 64, 0.12);&#13;
+&#13;
+  --gni-r-sm: 7px;&#13;
+  --gni-r-md: 11px;&#13;
+  --gni-r-lg: 16px;&#13;
+&#13;
+  --gni-shadow: 0 1px 2px rgba(10, 37, 64, 0.06),&#13;
+                0 10px 28px rgba(10, 37, 64, 0.06);&#13;
+&#13;
+  /* ---------- root / reset ---------- */&#13;
+  color: var(--gni-ink);&#13;
+  font-family: inherit;                      // use the portal's font&#13;
+  -webkit-font-smoothing: antialiased;&#13;
+  background: var(--gni-canvas);             // remove if the page already paints one&#13;
+  padding: 24px 16px 40px;&#13;
+&#13;
+  *, *::before, *::after { box-sizing: border-box; }&#13;
+  button { font-family: inherit; }&#13;
+&#13;
+  /* =======================================================&#13;
+     STATE SCREENS · blocked + success&#13;
+     ======================================================= */&#13;
+  .gni-block,&#13;
+  .gni-done {&#13;
+    max-width: 560px;&#13;
+    margin: 40px auto;&#13;
+    padding: 40px 32px;&#13;
+    text-align: center;&#13;
+    background: var(--gni-surface);&#13;
+    border: 1px solid var(--gni-line);&#13;
+    border-radius: var(--gni-r-lg);&#13;
+    box-shadow: var(--gni-shadow);&#13;
+  }&#13;
+&#13;
+  .gni-block__mark,&#13;
+  .gni-done__mark {&#13;
+    display: grid;&#13;
+    place-items: center;&#13;
+    width: 56px;&#13;
+    height: 56px;&#13;
+    margin: 0 auto 20px;&#13;
+    border-radius: 50%;&#13;
+    font-size: 24px;&#13;
+  }&#13;
+  .gni-block__mark { background: var(--gni-ink-06); color: var(--gni-ink); }&#13;
+  .gni-done__mark  { background: var(--gni-brand-08); color: var(--gni-brand); }&#13;
+&#13;
+  .gni-block__title,&#13;
+  .gni-done__title {&#13;
+    margin: 0 0 10px;&#13;
+    font-size: 22px;&#13;
+    font-weight: 700;&#13;
+    line-height: 1.25;&#13;
+  }&#13;
+&#13;
+  .gni-block__text,&#13;
+  .gni-done__text {&#13;
+    margin: 0 0 22px;&#13;
+    font-size: 14px;&#13;
+    line-height: 1.6;&#13;
+    color: var(--gni-ink-70);&#13;
+  }&#13;
+  .gni-done__text strong { color: var(--gni-ink); font-weight: 700; }&#13;
+&#13;
+  /* success warning — record saved, attachments did not (patch #4) */&#13;
+  .gni-done__warn {&#13;
+    margin: 14px 0 22px;&#13;
+    padding: 12px 16px;&#13;
+    border: 1px solid var(--gni-warn-bd);&#13;
+    border-radius: var(--gni-r-md);&#13;
+    background: var(--gni-warn-bg);&#13;
+    font-size: 13.5px;&#13;
+    line-height: 1.6;&#13;
+    color: var(--gni-warn);&#13;
+    text-align: left;&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     LAYOUT · wrap, context header, body&#13;
+     ======================================================= */&#13;
+  .gni-wrap { max-width: 1080px; margin: 0 auto; }&#13;
+&#13;
+  .gni-context {&#13;
+    display: flex;&#13;
+    align-items: flex-end;&#13;
+    justify-content: space-between;&#13;
+    gap: 16px;&#13;
+    margin: 0 0 24px;&#13;
+  }&#13;
+  .gni-context__label {&#13;
+    font-size: 11px;&#13;
+    font-weight: 700;&#13;
+    letter-spacing: 0.08em;&#13;
+    text-transform: uppercase;&#13;
+    color: var(--gni-ink-54);&#13;
+  }&#13;
+  .gni-context__name {&#13;
+    margin: 4px 0 0;&#13;
+    font-size: 22px;&#13;
+    font-weight: 700;&#13;
+    line-height: 1.2;&#13;
+  }&#13;
+  .gni-context__meta {&#13;
+    margin: 4px 0 0;&#13;
+    font-size: 13px;&#13;
+    color: var(--gni-ink-54);&#13;
+  }&#13;
+&#13;
+  .gni-body {&#13;
+    display: grid;&#13;
+    grid-template-columns: 264px 1fr;&#13;
+    gap: 28px;&#13;
+    align-items: start;&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     STEP RAIL + PROGRESS&#13;
+     ======================================================= */&#13;
+  .gni-rail { position: sticky; top: 16px; }&#13;
+&#13;
+  .gni-rail__label {&#13;
+    margin: 0 0 10px;&#13;
+    font-size: 11px;&#13;
+    font-weight: 700;&#13;
+    letter-spacing: 0.08em;&#13;
+    text-transform: uppercase;&#13;
+    color: var(--gni-ink-54);&#13;
+  }&#13;
+&#13;
+  .gni-steps {&#13;
+    margin: 0;&#13;
+    padding: 0;&#13;
+    list-style: none;&#13;
+    display: flex;&#13;
+    flex-direction: column;&#13;
+    gap: 4px;&#13;
+  }&#13;
+&#13;
+  .gni-step {&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    gap: 12px;&#13;
+    width: 100%;&#13;
+    padding: 10px;&#13;
+    text-align: left;&#13;
+    background: none;&#13;
+    border: none;&#13;
+    border-radius: var(--gni-r-md);&#13;
+    cursor: pointer;&#13;
+    transition: background 0.15s;&#13;
+&#13;
+    &amp;:hover { background: var(--gni-ink-04); }&#13;
+    &amp;:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--gni-brand-16); }&#13;
+  }&#13;
+  .gni-step__mark {&#13;
+    flex: 0 0 28px;&#13;
+    height: 28px;&#13;
+    display: grid;&#13;
+    place-items: center;&#13;
+    border-radius: 50%;&#13;
+    border: 1.5px solid var(--gni-line);&#13;
+    background: var(--gni-surface);&#13;
+    color: var(--gni-ink-54);&#13;
+    font-size: 12px;&#13;
+    font-weight: 700;&#13;
+  }&#13;
+  .gni-step__body { display: flex; flex-direction: column; min-width: 0; }&#13;
+  .gni-step__name { font-size: 13.5px; font-weight: 600; color: var(--gni-ink-70); }&#13;
+  .gni-step__note { font-size: 12px; color: var(--gni-ink-40); }&#13;
+&#13;
+  .gni-step.is-on {&#13;
+    background: var(--gni-brand-08);&#13;
+    .gni-step__mark { background: var(--gni-brand); border-color: var(--gni-brand); color: #fff; }&#13;
+    .gni-step__name { color: var(--gni-ink); }&#13;
+  }&#13;
+  .gni-step.is-done .gni-step__mark {&#13;
+    background: var(--gni-brand);&#13;
+    border-color: var(--gni-brand);&#13;
+    color: #fff;&#13;
+  }&#13;
+  .gni-step.is-ahead { opacity: 0.72; }&#13;
+&#13;
+  .gni-rail__foot {&#13;
+    margin-top: 16px;&#13;
+    padding-top: 16px;&#13;
+    border-top: 1px solid var(--gni-line);&#13;
+  }&#13;
+  .gni-rail__track {&#13;
+    display: block;&#13;
+    height: 6px;&#13;
+    border-radius: 999px;&#13;
+    background: var(--gni-ink-10);&#13;
+    overflow: hidden;&#13;
+  }&#13;
+  .gni-rail__fill {&#13;
+    display: block;&#13;
+    height: 100%;&#13;
+    border-radius: 999px;&#13;
+    background: var(--gni-brand);&#13;
+    transition: width 0.3s ease;&#13;
+  }&#13;
+  .gni-rail__pct {&#13;
+    display: block;&#13;
+    margin-top: 8px;&#13;
+    font-size: 12px;&#13;
+    font-weight: 600;&#13;
+    color: var(--gni-ink-54);&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     PANEL&#13;
+     ======================================================= */&#13;
+  .gni-panel {&#13;
+    padding: 28px 30px;&#13;
+    background: var(--gni-surface);&#13;
+    border: 1px solid var(--gni-line);&#13;
+    border-radius: var(--gni-r-lg);&#13;
+    box-shadow: var(--gni-shadow);&#13;
+  }&#13;
+&#13;
+  .gni-resumed {&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    gap: 8px;&#13;
+    margin: 0 0 18px;&#13;
+    padding: 10px 14px;&#13;
+    border: 1px solid var(--gni-ink-10);&#13;
+    border-radius: var(--gni-r-md);&#13;
+    background: var(--gni-ink-04);&#13;
+    font-size: 13px;&#13;
+    color: var(--gni-ink-70);&#13;
+&#13;
+    i { color: var(--gni-ink-54); }&#13;
+  }&#13;
+&#13;
+  .gni-panel__head {&#13;
+    margin-bottom: 22px;&#13;
+    padding-bottom: 20px;&#13;
+    border-bottom: 1px solid var(--gni-line);&#13;
+  }&#13;
+  .gni-panel__count {&#13;
+    font-size: 11px;&#13;
+    font-weight: 700;&#13;
+    letter-spacing: 0.08em;&#13;
+    text-transform: uppercase;&#13;
+    color: var(--gni-ink-40);&#13;
+  }&#13;
+  .gni-panel__title { margin: 6px 0 0; font-size: 20px; font-weight: 700; }&#13;
+  .gni-panel__hint  { margin: 6px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--gni-ink-70); }&#13;
+&#13;
+  /* "every field is required" note (patch #3) */&#13;
+  .gni-panel__req {&#13;
+    display: inline-flex;&#13;
+    align-items: center;&#13;
+    margin: 14px 0 0;&#13;
+    padding: 5px 11px;&#13;
+    border-radius: var(--gni-r-sm);&#13;
+    background: var(--gni-ink-04);&#13;
+    font-size: 12px;&#13;
+    font-weight: 500;&#13;
+    color: var(--gni-ink-54);&#13;
+  }&#13;
+&#13;
+  /* error summary box */&#13;
+  .gni-errors {&#13;
+    margin: 0 0 20px;&#13;
+    padding: 14px 16px;&#13;
+    border: 1px solid var(--gni-err-bd);&#13;
+    border-radius: var(--gni-r-md);&#13;
+    background: var(--gni-err-bg);&#13;
+  }&#13;
+  .gni-errors__title { margin: 0 0 8px; font-size: 13.5px; font-weight: 700; color: var(--gni-err); }&#13;
+  .gni-errors__list  { margin: 0; padding-left: 18px; }&#13;
+  .gni-errors__list li { font-size: 13px; line-height: 1.5; color: var(--gni-err); }&#13;
+&#13;
+  /* =======================================================&#13;
+     FIELDS · 12-column grid&#13;
+     ======================================================= */&#13;
+  .gni-fields {&#13;
+    display: grid;&#13;
+    grid-template-columns: repeat(12, 1fr);&#13;
+    gap: 18px 16px;&#13;
+    align-items: start;&#13;
+  }&#13;
+&#13;
+  .gni-field         { display: flex; flex-direction: column; grid-column: span 12; }&#13;
+  .gni-field--full   { grid-column: span 12; }&#13;
+  .gni-field--half   { grid-column: span 6; }&#13;
+  .gni-field--third  { grid-column: span 4; }&#13;
+  .gni-field--quarter{ grid-column: span 3; }&#13;
+&#13;
+  .gni-field label {&#13;
+    margin-bottom: 6px;&#13;
+    font-size: 13px;&#13;
+    font-weight: 600;&#13;
+    color: var(--gni-ink-70);&#13;
+  }&#13;
+&#13;
+  .gni-field input,&#13;
+  .gni-field select,&#13;
+  .gni-field textarea {&#13;
+    width: 100%;&#13;
+    padding: 10px 12px;&#13;
+    font-size: 14px;&#13;
+    line-height: 1.4;&#13;
+    color: var(--gni-ink);&#13;
+    background: var(--gni-surface);&#13;
+    border: 1px solid var(--gni-line);&#13;
+    border-radius: var(--gni-r-sm);&#13;
+    transition: border-color 0.15s, box-shadow 0.15s;&#13;
+&#13;
+    &amp;::placeholder { color: var(--gni-ink-40); }&#13;
+&#13;
+    &amp;:focus {&#13;
+      outline: none;&#13;
+      border-color: var(--gni-brand);&#13;
+      box-shadow: 0 0 0 3px var(--gni-brand-10);&#13;
+    }&#13;
+&#13;
+    &amp;.has-error {&#13;
+      border-color: var(--gni-err-bd);&#13;
+      &amp;:focus { box-shadow: 0 0 0 3px var(--gni-err-bg); }&#13;
+    }&#13;
+  }&#13;
+&#13;
+  .gni-field textarea { min-height: 96px; resize: vertical; }&#13;
+&#13;
+  /* select wrapper + chevron */&#13;
+  .gni-pick { position: relative; }&#13;
+  .gni-pick select {&#13;
+    appearance: none;&#13;
+    -webkit-appearance: none;&#13;
+    padding-right: 36px;&#13;
+    cursor: pointer;&#13;
+  }&#13;
+  .gni-pick i {&#13;
+    position: absolute;&#13;
+    top: 50%;&#13;
+    right: 14px;&#13;
+    transform: translateY(-50%);&#13;
+    color: var(--gni-ink-54);&#13;
+    font-size: 14px;&#13;
+    pointer-events: none;&#13;
+  }&#13;
+&#13;
+  /* money field (patch #1 — sign at 14, padding at 32) */&#13;
+  .gni-money { position: relative; }&#13;
+  .gni-money__sign {&#13;
+    position: absolute;&#13;
+    top: 50%;&#13;
+    left: 14px;&#13;
+    transform: translateY(-50%);&#13;
+    color: var(--gni-ink-54);&#13;
+    font-size: 14px;&#13;
+    pointer-events: none;&#13;
+  }&#13;
+  .gni-money input { padding-left: 32px; }&#13;
+&#13;
+  /* helper + inline error text */&#13;
+  .gni-note { margin-top: 6px; font-size: 12px; color: var(--gni-ink-54); }&#13;
+  .gni-err  { margin-top: 6px; font-size: 12.5px; font-weight: 500; color: var(--gni-err); }&#13;
+&#13;
+  /* sub-heading inside a field grid (e.g. Address, Budget and timing) */&#13;
+  .gni-sub {&#13;
+    grid-column: 1 / -1;&#13;
+    margin: 8px 0 -4px;&#13;
+    font-size: 12px;&#13;
+    font-weight: 700;&#13;
+    letter-spacing: 0.06em;&#13;
+    text-transform: uppercase;&#13;
+    color: var(--gni-ink-54);&#13;
+  }&#13;
+&#13;
+  /* "why we ask" explainer block */&#13;
+  .gni-explain {&#13;
+    grid-column: 1 / -1;&#13;
+    padding: 14px 16px;&#13;
+    border: 1px solid var(--gni-ink-10);&#13;
+    border-radius: var(--gni-r-md);&#13;
+    background: var(--gni-ink-04);&#13;
+  }&#13;
+  .gni-explain__title { margin: 0; font-size: 13px; font-weight: 700; color: var(--gni-ink); }&#13;
+  .gni-explain__text  { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--gni-ink-70); }&#13;
+&#13;
+  /* =======================================================&#13;
+     DOCUMENTS · drop zone + file list&#13;
+     ======================================================= */&#13;
+  /* Native input is driven programmatically via c.pickFiles(); kept in&#13;
+     the DOM but visually hidden. Not display:none, because some browsers&#13;
+     won't fire a programmatic .click() on a display:none input. */&#13;
+  .gni-file-input {&#13;
+    position: absolute;&#13;
+    width: 1px;&#13;
+    height: 1px;&#13;
+    margin: -1px;&#13;
+    padding: 0;&#13;
+    border: 0;&#13;
+    overflow: hidden;&#13;
+    clip: rect(0 0 0 0);&#13;
+    opacity: 0;&#13;
+  }&#13;
+&#13;
+  .gni-drop {&#13;
+    padding: 32px 24px;&#13;
+    text-align: center;&#13;
+    border: 2px dashed var(--gni-line);&#13;
+    border-radius: var(--gni-r-lg);&#13;
+    background: var(--gni-ink-04);&#13;
+    transition: border-color 0.15s, background 0.15s;&#13;
+&#13;
+    &amp;.is-over   { border-color: var(--gni-brand); background: var(--gni-brand-08); }&#13;
+    &amp;.has-error { border-color: var(--gni-err-bd); }&#13;
+  }&#13;
+  .gni-drop__mark  { font-size: 32px; color: var(--gni-ink-40); }&#13;
+  .gni-drop__title { margin: 12px 0 0; font-size: 16px; font-weight: 700; }&#13;
+  .gni-drop__text  { margin: 4px 0 16px; font-size: 13px; color: var(--gni-ink-54); }&#13;
+  .gni-drop__btn   { margin: 0 auto; }&#13;
+&#13;
+  /* a long list scrolls rather than pushing submit off-screen (patch #5) */&#13;
+  .gni-files {&#13;
+    margin: 16px 0 0;&#13;
+    padding: 0;&#13;
+    list-style: none;&#13;
+    display: flex;&#13;
+    flex-direction: column;&#13;
+    gap: 8px;&#13;
+    max-height: 320px;&#13;
+    overflow-y: auto;&#13;
+  }&#13;
+  .gni-file {&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    gap: 12px;&#13;
+    padding: 10px 12px;&#13;
+    border: 1px solid var(--gni-line);&#13;
+    border-radius: var(--gni-r-md);&#13;
+    background: var(--gni-surface);&#13;
+  }&#13;
+  .gni-file__mark { flex: 0 0 auto; font-size: 16px; color: var(--gni-ink-54); }&#13;
+  .gni-file__body { flex: 1; min-width: 0; display: flex; flex-direction: column; }&#13;
+  .gni-file__name {&#13;
+    font-size: 13.5px;&#13;
+    font-weight: 600;&#13;
+    white-space: nowrap;&#13;
+    overflow: hidden;&#13;
+    text-overflow: ellipsis;&#13;
+  }&#13;
+  .gni-file__size { font-size: 12px; color: var(--gni-ink-54); }&#13;
+  .gni-file__x {&#13;
+    flex: 0 0 auto;&#13;
+    display: grid;&#13;
+    place-items: center;&#13;
+    width: 28px;&#13;
+    height: 28px;&#13;
+    border: none;&#13;
+    border-radius: 50%;&#13;
+    background: none;&#13;
+    color: var(--gni-ink-54);&#13;
+    cursor: pointer;&#13;
+    transition: background 0.15s, color 0.15s;&#13;
+&#13;
+    &amp;:hover { background: var(--gni-err-bg); color: var(--gni-err); }&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     REVIEW · recap + confirm&#13;
+     ======================================================= */&#13;
+  .gni-review { display: flex; flex-direction: column; gap: 16px; }&#13;
+&#13;
+  .gni-recap {&#13;
+    padding: 18px 20px;&#13;
+    border: 1px solid var(--gni-line);&#13;
+    border-radius: var(--gni-r-md);&#13;
+  }&#13;
+  .gni-recap__head {&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    justify-content: space-between;&#13;
+    margin-bottom: 12px;&#13;
+  }&#13;
+  .gni-recap__title { margin: 0; font-size: 15px; font-weight: 700; }&#13;
+  .gni-recap__edit {&#13;
+    padding: 4px 10px;&#13;
+    border: none;&#13;
+    border-radius: var(--gni-r-sm);&#13;
+    background: none;&#13;
+    color: var(--gni-brand);&#13;
+    font-size: 13px;&#13;
+    font-weight: 600;&#13;
+    cursor: pointer;&#13;
+    transition: background 0.15s;&#13;
+&#13;
+    &amp;:hover { background: var(--gni-brand-08); }&#13;
+  }&#13;
+  .gni-recap__rows { margin: 0; display: flex; flex-direction: column; gap: 10px; }&#13;
+  .gni-recap__row {&#13;
+    display: grid;&#13;
+    grid-template-columns: 180px 1fr;&#13;
+    gap: 12px;&#13;
+    align-items: baseline;&#13;
+  }&#13;
+  .gni-recap__row dt { margin: 0; font-size: 13px; font-weight: 600; color: var(--gni-ink-54); }&#13;
+  .gni-recap__row dd { margin: 0; font-size: 13.5px; color: var(--gni-ink); word-break: break-word; }&#13;
+  .gni-recap__row dd.is-blank,&#13;
+  .gni-recap__files.is-blank { color: var(--gni-ink-40); font-style: italic; }&#13;
+  .gni-recap__files { margin: 0; font-size: 13.5px; }&#13;
+&#13;
+  .gni-confirm {&#13;
+    display: flex;&#13;
+    align-items: flex-start;&#13;
+    gap: 10px;&#13;
+    margin: 0;&#13;
+    padding: 16px 18px;&#13;
+    border: 1px solid var(--gni-line);&#13;
+    border-radius: var(--gni-r-md);&#13;
+    background: var(--gni-ink-04);&#13;
+    cursor: pointer;&#13;
+&#13;
+    input {&#13;
+      flex: 0 0 auto;&#13;
+      width: 16px;&#13;
+      height: 16px;&#13;
+      margin-top: 2px;&#13;
+      accent-color: var(--gni-brand);&#13;
+    }&#13;
+    span { font-size: 13.5px; line-height: 1.5; color: var(--gni-ink-70); }&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     ACTIONS + upload progress&#13;
+     ======================================================= */&#13;
+  .gni-actions {&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    justify-content: space-between;&#13;
+    gap: 12px;&#13;
+    margin-top: 26px;&#13;
+    padding-top: 22px;&#13;
+    border-top: 1px solid var(--gni-line);&#13;
+  }&#13;
+  .gni-actions__right { display: flex; gap: 10px; }&#13;
+&#13;
+  .gni-progressbar {&#13;
+    position: relative;&#13;
+    height: 4px;&#13;
+    margin-top: 16px;&#13;
+    border-radius: 999px;&#13;
+    background: var(--gni-ink-10);&#13;
+    overflow: hidden;&#13;
+&#13;
+    span {&#13;
+      position: absolute;&#13;
+      top: 0;&#13;
+      left: 0;&#13;
+      height: 100%;&#13;
+      border-radius: 999px;&#13;
+      background: var(--gni-brand);&#13;
+      transition: width 0.3s ease;&#13;
+    }&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     BUTTONS&#13;
+     ======================================================= */&#13;
+  .gni-btn {&#13;
+    display: inline-flex;&#13;
+    align-items: center;&#13;
+    justify-content: center;&#13;
+    gap: 8px;&#13;
+    padding: 10px 18px;&#13;
+    font-size: 14px;&#13;
+    font-weight: 600;&#13;
+    line-height: 1.2;&#13;
+    white-space: nowrap;&#13;
+    text-decoration: none;&#13;
+    border: 1px solid transparent;&#13;
+    border-radius: var(--gni-r-sm);&#13;
+    cursor: pointer;&#13;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;&#13;
+&#13;
+    &amp;:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--gni-brand-16); }&#13;
+    &amp;:disabled { opacity: 0.5; cursor: not-allowed; }&#13;
+  }&#13;
+  .gni-btn--primary {&#13;
+    background: var(--gni-brand);&#13;
+    color: #fff;&#13;
+    &amp;:hover:not(:disabled) { background: var(--gni-brand-hover); }&#13;
+  }&#13;
+  .gni-btn--ghost {&#13;
+    background: var(--gni-surface);&#13;
+    border-color: var(--gni-line);&#13;
+    color: var(--gni-ink);&#13;
+    &amp;:hover:not(:disabled) { background: var(--gni-ink-04); border-color: var(--gni-ink-40); }&#13;
+  }&#13;
+  .gni-btn--quiet {&#13;
+    padding: 8px 12px;&#13;
+    background: none;&#13;
+    color: var(--gni-ink-54);&#13;
+    &amp;:hover:not(:disabled) { background: var(--gni-ink-04); color: var(--gni-ink); }&#13;
+  }&#13;
+&#13;
+  /* =======================================================&#13;
+     RESPONSIVE&#13;
+     ======================================================= */&#13;
+  @media (max-width: 880px) {&#13;
+    .gni-body { grid-template-columns: 1fr; }&#13;
+&#13;
+    .gni-rail { position: static; }&#13;
+    .gni-rail__label { display: none; }&#13;
+    .gni-steps {&#13;
+      flex-direction: row;&#13;
+      flex-wrap: nowrap;&#13;
+      overflow-x: auto;&#13;
+      gap: 6px;&#13;
+      -webkit-overflow-scrolling: touch;&#13;
+    }&#13;
+    .gni-step { flex: 0 0 auto; padding: 8px 10px; }&#13;
+    .gni-step__note { display: none; }&#13;
+  }&#13;
+&#13;
+  @media (max-width: 760px) {&#13;
+    .gni-field--third,&#13;
+    .gni-field--quarter { grid-column: span 6; }&#13;
+  }&#13;
+&#13;
+  @media (max-width: 640px) {&#13;
+    .gni-panel { padding: 20px 18px; }&#13;
+&#13;
+    .gni-context { flex-direction: column; align-items: flex-start; }&#13;
+&#13;
+    .gni-field--half,&#13;
+    .gni-field--third,&#13;
+    .gni-field--quarter { grid-column: span 12; }&#13;
+&#13;
+    .gni-recap__row { grid-template-columns: 1fr; gap: 2px; }&#13;
+&#13;
+    .gni-actions { flex-direction: column-reverse; align-items: stretch; }&#13;
+    .gni-actions__right { flex-direction: column; }&#13;
+    .gni-btn { width: 100%; }&#13;
+  }&#13;
+&#13;
+  /* respect reduced-motion */&#13;
+  @media (prefers-reduced-motion: reduce) {&#13;
+    * { transition: none !important; }&#13;
+  }&#13;
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -1227,418 +1479,607 @@ margin: 0 auto;
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
-  data.success = false;
-  data.message = '';
-  data.error   = '';
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW · APPLICANT INTAKE · Server script
+
+     WHY THIS IS A FULL REPLACEMENT
+
+     The version in use was marked READ ONLY and had no save
+     actions in it at all. So the submit button posted a payload
+     that nothing handled, which is why attachments never
+     arrived: there was no code to write them. That is the same
+     reason the draft save was doing nothing useful except
+     forcing a widget re-render, which is the flicker.
+
+     Three field name corrections while I was in here:
+
+       grant_program  ->  program
+           The applicant table field is program. Querying and
+           prefilling grant_program silently matched nothing, so
+           no draft was ever found.
+
+       name           ->  program_name
+           On the grant program table. Reading name returned
+           empty, which is why the program dropdown rendered a
+           list of blank options.
+
+       submitted      ->  state
+           There is no submitted field. Whether an application
+           has gone in is held in state.
+
+     The program is also read from either URL parameter, because
+     the program detail page sends sys_id and the older links
+     send program.
+     ========================================================= */
+
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var PROGRAM   = 'x_enno_gatenow_grant_program';
+
+  var currentUser = gs.getUserID();
+
+  data.success          = false;
+  data.error            = '';
+  data.message          = '';
   data.alreadySubmitted = false;
 
   if (typeof input === 'undefined' || input === null) input = {};
 
-  if (data && data.__params && typeof data.__params === 'object') {
-    for (var k in data.__params) {
-      if (data.__params.hasOwnProperty(k)) input[k] = data.__params[k];
-    }
-  }
 
-  // ─── Helpers ───────────────────────────────────────────────
-  function getParam(obj, key, dflt) {
+  /* ---------- helpers ---------- */
+
+  function param(key, dflt) {
     try {
-      if (obj && typeof obj === 'object' &&
-          obj[key] !== undefined && obj[key] !== null)
-        return obj[key];
-    } catch(e) {}
+      if (input && input[key] !== undefined && input[key] !== null) return input[key];
+    } catch (e) { /* fall through */ }
     return dflt;
   }
 
-  function cleanDate(val) {
-    if (!val) return '';
-    val = String(val);
-    if (val.indexOf('T') > -1) return val.split('T')[0];
-    var m = val.match(/\d{4}-\d{2}-\d{2}/);
-    return m ? m[0] : val;
+  function cleanDate(v) {
+    if (!v) return '';
+    v = String(v);
+    if (v.indexOf('T') > -1) return v.split('T')[0];
+    var m = v.match(/\d{4}-\d{2}-\d{2}/);
+    return m ? m[0] : v;
   }
 
-  function getChoicesSys(table, element) {
-    var out = [];
-    var ch = new GlideRecordSecure('sys_choice');
-    ch.addQuery('name', table);
-    ch.addQuery('element', element);
-    ch.addQuery('inactive', false);
-    ch.orderBy('sequence');
-    ch.orderBy('label');
-    ch.query();
-    while (ch.next()) {
-      out.push({
-        value: ch.getValue('value') || '',
-        label: ch.getValue('label') || ''
-      });
-    }
-    return out;
+  function programRef() {
+    return String(param('grant_program', '') || param('program', '') || '');
   }
 
-  // ─── Tables & current user ─────────────────────────────────
-  var applicantTable = 'x_enno_gatenow_service_applicants';
-  var programTable   = 'x_enno_gatenow_grant_program';
-  var currentUser    = gs.getUserID();
 
-  // ─── URL params ────────────────────────────────────────────
-  var programParam = $sp.getParameter('program') || '';
+  /* ---------- which program ----------
+     The detail page hands over sys_id. Older links use program.
+     Either is accepted so a bookmarked URL still works. */
+  var programParam = $sp.getParameter('program') || $sp.getParameter('sys_id') || '';
   data.program_param = programParam;
 
-  if (!data.prefill) data.prefill = {};
-  if (programParam && !data.prefill.program)
-    data.prefill.program = programParam;
+  var actionVal = String(param('action', ''));
 
-  var actionVal = getParam(input, 'action', '');
-  if (!actionVal && data.__params && data.__params.action)
-    actionVal = String(data.__params.action);
 
-  // ============================================================
-  // CHECK: Already submitted (state = 'new') for this user+program
-  // ============================================================
-  function hasAlreadySubmitted(userId, programId) {
+  /* ---------- lookups ---------- */
+
+  function alreadyIn(userId, programId) {
     if (!userId || !programId) return false;
-    var check = new GlideRecordSecure(applicantTable);
-    check.addQuery('submitted_by', userId);
-    check.addQuery('program', programId);
-    check.addQuery('state', 'new');
-    check.query();
-    return check.next();
+    var gr = new GlideRecordSecure(APPLICANT);
+    gr.addQuery('user', userId);
+    gr.addQuery('program', programId);
+    /* anything past draft counts as submitted */
+    gr.addQuery('state', '!=', 'draft');
+    gr.query();
+    return gr.hasNext();
   }
 
-  // ============================================================
-  // CHECK: Existing draft for this user + program
-  // ============================================================
-  function getExistingDraft(userId, programId) {
-    if (!userId || !programId) return null;
-    var draft = new GlideRecordSecure(applicantTable);
-    draft.addQuery('submitted_by', userId);
-    draft.addQuery('program', programId);
-    draft.addQuery('state', 'draft');
-    draft.orderByDesc('sys_updated_on');
-    draft.setLimit(1);
-    draft.query();
-    if (draft.next()) return draft.getUniqueValue();
-    return null;
+  function findDraft(userId, programId) {
+    if (!userId || !programId) return '';
+    var gr = new GlideRecordSecure(APPLICANT);
+    gr.addQuery('user', userId);
+    gr.addQuery('program', programId);
+    gr.addQuery('state', 'draft');
+    gr.orderByDesc('sys_updated_on');
+    gr.setLimit(1);
+    gr.query();
+    return gr.next() ? gr.getUniqueValue() : '';
   }
 
-  // ============================================================
-  // RESOLVE CATEGORY from grant program table
-  // ============================================================
-  function resolveProgramCategory(programSysId) {
-    if (!programSysId) return '';
-    var prog = new GlideRecordSecure(programTable);
-    if (prog.get(programSysId)) {
-      var cat = prog.getValue('category') || '';  // ← reads 'category' field directly
-      gs.info('[Intake] Resolved program_category: "' + cat + '" from program: ' + programSysId);
-      return cat;
-    }
-    gs.warn('[Intake] Could not find program record: ' + programSysId);
-    return '';
+  /* category is never taken from the form, it is read off the
+     program so the two can never disagree */
+  function categoryOf(programId) {
+    if (!programId) return '';
+    var gr = new GlideRecordSecure(PROGRAM);
+    return gr.get(programId) ? (gr.getValue('category') || '') : '';
   }
 
-  // ============================================================
-  // FIELD MAPPER — maps input to GlideRecordSecure fields
-  // ============================================================
-  function mapFields(applicantRecord) {
 
-    // ── Personal Information ──────────────────────────────────
-    applicantRecord.setValue('first_name',                     getParam(input, 'first_name', ''));
-    applicantRecord.setValue('middle_name',                    getParam(input, 'middle_name', ''));
-    applicantRecord.setValue('last_name',                      getParam(input, 'last_name', ''));
-    applicantRecord.setValue('email',                          getParam(input, 'email', ''));
-    applicantRecord.setValue('phone_number',                   getParam(input, 'phone_number', ''));
-    applicantRecord.setValue('street',                         getParam(input, 'street', ''));
-    applicantRecord.setValue('city',                           getParam(input, 'city', ''));
-    applicantRecord.setValue('zip_postal_code',                getParam(input, 'zip_postal_code', ''));
-    applicantRecord.setValue('country',                        getParam(input, 'country', ''));
+  /* ---------- write ---------- */
 
-    var bd = cleanDate(getParam(input, 'birthdate', ''));
-    if (bd) applicantRecord.setValue('birthdate', bd);
+  function mapFields(rec) {
 
-    // ── Demographics ──────────────────────────────────────────
-    applicantRecord.setValue('ssn',                            getParam(input, 'ssn', ''));
-    applicantRecord.setValue('gender',                         getParam(input, 'gender', ''));
-    applicantRecord.setValue('race',                           getParam(input, 'race', ''));
-    applicantRecord.setValue('ethnicity',                      getParam(input, 'ethnicity', ''));
-    applicantRecord.setValue('education_level',                getParam(input, 'education_level', ''));
-    applicantRecord.setValue('marital_status',                 getParam(input, 'marital_status', ''));
-    applicantRecord.setValue('military_status',                getParam(input, 'military_status', ''));
-    applicantRecord.setValue('disability_status',              getParam(input, 'disability_status', ''));
-    applicantRecord.setValue('citizenship_status',             getParam(input, 'citizenship_status', ''));
-    applicantRecord.setValue('tribal_affiliation',             getParam(input, 'tribal_affiliation', ''));
+    var text = [
+      'first_name', 'middle_name', 'last_name', 'email', 'phone_number',
+      'street', 'city', 'zip_postal_code', 'country',
+      'ssn', 'gender', 'race', 'ethnicity', 'education_level',
+      'marital_status', 'military_status', 'disability_status',
+      'citizenship_status', 'tribal_affiliation',
+      'applicant_type', 'identity_type', 'uei', 'tin_ein', 'organization',
+      'proposal_title', 'short_description', 'proposal_description',
+      'project_goals_and_objectives', 'project_activities_methodology'
+    ];
 
-    // ── Organization & Identity ───────────────────────────────
-    applicantRecord.setValue('applicant_type',                 getParam(input, 'applicant_type', ''));
-    applicantRecord.setValue('identity_type',                  getParam(input, 'identity_type', ''));
-    applicantRecord.setValue('uei',                            getParam(input, 'uei', ''));
-    applicantRecord.setValue('tin_ein',                        getParam(input, 'tin_ein', ''));
-    applicantRecord.setValue('organization',                   getParam(input, 'organization', ''));
-
-    // ── Program + auto-resolve category ──────────────────────
-    var gpRef = String(
-      getParam(input, 'grant_program', '') ||
-      getParam(input, 'program', '')       || ''
-    );
-
-    if (gpRef) {
-      applicantRecord.setValue('program', gpRef);
-
-      // ← Read 'category' from grant program table
-      //   Write into 'program_category' on applicant table
-      var resolvedCategory = resolveProgramCategory(gpRef);
-      applicantRecord.setValue('program_category', resolvedCategory);
+    for (var i = 0; i < text.length; i++) {
+      rec.setValue(text[i], param(text[i], ''));
     }
 
-    // ── Proposal Details ──────────────────────────────────────
-    applicantRecord.setValue('proposal_title',                 getParam(input, 'proposal_title', ''));
-    applicantRecord.setValue('short_description',              getParam(input, 'short_description', ''));
-    applicantRecord.setValue('proposal_description',           getParam(input, 'proposal_description', ''));
-    applicantRecord.setValue('project_goals_and_objectives',   getParam(input, 'project_goals_and_objectives', ''));
-    applicantRecord.setValue('project_activities_methodology', getParam(input, 'project_activities_methodology', ''));
+    var bd = cleanDate(param('birthdate', ''));
+    if (bd) rec.setValue('birthdate', bd);
 
-    // NOTE: program_category is set above from program lookup — NOT from user input
+    var sd = cleanDate(param('project_start_date', ''));
+    if (sd) rec.setValue('project_start_date', sd);
 
-    var budget = getParam(input, 'requested_budget', '');
-    if (budget !== '') applicantRecord.setValue('requested_budget', budget);
+    var ed = cleanDate(param('project_end_date', ''));
+    if (ed) rec.setValue('project_end_date', ed);
 
-    var sd = cleanDate(getParam(input, 'project_start_date', ''));
-    if (sd) applicantRecord.setValue('project_start_date', sd);
+    var budget = param('requested_budget', '');
+    if (budget !== '' && budget !== null) rec.setValue('requested_budget', budget);
 
-    var ed = cleanDate(getParam(input, 'project_end_date', ''));
-    if (ed) applicantRecord.setValue('project_end_date', ed);
+    var prog = programRef();
+    if (prog) {
+      rec.setValue('program', prog);
+      rec.setValue('program_category', categoryOf(prog));
+    }
 
-    // Always stamp the logged-in user
-    applicantRecord.setValue('submitted_by', currentUser);
-    applicantRecord.setValue('user', currentUser);
+    rec.setValue('user', currentUser);
+    if (rec.isValidField('submitted_by')) rec.setValue('submitted_by', currentUser);
   }
 
-  // ============================================================
-  // ACTION: SAVE APPLICANT (final submit)
-  // ============================================================
+  function attach(sysId, files) {
+    if (!files || !files.length) return 0;
+
+    var rec = new GlideRecordSecure(APPLICANT);
+    if (!rec.get(sysId)) return 0;
+
+    var done = 0;
+
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!f || !f.data) continue;
+      try {
+        var id = new GlideSysAttachment().writeBase64(rec, f.name, f.type, f.data);
+        if (id) done++;
+        else gs.error('[Intake] attachment rejected: ' + f.name);
+      } catch (e) {
+        gs.error('[Intake] attachment failed on ' + f.name + ': ' + e.message);
+      }
+    }
+
+    return done;
+  }
+
+
+  /* ============================================================
+     ACTION · SUBMIT
+     ============================================================ */
   if (actionVal === 'save_applicant') {
     try {
-      var gpRef = String(
-        getParam(input, 'grant_program', '') ||
-        getParam(input, 'program', '')       || ''
-      );
 
-      if (hasAlreadySubmitted(currentUser, gpRef)) {
-        data.success          = false;
+      var prog = programRef();
+
+      if (alreadyIn(currentUser, prog)) {
         data.alreadySubmitted = true;
-        data.error            = 'You have already submitted an application for this grant program.';
+        data.error = gs.getMessage('You have already applied to this program.');
         return;
       }
 
-      var applicantGr = new GlideRecordSecure(applicantTable);
+      var gr = new GlideRecordSecure(APPLICANT);
+      var target = String(param('applicant_sys_id', ''));
       var isUpdate = false;
-      var targetId = getParam(input, 'applicant_sys_id', '');
 
-      if (targetId && applicantGr.get(targetId)) {
+      if (target && gr.get(target)) {
         isUpdate = true;
-        gs.info('[Intake] Promoting draft to submission: ' + targetId);
       } else {
-        applicantGr.initialize();
-        gs.info('[Intake] Creating new applicant record');
+        gr.initialize();
       }
 
-      mapFields(applicantGr);
-      applicantGr.setValue('state', 'new');
+      mapFields(gr);
+      gr.setValue('state', 'new');
 
       if (!isUpdate) {
-        var gdt = new GlideDateTime();
-        applicantGr.setValue('submission_date', gdt.getValue());
+        gr.setValue('submission_date', new GlideDateTime().getValue());
       }
 
-      var savedId = isUpdate ? applicantGr.update() : applicantGr.insert();
+      var savedId = isUpdate ? gr.update() : gr.insert();
+
       if (!savedId) {
-        data.error = 'Failed to save applicant record';
+        data.error = gs.getMessage('The application could not be saved. Nothing was lost, try again.');
         return;
       }
-      gs.info('[Intake] Saved applicant: ' + savedId);
 
-      // ── Attachments ───────────────────────────────────────
-      var attachments = getParam(input, 'attachments', []);
-      if (attachments && attachments.length > 0) {
-        var recForAtt = new GlideRecordSecure(applicantTable);
-        if (recForAtt.get(savedId)) {
-          var successCount = 0;
-          for (var i = 0; i < attachments.length; i++) {
-            var f = attachments[i];
-            try {
-              var gsa   = new GlideSysAttachment();
-              var attID = gsa.writeBase64(recForAtt, f.name, f.type, f.data);
-              if (attID) {
-                successCount++;
-                gs.info('[Intake] Attached: ' + f.name);
-              } else {
-                gs.error('[Intake] Failed to attach: ' + f.name);
-              }
-            } catch(err) {
-              gs.error('[Intake] Attachment error: ' + err);
-            }
-          }
-          gs.info('[Intake] ' + successCount + '/' + attachments.length + ' files attached');
-        }
+      var files = param('attachments', []);
+      var attached = attach(savedId, files);
+
+      if (files && files.length && attached === 0) {
+        /* the record is in, but the applicant needs to know the
+           documents are not */
+        data.error = gs.getMessage('Your application was saved but the documents did not attach. Open the application from your dashboard and add them.');
       }
 
       data.success          = true;
-      data.message          = isUpdate ? 'Application updated successfully' : 'Application submitted successfully';
       data.applicant_sys_id = String(savedId);
+      data.attachedCount    = attached;
+      data.message          = gs.getMessage('Application submitted');
 
-    } catch(e) {
-      gs.error('[Intake] SUBMIT ERROR: ' + e.toString());
-      data.error = 'Error: ' + e.message;
+    } catch (e) {
+      gs.error('[Intake] submit failed: ' + e.toString());
+      data.error = gs.getMessage('Something went wrong submitting the application.') + ' ' + e.message;
     }
   }
 
-  // ============================================================
-  // ACTION: SAVE DRAFT
-  // ============================================================
-  else if (actionVal === 'save_draft') {
-    try {
-      var draftGr       = new GlideRecordSecure(applicantTable);
-      var isDraftUpdate = false;
 
-      var draftId = getParam(input, 'applicant_sys_id', '');
-      var draftProgram = String(
-        getParam(input, 'grant_program', '') ||
-        getParam(input, 'program', '')       || ''
-      );
-
-      if (!draftId && draftProgram) {
-        draftId = getExistingDraft(currentUser, draftProgram) || '';
-      }
-
-      if (draftId && draftGr.get(draftId)) {
-        isDraftUpdate = true;
-        gs.info('[Intake] Updating existing draft: ' + draftId);
-      } else {
-        draftGr.initialize();
-        gs.info('[Intake] Creating new draft record');
-      }
-
-      mapFields(draftGr);
-
-      // ← NEVER update state on draft update — only set on first insert
-      if (!isDraftUpdate) draftGr.setValue('state', 'draft');
-
-      var draftSavedId = isDraftUpdate ? draftGr.update() : draftGr.insert();
-      if (!draftSavedId) {
-        data.error = 'Failed to save draft';
-        return;
-      }
-
-      gs.info('[Intake] Draft saved: ' + draftSavedId);
-      data.success          = true;
-      data.message          = 'Draft saved successfully';
-      data.applicant_sys_id = String(draftSavedId);
-
-    } catch(e) {
-      gs.error('[Intake] DRAFT ERROR: ' + e.toString());
-      data.error = 'Error saving draft: ' + e.message;
-    }
-  }
-
-  // ============================================================
-  // PAGE LOAD — check duplicate + auto-load draft
-  // ============================================================
+  /* ============================================================
+     PAGE LOAD
+     ============================================================ */
   if (!actionVal) {
-    if (programParam && hasAlreadySubmitted(currentUser, programParam)) {
+
+    if (programParam && alreadyIn(currentUser, programParam)) {
       data.alreadySubmitted = true;
-      data.error = 'You have already submitted an application for this grant program.';
+      data.error = gs.getMessage('You have already applied to this program.');
     }
 
     if (programParam && !data.alreadySubmitted) {
-      var existingDraftId = getExistingDraft(currentUser, programParam);
-      if (existingDraftId) {
-        data.applicant_sys_id = existingDraftId;
-        gs.info('[Intake] Auto-loading draft: ' + existingDraftId);
-      }
+      data.applicant_sys_id = findDraft(currentUser, programParam);
     }
   }
 
-  // ============================================================
-  // PREFILL from existing record
-  // ============================================================
+
+  /* ============================================================
+     PREFILL
+     ============================================================ */
+  data.prefill = {};
+
   if (data.applicant_sys_id) {
-    var p = new GlideRecordSecure(applicantTable);
+    var p = new GlideRecordSecure(APPLICANT);
     if (p.get(data.applicant_sys_id)) {
-      data.prefill = {
-        first_name:                     p.getValue('first_name')          || '',
-        middle_name:                    p.getValue('middle_name')         || '',
-        last_name:                      p.getValue('last_name')           || '',
-        email:                          p.getValue('email')               || '',
-        phone_number:                   p.getValue('phone_number')        || '',
-        street:                         p.getValue('street')              || '',
-        city:                           p.getValue('city')                || '',
-        zip_postal_code:                p.getValue('zip_postal_code')     || '',
-        country:                        p.getValue('country')             || '',
-        birthdate:                      p.getDisplayValue('birthdate')    || '',
-        ssn:                            p.getValue('ssn')                 || '',
-        gender:                         p.getValue('gender')              || '',
-        race:                           p.getValue('race')                || '',
-        ethnicity:                      p.getValue('ethnicity')           || '',
-        education_level:                p.getValue('education_level')     || '',
-        marital_status:                 p.getValue('marital_status')      || '',
-        military_status:                p.getValue('military_status')     || '',
-        disability_status:              p.getValue('disability_status')   || '',
-        citizenship_status:             p.getValue('citizenship_status')  || '',
-        tribal_affiliation:             p.getValue('tribal_affiliation')  || '',
-        applicant_type:                 p.getValue('applicant_type')      || '',
-        identity_type:                  p.getValue('identity_type')       || '',
-        uei:                            p.getValue('uei')                 || '',
-        tin_ein:                        p.getValue('tin_ein')             || '',
-        organization:                   p.getValue('organization')        || '',
-        grant_program:                  p.getValue('program')             || programParam || '',
-        proposal_title:                 p.getValue('proposal_title')      || '',
-        short_description:              p.getValue('short_description')   || '',
-        proposal_description:           p.getValue('proposal_description')|| '',
-        requested_budget:               p.getValue('requested_budget')    || '',
-        project_start_date:             p.getValue('project_start_date') || '',
-        project_end_date:               p.getValue('project_end_date')   || '',
-        project_goals_and_objectives:   p.getValue('project_goals_and_objectives')   || '',
-        project_activities_methodology: p.getValue('project_activities_methodology') || '',
-        program_category:               p.getValue('program_category')    || ''
-      };
+
+      var read = [
+        'first_name', 'middle_name', 'last_name', 'email', 'phone_number',
+        'street', 'city', 'zip_postal_code', 'country', 'birthdate',
+        'ssn', 'gender', 'race', 'ethnicity', 'education_level',
+        'marital_status', 'military_status', 'disability_status',
+        'citizenship_status', 'tribal_affiliation',
+        'applicant_type', 'identity_type', 'uei', 'tin_ein', 'organization',
+        'proposal_title', 'short_description', 'proposal_description',
+        'project_goals_and_objectives', 'project_activities_methodology',
+        'requested_budget', 'project_start_date', 'project_end_date',
+        'program_category'
+      ];
+
+      for (var r = 0; r < read.length; r++) {
+        data.prefill[read[r]] = p.getValue(read[r]) || '';
+      }
+
+      /* the form field is called grant_program, the column is
+         program */
+      data.prefill.grant_program = p.getValue('program') || programParam || '';
     }
   }
 
-  // ============================================================
-  // LOAD CHOICES
-  // ============================================================
-  data.choices = {
-    applicant_type:     getChoicesSys(applicantTable, 'applicant_type'),
-    identity_type:      getChoicesSys(applicantTable, 'identity_type'),
-    gender:             getChoicesSys(applicantTable, 'gender'),
-    ethnicity:          getChoicesSys(applicantTable, 'ethnicity'),
-    education_level:    getChoicesSys(applicantTable, 'education_level'),
-    marital_status:     getChoicesSys(applicantTable, 'marital_status'),
-    military_status:    getChoicesSys(applicantTable, 'military_status'),
-    disability_status:  getChoicesSys(applicantTable, 'disability_status'),
-    citizenship_status: getChoicesSys(applicantTable, 'citizenship_status'),
-    race:               getChoicesSys(applicantTable, 'race'),
-    tribal_affiliation: getChoicesSys(applicantTable, 'tribal_affiliation')
-  };
+  if (!data.prefill.grant_program && programParam) {
+    data.prefill.grant_program = programParam;
+  }
 
-  // ============================================================
-  // LOAD GRANT PROGRAMS
-  // ============================================================
+
+  /* ============================================================
+     PROGRAMS
+     program_name, not name. Reading name returned empty, which
+     is why the dropdown was a list of blanks.
+     ============================================================ */
   data.programs = [];
-  var pgr = new GlideRecordSecure(programTable);
-  pgr.addQuery('active', true);
-  pgr.orderBy('program_name');
-  pgr.query();
-  while (pgr.next()) {
+
+  var pg = new GlideRecordSecure(PROGRAM);
+  pg.addQuery('active', true);
+  pg.orderBy('program_name');
+  pg.query();
+
+  while (pg.next()) {
     data.programs.push({
-      sys_id:   pgr.getUniqueValue(),
-      name:     pgr.getDisplayValue('program_name'),
-      number:   pgr.getValue('number')   || '',
-      category: pgr.getValue('category') || ''   // ← raw value from 'category' field
+      sys_id  : pg.getUniqueValue(),
+      name    : pg.getValue('program_name') || pg.getValue('number'),
+      number  : pg.getValue('number') || '',
+      category: pg.getValue('category') || ''
     });
   }
-  gs.info('[Intake] Loaded ' + data.programs.length + ' programs');
+
+
+  /* ============================================================
+     CHOICES
+     Read from the dictionary first so the form can never drift
+     from the table. The declared list is only a fallback for
+     when sys_choice is not readable by this user, which is
+     common for external accounts.
+
+     ADJUST the fallback values if any of them differ from the
+     dictionary, because a wrong value saves an empty field
+     without complaining.
+     ============================================================ */
+
+  var FALLBACK = {
+    applicant_type: [
+      { value: 'Government',   label: 'Government' },
+      { value: 'Individual',   label: 'Individual' },
+      { value: 'Organization', label: 'Organization' }
+    ],
+    citizenship_status: [
+      { value: 'Citizen',            label: 'Citizen' },
+      { value: 'Non-Immigrant',      label: 'Non-Immigrant' },
+      { value: 'Permanent Resident', label: 'Permanent Resident' },
+      { value: 'Undocumented',       label: 'Undocumented' }
+    ],
+    disability_status: [
+      { value: 'yes',         label: 'Yes, I have a disability' },
+      { value: 'no',          label: 'No, I do not have a disability' },
+      { value: 'do_not_wish', label: 'I do not wish to provide this information' }
+    ],
+    education_level: [
+      { value: 'Associate degree',                     label: 'Associate degree' },
+      { value: 'bachelor_degree',                      label: "Bachelor's degree" },
+      { value: 'Doctorate',                            label: 'Doctorate' },
+      { value: 'High school or equivalent',            label: 'High school or equivalent' },
+      { value: 'Masters degree',                       label: "Master's degree" },
+      { value: 'Professional',                         label: 'Professional' },
+      { value: 'Some college coursework completed',    label: 'Some college coursework completed' },
+      { value: 'Technical or occupational certificate', label: 'Technical or occupational certificate' },
+      { value: 'Other',                                label: 'Other' }
+    ],
+    ethnicity: [
+      { value: 'Hispanic or Latino',     label: 'Hispanic or Latino' },
+      { value: 'Not Hispanic or Latino', label: 'Not Hispanic or Latino' },
+      { value: 'I do not wish to provide this information', label: 'I do not wish to provide this information' }
+    ],
+    gender: [
+      { value: 'Female', label: 'Female' },
+      { value: 'Male',   label: 'Male' },
+      { value: 'Other',  label: 'Other' }
+    ],
+    identity_type: [
+      { value: "Driver's License Number",     label: "Driver's License Number" },
+      { value: 'Medicare Number',             label: 'Medicare Number' },
+      { value: 'Social Security Number',      label: 'Social Security Number' },
+      { value: 'State Identification Number', label: 'State Identification Number' }
+    ],
+    marital_status: [
+      { value: 'Single',   label: 'Single' },
+      { value: 'Married',  label: 'Married' },
+      { value: 'Divorced', label: 'Divorced' },
+      { value: 'Widowed',  label: 'Widowed' }
+    ],
+    military_status: [
+      { value: 'active_duty',       label: 'Active duty' },
+      { value: 'veterans',          label: 'Veteran' },
+      { value: 'no_military_duty',  label: 'No military duty' },
+      { value: 'i_do_not_wish_to_provide_this_information', label: 'I do not wish to provide this information' }
+    ],
+    race: [
+      { value: 'American Indian or Alaska Native',          label: 'American Indian or Alaska Native' },
+      { value: 'Asian',                                     label: 'Asian' },
+      { value: 'Black or African American',                 label: 'Black or African American' },
+      { value: 'Native Hawaiian or Other pacific Islander',  label: 'Native Hawaiian or Other Pacific Islander' },
+      { value: 'White',                                     label: 'White' },
+      { value: 'I do not wish to provide this informantion', label: 'I do not wish to provide this information' }
+    ],
+    tribal_affiliation: [
+      { value: 'Yes', label: 'Yes' },
+      { value: 'No',  label: 'No' }
+    ]
+  };
+
+  function choicesFor(element) {
+
+    var out = [];
+
+    try {
+      var ch = new GlideRecordSecure('sys_choice');
+      ch.addQuery('name', APPLICANT);
+      ch.addQuery('element', element);
+
+      /* language is often blank on scoped choices, and inactive
+         is frequently null rather than false. Both were being
+         filtered out before, which returned nothing. */
+      var lang = ch.addQuery('language', 'en');
+      lang.addOrCondition('language', '');
+      lang.addOrCondition('language', 'NULL');
+
+      var act = ch.addQuery('inactive', false);
+      act.addOrCondition('inactive', '');
+
+      ch.orderBy('sequence');
+      ch.orderBy('label');
+      ch.query();
+
+      while (ch.next()) {
+        var v = ch.getValue('value');
+        if (v === null || v === undefined || v === '') continue;
+        out.push({ value: v, label: ch.getValue('label') || v });
+      }
+    } catch (e) {
+      gs.info('[Intake] sys_choice not readable for ' + element + ': ' + e.message);
+    }
+
+    if (!out.length) {
+      out = FALLBACK[element] || [];
+      gs.info('[Intake] using declared choices for ' + element);
+    }
+
+    return out;
+  }
+
+  data.choices = {
+    applicant_type    : choicesFor('applicant_type'),
+    identity_type     : choicesFor('identity_type'),
+    gender            : choicesFor('gender'),
+    race              : choicesFor('race'),
+    ethnicity         : choicesFor('ethnicity'),
+    education_level   : choicesFor('education_level'),
+    marital_status    : choicesFor('marital_status'),
+    military_status   : choicesFor('military_status'),
+    disability_status : choicesFor('disability_status'),
+    citizenship_status: choicesFor('citizenship_status'),
+    tribal_affiliation: choicesFor('tribal_affiliation')
+  };
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+  data.dashboardUrl = '/applicant?id=applicant_dashboard';
+
+  data.t = {
+    applyingTo   : gs.getMessage('Applying to'),
+    noProgram    : gs.getMessage('No program selected yet'),
+    cancel       : gs.getMessage('Cancel'),
+    steps        : gs.getMessage('Steps'),
+    step         : gs.getMessage('Step'),
+    of           : gs.getMessage('of'),
+    complete     : gs.getMessage('complete'),
+    allRequired  : gs.getMessage('Every field on this step is required'),
+    resumed      : gs.getMessage('We picked up where you left off. Everything you had filled in is still here.'),
+    errorsFound  : gs.getMessage('things still need attention'),
+    choose       : gs.getMessage('Choose one'),
+    charsLeft    : gs.getMessage('characters left'),
+    notGiven     : gs.getMessage('Not given'),
+    edit         : gs.getMessage('Edit'),
+
+    s1  : gs.getMessage('About you'),
+    s1n : gs.getMessage('Name and contact'),
+    s2  : gs.getMessage('Background'),
+    s2n : gs.getMessage('For funder reporting'),
+    s3  : gs.getMessage('Organisation'),
+    s3n : gs.getMessage('Program and identifiers'),
+    s4  : gs.getMessage('Your proposal'),
+    s4n : gs.getMessage('The part only you can write'),
+    s5  : gs.getMessage('Documents'),
+    s5n : gs.getMessage('Attach your evidence'),
+    s6  : gs.getMessage('Review and submit'),
+    s6n : gs.getMessage('Last look before it goes'),
+
+    h1 : gs.getMessage('Who the review team should contact about this application.'),
+    h2 : gs.getMessage('Funders report on who their programs reach. None of it affects how your application is scored.'),
+    h3 : gs.getMessage('Which program you are applying to, and how your organisation is identified.'),
+    h4 : gs.getMessage('The project itself. Take your time here, this is what gets scored.'),
+    h5 : gs.getMessage('Supporting documents. PDF, Word or images, up to 10MB each.'),
+    h6 : gs.getMessage('Check it over. Nothing is sent until you press submit.'),
+
+    firstName    : gs.getMessage('First name'),
+    middleName   : gs.getMessage('Middle name'),
+    lastName     : gs.getMessage('Last name'),
+    email        : gs.getMessage('Email'),
+    phone        : gs.getMessage('Phone number'),
+    birthdate    : gs.getMessage('Date of birth'),
+    address      : gs.getMessage('Address'),
+    street       : gs.getMessage('Street'),
+    city         : gs.getMessage('City'),
+    zip          : gs.getMessage('Zip or postal code'),
+    country      : gs.getMessage('Country'),
+    ssn          : gs.getMessage('Social security number'),
+    ssnNote      : gs.getMessage('Required for individual applicants. Leave blank if you are applying as an organisation or a government body.'),
+    citizenship  : gs.getMessage('Citizenship status'),
+    gender       : gs.getMessage('Gender'),
+    race         : gs.getMessage('Race'),
+    ethnicity    : gs.getMessage('Ethnicity'),
+    education    : gs.getMessage('Education level'),
+    marital      : gs.getMessage('Marital status'),
+    military     : gs.getMessage('Military status'),
+    disability   : gs.getMessage('Disability status'),
+    tribal       : gs.getMessage('Tribal affiliation'),
+    whyAsk       : gs.getMessage('Why we ask'),
+    whyAskText   : gs.getMessage('These answers are used for reporting on who the program reaches. Each list includes an option to withhold, and choosing it does not count against you.'),
+    program      : gs.getMessage('Grant program'),
+    category     : gs.getMessage('Category'),
+    applicantType: gs.getMessage('Applicant type'),
+    organisation : gs.getMessage('Organisation'),
+    identityType : gs.getMessage('Identity type'),
+    uei          : gs.getMessage('UEI'),
+    tin          : gs.getMessage('TIN or EIN'),
+    proposalTitle: gs.getMessage('Proposal title'),
+    shortDesc    : gs.getMessage('One line summary'),
+    proposalDesc : gs.getMessage('Proposal description'),
+    goals        : gs.getMessage('Goals and objectives'),
+    method       : gs.getMessage('Activities and methodology'),
+    moneyTime    : gs.getMessage('Budget and timing'),
+    budget       : gs.getMessage('Requested budget'),
+    startDate    : gs.getMessage('Project start date'),
+    endDate      : gs.getMessage('Project end date'),
+
+    dropTitle    : gs.getMessage('Drop your documents here'),
+    dropText     : gs.getMessage('PDF, Word or image files, up to 10MB each'),
+    chooseFiles  : gs.getMessage('Choose files'),
+    remove       : gs.getMessage('Remove'),
+    documents    : gs.getMessage('Documents'),
+    filesAttached: gs.getMessage('files attached'),
+    noFiles      : gs.getMessage('Nothing attached yet'),
+
+    confirm      : gs.getMessage('The information above is accurate to the best of my knowledge.'),
+    back         : gs.getMessage('Back'),
+    continue     : gs.getMessage('Continue'),
+    submit       : gs.getMessage('Submit application'),
+    submitting   : gs.getMessage('Submitting'),
+
+    eFirst      : gs.getMessage('First name is required'),
+    eMiddle     : gs.getMessage('Middle name is required'),
+    eLast       : gs.getMessage('Last name is required'),
+    eEmail      : gs.getMessage('Email is required'),
+    eEmailBad   : gs.getMessage('That email address does not look right'),
+    ePhone      : gs.getMessage('Phone number is required'),
+    eDob        : gs.getMessage('Date of birth is required'),
+    eStreet     : gs.getMessage('Street address is required'),
+    eCity       : gs.getMessage('City is required'),
+    eZip        : gs.getMessage('Zip or postal code is required'),
+    eCountry    : gs.getMessage('Country is required'),
+    eCitizen    : gs.getMessage('Citizenship status is required'),
+    eSsn        : gs.getMessage('Social security number is required for individual applicants'),
+    eIsRequired : gs.getMessage('is required'),
+    eProgram    : gs.getMessage('Choose the program you are applying to'),
+    eAType      : gs.getMessage('Applicant type is required'),
+    eIType      : gs.getMessage('Identity type is required'),
+    eOrg        : gs.getMessage('Organisation is required'),
+    eUei        : gs.getMessage('UEI is required'),
+    eTin        : gs.getMessage('TIN or EIN is required'),
+    eTitle      : gs.getMessage('Proposal title is required'),
+    eShort      : gs.getMessage('A one line summary is required'),
+    eDesc       : gs.getMessage('Proposal description is required'),
+    eGoals      : gs.getMessage('Goals and objectives are required'),
+    eMethod     : gs.getMessage('Activities and methodology are required'),
+    eBudget     : gs.getMessage('Requested budget must be more than zero'),
+    eStart      : gs.getMessage('Project start date is required'),
+    eEnd        : gs.getMessage('Project end date is required'),
+    eOrder      : gs.getMessage('The end date has to come after the start date'),
+    eDocs       : gs.getMessage('Attach at least one supporting document'),
+    eConfirm    : gs.getMessage('Please confirm the information is accurate'),
+
+    ok            : gs.getMessage('OK'),
+    tooBigTitle   : gs.getMessage('File too large'),
+    tooBigText    : gs.getMessage('is over the 10MB limit.'),
+    badTypeTitle  : gs.getMessage('File type not supported'),
+    badTypeText   : gs.getMessage('is not a PDF, Word document or image.'),
+    fileErrTitle  : gs.getMessage('Could not read your files'),
+    fileErrText   : gs.getMessage('Something went wrong preparing the attachments. Try again, or remove them and submit without.'),
+    submitErrTitle: gs.getMessage('Could not submit'),
+    submitErrText : gs.getMessage('The application was not submitted. Nothing has been lost, try again.'),
+    connErrTitle  : gs.getMessage('No connection'),
+    connErrText   : gs.getMessage('We could not reach the server. Check your connection and try again.'),
+    cancelTitle   : gs.getMessage('Leave this application?'),
+    cancelText    : gs.getMessage('Anything you have filled in will be lost.'),
+    keepGoing     : gs.getMessage('Keep filling it in'),
+    discard       : gs.getMessage('Leave'),
+
+    submitted   : gs.getMessage('Application submitted'),
+    already     : gs.getMessage('You have already applied to this program'),
+    blockedTitle: gs.getMessage('Already applied'),
+    blockedText : gs.getMessage('There is already an application from you against this program.'),
+    toDashboard : gs.getMessage('Back to dashboard'),
+    redirecting : gs.getMessage('Taking you to your dashboard in'),
+    goNow       : gs.getMessage('Go now')
+  };
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -1646,718 +2087,530 @@ margin: 0 auto;
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-17 10:39:56</sys_created_on>
         <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
-        <sys_mod_count>65</sys_mod_count>
+        <sys_mod_count>80</sys_mod_count>
         <sys_name>Applicant_form</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
-        <sys_updated_by>Basit.hassan</sys_updated_by>
-        <sys_updated_on>2026-05-22 17:26:46</sys_updated_on>
-        <template><![CDATA[<!-- ── Success Banner ── -->
-<div ng-if="c.successBanner"
-     style="position: fixed; top: 0; left: 0; width: 100%; z-index: 99999;
-            background: linear-gradient(135deg, #059669, #10b981);
-            color: #fff; padding: 20px 28px;
-            display: flex; align-items: center; justify-content: space-between;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.18);">
-    <div style="display: flex; align-items: center; gap: 14px;">
-        <i class="fa fa-check-circle" style="font-size: 26px;"></i>
-        <div>
-            <div style="font-weight: 700; font-size: 16px; margin-bottom: 3px;">
-                {{c.successMessage}}
-            </div>
-            <div style="font-size: 13px; opacity: 0.9;">
-                Redirecting to dashboard in {{c.countdown}} second{{c.countdown !== 1 ? 's' : ''}}...
-            </div>
-        </div>
-    </div>
-    <div style="display: flex; align-items: center; gap: 8px;
-                background: rgba(255,255,255,0.2); border-radius: 50px; padding: 6px 16px;">
-        <i class="fa fa-spinner fa-spin"></i>
-        <span style="font-size: 13px; font-weight: 600;">Please wait</span>
-    </div>
-</div>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-27 08:00:26</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · APPLICANT INTAKE
+     Service Portal widget · HTML template
 
-<div class="multistep-grant-form-wrapper">
+     Document upload no longer depends on ng-file-upload, which is
+     not part of the Service Portal AngularJS bundle. With the
+     library absent, ngf-select / ngf-drop never bound, so the
+     picker never opened and dropped files were ignored. Step 5
+     now uses a native <input type="file">; the client controller
+     wires the change / drag / drop events itself once the step
+     renders, so it works in any portal.
+     ========================================================= -->
 
-  <!-- Progress Indicator -->
-  <div class="form-progress-bar">
-    <div class="progress-steps-container">
+<div class="gni" ng-class="{'is-blocked': c.formBlocked}">
 
-      <div class="progress-step"
-           ng-class="{'step-active': c.currentStep === 1, 'step-completed': c.currentStep > 1}"
-           ng-click="c.goToStep(1)">
-        <div class="step-circle">
-          <span class="step-number">1</span>
-          <i class="fa fa-check step-check-icon"></i>
-        </div>
-        <span class="step-label">Personal Info</span>
-      </div>
-
-      <div class="progress-connector" ng-class="{'connector-completed': c.currentStep > 1}"></div>
-
-      <div class="progress-step"
-           ng-class="{'step-active': c.currentStep === 2, 'step-completed': c.currentStep > 2}"
-           ng-click="c.goToStep(2)">
-        <div class="step-circle">
-          <span class="step-number">2</span>
-          <i class="fa fa-check step-check-icon"></i>
-        </div>
-        <span class="step-label">Demographics</span>
-      </div>
-
-      <div class="progress-connector" ng-class="{'connector-completed': c.currentStep > 2}"></div>
-
-      <div class="progress-step"
-           ng-class="{'step-active': c.currentStep === 3, 'step-completed': c.currentStep > 3}"
-           ng-click="c.goToStep(3)">
-        <div class="step-circle">
-          <span class="step-number">3</span>
-          <i class="fa fa-check step-check-icon"></i>
-        </div>
-        <span class="step-label">Organization</span>
-      </div>
-
-      <div class="progress-connector" ng-class="{'connector-completed': c.currentStep > 3}"></div>
-
-      <div class="progress-step"
-           ng-class="{'step-active': c.currentStep === 4, 'step-completed': c.currentStep > 4}"
-           ng-click="c.goToStep(4)">
-        <div class="step-circle">
-          <span class="step-number">4</span>
-          <i class="fa fa-check step-check-icon"></i>
-        </div>
-        <span class="step-label">Proposal</span>
-      </div>
-
-      <div class="progress-connector" ng-class="{'connector-completed': c.currentStep > 4}"></div>
-
-      <div class="progress-step"
-           ng-class="{'step-active': c.currentStep === 5, 'step-completed': c.currentStep > 5}"
-           ng-click="c.goToStep(5)">
-        <div class="step-circle">
-          <span class="step-number">5</span>
-          <i class="fa fa-check step-check-icon"></i>
-        </div>
-        <span class="step-label">Documents</span>
-      </div>
-
-    </div>
+  <!-- ═══════════════ BLOCKED ═══════════════ -->
+  <div class="gni-block" ng-if="c.formBlocked && !c.successBanner">
+    <span class="gni-block__mark" aria-hidden="true"><i class="fa fa-check"></i></span>
+    <h1 class="gni-block__title">{{c.data.t.blockedTitle}}</h1>
+    <p class="gni-block__text">{{c.data.error || c.data.t.blockedText}}</p>
+    <a class="gni-btn gni-btn--primary" ng-href="{{c.data.dashboardUrl}}">{{c.data.t.toDashboard}}</a>
   </div>
 
-  <!-- Page Header -->
-  <div class="multistep-page-header">
-    <div class="header-icon-badge">
-      <i class="fa fa-file-text"></i>
-    </div>
-    <div class="header-content-group">
-      <h1 class="page-main-title">Grant Application</h1>
-      <p class="page-main-subtitle">Step {{c.currentStep}} of 5: {{c.getStepTitle()}}</p>
-    </div>
+
+  <!-- ═══════════════ SUCCESS ═══════════════ -->
+  <div class="gni-done" ng-if="c.successBanner">
+
+    <span class="gni-done__mark" aria-hidden="true"><i class="fa fa-check"></i></span>
+    <h1 class="gni-done__title">{{c.successMessage}}</h1>
+
+    <!-- shown only when the record saved but the files did not -->
+    <p class="gni-done__warn" ng-if="c.successWarning">{{c.successWarning}}</p>
+
+    <p class="gni-done__text">{{c.data.t.redirecting}} <strong>{{c.countdown}}</strong></p>
+    <a class="gni-btn gni-btn--ghost" ng-href="{{c.data.dashboardUrl}}">{{c.data.t.goNow}}</a>
+
   </div>
 
-  <!-- Main Form Container -->
-  <div class="multistep-form-container">
 
-    <!-- ═══ ALREADY SUBMITTED BLOCK ═══ -->
-    <div class="gn-alert gn-alert--error" ng-if="c.formBlocked">
-      <i class="fa fa-ban"></i>
-      <div>
-        <strong>Application Already Submitted</strong>
-        <p>You have already submitted an application for this grant program. Only one submission per program is allowed.</p>
-        <a href="/applicant?id=applicant_dashboard" class="gn-alert-link">Go to Dashboard →</a>
+  <!-- ═══════════════ FORM ═══════════════ -->
+  <div class="gni-wrap" ng-if="!c.formBlocked && !c.successBanner">
+
+    <header class="gni-context">
+
+      <div class="gni-context__lead">
+        <span class="gni-context__label">{{c.data.t.applyingTo}}</span>
+        <p class="gni-context__name">{{c.programName() || c.data.t.noProgram}}</p>
+        <p class="gni-context__meta" ng-if="c.programMeta()">{{c.programMeta()}}</p>
       </div>
-    </div>
 
-    <!-- ═══ DRAFT RESUMED BANNER ═══ -->
-    <div class="gn-alert gn-alert--info" ng-if="c.draftResumed && !c.formBlocked">
-      <i class="fa fa-history"></i>
-      <div>
-        <strong>Draft Resumed</strong>
-        <p>Your previously saved progress has been loaded. Continue where you left off.</p>
+      <div class="gni-context__right">
+        <button type="button" class="gni-btn gni-btn--quiet" ng-click="c.cancel()">
+          {{c.data.t.cancel}}
+        </button>
       </div>
-    </div>
 
-    <!-- ═══ ENTIRE FORM — hidden when blocked ═══ -->
-    <div ng-hide="c.formBlocked">
+    </header>
 
-      <!-- Step 1: Personal Information -->
-      <div ng-show="c.currentStep === 1" class="form-step-content">
-        <div class="form-section-block">
-          <div class="section-block-header">
-            <div class="section-header-icon"><i class="fa fa-user"></i></div>
-            <div>
-              <h2 class="section-block-title">Personal Information</h2>
-              <p class="section-block-subtitle">Please provide your basic contact details</p>
-            </div>
-          </div>
 
-          <div class="form-fields-grid">
+    <div class="gni-body">
 
-            <div class="form-field-wrapper">
-              <label class="field-input-label">First Name <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.first_name"
-                     placeholder="Enter first name" ng-class="{'field-error': c.errors.first_name}" />
-              <span ng-if="c.errors.first_name" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.first_name}}
+      <!-- ── step rail ── -->
+      <nav class="gni-rail" aria-label="{{c.data.t.steps}}">
+
+        <p class="gni-rail__label">{{c.data.t.steps}}</p>
+
+        <ol class="gni-steps">
+          <li ng-repeat="s in c.steps track by s.n">
+            <button type="button"
+                    class="gni-step"
+                    ng-class="{'is-on': c.currentStep === s.n,
+                               'is-done': c.isDone(s.n),
+                               'is-ahead': s.n > c.currentStep && !c.isDone(s.n)}"
+                    ng-click="c.goToStep(s.n)">
+              <span class="gni-step__mark" aria-hidden="true">
+                <i class="fa fa-check" ng-if="c.stepShowsCheck(s.n)"></i>
+                <span ng-if="!c.stepShowsCheck(s.n)">{{s.n}}</span>
               </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Middle Name <span class="field-optional-mark">(Optional)</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.middle_name"
-                     placeholder="Enter middle name" />
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Last Name <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.last_name"
-                     placeholder="Enter last name" ng-class="{'field-error': c.errors.last_name}" />
-              <span ng-if="c.errors.last_name" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.last_name}}
+              <span class="gni-step__body">
+                <span class="gni-step__name">{{s.label}}</span>
+                <span class="gni-step__note">{{s.note}}</span>
               </span>
-            </div>
+            </button>
+          </li>
+        </ol>
 
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Email Address <span class="field-required-mark">*</span></label>
-              <input type="email" class="field-text-input" ng-model="c.form.email"
-                     placeholder="your.email@example.com" ng-class="{'field-error': c.errors.email}" />
-              <span ng-if="c.errors.email" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.email}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Phone Number <span class="field-required-mark">*</span></label>
-              <input type="tel" class="field-text-input" ng-model="c.form.phone_number"
-                     placeholder="(555) 123-4567" ng-class="{'field-error': c.errors.phone_number}" />
-               <span class="field-help-text"><i class="fa fa-lock"></i> Your Phone Number is securely encrypted</span>
-              <span ng-if="c.errors.phone_number" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.phone_number}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Date of Birth <span class="field-required-mark">*</span></label>
-              <input type="date" class="field-text-input field-date-input" ng-model="c.form.birthdate"
-                     ng-class="{'field-error': c.errors.birthdate}" />
-               <span class="field-help-text"><i class="fa fa-lock"></i> Your DOB is securely encrypted</span>
-              <span ng-if="c.errors.birthdate" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.birthdate}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Street Address <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.street"
-                     placeholder="123 Main Street, Apt 4B" ng-class="{'field-error': c.errors.street}" />
-              <span ng-if="c.errors.street" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.street}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">City <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.city"
-                     placeholder="Enter city" ng-class="{'field-error': c.errors.city}" />
-              <span ng-if="c.errors.city" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.city}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Zip / Postal Code <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.zip_postal_code"
-                     placeholder="12345" ng-class="{'field-error': c.errors.zip_postal_code}" />
-              <span ng-if="c.errors.zip_postal_code" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.zip_postal_code}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Country <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.country"
-                     placeholder="United States" ng-class="{'field-error': c.errors.country}" />
-              <span ng-if="c.errors.country" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.country}}
-              </span>
-            </div>
-
-          </div>
+        <div class="gni-rail__foot">
+          <span class="gni-rail__track" aria-hidden="true">
+            <span class="gni-rail__fill" ng-style="{width: c.progress() + '%'}"></span>
+          </span>
+          <span class="gni-rail__pct">{{c.progress()}}% {{c.data.t.complete}}</span>
         </div>
-      </div>
 
-      <!-- Step 2: Demographics -->
-      <div ng-show="c.currentStep === 2" class="form-step-content">
-        <div class="form-section-block">
-          <div class="section-block-header">
-            <div class="section-header-icon"><i class="fa fa-users"></i></div>
-            <div>
-              <h2 class="section-block-title">Demographic Information</h2>
-              <p class="section-block-subtitle">Help us understand your background (required for federal reporting)</p>
-            </div>
-          </div>
+      </nav>
 
-          <div class="form-fields-grid">
 
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Social Security Number <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.ssn"
-                     placeholder="XXX-XX-XXXX" maxlength="11"
-                     ng-class="{'field-error': c.errors.ssn}" />
-              <span class="field-help-text"><i class="fa fa-lock"></i> Your SSN is securely encrypted</span>
-              <span ng-if="c.errors.ssn" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.ssn}}
-              </span>
-            </div>
+      <!-- ── panel ── -->
+      <main class="gni-panel">
 
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Gender <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.gender" ng-class="{'field-error': c.errors.gender}">
-                <option value="">-- Select Gender --</option>
-                <option ng-repeat="opt in c.data.choices.gender" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.gender" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.gender}}
-              </span>
-            </div>
+        <p class="gni-resumed" ng-if="c.draftResumed">
+          <i class="fa fa-info-circle" aria-hidden="true"></i>
+          {{c.data.t.resumed}}
+        </p>
 
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Race <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.race" ng-class="{'field-error': c.errors.race}">
-                <option value="">-- Select Race --</option>
-                <option ng-repeat="opt in c.data.choices.race" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.race" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.race}}
-              </span>
-            </div>
+        <header class="gni-panel__head">
+          <span class="gni-panel__count">{{c.data.t.step}} {{c.currentStep}} {{c.data.t.of}} {{c.totalSteps}}</span>
+          <h2 class="gni-panel__title">{{c.stepTitle()}}</h2>
+          <p class="gni-panel__hint">{{c.stepHint()}}</p>
+          <p class="gni-panel__req" ng-if="c.currentStep < 5">{{c.data.t.allRequired}}</p>
+        </header>
 
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Ethnicity <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.ethnicity" ng-class="{'field-error': c.errors.ethnicity}">
-                <option value="">-- Select Ethnicity --</option>
-                <option ng-repeat="opt in c.data.choices.ethnicity" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.ethnicity" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.ethnicity}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Education Level <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.education_level" ng-class="{'field-error': c.errors.education_level}">
-                <option value="">-- Select Education Level --</option>
-                <option ng-repeat="opt in c.data.choices.education_level" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.education_level" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.education_level}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Marital Status <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.marital_status" ng-class="{'field-error': c.errors.marital_status}">
-                <option value="">-- Select Marital Status --</option>
-                <option ng-repeat="opt in c.data.choices.marital_status" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.marital_status" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.marital_status}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Military Status <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.military_status" ng-class="{'field-error': c.errors.military_status}">
-                <option value="">-- Select Military Status --</option>
-                <option ng-repeat="opt in c.data.choices.military_status" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.military_status" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.military_status}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Disability Status <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.disability_status" ng-class="{'field-error': c.errors.disability_status}">
-                <option value="">-- Select Disability Status --</option>
-                <option ng-repeat="opt in c.data.choices.disability_status" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.disability_status" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.disability_status}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Citizenship Status <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.citizenship_status" ng-class="{'field-error': c.errors.citizenship_status}">
-                <option value="">-- Select Citizenship Status --</option>
-                <option ng-repeat="opt in c.data.choices.citizenship_status" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.citizenship_status" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.citizenship_status}}
-              </span>
-            </div>
-
-            <!-- ← ADDED: Tribal Affiliation -->
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Tribal Affiliation </label>
-              <select class="field-select-input" ng-model="c.form.tribal_affiliation"
-                      ng-class="{'field-error': c.errors.tribal_affiliation}">
-                <option value="">-- Select Tribal Affiliation --</option>
-                <option ng-repeat="opt in c.data.choices.tribal_affiliation" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span class="field-help-text">
-                <i class="fa fa-info-circle"></i> Indicate whether you have a tribal affiliation
-              </span>
-              <span ng-if="c.errors.tribal_affiliation" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.tribal_affiliation}}
-              </span>
-            </div>
-
-          </div>
+        <div class="gni-errors" ng-if="c.errorCount()">
+          <p class="gni-errors__title">{{c.errorCount()}} {{c.data.t.errorsFound}}</p>
+          <ul class="gni-errors__list">
+            <li ng-repeat="(f, m) in c.errors">{{m}}</li>
+          </ul>
         </div>
-      </div>
 
-      <!-- Step 3: Organization & Identity -->
-      <div ng-show="c.currentStep === 3" class="form-step-content">
-        <div class="form-section-block">
-          <div class="section-block-header">
-            <div class="section-header-icon"><i class="fa fa-building"></i></div>
-            <div>
-              <h2 class="section-block-title">Organization & Identity</h2>
-              <p class="section-block-subtitle">Provide your organization and tax identification details</p>
-            </div>
+
+        <!-- ═══ 1 · PERSONAL ═══ -->
+        <div class="gni-fields" ng-if="c.currentStep === 1">
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_first">{{c.data.t.firstName}}</label>
+            <input id="gni_first" type="text" ng-model="c.form.first_name"
+                   ng-class="{'has-error': c.errors.first_name}">
+            <span class="gni-err" ng-if="c.errors.first_name">{{c.errors.first_name}}</span>
           </div>
 
-          <div class="form-fields-grid">
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Applicant Type <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.applicant_type" ng-class="{'field-error': c.errors.applicant_type}">
-                <option value="">-- Select Applicant Type --</option>
-                <option ng-repeat="opt in c.data.choices.applicant_type" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.applicant_type" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.applicant_type}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Identity Type <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.identity_type" ng-class="{'field-error': c.errors.identity_type}">
-                <option value="">-- Select Identity Type --</option>
-                <option ng-repeat="opt in c.data.choices.identity_type" value="{{opt.value}}">{{opt.label}}</option>
-              </select>
-              <span ng-if="c.errors.identity_type" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.identity_type}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">UEI (Unique Entity Identifier) <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.uei"
-                     placeholder="12 characters" maxlength="12" ng-class="{'field-error': c.errors.uei}" />
-              <span class="field-help-text"><i class="fa fa-info-circle"></i> Register at SAM.gov if you don't have a UEI</span>
-               <span class="field-help-text"><i class="fa fa-lock"></i> Your UEI is securely encrypted</span>
-              <span ng-if="c.errors.uei" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.uei}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">TIN / EIN <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.tin_ein"
-                     placeholder="XX-XXXXXXX" maxlength="10" ng-class="{'field-error': c.errors.tin_ein}" />
-              <span class="field-help-text"><i class="fa fa-info-circle"></i> Tax Identification or Employer Identification Number</span>
-               <span class="field-help-text"><i class="fa fa-lock"></i> Your TIN is securely encrypted</span>
-              <span ng-if="c.errors.tin_ein" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.tin_ein}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Grant Program <span class="field-required-mark">*</span></label>
-              <select class="field-select-input" ng-model="c.form.grant_program"
-                      ng-class="{'field-error': c.errors.grant_program}"
-                      ng-disabled="c.data.program_param">
-                <option value="">-- Select Grant Program --</option>
-                <option ng-repeat="prog in c.data.programs" value="{{prog.sys_id}}">
-                  {{prog.number ? prog.number + ' - ' : ''}}{{prog.name}}
-                </option>
-              </select>
-              <span ng-if="c.data.program_param" class="field-help-text">
-                <i class="fa fa-lock"></i> Program pre-selected from grant opportunity
-              </span>
-              <span ng-if="c.errors.grant_program" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.grant_program}}
-              </span>
-            </div>
-  <div class="form-field-wrapper form-field-full"
-                 ng-if="c.form.grant_program && c.form.program_category">
-              <label class="field-input-label">
-                Program Category
-                
-              </label>
-              <div style="display:flex; align-items:center; gap:10px;
-                          padding:10px 14px;
-                          background:var(--gn-input-bg, #f0f4f3);
-                          border:1px solid var(--gn-border, #c8d8d5);
-                          border-radius:6px;
-                          color:var(--gn-text, #1a3c3a);
-                          font-size:14px;">
-                <i class="fa fa-tag" style="color:#01696f; font-size:13px;"></i>
-                <span style="font-weight:500;">{{c.form.program_category}}</span>
-                <span style="margin-left:auto; font-size:11px; color:#7a9e9c;
-                             background:#e0eeec; padding:2px 8px; border-radius:20px;">
-                  <i class="fa fa-lock" style="font-size:10px;"></i> Read only
-                </span>
-              </div>
-              <span class="field-help-text">
-                <i class="fa fa-info-circle"></i>
-                Category is automatically resolved from the selected grant program
-              </span>
-            </div>
-
+          <div class="gni-field gni-field--third">
+            <label for="gni_middle">{{c.data.t.middleName}}</label>
+            <input id="gni_middle" type="text" ng-model="c.form.middle_name"
+                   ng-class="{'has-error': c.errors.middle_name}">
+            <span class="gni-err" ng-if="c.errors.middle_name">{{c.errors.middle_name}}</span>
           </div>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_last">{{c.data.t.lastName}}</label>
+            <input id="gni_last" type="text" ng-model="c.form.last_name"
+                   ng-class="{'has-error': c.errors.last_name}">
+            <span class="gni-err" ng-if="c.errors.last_name">{{c.errors.last_name}}</span>
+          </div>
+
+          <div class="gni-field gni-field--half">
+            <label for="gni_email">{{c.data.t.email}}</label>
+            <input id="gni_email" type="email" ng-model="c.form.email"
+                   ng-class="{'has-error': c.errors.email}">
+            <span class="gni-err" ng-if="c.errors.email">{{c.errors.email}}</span>
+          </div>
+
+          <div class="gni-field gni-field--quarter">
+            <label for="gni_phone">{{c.data.t.phone}}</label>
+            <input id="gni_phone" type="tel" ng-model="c.form.phone_number"
+                   ng-class="{'has-error': c.errors.phone_number}">
+            <span class="gni-err" ng-if="c.errors.phone_number">{{c.errors.phone_number}}</span>
+          </div>
+
+          <div class="gni-field gni-field--quarter">
+            <label for="gni_dob">{{c.data.t.birthdate}}</label>
+            <input id="gni_dob" type="date" ng-model="c.form.birthdate"
+                   ng-class="{'has-error': c.errors.birthdate}">
+            <span class="gni-err" ng-if="c.errors.birthdate">{{c.errors.birthdate}}</span>
+          </div>
+
+          <p class="gni-sub">{{c.data.t.address}}</p>
+
+          <div class="gni-field gni-field--full">
+            <label for="gni_street">{{c.data.t.street}}</label>
+            <input id="gni_street" type="text" ng-model="c.form.street"
+                   ng-class="{'has-error': c.errors.street}">
+            <span class="gni-err" ng-if="c.errors.street">{{c.errors.street}}</span>
+          </div>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_city">{{c.data.t.city}}</label>
+            <input id="gni_city" type="text" ng-model="c.form.city"
+                   ng-class="{'has-error': c.errors.city}">
+            <span class="gni-err" ng-if="c.errors.city">{{c.errors.city}}</span>
+          </div>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_zip">{{c.data.t.zip}}</label>
+            <input id="gni_zip" type="text" ng-model="c.form.zip_postal_code"
+                   ng-class="{'has-error': c.errors.zip_postal_code}">
+            <span class="gni-err" ng-if="c.errors.zip_postal_code">{{c.errors.zip_postal_code}}</span>
+          </div>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_country">{{c.data.t.country}}</label>
+            <input id="gni_country" type="text" ng-model="c.form.country"
+                   ng-class="{'has-error': c.errors.country}">
+            <span class="gni-err" ng-if="c.errors.country">{{c.errors.country}}</span>
+          </div>
+
         </div>
-      </div>
 
-      <!-- Step 4: Proposal Details -->
-      <div ng-show="c.currentStep === 4" class="form-step-content">
-        <div class="form-section-block">
-          <div class="section-block-header">
-            <div class="section-header-icon"><i class="fa fa-pencil"></i></div>
-            <div>
-              <h2 class="section-block-title">Proposal Details</h2>
-              <p class="section-block-subtitle">Describe your project and funding requirements</p>
-            </div>
+
+        <!-- ═══ 2 · BACKGROUND ═══ -->
+        <div class="gni-fields" ng-if="c.currentStep === 2">
+
+          <div class="gni-explain gni-field--full">
+            <p class="gni-explain__title">{{c.data.t.whyAsk}}</p>
+            <p class="gni-explain__text">{{c.data.t.whyAskText}}</p>
           </div>
 
-          <div class="form-fields-grid">
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Proposal Title <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.proposal_title"
-                     placeholder="Enter a descriptive title for your proposal"
-                     ng-class="{'field-error': c.errors.proposal_title}" />
-              <span ng-if="c.errors.proposal_title" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.proposal_title}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Short Description <span class="field-required-mark">*</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.short_description"
-                     placeholder="Brief summary (max 500 chars)" maxlength="500"
-                     ng-class="{'field-error': c.errors.short_description}" />
-              <span class="field-help-text">
-                <i class="fa fa-info-circle"></i>
-                {{c.form.short_description ? (500 - c.form.short_description.length) : 500}} characters remaining
-              </span>
-              <span ng-if="c.errors.short_description" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.short_description}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Proposal Description <span class="field-required-mark">*</span></label>
-              <textarea class="field-textarea-input" rows="8" ng-model="c.form.proposal_description"
-                        placeholder="Detailed description of your project, goals, methodology, timeline, and expected outcomes"
-                        ng-class="{'field-error': c.errors.proposal_description}"></textarea>
-              <span class="field-help-text">
-                <i class="fa fa-lightbulb-o"></i> Describe your objectives, methodology, timeline, and expected impact
-              </span>
-              <span ng-if="c.errors.proposal_description" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.proposal_description}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Project Goals and Objectives <span class="field-required-mark">*</span></label>
-              <textarea class="field-textarea-input" rows="6" ng-model="c.form.project_goals_and_objectives"
-                        placeholder="Describe the specific goals and measurable objectives your project aims to achieve"
-                        ng-class="{'field-error': c.errors.project_goals_and_objectives}"></textarea>
-              <span class="field-help-text">
-                <i class="fa fa-flag-o"></i> List specific, measurable, achievable goals and outcomes
-              </span>
-              <span ng-if="c.errors.project_goals_and_objectives" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.project_goals_and_objectives}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper form-field-full">
-              <label class="field-input-label">Project Activities & Methodology <span class="field-required-mark">*</span></label>
-              <textarea class="field-textarea-input" rows="6" ng-model="c.form.project_activities_methodology"
-                        placeholder="Explain the activities, methods, and approaches you will use"
-                        ng-class="{'field-error': c.errors.project_activities_methodology}"></textarea>
-              <span class="field-help-text">
-                <i class="fa fa-tasks"></i> Detail the activities and methods you will employ to achieve your objectives
-              </span>
-              <span ng-if="c.errors.project_activities_methodology" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.project_activities_methodology}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Organization Name <span class="field-optional-mark">(Optional)</span></label>
-              <input type="text" class="field-text-input" ng-model="c.form.organization"
-                     placeholder="Organization name" />
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Requested Budget <span class="field-required-mark">*</span></label>
-              <div class="field-input-group">
-                <span class="input-group-prefix">$</span>
-                <input type="number" class="field-text-input field-input-with-prefix"
-                       ng-model="c.form.requested_budget" placeholder="50000"
-                       min="0" step="1000" ng-class="{'field-error': c.errors.requested_budget}" />
-              </div>
-              <span class="field-help-text"><i class="fa fa-dollar"></i> Total budget requested for this project</span>
-              <span ng-if="c.errors.requested_budget" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.requested_budget}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Project Start Date <span class="field-required-mark">*</span></label>
-              <input type="date" class="field-text-input field-date-input"
-                     ng-model="c.form.project_start_date"
-                     ng-class="{'field-error': c.errors.project_start_date}" />
-              <span ng-if="c.errors.project_start_date" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.project_start_date}}
-              </span>
-            </div>
-
-            <div class="form-field-wrapper">
-              <label class="field-input-label">Project End Date <span class="field-required-mark">*</span></label>
-              <input type="date" class="field-text-input field-date-input"
-                     ng-model="c.form.project_end_date"
-                     ng-class="{'field-error': c.errors.project_end_date}" />
-              <span ng-if="c.errors.project_end_date" class="field-error-text">
-                <i class="fa fa-exclamation-circle"></i> {{c.errors.project_end_date}}
-              </span>
-            </div>
-
+          <div class="gni-field gni-field--half">
+            <label for="gni_ssn">{{c.data.t.ssn}}</label>
+            <input id="gni_ssn" type="text" ng-model="c.form.ssn" autocomplete="off"
+                   ng-class="{'has-error': c.errors.ssn}">
+            <span class="gni-note" ng-if="!c.errors.ssn">{{c.data.t.ssnNote}}</span>
+            <span class="gni-err" ng-if="c.errors.ssn">{{c.errors.ssn}}</span>
           </div>
+
+          <div class="gni-field gni-field--half">
+            <label for="gni_citizen">{{c.data.t.citizenship}}</label>
+            <div class="gni-pick">
+              <select id="gni_citizen" ng-model="c.form.citizenship_status"
+                      ng-class="{'has-error': c.errors.citizenship_status}">
+                <option value="">{{c.data.t.choose}}</option>
+                <option ng-repeat="o in c.data.choices.citizenship_status track by o.value"
+                        value="{{o.value}}">{{o.label}}</option>
+              </select>
+              <i class="fa fa-angle-down" aria-hidden="true"></i>
+            </div>
+            <span class="gni-err" ng-if="c.errors.citizenship_status">{{c.errors.citizenship_status}}</span>
+          </div>
+
+          <div class="gni-field gni-field--half" ng-repeat="f in c.demoFields track by f.key">
+            <label for="gni_{{f.key}}">{{f.label}}</label>
+            <div class="gni-pick">
+              <select id="gni_{{f.key}}" ng-model="c.form[f.key]"
+                      ng-class="{'has-error': c.errors[f.key]}">
+                <option value="">{{c.data.t.choose}}</option>
+                <option ng-repeat="o in c.data.choices[f.key] track by o.value"
+                        value="{{o.value}}">{{o.label}}</option>
+              </select>
+              <i class="fa fa-angle-down" aria-hidden="true"></i>
+            </div>
+            <span class="gni-err" ng-if="c.errors[f.key]">{{c.errors[f.key]}}</span>
+          </div>
+
         </div>
-      </div>
 
-      <!-- Step 5: Documents Upload -->
-      <div ng-show="c.currentStep === 5" class="form-step-content">
-        <div class="form-section-block">
-          <div class="section-block-header">
-            <div class="section-header-icon"><i class="fa fa-paperclip"></i></div>
-            <div>
-              <h2 class="section-block-title">Supporting Documents</h2>
-              <p class="section-block-subtitle">Upload all required documentation for your application</p>
+
+        <!-- ═══ 3 · ORGANISATION ═══ -->
+        <div class="gni-fields" ng-if="c.currentStep === 3">
+
+          <div class="gni-field gni-field--full">
+            <label for="gni_program">{{c.data.t.program}}</label>
+            <div class="gni-pick">
+              <select id="gni_program" ng-model="c.form.grant_program"
+                      ng-class="{'has-error': c.errors.grant_program}">
+                <option value="">{{c.data.t.choose}}</option>
+                <option ng-repeat="p in c.data.programs track by p.sys_id"
+                        value="{{p.sys_id}}">{{p.name}}{{p.number ? '  ·  ' + p.number : ''}}</option>
+              </select>
+              <i class="fa fa-angle-down" aria-hidden="true"></i>
             </div>
-          </div>
-
-          <div class="form-field-wrapper">
-            <label class="field-input-label">Upload Application Documents <span class="field-required-mark">*</span></label>
-
-            <div class="upload-documents-info-box">
-              <h4 class="upload-info-title"><i class="fa fa-list-ul"></i> Required Documents</h4>
-              <ul class="upload-checklist">
-                <li><i class="fa fa-circle-o"></i> Project Narrative</li>
-                <li><i class="fa fa-circle-o"></i> Detailed Budget and Justification</li>
-                <li><i class="fa fa-circle-o"></i> Timeline / Work Plan</li>
-                <li><i class="fa fa-circle-o"></i> Letters of Support</li>
-                <li><i class="fa fa-circle-o"></i> Compliance Certifications (if applicable)</li>
-              </ul>
-            </div>
-
-            <div class="file-upload-zone"
-                 ng-class="{'file-drag-over': c.isDragging}"
-                 ng-file-drop="c.onFilesDrop($files)"
-                 ng-file-drop-available="c.dropSupported = true"
-                 ng-model="c.files">
-              <div class="upload-icon-wrapper"><i class="fa fa-cloud-upload"></i></div>
-              <p class="upload-instruction"><strong>Drag and drop files here</strong> or click to browse</p>
-              <label class="upload-browse-button">
-                <input type="file" class="upload-file-input"
-                       ng-file-select="c.onFilesSelected($files)"
-                       multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
-                <i class="fa fa-folder-open"></i> Browse Files
-              </label>
-              <p class="upload-help-text">
-                <i class="fa fa-info-circle"></i> Accepted: PDF, DOC, DOCX, JPG, PNG (Max 10MB per file)
-              </p>
-            </div>
-
-            <div ng-if="c.uploadedFiles && c.uploadedFiles.length > 0" class="uploaded-files-list">
-              <div class="uploaded-files-header">
-                <i class="fa fa-check-circle"></i>
-                <span>Uploaded Files ({{c.uploadedFiles.length}})</span>
-              </div>
-              <div class="file-item" ng-repeat="file in c.uploadedFiles">
-                <div class="file-item-icon">
-                  <i class="fa" ng-class="{
-                    'fa-file-pdf-o':   file.type === 'application/pdf',
-                    'fa-file-word-o':  file.type.indexOf('word') > -1 || file.type.indexOf('document') > -1,
-                    'fa-file-image-o': file.type.indexOf('image') > -1,
-                    'fa-file-o':       true
-                  }"></i>
-                </div>
-                <div class="file-item-details">
-                  <span class="file-item-name">{{file.name}}</span>
-                  <span class="file-item-size">{{c.formatFileSize(file.size)}}</span>
-                </div>
-                <button type="button" class="file-item-remove" ng-click="c.removeFile($index)">
-                  <i class="fa fa-times"></i>
-                </button>
-              </div>
-            </div>
-
-            <div ng-if="c.uploadProgress && c.uploadProgress > 0" class="upload-progress-bar">
-              <div class="progress-bar-fill" ng-style="{'width': c.uploadProgress + '%'}"></div>
-              <span class="progress-bar-text">Uploading... {{c.uploadProgress}}%</span>
-            </div>
-
-            <span ng-if="c.errors.documents" class="field-error-text">
-              <i class="fa fa-exclamation-circle"></i> {{c.errors.documents}}
+            <span class="gni-note" ng-if="c.form.program_category">
+              {{c.data.t.category}}: <strong>{{c.form.program_category}}</strong>
             </span>
+            <span class="gni-err" ng-if="c.errors.grant_program">{{c.errors.grant_program}}</span>
           </div>
+
+          <div class="gni-field gni-field--half">
+            <label for="gni_atype">{{c.data.t.applicantType}}</label>
+            <div class="gni-pick">
+              <select id="gni_atype" ng-model="c.form.applicant_type"
+                      ng-class="{'has-error': c.errors.applicant_type}">
+                <option value="">{{c.data.t.choose}}</option>
+                <option ng-repeat="o in c.data.choices.applicant_type track by o.value"
+                        value="{{o.value}}">{{o.label}}</option>
+              </select>
+              <i class="fa fa-angle-down" aria-hidden="true"></i>
+            </div>
+            <span class="gni-err" ng-if="c.errors.applicant_type">{{c.errors.applicant_type}}</span>
+          </div>
+
+          <div class="gni-field gni-field--half">
+            <label for="gni_org">{{c.data.t.organisation}}</label>
+            <input id="gni_org" type="text" ng-model="c.form.organization"
+                   ng-class="{'has-error': c.errors.organization}">
+            <span class="gni-err" ng-if="c.errors.organization">{{c.errors.organization}}</span>
+          </div>
+
+          <div class="gni-field gni-field--half">
+            <label for="gni_itype">{{c.data.t.identityType}}</label>
+            <div class="gni-pick">
+              <select id="gni_itype" ng-model="c.form.identity_type"
+                      ng-class="{'has-error': c.errors.identity_type}">
+                <option value="">{{c.data.t.choose}}</option>
+                <option ng-repeat="o in c.data.choices.identity_type track by o.value"
+                        value="{{o.value}}">{{o.label}}</option>
+              </select>
+              <i class="fa fa-angle-down" aria-hidden="true"></i>
+            </div>
+            <span class="gni-err" ng-if="c.errors.identity_type">{{c.errors.identity_type}}</span>
+          </div>
+
+          <div class="gni-field gni-field--quarter">
+            <label for="gni_uei">{{c.data.t.uei}}</label>
+            <input id="gni_uei" type="text" ng-model="c.form.uei"
+                   ng-class="{'has-error': c.errors.uei}">
+            <span class="gni-err" ng-if="c.errors.uei">{{c.errors.uei}}</span>
+          </div>
+
+          <div class="gni-field gni-field--quarter">
+            <label for="gni_tin">{{c.data.t.tin}}</label>
+            <input id="gni_tin" type="text" ng-model="c.form.tin_ein"
+                   ng-class="{'has-error': c.errors.tin_ein}">
+            <span class="gni-err" ng-if="c.errors.tin_ein">{{c.errors.tin_ein}}</span>
+          </div>
+
         </div>
-      </div>
 
-      <!-- Navigation Buttons -->
-      <div class="multistep-nav-actions">
-        <button type="button" class="btn-nav-back"
-                ng-click="c.prevStep()" ng-show="c.currentStep > 1" ng-disabled="c.saving">
-          <i class="fa fa-arrow-left"></i> Previous
-        </button>
 
-        <div class="nav-actions-spacer"></div>
+        <!-- ═══ 4 · PROPOSAL ═══ -->
+        <div class="gni-fields" ng-if="c.currentStep === 4">
 
-        <button type="button" class="btn-nav-cancel"
-                ng-click="c.cancel()" ng-disabled="c.saving">
-          <i class="fa fa-times"></i> Cancel
-        </button>
+          <div class="gni-field gni-field--full">
+            <label for="gni_ptitle">{{c.data.t.proposalTitle}}</label>
+            <input id="gni_ptitle" type="text" ng-model="c.form.proposal_title"
+                   ng-class="{'has-error': c.errors.proposal_title}">
+            <span class="gni-err" ng-if="c.errors.proposal_title">{{c.errors.proposal_title}}</span>
+          </div>
 
-        <button type="button" class="btn-nav-next"
-                ng-click="c.nextStep()" ng-show="c.currentStep < 5" ng-disabled="c.saving">
-          Next <i class="fa fa-arrow-right"></i>
-        </button>
+          <div class="gni-field gni-field--full">
+            <label for="gni_short">{{c.data.t.shortDesc}}</label>
+            <input id="gni_short" type="text" maxlength="160"
+                   ng-model="c.form.short_description"
+                   ng-class="{'has-error': c.errors.short_description}">
+            <span class="gni-note" ng-if="!c.errors.short_description">{{c.left(c.form.short_description, 160)}}</span>
+            <span class="gni-err" ng-if="c.errors.short_description">{{c.errors.short_description}}</span>
+          </div>
 
-  <button type="button" class="btn-nav-submit"
-        ng-click="c.submit()"
-        ng-show="c.currentStep === 5"
-        ng-disabled="c.saving || c.submitted">
-  <span ng-if="!c.saving && !c.submitted"><i class="fa fa-paper-plane"></i> Submit Application</span>
-  <span ng-if="c.saving || c.submitted"><i class="fa fa-spinner fa-spin"></i> Submitting...</span>
-</button>
-      </div>
+          <div class="gni-field gni-field--full">
+            <label for="gni_desc">{{c.data.t.proposalDesc}}</label>
+            <textarea id="gni_desc" rows="6" ng-model="c.form.proposal_description"
+                      ng-class="{'has-error': c.errors.proposal_description}"></textarea>
+            <span class="gni-err" ng-if="c.errors.proposal_description">{{c.errors.proposal_description}}</span>
+          </div>
+
+          <div class="gni-field gni-field--full">
+            <label for="gni_goals">{{c.data.t.goals}}</label>
+            <textarea id="gni_goals" rows="5" ng-model="c.form.project_goals_and_objectives"
+                      ng-class="{'has-error': c.errors.project_goals_and_objectives}"></textarea>
+            <span class="gni-err" ng-if="c.errors.project_goals_and_objectives">{{c.errors.project_goals_and_objectives}}</span>
+          </div>
+
+          <div class="gni-field gni-field--full">
+            <label for="gni_method">{{c.data.t.method}}</label>
+            <textarea id="gni_method" rows="5" ng-model="c.form.project_activities_methodology"
+                      ng-class="{'has-error': c.errors.project_activities_methodology}"></textarea>
+            <span class="gni-err" ng-if="c.errors.project_activities_methodology">{{c.errors.project_activities_methodology}}</span>
+          </div>
+
+          <p class="gni-sub">{{c.data.t.moneyTime}}</p>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_budget">{{c.data.t.budget}}</label>
+            <div class="gni-money">
+              <span class="gni-money__sign" aria-hidden="true">$</span>
+              <input id="gni_budget" type="number" min="0" step="1" inputmode="decimal"
+                     ng-model="c.form.requested_budget"
+                     ng-class="{'has-error': c.errors.requested_budget}">
+            </div>
+            <span class="gni-err" ng-if="c.errors.requested_budget">{{c.errors.requested_budget}}</span>
+          </div>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_start">{{c.data.t.startDate}}</label>
+            <input id="gni_start" type="date" ng-model="c.form.project_start_date"
+                   ng-class="{'has-error': c.errors.project_start_date}">
+            <span class="gni-err" ng-if="c.errors.project_start_date">{{c.errors.project_start_date}}</span>
+          </div>
+
+          <div class="gni-field gni-field--third">
+            <label for="gni_end">{{c.data.t.endDate}}</label>
+            <input id="gni_end" type="date" ng-model="c.form.project_end_date"
+                   ng-class="{'has-error': c.errors.project_end_date}">
+            <span class="gni-err" ng-if="c.errors.project_end_date">{{c.errors.project_end_date}}</span>
+          </div>
+
+        </div>
+
+
+        <!-- ═══ 5 · DOCUMENTS ═══ -->
+        <div class="gni-fields" ng-if="c.currentStep === 5">
+
+          <div class="gni-field--full">
+
+            <!-- Native file input + dropzone. No ng-file-upload
+                 dependency: the controller wires change / drag /
+                 drop itself once this step renders. -->
+            <div class="gni-drop"
+                 ng-class="{'is-over': c.isDragging, 'has-error': c.errors.documents}">
+
+              <span class="gni-drop__mark" aria-hidden="true"><i class="fa fa-cloud-upload"></i></span>
+              <p class="gni-drop__title">{{c.data.t.dropTitle}}</p>
+              <p class="gni-drop__text">{{c.data.t.dropText}}</p>
+
+              <input type="file"
+                     class="gni-file-input"
+                     multiple
+                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                     style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);margin:-1px;border:0;">
+
+              <button type="button"
+                      class="gni-btn gni-btn--ghost gni-drop__btn"
+                      ng-click="c.pickFiles()">
+                <i class="fa fa-paperclip" aria-hidden="true"></i>
+                {{c.data.t.chooseFiles}}
+              </button>
+
+            </div>
+
+            <span class="gni-err" ng-if="c.errors.documents">{{c.errors.documents}}</span>
+
+            <ul class="gni-files" ng-if="c.uploadedFiles.length">
+              <li class="gni-file" ng-repeat="f in c.uploadedFiles track by ($index + f.name)">
+                <span class="gni-file__mark" aria-hidden="true"><i class="fa fa-file-o"></i></span>
+                <span class="gni-file__body">
+                  <span class="gni-file__name">{{f.name}}</span>
+                  <span class="gni-file__size">{{c.formatFileSize(f.size)}}</span>
+                </span>
+                <button type="button" class="gni-file__x" ng-click="c.removeFile($index)"
+                        aria-label="{{c.data.t.remove}}">
+                  <i class="fa fa-times" aria-hidden="true"></i>
+                </button>
+              </li>
+            </ul>
+
+          </div>
+
+        </div>
+
+
+        <!-- ═══ 6 · REVIEW ═══ -->
+        <div class="gni-review" ng-if="c.currentStep === 6">
+
+          <div class="gni-recap" ng-repeat="g in c.recap() track by g.step">
+
+            <header class="gni-recap__head">
+              <h3 class="gni-recap__title">{{g.title}}</h3>
+              <button type="button" class="gni-recap__edit" ng-click="c.goToStep(g.step)">
+                {{c.data.t.edit}}
+              </button>
+            </header>
+
+            <dl class="gni-recap__rows">
+              <div class="gni-recap__row" ng-repeat="r in g.rows track by $index">
+                <dt>{{r.label}}</dt>
+                <dd ng-class="{'is-blank': !r.value}">{{r.value || c.data.t.notGiven}}</dd>
+              </div>
+            </dl>
+
+          </div>
+
+          <div class="gni-recap">
+            <header class="gni-recap__head">
+              <h3 class="gni-recap__title">{{c.data.t.documents}}</h3>
+              <button type="button" class="gni-recap__edit" ng-click="c.goToStep(5)">{{c.data.t.edit}}</button>
+            </header>
+            <p class="gni-recap__files" ng-if="c.uploadedFiles.length">
+              {{c.uploadedFiles.length}} {{c.data.t.filesAttached}}
+            </p>
+            <p class="gni-recap__files is-blank" ng-if="!c.uploadedFiles.length">{{c.data.t.noFiles}}</p>
+          </div>
+
+          <label class="gni-confirm">
+            <input type="checkbox" ng-model="c.confirmed">
+            <span>{{c.data.t.confirm}}</span>
+          </label>
+          <span class="gni-err" ng-if="c.errors.confirmed">{{c.errors.confirmed}}</span>
+
+        </div>
+
+
+        <!-- ── actions ── -->
+        <footer class="gni-actions">
+
+          <button type="button" class="gni-btn gni-btn--ghost"
+                  ng-click="c.prevStep()" ng-disabled="c.currentStep === 1 || c.saving">
+            {{c.data.t.back}}
+          </button>
+
+          <div class="gni-actions__right">
+
+            <button type="button" class="gni-btn gni-btn--primary"
+                    ng-if="c.currentStep < c.totalSteps"
+                    ng-click="c.nextStep()" ng-disabled="c.saving">
+              {{c.data.t.continue}}
+              <i class="fa fa-arrow-right" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="gni-btn gni-btn--primary"
+                    ng-if="c.currentStep === c.totalSteps"
+                    ng-click="c.submit()" ng-disabled="c.saving">
+              <span ng-if="!c.saving">{{c.data.t.submit}}</span>
+              <span ng-if="c.saving">{{c.data.t.submitting}}</span>
+            </button>
+
+          </div>
+
+        </footer>
+
+        <div class="gni-progressbar" ng-if="c.uploadProgress > 0">
+          <span ng-style="{width: c.uploadProgress + '%'}"></span>
+        </div>
+
+      </main>
 
     </div>
-    <!-- end ng-hide formBlocked -->
 
   </div>
-  <!-- end .multistep-form-container -->
 
-</div>
-]]></template>
+</div>]]></template>
     </sp_widget>
 </record_update>

@@ -1,734 +1,729 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $window, $location, $rootScope) {
+        <client_script><![CDATA[api.controller = function($rootScope, $location, $window) {
 
-  /*
-   * =========================================================
-   * SIDEBAR COLLAPSE / EXPAND
-   * =========================================================
-   */
+  /* =========================================================
+     GATENOW · SIDEBAR · Client script
 
-  var STORAGE_KEY = 'gatenow_sidebar_collapsed';
+     The rail owns its own collapsed state and tells the rest of
+     the page about it, rather than each page guessing. Any page
+     hosting this widget listens for gnSidebar and sizes its
+     column to match.
+     ========================================================= */
 
-  // Restore saved sidebar state
-  $scope.isCollapsed =
-    $window.localStorage.getItem(STORAGE_KEY) === 'true';
+  var c = this;
 
+  /* expanded by default. A rail with labels is only worth
+     having if people see it labelled at least once. */
+  c.tight = false;
 
-  $scope.toggleSidebar = function() {
-
-    // Toggle state
-    $scope.isCollapsed = !$scope.isCollapsed;
-
-    // Persist state
-    $window.localStorage.setItem(
-      STORAGE_KEY,
-      String($scope.isCollapsed)
-    );
-
-    // Notify other widgets if needed
-    $rootScope.$broadcast(
-      'sidebar.toggled',
-      $scope.isCollapsed
-    );
-
-  };
-
-
-  /*
-   * =========================================================
-   * CURRENT PAGE
-   * =========================================================
-   */
-
-  function getCurrentPageId() {
-
-    var idFromLocation =
-      $location.search().id;
-
-    if (idFromLocation) {
-      return idFromLocation;
-    }
-
-    try {
-
-      return new URLSearchParams(
-        $window.location.search
-      ).get('id');
-
-    } catch (e) {
-
-      return null;
-
-    }
-
+  function announce() {
+    /* the width the host column should reserve */
+    $rootScope.$broadcast('gnSidebar', {
+      collapsed: c.tight,
+      width: c.tight ? 72 : 236
+    });
   }
 
-
-  $scope.currentId = getCurrentPageId();
-
-
-  /*
-   * =========================================================
-   * LOCATION CHANGE
-   * =========================================================
-   */
-
-  $rootScope.$on(
-    '$locationChangeSuccess',
-    function() {
-
-      $scope.currentId =
-        getCurrentPageId();
-
-    }
-  );
-
-
-  /*
-   * =========================================================
-   * ACTIVE NAVIGATION ITEM
-   * =========================================================
-   */
-
-  $scope.isActive = function(pageId) {
-
-    return $scope.currentId === pageId;
-
+  c.toggle = function() {
+    c.tight = !c.tight;
+    announce();
   };
 
+  /* say it once on load so a page rendered after the rail still
+     gets the right width */
+  announce();
 
-  /*
-   * =========================================================
-   * RIGHT PANEL
-   * =========================================================
-   */
+  c.go = function(item) {
+    if (!item || !item.page) return;
 
-  var RIGHT_PANEL_KEY =
-    'gatenow_right_panel_open';
+    /* already here, so nothing to do. Reloading the page you are
+       on throws away scroll position for no reason. */
+    if (item.active) return;
 
-  $scope.rightPanelOpen =
-    $window.localStorage.getItem(
-      RIGHT_PANEL_KEY
-    ) === 'true';
-
-
-  /*
-   * =========================================================
-   * NAVIGATION
-   * =========================================================
-   */
-
-  $scope.navigate = function(pageId) {
-
-    if (!pageId) {
-      return;
-    }
-
-    /*
-     * Navigate to page
-     */
-    $location.search('id', pageId);
-
-
-    /*
-     * Reimbursement panel
-     */
-    if (pageId === 'reimbursement') {
-
-      $scope.rightPanelOpen =
-        !$scope.rightPanelOpen;
-
-
-      $window.localStorage.setItem(
-        RIGHT_PANEL_KEY,
-        String($scope.rightPanelOpen)
-      );
-
-
-      $rootScope.$broadcast(
-        'reimbursementPanel.toggled',
-        $scope.rightPanelOpen
-      );
-
-    }
-
+    $location.search({ id: item.page });
   };
 
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
-
-
-/* =========================================================
-   SIDEBAR WRAPPER
-   ========================================================= */
-
-.gatenow-sidebar-wrapper {
-  display: flex !important;
-  flex: 0 0 auto !important;
-  width: auto !important;
-  min-width: 0 !important;
-  height: 100vh !important;
-  position: relative !important;
-  z-index: 9999 !important;
-}
-
-
-/* =========================================================
-   SIDEBAR
-   ========================================================= */
-
-.glass-sidebar {
-  width: 120px !important;
-  min-width: 120px !important;
-  max-width: 120px !important;
-
-  flex: 0 0 120px !important;
-
-  height: 100vh !important;
-
-  position: sticky !important;
-  top: 0 !important;
-
-  box-sizing: border-box !important;
-
-  font-family: 'Inter', sans-serif;
-
-  z-index: 9999 !important;
-
-  overflow: visible !important;
-
-  background: rgba(255, 255, 255, 0.35);
-
-  backdrop-filter: blur(30px) saturate(220%);
-  -webkit-backdrop-filter: blur(30px) saturate(220%);
-
-  border-right: 1px solid rgba(255, 255, 255, 0.6);
-
-  box-shadow:
-    inset 1px 0 0 rgba(255, 255, 255, 0.5),
-    6px 0 40px rgba(79, 70, 229, 0.15);
-
-  transition:
-    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    flex-basis 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-}
-
-
-/* =========================================================
-   COLLAPSED STATE
-   ========================================================= */
-
-.glass-sidebar.is-closed {
-
-  width: 64px !important;
-  min-width: 64px !important;
-  max-width: 64px !important;
-
-  flex: 0 0 64px !important;
-
-}
-
-/* =========================================================
-   HIDE NAV ICONS WHEN COLLAPSED
-   ========================================================= */
-
-.glass-sidebar.is-closed .glass-nav {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-
-/* =========================================================
-   TOGGLE WRAPPER
-   ========================================================= */
-
-.sidebar-toggle-wrap {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  position: absolute;
-  /* Increased from 24px to push the button down below the global navbar */
-  top: 90px; 
-  left: 0;
-  z-index: 10;
-}
-
-
-/* =========================================================
-   TOGGLE BUTTON
-   ========================================================= */
-
-.sidebar-toggle {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border: 1px solid transparent;
-  background: #f1f5f9;
-  color: #0f172a;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  outline: none;
-  line-height: 0;          /* NEW — kills inline baseline gap */
-  box-sizing: border-box;  /* NEW — keeps 40x40 exact regardless of border */
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
-}
-
-
-.sidebar-toggle:hover {
-
-  background: #e2e8f0;
-
-  border-color: #cbd5e1;
-
-}
-
-
-.sidebar-toggle:focus {
-
-  outline: none;
-
-}
-
-
-.sidebar-toggle svg {
-  width: 20px;
-  height: 20px;
-  color: #1e293b;
-  display: block;   /* NEW — SVGs default to inline, this removes the offset */
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-
-.sidebar-toggle.is-collapsed svg {
-
-  transform: rotate(180deg);
-
-}
-
-/* =========================================================
-   TOGGLE WRAPPER
-   ========================================================= */
-
-.sidebar-toggle-wrap {
-  width: 100%;
-  height: 64px;              /* NEW — gives the wrap real hoverable height */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: absolute;
-  top: 24px;
-  left: 0;
-  z-index: 10000;
-  cursor: pointer;           /* NEW — shows intent across the whole area */
-}
-
-/* NEW — hovering anywhere in the wrap triggers the button's hover look */
-.sidebar-toggle-wrap:hover .sidebar-toggle {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-}
-
-.sidebar-toggle-wrap:hover .toggle-tooltip {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(-50%) translateX(15px);
-}
-
-
-/* =========================================================
-   TOGGLE TOOLTIP
-   ========================================================= */
-
-.toggle-tooltip {
-
-  position: absolute;
-
-  left: 100%;
-
-  top: 50%;
-
-  transform:
-    translateY(-50%)
-    translateX(5px);
-
-  background: #000000;
-
-  color: #ffffff;
-
-  padding: 8px 14px;
-
-  border-radius: 20px;
-
-  font-size: 13px;
-
-  font-weight: 500;
-
-  white-space: nowrap;
-
-  opacity: 0;
-
-  visibility: hidden;
-
-  transition:
-    opacity 0.25s ease,
-    visibility 0.25s ease,
-    transform 0.25s ease;
-
-  pointer-events: none;
-
-  z-index: 999999 !important;
-
-}
-
-
-.sidebar-toggle:hover .toggle-tooltip {
-
-  opacity: 1;
-
-  visibility: visible;
-
-  transform:
-    translateY(-50%)
-    translateX(15px);
-
-}
-
-
-/* =========================================================
-   NAVIGATION
-   ========================================================= */
-
-.glass-nav {
-
-  list-style: none !important;
-
-  padding: 0 !important;
-
-  margin: 0 !important;
-
-  display: flex !important;
-
-  flex-direction: column !important;
-
-  gap: 24px !important;
-
-  align-items: center !important;
-
-  width: 100% !important;
-
-  position: absolute !important;
-
-  top: 50% !important;
-
-  left: 0 !important;
-
-  transform: translateY(-50%) !important;
-
-  z-index: 1;
-
-}
-
-
-.glass-nav li {
-
-  width: 100% !important;
-
-  display: flex !important;
-
-  justify-content: center !important;
-
-  align-items: center !important;
-
-  list-style: none !important;
-
-  margin: 0 !important;
-
-  padding: 0 !important;
-
-  position: relative !important;
-
-}
-
-
-.glass-nav li a {
-
-  display: flex !important;
-
-  align-items: center !important;
-
-  justify-content: center !important;
-
-  text-decoration: none !important;
-
-  width: 100% !important;
-
-  cursor: pointer;
-
-}
-
-
-/* =========================================================
-   ICON CIRCLE
-   ========================================================= */
-
-.icon-circle {
-
-  position: relative;
-
-  width: 56px;
-
-  height: 56px;
-
-  min-width: 56px;
-
-  min-height: 56px;
-
-  border-radius: 50%;
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  background: rgba(255, 255, 255, 0.65) !important;
-
-  color: #1e293b !important;
-
-  border: 1px solid rgba(255, 255, 255, 0.7);
-
-  box-shadow:
-    0 4px 12px rgba(31, 38, 135, 0.08);
-
-  transition:
-    transform 0.25s ease,
-    background 0.25s ease,
-    box-shadow 0.25s ease;
-
-  flex-shrink: 0;
-
-}
-
-
-.icon-circle svg,
-.icon-circle i {
-
-  width: 20px;
-
-  height: 20px;
-
-  font-size: 20px;
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  color: #1e293b !important;
-
-  stroke: #1e293b !important;
-
-}
-
-
-.icon-circle svg[fill="currentColor"] {
-
-  fill: #1e293b !important;
-
-}
-
-
-/* =========================================================
-   HOVER
-   ========================================================= */
-
-.glass-nav li a:hover .icon-circle {
-
-  background: #1765dc !important;
-
-  color: #ffffff !important;
-
-  border-color: transparent !important;
-
-  box-shadow:
-    0 8px 24px rgba(23, 101, 220, 0.4);
-
-  transform: scale(1.08);
-
-}
-
-
-.glass-nav li a:hover .icon-circle i {
-
-  color: #ffffff !important;
-
-}
-
-
-.glass-nav li a:hover .icon-circle svg {
-
-  stroke: #ffffff !important;
-
-}
-
-
-.glass-nav li a:hover
-.icon-circle svg[fill="currentColor"] {
-
-  fill: #ffffff !important;
-
-}
-
-
-/* =========================================================
-   ACTIVE
-   ========================================================= */
-
-.glass-nav li.active .icon-circle {
-
-  background: rgba(255, 255, 255, 0.95) !important;
-
-  color: #1e293b !important;
-
-  border:
-    1px solid rgba(255, 255, 255, 0.9) !important;
-
-  box-shadow:
-    0 4px 16px rgba(31, 38, 135, 0.12);
-
-  transform: scale(1);
-
-}
-
-
-.glass-nav li.active .icon-circle i {
-
-  color: #1e293b !important;
-
-}
-
-
-.glass-nav li.active .icon-circle svg {
-
-  stroke: #1e293b !important;
-
-}
-
-
-.glass-nav li.active
-.icon-circle svg[fill="currentColor"] {
-
-  fill: #1e293b !important;
-
-}
-
-
-/* =========================================================
-   NAVIGATION TOOLTIP
-   ========================================================= */
-
-.tooltip-title {
-
-  position: absolute;
-
-  left: 100%;
-
-  top: 50%;
-
-  transform:
-    translateY(-50%)
-    translateX(-10px);
-
-  opacity: 0;
-
-  visibility: hidden;
-
-  background: rgba(255, 255, 255, 0.85);
-
-  backdrop-filter: blur(12px);
-
-  -webkit-backdrop-filter: blur(12px);
-
-  color: #1e293b;
-
-  padding: 8px 16px;
-
-  border-radius: 8px;
-
-  font-size: 14px;
-
-  font-weight: 600;
-
-  white-space: nowrap;
-
-  box-shadow:
-    0 4px 15px rgba(31, 38, 135, 0.15);
-
-  border:
-    1px solid rgba(255, 255, 255, 0.6);
-
-  pointer-events: none;
-
-  transition:
-    opacity 0.35s ease,
-    visibility 0.35s ease,
-    transform 0.35s ease;
-
-  z-index: 999999 !important;
-
-}
-
-
-.tooltip-title::before {
-
-  content: '';
-
-  position: absolute;
-
-  top: 50%;
-
-  right: 100%;
-
-  transform: translateY(-50%);
-
-  border-width: 6px;
-
-  border-style: solid;
-
-  border-color:
-    transparent
-    rgba(255, 255, 255, 0.85)
-    transparent
-    transparent;
-
-}
-
-
-.glass-nav li a:hover .tooltip-title {
-
-  opacity: 1;
-
-  visibility: visible;
-
-  transform:
-    translateY(-50%)
-    translateX(15px);
-
+        <css>/* =========================================================&#13;
+   GATENOW · SIDEBAR&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   WHAT THIS FIXES, AND WHY&#13;
+&#13;
+   1. Hover was stronger than active.&#13;
+      The old rail filled the circle solid blue on hover and&#13;
+      left the active item white. So pointing at any item made&#13;
+      it look more selected than the page you were actually on.&#13;
+      Active is now the only filled state, and hover is a quiet&#13;
+      tint that never competes with it.&#13;
+&#13;
+   2. Glass over a pale page is not glass.&#13;
+      A 35% white panel with a blur, sitting on an almost white&#13;
+      dashboard, reads as nothing at all. The icons appeared to&#13;
+      float over the content and the tooltips bled across the&#13;
+      cards. This is a solid white surface with one hairline,&#13;
+      which is what actually separates two regions.&#13;
+&#13;
+   3. 120px for six icons.&#13;
+      Icon only rails are 64 to 72. Anything wider is either&#13;
+      carrying labels or wasting the column. This one carries&#13;
+      labels at 236 and collapses to 72.&#13;
+&#13;
+   4. The external font import is gone.&#13;
+      @import from fonts.googleapis.com is an outbound request&#13;
+      from CSS, which fails a Store submission and loads a&#13;
+      second typeface next to the one every other widget uses.&#13;
+      The rail inherits Outfit like everything else.&#13;
+&#13;
+   Also: the indigo shadow was the old palette. Everything here&#13;
+   is the same navy and the same accent blue as the pages.&#13;
+   ========================================================= */&#13;
+&#13;
+/* =========================================================&#13;
+   HOST COLUMN&#13;
+   =========================================================&#13;
+&#13;
+   THE OVERLAP&#13;
+&#13;
+   Every page wraps this widget in a column that reserves a&#13;
+   fixed width through an inline ng-style:&#13;
+&#13;
+     ng-style="{'width': c.isSidebarCollapsed ? '64px' : '96px',&#13;
+                'min-width': ..., 'max-width': ..., 'flex': ...}"&#13;
+&#13;
+   The rail is 236px when it carries labels. The column is 96.&#13;
+   So the rail paints 140px of itself over the page next to it,&#13;
+   which is exactly what the screenshots show.&#13;
+&#13;
+   Rather than editing seven templates, the column is corrected&#13;
+   from here. An inline style loses to a stylesheet rule marked&#13;
+   important, so these win over the ng-style without the pages&#13;
+   changing at all, and they keep working when the rail toggles&#13;
+   between 236 and 72.&#13;
+&#13;
+   The pages can still be cleaned up later, and the note that&#13;
+   ships with this widget says how. Nothing breaks if they are&#13;
+   not.&#13;
+   ========================================================= */&#13;
+&#13;
+.aw-sidebar,&#13;
+.gatenow-sidebar-wrapper,&#13;
+.gn-layout &gt; .sidebar,&#13;
+.main-layout-flex &gt; .sidebar {&#13;
+  width: auto !important;&#13;
+  min-width: 0 !important;&#13;
+  max-width: none !important;&#13;
+  flex: 0 0 auto !important;&#13;
+  height: auto !important;&#13;
+  overflow: visible !important;&#13;
+  background: transparent !important;&#13;
+}&#13;
+&#13;
+/* the rail does its own sticking, so a second sticky wrapper&#13;
+   around it fights with the first and neither wins */&#13;
+.aw-sidebar,&#13;
+.gatenow-sidebar-wrapper {&#13;
+  position: relative !important;&#13;
+  top: auto !important;&#13;
+}&#13;
+&#13;
+/* Service Portal wraps every widget in a panel that clips&#13;
+   anything leaving its box, which cuts the tooltips off at the&#13;
+   column edge */&#13;
+.aw-sidebar .panel,&#13;
+.aw-sidebar .panel-body,&#13;
+.aw-sidebar .sp-widget,&#13;
+.gatenow-sidebar-wrapper .panel,&#13;
+.gatenow-sidebar-wrapper .panel-body,&#13;
+.gatenow-sidebar-wrapper .sp-widget {&#13;
+  height: 100% !important;&#13;
+  margin: 0 !important;&#13;
+  padding: 0 !important;&#13;
+  border: 0 !important;&#13;
+  background: transparent !important;&#13;
+  box-shadow: none !important;&#13;
+  overflow: visible !important;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- ink ---------- */&#13;
+$s-navy:   #0a2540;&#13;
+$s-ink-2:  rgba(10, 37, 64, 0.72);&#13;
+$s-ink-3:  rgba(10, 37, 64, 0.54);&#13;
+$s-ink-4:  rgba(10, 37, 64, 0.38);&#13;
+$s-line:   rgba(10, 37, 64, 0.10);&#13;
+$s-line-2: rgba(10, 37, 64, 0.06);&#13;
+$s-tint:   rgba(10, 37, 64, 0.035);&#13;
+&#13;
+/* ---------- accent ---------- */&#13;
+$s-blue:    #1560e0;&#13;
+$s-blue-dk: #0f4cbb;&#13;
+$s-blue-1:  rgba(21, 96, 224, 0.09);&#13;
+$s-blue-2:  rgba(21, 96, 224, 0.18);&#13;
+&#13;
+/* ---------- badges, two meanings only ---------- */&#13;
+$s-amber:   #a4741f;&#13;
+$s-amber-1: rgba(164, 116, 31, 0.14);&#13;
+$s-red:     #b8394a;&#13;
+$s-red-1:   rgba(184, 57, 74, 0.12);&#13;
+&#13;
+$s-white: #ffffff;&#13;
+$s-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RAIL&#13;
+   ========================================================= */&#13;
+&#13;
+.gsb {&#13;
+  position: sticky;&#13;
+  top: 0;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+&#13;
+  /* the rail is the thing that knows how wide it is. The column&#13;
+     around it is told to fit, above. */&#13;
+  width: 236px;&#13;
+  min-width: 236px;&#13;
+  max-width: 236px;&#13;
+&#13;
+  height: 100vh;&#13;
+  flex-shrink: 0;&#13;
+  background: $s-white;&#13;
+  border-right: 1px solid $s-line;&#13;
+  font-family: $s-font;&#13;
+  color: $s-navy;&#13;
+  overflow: visible;&#13;
+  z-index: 30;&#13;
+  transition: width 0.32s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb *,&#13;
+.gsb *::before,&#13;
+.gsb *::after { box-sizing: border-box; }&#13;
+&#13;
+.gsb.is-tight {&#13;
+  width: 72px;&#13;
+  min-width: 72px;&#13;
+  max-width: 72px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BRAND&#13;
+   ========================================================= */&#13;
+&#13;
+.gsb-brand {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 11px;&#13;
+  height: 68px;&#13;
+  padding: 0 16px;&#13;
+  border-bottom: 1px solid $s-line-2;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gsb-brand__mark {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 36px;&#13;
+  height: 36px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 10px;&#13;
+  background: $s-blue;&#13;
+  color: $s-white;&#13;
+  box-shadow: 0 6px 14px rgba(21, 96, 224, 0.28);&#13;
+}&#13;
+&#13;
+.gsb-brand__name {&#13;
+  min-width: 0;&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  font-size: 17px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.024em;&#13;
+  color: $s-navy;&#13;
+  transition: opacity 0.2s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-brand {&#13;
+  justify-content: center;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-brand__name {&#13;
+  opacity: 0;&#13;
+  width: 0;&#13;
+}&#13;
+&#13;
+/* the toggle sits on the divider, half out of the rail, which&#13;
+   is where people already look for it */&#13;
+.gsb-toggle {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  right: -13px;&#13;
+  margin-top: -13px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 26px;&#13;
+  height: 26px;&#13;
+  padding: 0;&#13;
+  border: 1px solid $s-line;&#13;
+  border-radius: 50%;&#13;
+  background: $s-white;&#13;
+  color: $s-ink-3;&#13;
+  cursor: pointer;&#13;
+  box-shadow: 0 2px 8px rgba(10, 37, 64, 0.1);&#13;
+  transition: color 0.3s $s-ease,&#13;
+              border-color 0.3s $s-ease,&#13;
+              transform 0.32s $s-ease;&#13;
+  z-index: 2;&#13;
+}&#13;
+&#13;
+.gsb-toggle:hover {&#13;
+  border-color: $s-blue-2;&#13;
+  color: $s-blue-dk;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-toggle { transform: rotate(180deg); }&#13;
+&#13;
+.gsb-toggle:focus-visible {&#13;
+  outline: 2px solid $s-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NAV&#13;
+   ========================================================= */&#13;
+&#13;
+.gsb-scroll {&#13;
+  flex: 1;&#13;
+  min-height: 0;&#13;
+  padding: 16px 12px 10px;&#13;
+  overflow-y: auto;&#13;
+  overflow-x: visible;&#13;
+  scrollbar-width: none;&#13;
+}&#13;
+&#13;
+.gsb-scroll::-webkit-scrollbar { display: none; }&#13;
+&#13;
+.gsb-group { margin-bottom: 20px; }&#13;
+&#13;
+.gsb-group:last-child { margin-bottom: 0; }&#13;
+&#13;
+/* Three groups of two or three read as a structure. Six items&#13;
+   in a flat column read as a list you have to search. */&#13;
+.gsb .gsb-group__label {&#13;
+  margin: 0 0 8px;&#13;
+  padding: 0 10px;&#13;
+  font-size: 10px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.15em;&#13;
+  text-transform: uppercase;&#13;
+  color: $s-ink-4;&#13;
+  white-space: nowrap;&#13;
+  transition: opacity 0.2s $s-ease;&#13;
+}&#13;
+&#13;
+/* collapsed, the group becomes a hairline. The grouping is&#13;
+   still felt without the words taking a row each. */&#13;
+.gsb.is-tight .gsb-group__label {&#13;
+  height: 1px;&#13;
+  margin: 0 6px 12px;&#13;
+  padding: 0;&#13;
+  overflow: hidden;&#13;
+  color: transparent;&#13;
+  background: $s-line-2;&#13;
+}&#13;
+&#13;
+.gsb .gsb-list {&#13;
+  display: grid;&#13;
+  gap: 2px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gsb-item {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  height: 42px;&#13;
+  padding: 0 12px;&#13;
+  border-radius: 10px;&#13;
+  color: $s-ink-2;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  letter-spacing: -0.008em;&#13;
+  text-decoration: none;&#13;
+  cursor: pointer;&#13;
+  white-space: nowrap;&#13;
+  transition: background 0.28s $s-ease, color 0.28s $s-ease;&#13;
+}&#13;
+&#13;
+/* Hover is a tint, nothing more. It must never be louder than&#13;
+   the page you are actually on. */&#13;
+.gsb-item:hover {&#13;
+  background: $s-tint;&#13;
+  color: $s-navy;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gsb-item.is-on {&#13;
+  background: $s-blue-1;&#13;
+  color: $s-blue-dk;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gsb-item.is-on:hover {&#13;
+  background: $s-blue-1;&#13;
+  color: $s-blue-dk;&#13;
+}&#13;
+&#13;
+/* a short bar on the leading edge, so the active item is&#13;
+   findable by shape as well as by tint */&#13;
+.gsb-item__bar {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  left: 0;&#13;
+  width: 3px;&#13;
+  height: 0;&#13;
+  margin-top: 0;&#13;
+  border-radius: 0 3px 3px 0;&#13;
+  background: $s-blue;&#13;
+  transition: height 0.3s $s-ease, margin-top 0.3s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb-item.is-on .gsb-item__bar {&#13;
+  height: 20px;&#13;
+  margin-top: -10px;&#13;
+}&#13;
+&#13;
+.gsb-item__icon {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 18px;&#13;
+  height: 18px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gsb-item__label {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  overflow: hidden;&#13;
+  text-overflow: ellipsis;&#13;
+  transition: opacity 0.2s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-item {&#13;
+  justify-content: center;&#13;
+  padding: 0;&#13;
+  gap: 0;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-item__label {&#13;
+  opacity: 0;&#13;
+  width: 0;&#13;
+  flex: 0;&#13;
+}&#13;
+&#13;
+.gsb-item:focus-visible {&#13;
+  outline: 2px solid $s-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- badges ---------- */&#13;
+&#13;
+.gsb-badge {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  min-width: 22px;&#13;
+  height: 20px;&#13;
+  padding: 0 7px;&#13;
+  border-radius: 999px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 700;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gsb-badge--alert { background: $s-red-1;   color: $s-red; }&#13;
+.gsb-badge--warn  { background: $s-amber-1; color: $s-amber; }&#13;
+&#13;
+/* collapsed, the count becomes a dot on the icon. The number&#13;
+   matters less than the fact that something is waiting. */&#13;
+.gsb.is-tight .gsb-badge {&#13;
+  position: absolute;&#13;
+  top: 7px;&#13;
+  right: 13px;&#13;
+  min-width: 9px;&#13;
+  width: 9px;&#13;
+  height: 9px;&#13;
+  padding: 0;&#13;
+  font-size: 0;&#13;
+  border: 2px solid $s-white;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-badge--alert { background: $s-red; }&#13;
+.gsb.is-tight .gsb-badge--warn  { background: $s-amber; }&#13;
+&#13;
+&#13;
+/* ---------- tooltip ----------&#13;
+   Only rendered while the labels are hidden, so it never&#13;
+   repeats something already on screen.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gsb-tip {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  left: calc(100% + 12px);&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  height: 34px;&#13;
+  padding: 0 13px;&#13;
+  border-radius: 9px;&#13;
+  background: $s-navy;&#13;
+  color: $s-white;&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+  opacity: 0;&#13;
+  visibility: hidden;&#13;
+  transform: translateY(-50%) translateX(-6px);&#13;
+  pointer-events: none;&#13;
+  box-shadow: 0 10px 28px rgba(10, 37, 64, 0.24);&#13;
+  transition: opacity 0.22s $s-ease,&#13;
+              visibility 0.22s $s-ease,&#13;
+              transform 0.22s $s-ease;&#13;
+  z-index: 60;&#13;
+}&#13;
+&#13;
+.gsb-tip::before {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  right: 100%;&#13;
+  margin-top: -5px;&#13;
+  border: 5px solid transparent;&#13;
+  border-right-color: $s-navy;&#13;
+}&#13;
+&#13;
+.gsb-tip__n {&#13;
+  padding: 1px 7px;&#13;
+  border-radius: 999px;&#13;
+  background: rgba(255, 255, 255, 0.18);&#13;
+  font-size: 11px;&#13;
+  font-weight: 700;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+}&#13;
+&#13;
+.gsb-item:hover .gsb-tip,&#13;
+.gsb-item:focus-visible .gsb-tip,&#13;
+.gsb-user:hover .gsb-tip {&#13;
+  opacity: 1;&#13;
+  visibility: visible;&#13;
+  transform: translateY(-50%) translateX(0);&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   WHO&#13;
+   The old rail had no anchor at either end, so six circles&#13;
+   floated in the middle of a tall column with nothing to sit&#13;
+   against. A brand at the top and an account at the bottom&#13;
+   give the eye somewhere to start and stop.&#13;
+   ========================================================= */&#13;
+&#13;
+.gsb-foot {&#13;
+  padding: 10px 12px 14px;&#13;
+  border-top: 1px solid $s-line-2;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gsb-user {&#13;
+  position: relative;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 11px;&#13;
+  height: 50px;&#13;
+  padding: 0 10px;&#13;
+  border-radius: 11px;&#13;
+  transition: background 0.28s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb-user:hover { background: $s-tint; }&#13;
+&#13;
+.gsb-user__mark {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 34px;&#13;
+  height: 34px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 10px;&#13;
+  background: $s-navy;&#13;
+  color: $s-white;&#13;
+  font-size: 12.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.03em;&#13;
+}&#13;
+&#13;
+.gsb-user__body {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 2px;&#13;
+  min-width: 0;&#13;
+  flex: 1;&#13;
+  transition: opacity 0.2s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb-user__name {&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  text-overflow: ellipsis;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.01em;&#13;
+  color: $s-navy;&#13;
+}&#13;
+&#13;
+.gsb-user__role {&#13;
+  font-size: 11.5px;&#13;
+  color: $s-ink-4;&#13;
+}&#13;
+&#13;
+.gsb-user__out {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 30px;&#13;
+  height: 30px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 8px;&#13;
+  color: $s-ink-4;&#13;
+  text-decoration: none;&#13;
+  transition: background 0.28s $s-ease, color 0.28s $s-ease;&#13;
+}&#13;
+&#13;
+.gsb-user__out:hover,&#13;
+.gsb-user__out:focus {&#13;
+  background: $s-red-1;&#13;
+  color: $s-red;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-user {&#13;
+  justify-content: center;&#13;
+  padding: 0;&#13;
+  gap: 0;&#13;
+}&#13;
+&#13;
+.gsb.is-tight .gsb-user__body,&#13;
+.gsb.is-tight .gsb-user__out {&#13;
+  opacity: 0;&#13;
+  width: 0;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.gsb-tip--user { font-weight: 600; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gsbIn {&#13;
+    from { opacity: 0; transform: translateX(-10px); }&#13;
+    to   { opacity: 1; transform: translateX(0); }&#13;
+  }&#13;
+&#13;
+  .gsb-brand { animation: gsbIn 0.5s $s-ease backwards; }&#13;
+&#13;
+  /* the groups arrive in reading order */&#13;
+  .gsb-group { animation: gsbIn 0.5s $s-ease backwards; }&#13;
+&#13;
+  .gsb-group:nth-child(1) { animation-delay: 0.05s; }&#13;
+  .gsb-group:nth-child(2) { animation-delay: 0.11s; }&#13;
+  .gsb-group:nth-child(3) { animation-delay: 0.17s; }&#13;
+&#13;
+  .gsb-foot { animation: gsbIn 0.5s $s-ease 0.23s backwards; }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NARROW&#13;
+   Below this the rail is always tight, because a labelled rail&#13;
+   plus a dashboard does not fit and the labels are the part&#13;
+   that can be recovered on demand.&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 900px) {&#13;
+&#13;
+  .gsb,&#13;
+  .gsb.is-tight {&#13;
+    width: 68px;&#13;
+    min-width: 68px;&#13;
+    max-width: 68px;&#13;
+  }&#13;
+&#13;
+  .gsb .gsb-brand {&#13;
+    justify-content: center;&#13;
+    padding: 0;&#13;
+  }&#13;
+&#13;
+  .gsb .gsb-brand__name { opacity: 0; width: 0; }&#13;
+&#13;
+  .gsb .gsb-toggle { display: none; }&#13;
+&#13;
+  .gsb .gsb-group__label {&#13;
+    height: 1px;&#13;
+    margin: 0 6px 12px;&#13;
+    padding: 0;&#13;
+    overflow: hidden;&#13;
+    color: transparent;&#13;
+    background: $s-line-2;&#13;
+  }&#13;
+&#13;
+  .gsb .gsb-item {&#13;
+    justify-content: center;&#13;
+    padding: 0;&#13;
+    gap: 0;&#13;
+  }&#13;
+&#13;
+  .gsb .gsb-item__label { opacity: 0; width: 0; flex: 0; }&#13;
+&#13;
+  .gsb .gsb-user {&#13;
+    justify-content: center;&#13;
+    padding: 0;&#13;
+    gap: 0;&#13;
+  }&#13;
+&#13;
+  .gsb .gsb-user__body,&#13;
+  .gsb .gsb-user__out { opacity: 0; width: 0; overflow: hidden; }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gsb,&#13;
+  .gsb * { transition: none; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -745,9 +740,222 @@
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
-  /* populate the 'data' object */
-  /* e.g., data.table = $sp.getValue('table'); */
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW · SIDEBAR
+     Service Portal widget · Server script
+
+     The nav is declared here rather than hardcoded in the
+     template, so a page id changes in one place and the badge
+     counts come from the same query the pages use.
+
+     Every item carries a list of page ids it should light up
+     for, because a section is usually more than one page: the
+     programs list and a program detail are both Funding
+     programs as far as an applicant is concerned.
+     ========================================================= */
+
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var PROJECT   = 'x_enno_gatenow_project';
+  var CLAIM     = 'x_enno_gatenow_reimbursement';
+
+  var me = gs.getUserID();
+
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+
+  /* ---------- who ---------- */
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+
+  data.userName = u.getDisplayName() || gs.getUserName();
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (data.userName || 'U').substring(0, 2).toUpperCase();
+
+  data.orgLine = opt('org_line', gs.getMessage('Applicant'));
+
+  /* the page currently open, so the rail can mark itself */
+  data.current = lower($sp.getParameter('id') || '');
+
+  data.logoutUrl = opt('logout_url', '/logout.do');
+
+
+  /* ============================================================
+     BADGES
+
+     Only two numbers earn a badge: an award waiting on a
+     decision, and a report due this month. Both cost the
+     applicant something if ignored. A count of everything else
+     is decoration that never changes and stops being read
+     within a week.
+     ============================================================ */
+
+  var awaitingAwards = 0;
+  var reportsDue = 0;
+
+  try {
+
+    var applicantIds = [];
+    var ap = new GlideRecordSecure(APPLICANT);
+    ap.addQuery('user', me);
+    ap.query();
+    while (ap.next()) {
+      applicantIds.push(ap.getUniqueValue());
+      if (lower(ap.getValue('state')) === 'award_pending') awaitingAwards++;
+    }
+
+    if (applicantIds.length) {
+
+      /* open projects with nothing filed this month */
+      var openProjects = [];
+      var pj = new GlideRecordSecure(PROJECT);
+      pj.addQuery('applicant', 'IN', applicantIds.join(','));
+      pj.query();
+
+      while (pj.next()) {
+        var phase = lower(pj.getDisplayValue('phase'));
+        if (phase.indexOf('closed') === -1 && phase.indexOf('cancel') === -1) {
+          openProjects.push(pj.getUniqueValue());
+        }
+      }
+
+      if (openProjects.length) {
+
+        var g = new GlideDateTime();
+        var thisMonth = g.getYearLocalTime() + '-' + ('0' + g.getMonthLocalTime()).slice(-2);
+
+        var reported = {};
+        var rp = new GlideRecordSecure('x_enno_gatenow_status_report');
+        rp.addQuery('project', 'IN', openProjects.join(','));
+        rp.query();
+
+        while (rp.next()) {
+          var raw = rp.getValue('status_date') || rp.getValue('sys_created_on');
+          if (raw && ('' + raw).substring(0, 7) === thisMonth) {
+            reported[rp.getValue('project')] = true;
+          }
+        }
+
+        for (var i = 0; i < openProjects.length; i++) {
+          if (!reported[openProjects[i]]) reportsDue++;
+        }
+      }
+    }
+
+  } catch (e) {
+    gs.info('[Sidebar] badge counts unavailable: ' + e.message);
+  }
+
+
+  /* ============================================================
+     NAV
+
+     Grouped, because six flat items is a list and three groups
+     of two is a structure. The groups follow the order of the
+     work: find funding, track what you sent, then run what you
+     won.
+     ============================================================ */
+
+  data.groups = [
+    {
+      key  : 'find',
+      label: gs.getMessage('Find funding'),
+      items: [
+        {
+          key  : 'overview',
+          label: gs.getMessage('Overview'),
+          icon : 'home',
+          page : opt('page_overview', 'applicant_dashboard'),
+          match: ['applicant_dashboard', 'overview']
+        },
+        {
+          key  : 'programs',
+          label: gs.getMessage('Funding programs'),
+          icon : 'layers',
+          page : opt('page_programs', 'my_funding_programs'),
+          match: ['my_funding_programs', 'funding_programs', 'x_enno_gatenow_programs', 'x_enno_gatenow_program']
+        }
+      ]
+    },
+    {
+      key  : 'track',
+      label: gs.getMessage('Track'),
+      items: [
+        {
+          key  : 'applications',
+          label: gs.getMessage('My applications'),
+          icon : 'file',
+          page : opt('page_applications', 'my_applications'),
+          match: ['my_applications', 'my_application_page', 'applicant_intake']
+        },
+        {
+          key  : 'awards',
+          label: gs.getMessage('My awards'),
+          icon : 'award',
+          page : opt('page_awards', 'awards'),
+          match: ['awards', 'my_awards'],
+          badge: awaitingAwards,
+          badgeTone: 'alert'
+        }
+      ]
+    },
+    {
+      key  : 'deliver',
+      label: gs.getMessage('Deliver'),
+      items: [
+        {
+          key  : 'projects',
+          label: gs.getMessage('My projects'),
+          icon : 'case',
+          page : opt('page_projects', 'project'),
+          match: ['project', 'my_projects']
+        },
+        {
+          key  : 'reports',
+          label: gs.getMessage('Reports and changes'),
+          icon : 'chart',
+          page : opt('page_reports', 'report_dashboard'),
+          match: ['report_dashboard', 'reports_changes'],
+          badge: reportsDue,
+          badgeTone: 'warn'
+        },
+        {
+          key  : 'money',
+          label: gs.getMessage('Reimbursements'),
+          icon : 'card',
+          page : opt('page_reimbursements', 'reimbursement'),
+          match: ['reimbursement', 'reimbursements']
+        }
+      ]
+    }
+  ];
+
+  /* mark the open one on the server, so the rail is correct on
+     first paint rather than after a digest */
+  for (var gi = 0; gi < data.groups.length; gi++) {
+    var items = data.groups[gi].items;
+    for (var ii = 0; ii < items.length; ii++) {
+      items[ii].active = items[ii].match.indexOf(data.current) !== -1;
+    }
+  }
+
+  data.t = {
+    brand    : opt('brand', 'GateNow'),
+    collapse : gs.getMessage('Collapse menu'),
+    expand   : gs.getMessage('Expand menu'),
+    signOut  : gs.getMessage('Sign out'),
+    awaiting : gs.getMessage('awaiting your decision'),
+    dueNow   : gs.getMessage('reports due this month')
+  };
 
 })();]]></script>
         <servicenow>false</servicenow>
@@ -755,236 +963,180 @@
         <sys_created_by>Sheeba.showkat</sys_created_by>
         <sys_created_on>2026-08-20 11:25:51</sys_created_on>
         <sys_id>dfa240c60f3a8b10712b6af300d1b2e1</sys_id>
-        <sys_mod_count>109</sys_mod_count>
+        <sys_mod_count>119</sys_mod_count>
         <sys_name>Sidebar</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dfa240c60f3a8b10712b6af300d1b2e1</sys_update_name>
-        <sys_updated_by>Sheeba.showkat</sys_updated_by>
-        <sys_updated_on>2026-08-24 11:17:56</sys_updated_on>
-        <template><![CDATA[<!-- SIDEBAR WRAPPER -->
-<div class="gatenow-sidebar-wrapper">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-30 16:11:06</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · SIDEBAR
+     Service Portal widget · HTML template
 
-  <!-- SIDEBAR -->
-  <div class="glass-sidebar" ng-class="{'is-closed': isCollapsed}">
+     A rail that carries its labels, collapsing to icons when
+     the person wants the room back. Icons are inline SVG at a
+     single stroke weight rather than a mix of Font Awesome and
+     hand drawn paths, which is why the old rail had two visual
+     languages in one column.
+     ========================================================= -->
 
-    <!-- TOGGLE BUTTON -->
-   <div class="sidebar-toggle-wrap" ng-click="toggleSidebar()">
-  <button
-    type="button"
-    class="sidebar-toggle"
-    ng-class="{'is-collapsed': isCollapsed}"
-    aria-label="{{ isCollapsed ? 'Open sidebar' : 'Close sidebar' }}"
-  >
+<nav class="gsb" ng-class="{'is-tight': c.tight}" aria-label="{{c.data.t.brand}}">
 
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="25"
-          height="25"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#1e293b"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-          <line x1="9" y1="3" x2="9" y2="21"></line>
-          <polyline points="15 16 11 12 15 8"></polyline>
-        </svg>
+  <!-- ═══════════════ BRAND ═══════════════ -->
+  <header class="gsb-brand">
 
-        <span class="toggle-tooltip">
-          {{ isCollapsed ? 'Open sidebar' : 'Close sidebar' }}
-        </span>
+    <span class="gsb-brand__mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+           stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9.5 12 4l9 5.5"></path>
+        <path d="M5 11v8h14v-8"></path>
+        <path d="M10 19v-5h4v5"></path>
+      </svg>
+    </span>
 
-      </button>
+    <span class="gsb-brand__name">{{c.data.t.brand}}</span>
+
+    <button type="button" class="gsb-toggle"
+            ng-click="c.toggle()"
+            aria-label="{{c.tight ? c.data.t.expand : c.data.t.collapse}}">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+           stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 6l-6 6 6 6"></path>
+      </svg>
+    </button>
+
+  </header>
+
+
+  <!-- ═══════════════ NAV ═══════════════ -->
+  <div class="gsb-scroll">
+
+    <div class="gsb-group" ng-repeat="g in c.data.groups track by g.key">
+
+      <p class="gsb-group__label">{{g.label}}</p>
+
+      <ul class="gsb-list">
+        <li ng-repeat="item in g.items track by item.key">
+
+          <a class="gsb-item"
+             ng-class="{'is-on': item.active}"
+             ng-click="c.go(item)"
+             ng-attr-aria-current="{{item.active ? 'page' : undefined}}"
+             tabindex="0"
+             ng-keydown="($event.keyCode === 13) && c.go(item)">
+
+            <span class="gsb-item__bar" aria-hidden="true"></span>
+
+            <span class="gsb-item__icon" aria-hidden="true">
+
+              <svg ng-if="item.icon === 'home'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 10.5 12 4l9 6.5"></path>
+                <path d="M5 12v8h14v-8"></path>
+              </svg>
+
+              <svg ng-if="item.icon === 'layers'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3 3 7.5l9 4.5 9-4.5L12 3z"></path>
+                <path d="M3 12.5 12 17l9-4.5"></path>
+                <path d="M3 17 12 21.5 21 17"></path>
+              </svg>
+
+              <svg ng-if="item.icon === 'file'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"></path>
+                <path d="M14 3v5h5"></path>
+                <path d="M9 13h6M9 17h4"></path>
+              </svg>
+
+              <svg ng-if="item.icon === 'award'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="9" r="5"></circle>
+                <path d="M8.5 13.2 7 21l5-2.6L17 21l-1.5-7.8"></path>
+              </svg>
+
+              <svg ng-if="item.icon === 'case'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="7.5" width="18" height="12.5" rx="2"></rect>
+                <path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5"></path>
+                <path d="M3 12.5h18"></path>
+              </svg>
+
+              <svg ng-if="item.icon === 'chart'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 20V10"></path>
+                <path d="M10 20V4"></path>
+                <path d="M16 20v-7"></path>
+                <path d="M22 20H2"></path>
+              </svg>
+
+              <svg ng-if="item.icon === 'card'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2.5" y="5.5" width="19" height="13" rx="2"></rect>
+                <path d="M2.5 10h19"></path>
+                <path d="M6.5 14.5h3"></path>
+              </svg>
+
+            </span>
+
+            <span class="gsb-item__label">{{item.label}}</span>
+
+            <!-- only two counts earn a badge, and both cost you
+                 something if ignored -->
+            <span class="gsb-badge"
+                  ng-if="item.badge"
+                  ng-class="'gsb-badge--' + item.badgeTone">{{item.badge}}</span>
+
+            <!-- the tooltip is only reachable when the labels
+                 are hidden, so it never duplicates what is
+                 already on screen -->
+            <span class="gsb-tip" ng-if="c.tight">
+              {{item.label}}
+              <span class="gsb-tip__n" ng-if="item.badge">{{item.badge}}</span>
+            </span>
+
+          </a>
+
+        </li>
+      </ul>
+
     </div>
-
-
-    <!-- NAVIGATION -->
-    <ul class="glass-nav">
-
-      <!-- OVERVIEW -->
-      <li ng-class="{'active': isActive('applicant_dashboard')}">
-        <a ng-click="navigate('applicant_dashboard')">
-
-          <div class="icon-circle">
-            <i class="fa fa-home"></i>
-          </div>
-
-          <span class="tooltip-title">
-            Overview
-          </span>
-
-        </a>
-      </li>
-
-
-      <!-- FUNDING PROGRAMS -->
-      <li ng-class="{'active': isActive('funding_programs')}">
-        <a ng-click="navigate('my_funding_programs')">
-
-          <div class="icon-circle">
-
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="currentColor"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-
-              <path
-                d="M2 12l10 5 10-5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              ></path>
-
-              <path
-                d="M2 17l10 5 10-5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              ></path>
-
-            </svg>
-
-          </div>
-
-          <span class="tooltip-title">
-            Funding Programs
-          </span>
-
-        </a>
-      </li>
-
-
-      <!-- MY APPLICATIONS -->
-      <li ng-class="{'active': isActive('my_application_page')}">
-        <a ng-click="navigate('my_applications')">
-
-          <div class="icon-circle">
-            <i class="fa fa-file-text-o"></i>
-          </div>
-
-          <span class="tooltip-title">
-            My Applications
-          </span>
-
-        </a>
-      </li>
-      
-            <!-- MY PROJECTS -->
-      <li ng-class="{'active': isActive('my_projects')}">
-        <a ng-click="navigate('project')">
-          <div class="icon-circle">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-            </svg>
-          </div>
-          <span class="tooltip-title">My Projects</span>
-        </a>
-      </li>
-
-      <!-- MY AWARDS -->
-      <li ng-class="{'active': isActive('my_awards')}">
-        <a ng-click="navigate('awards')">
-          <div class="icon-circle">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="8" r="5"></circle>
-              <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-            </svg>
-          </div>
-          <span class="tooltip-title">My Awards</span>
-        </a>
-      </li>
-
-      <!-- REPORTS & CHANGES -->
-      <li ng-class="{'active': isActive('reports_changes')}">
-        <a ng-click="navigate('report_dashboard')">
-
-          <div class="icon-circle">
-            <i class="fa fa-bar-chart"></i>
-          </div>
-
-          <span class="tooltip-title">
-            Reports &amp; Changes
-          </span>
-
-        </a>
-      </li>
-
-
-      <!-- REIMBURSEMENTS -->
-      <li ng-class="{'active': isActive('reimbursement')}">
-        <a ng-click="navigate('reimbursement')">
-
-          <div class="icon-circle">
-
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-
-              <rect
-                x="2"
-                y="5"
-                width="20"
-                height="14"
-                rx="2"
-              ></rect>
-
-              <line
-                x1="2"
-                y1="10"
-                x2="22"
-                y2="10"
-              ></line>
-
-              <line
-                x1="7"
-                y1="15"
-                x2="9"
-                y2="15"
-              ></line>
-
-              <line
-                x1="11"
-                y1="15"
-                x2="15"
-                y2="15"
-              ></line>
-
-            </svg>
-
-          </div>
-
-          <span class="tooltip-title">
-            Reimbursements
-          </span>
-
-        </a>
-      </li>
-
-    </ul>
 
   </div>
 
-</div>]]></template>
+
+  <!-- ═══════════════ WHO ═══════════════ -->
+  <footer class="gsb-foot">
+
+    <div class="gsb-user">
+
+      <span class="gsb-user__mark">{{c.data.userInitials}}</span>
+
+      <span class="gsb-user__body">
+        <span class="gsb-user__name" title="{{c.data.userName}}">{{c.data.userName}}</span>
+        <span class="gsb-user__role">{{c.data.orgLine}}</span>
+      </span>
+
+      <a class="gsb-user__out" ng-href="{{c.data.logoutUrl}}" aria-label="{{c.data.t.signOut}}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+             stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 17l5-5-5-5"></path>
+          <path d="M20 12H9"></path>
+          <path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6"></path>
+        </svg>
+      </a>
+
+      <span class="gsb-tip gsb-tip--user" ng-if="c.tight">{{c.data.userName}}</span>
+
+    </div>
+
+  </footer>
+
+</nav>]]></template>
     </sp_widget>
 </record_update>

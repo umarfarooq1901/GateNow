@@ -1,618 +1,1182 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function ($scope, $location, $sce, $window, $rootScope, $timeout) {
-	var c = this;
+        <client_script><![CDATA[api.controller = function($scope, $timeout, spModal) {
 
-	// --- SIDEBAR COLLAPSE SYNC ---
-	c.isSidebarCollapsed = $window.localStorage.getItem('gatenow_sidebar_collapsed') === 'true';
+  /* =========================================================
+     GATENOW · MY AWARDS · Client script
 
-	$rootScope.$on('sidebar.toggled', function(event, isCollapsed) {
-		$timeout(function() {
-			c.isSidebarCollapsed = isCollapsed;
-		});
-	});
-	// -----------------------------
+     Tabs, search and paging run against the list already in
+     memory. The only server calls are accept and decline, which
+     are real writes and reload the list afterwards so the row
+     shows its new state rather than sitting stale.
+     ========================================================= */
 
-	c.acking = {};
-	c.activeLetter = null;
-	c.searchQuery = '';
-	c.timeFilter = 'last12';
+  var c = this;
 
-	// Dynamically calculates total awarded amount based on currently filtered cards
-	c.getTotalAwarded = function () {
-		var list = c.filteredAwards();
-		var sum = 0;
-		for (var i = 0; i < list.length; i++) {
-			sum += parseFloat(list[i].award_amount || 0);
-		}
-		return sum;
-	};
+  c.query = '';
+  c.page  = 1;
+  c.busy  = '';
 
-	c.activeAwardCount = function () {
-		return c.filteredAwards().length;
-	};
+  var PER_PAGE = c.data.pageSize || 10;
 
-	c.awaitingAckCount = function () {
-		if (!c.data.awards) return 0;
-		return c.data.awards.filter(function (a) {
-			return a.applicant_response === 'pending';
-		}).length;
-	};
+  /* Waiting on you leads, because it is the only tab with
+     anything to do on it. */
+  c.tabs = [
+    { key: 'pending',  label: c.data.t.tabPending },
+    { key: 'active',   label: c.data.t.tabActive },
+    { key: 'done',     label: c.data.t.tabDone },
+    { key: 'declined', label: c.data.t.tabDeclined },
+    { key: 'all',      label: c.data.t.tabAll }
+  ];
 
-	c.acknowledgedCount = function () {
-		if (!c.data.awards) return 0;
-		return c.data.awards.filter(function (a) {
-			return a.applicant_response === 'acknowledged';
-		}).length;
-	};
+  /* land on whichever tab has something on it */
+  c.tab = (c.data.counts && c.data.counts.pending > 0) ? 'pending' : 'all';
 
-	// Search + time-range filtering, applied client-side over the existing dataset
-	c.filteredAwards = function () {
-		if (!c.data.awards) return [];
-		var list = c.data.awards;
+  function hit(a, q) {
+    return (
+      (a.program  || '').toLowerCase().indexOf(q) !== -1 ||
+      (a.number   || '').toLowerCase().indexOf(q) !== -1 ||
+      (a.title    || '').toLowerCase().indexOf(q) !== -1 ||
+      (a.category || '').toLowerCase().indexOf(q) !== -1
+    );
+  }
 
-		if (c.searchQuery && c.searchQuery.trim() !== '') {
-			var q = c.searchQuery.toLowerCase();
-			list = list.filter(function (a) {
-				return (a.number || '').toLowerCase().indexOf(q) > -1 ||
-					(a.program_name || '').toLowerCase().indexOf(q) > -1;
-			});
-		}
+  function matching() {
+    var q = (c.query || '').trim().toLowerCase();
 
-		if (c.timeFilter === 'last12') {
-			var cutoff = new Date();
-			cutoff.setMonth(cutoff.getMonth() - 12);
+    var out = (c.data.awards || []).filter(function(a) {
+      if (c.tab !== 'all' && a.state !== c.tab) return false;
+      if (q && !hit(a, q)) return false;
+      return true;
+    });
 
-			list = list.filter(function (a) {
-				var dateStr = a.award_start_date || a.sys_created_on || a.award_end_date;
-				if (!dateStr) return false;
-				var d = new Date(dateStr);
-				return isNaN(d.getTime()) ? false : d >= cutoff;
-			});
-		}
+    /* anything waiting on a decision sorts to the top whichever
+       tab is open, because it is the only thing here that has a
+       cost attached to ignoring it */
+    out.sort(function(x, y) {
+      if (x.state === 'pending' && y.state !== 'pending') return -1;
+      if (y.state === 'pending' && x.state !== 'pending') return 1;
+      return 0;
+    });
 
-		return list;
-	};
+    return out;
+  }
 
-	c.amountPercent = function (award) {
-		if (!c.data.awards || c.data.awards.length === 0) return 0;
-		var max = Math.max.apply(null, c.data.awards.map(function (a) { return a.award_amount || 0; }));
-		return max > 0 ? Math.round((award.award_amount / max) * 100) : 0;
-	};
+  c.total     = function() { return matching().length; };
+  c.pageCount = function() { return Math.max(1, Math.ceil(matching().length / PER_PAGE)); };
 
-	c.displayStatus = function (award) {
-		if (!award) return '';
-		if (award.applicant_response === 'pending') return 'Acknowledgement pending';
-		return award.applicant_response_display || 'Acknowledged';
-	};
+  c.shown = function() {
+    var start = (c.page - 1) * PER_PAGE;
+    return matching().slice(start, start + PER_PAGE);
+  };
 
-	// Handles acknowledgement with robust server action and automatic widget refresh
-	c.acknowledgeAward = function (award, $event) {
-		if ($event) $event.stopPropagation();
-		if (!award || !award.sys_id) return;
-		
-		c.acking[award.sys_id] = true;
+  c.rangeFrom = function() {
+    return matching().length === 0 ? 0 : ((c.page - 1) * PER_PAGE) + 1;
+  };
 
-		c.server.get({
-			action: 'acknowledge_award',
-			sys_id: award.sys_id
-		}).then(function (response) {
-			c.acking[award.sys_id] = false;
-			// Forces server script re-evaluation to update summary counts and banners instantly
-			c.server.update();
-		}, function (error) {
-			c.acking[award.sys_id] = false;
-			alert('Unable to process award acknowledgement.');
-		});
-	};
+  c.rangeTo = function() {
+    return Math.min(c.page * PER_PAGE, matching().length);
+  };
 
-	c.openAwardLetter = function (award, $event) {
-		if ($event) $event.stopPropagation();
+  function reset() { c.page = 1; }
 
-		if (!award.award_letter) {
-			alert('No award letter is available yet for ' + award.number + '.');
-			return;
-		}
+  c.onChange = function() { reset(); };
 
-		c.activeLetter = {
-			sys_id: award.sys_id,
-			number: award.number,
-			program_name: award.program_name,
-			award_amount: award.award_amount,
-			award_end_date: award.award_end_date,
-			reporting_frequency: award.reporting_frequency,
-			applicant_response: award.applicant_response,
-			applicant_response_display: award.applicant_response_display,
-			award_letter: award.award_letter, 
-			html: $sce.trustAsHtml(award.award_letter)
-		};
-	};
+  c.setTab = function(key) {
+    if (c.tab === key) return;
+    c.tab = key;
+    reset();
+  };
 
-	c.closeAwardLetter = function () {
-		c.activeLetter = null;
-	};
+  c.clearSearch = function() { c.query = ''; reset(); };
 
-	// Handles downloading the letter cleanly as a text file format
-	c.downloadAwardLetter = function (award, $event) {
-		if ($event) {
-			$event.stopPropagation();
-		}
+  c.clearAll = function() {
+    c.query = '';
+    c.tab = 'all';
+    reset();
+  };
 
-		if (!award) return;
 
-		if (award.attachment_sys_id) {
-			window.open('/sys_attachment.do?sys_id=' + award.attachment_sys_id, '_blank');
-			return;
-		}
+  /* =====================================================
+     PAGING
+     ===================================================== */
 
-		var tempDiv = document.createElement('div');
-		tempDiv.innerHTML = award.award_letter || '';
-		var cleanText = tempDiv.innerText || tempDiv.textContent || '';
+  c.goto = function(n) {
+    if (n === '...') return;
+    if (n < 1 || n > c.pageCount() || n === c.page) return;
+    c.page = n;
+  };
 
-		var fileContent = 'OFFICIAL AWARD LETTER: ' + award.number + '\n';
-		if (award.program_name) {
-			fileContent += 'Program: ' + award.program_name + '\n';
-		}
-		fileContent += '--------------------------------------------------\n\n';
-		fileContent += cleanText;
+  c.prev = function() { c.goto(c.page - 1); };
+  c.next = function() { c.goto(c.page + 1); };
 
-		var blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-		var link = document.createElement('a');
-		link.href = window.URL.createObjectURL(blob);
-		link.download = 'Award_Letter_' + award.number + '.txt';
-		
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-	};
+  c.pages = function() {
+    var n = c.pageCount();
+    var p = c.page;
+    var out = [];
 
-	c.openProject = function () {
-		alert('Project link is not available yet for this award.');
-	};
+    if (n <= 7) {
+      for (var i = 1; i <= n; i++) out.push(i);
+      return out;
+    }
 
-	c.openAward = function (award) {
-		if (!award) return;
-		$location.search({ id: c.data.detail_page || 'my_award_detail', sys_id: award.sys_id });
-	};
-};]]></client_script>
+    out.push(1);
+
+    var from = Math.max(2, p - 1);
+    var to   = Math.min(n - 1, p + 1);
+
+    if (p <= 3) to = 4;
+    if (p >= n - 2) from = n - 3;
+
+    if (from > 2) out.push('...');
+    for (var j = from; j <= to; j++) out.push(j);
+    if (to < n - 1) out.push('...');
+
+    out.push(n);
+    return out;
+  };
+
+
+  /* =====================================================
+     DECISIONS
+
+     Both are confirmed first. Accepting commits to a reporting
+     schedule and declining cannot be undone, so neither should
+     be one careless click away.
+     ===================================================== */
+
+  function tell(title, message) {
+    spModal.open({
+      title: title,
+      message: message,
+      buttons: [{ label: c.data.t.ok, primary: true }]
+    });
+  }
+
+  function send(award, action, okMessage) {
+    c.busy = award.sysId;
+
+    c.server.get({ action: action, sys_id: award.sysId }).then(function(r) {
+      c.busy = '';
+      var resp = (r && r.data) ? r.data : {};
+
+      if (resp.success) {
+        tell(okMessage, award.program);
+        /* the reload brings back the new state and the recounted
+           tiles in one pass */
+        c.server.update();
+      } else {
+        tell(c.data.t.failed, resp.error || '');
+      }
+    }, function() {
+      c.busy = '';
+      tell(c.data.t.failed, '');
+    });
+  }
+
+  c.accept = function(award) {
+    if (!award || !award.canAct || c.busy) return;
+
+    spModal.open({
+      title: c.data.t.acceptTitle,
+      message: c.data.t.acceptText,
+      buttons: [
+        { label: c.data.t.keep, cancel: true },
+        { label: c.data.t.acceptYes, primary: true }
+      ]
+    }).then(function() {
+      send(award, 'acknowledge', c.data.t.accepted);
+    });
+  };
+
+  c.decline = function(award) {
+    if (!award || !award.canAct || c.busy) return;
+
+    spModal.open({
+      title: c.data.t.declineTitle,
+      message: c.data.t.declineText,
+      buttons: [
+        { label: c.data.t.keep, cancel: true },
+        { label: c.data.t.declineYes, primary: true }
+      ]
+    }).then(function() {
+      send(award, 'decline', c.data.t.declined);
+    });
+  };
+
+}]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ══ RESET &amp; VARS ══════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --brand:      #312782;
-  --brand-lt:   #ede9fe;
-  --green:      #059669; --green-lt: #dcfce7;
-  --amber:      #d97706; --amber-lt: #fef3c7;
-  --red:        #e11d48; --red-lt:   #fee2e2;
-  --slate-900:  #0f172a; --slate-700: #334155; --slate-500: #64748b;
-  --slate-300:  #cbd5e1; --slate-200: #e2e8f0; --slate-100: #f1f5f9; --slate-50: #f8fafc;
-  --white:      #ffffff;
-  --r-md: 16px; 
-  --r-lg: 24px;
+        <css>/* =========================================================
+   GATENOW · MY AWARDS
+   Service Portal widget · CSS / SCSS
+
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
+
+   Same tokens as the dashboard and the funding programs page:
+   the navy, the one accent blue, neutrals built from the navy
+   at different opacities, and the same type scale.
+
+   ONE ADDITION
+   A red, used in exactly one place. Declining an award cannot
+   be undone, and a decline that looks like every other button
+   is a decline someone makes by accident.
+
+   TYPE
+     tile      30  700  tabular   headline figures
+     title     26  700  -0.03em   page title
+     program   19  600  -0.018em  award heading
+     figure    24  700  tabular   the amount
+     body      15  400             supporting copy
+     data      14  600  tabular    dates
+     label     11  600   0.14em    uppercase small caps
+   ========================================================= */
+
+/* ---------- overflow overrides ----------
+   Service Portal wraps every widget in a panel that clips
+   anything leaving its box, which cuts off the sidebar tooltips.
+   Same block as the dashboard, so the two behave identically.
+   ------------------------------------------------------- */
+
+.panel,
+.panel-body,
+.sp-widget { overflow: visible !important; }
+
+.gn-layout { overflow: visible !important; }
+
+/* The column holds the rail and lets it decide how wide to be.
+   It used to carry a width through an inline ng-style, which is
+   what put 140px of the rail on top of this page: the column
+   reserved 96 while the rail draws 236.
+
+   The transition moved to the rail, which is the element that
+   actually changes width. Animating a wrapper that never
+   resized was doing nothing. */
+
+.aw-sidebar {
+  flex: 0 0 auto;
+  overflow: visible;
 }
-  
-/* ══ LAYOUT (With Tooltip Breakout Fixes) ═══════════════════ */
+
+
+/* ---------- typeface ---------- */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+
+
+/* ---------- ink ---------- */
+$a-navy:   #0a2540;
+$a-ink-2:  rgba(10, 37, 64, 0.72);
+$a-ink-3:  rgba(10, 37, 64, 0.54);
+$a-ink-4:  rgba(10, 37, 64, 0.38);
+$a-line:   rgba(10, 37, 64, 0.10);
+$a-line-2: rgba(10, 37, 64, 0.06);
+$a-tint:   rgba(10, 37, 64, 0.03);
+
+/* ---------- accent ---------- */
+$a-blue:    #1560e0;
+$a-blue-dk: #0f4cbb;
+$a-blue-1:  rgba(21, 96, 224, 0.08);
+$a-blue-2:  rgba(21, 96, 224, 0.16);
+
+/* ---------- state ---------- */
+$a-soon:   #0d7d8c;
+$a-good:   #1f8a63;
+$a-good-1: rgba(31, 138, 99, 0.10);
+$a-warn:   #a4741f;
+$a-warn-1: rgba(164, 116, 31, 0.10);
+$a-warn-2: rgba(164, 116, 31, 0.26);
+
+/* the one destructive colour, used only on decline */
+$a-stop:   #b8394a;
+$a-stop-1: rgba(184, 57, 74, 0.08);
+$a-stop-2: rgba(184, 57, 74, 0.28);
+
+$a-white: #ffffff;
+$a-page:  #f4f6fb;
+$a-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
+
+$a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
 .gn-layout {
-  margin: 0 !important;
-  width: 100% !important;
   display: flex;
   align-items: stretch;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  background: #f8f9fa;
   min-height: 100vh;
-  overflow: visible !important; /* CRITICAL: Unlocks layout bounds for tooltips */
+  background: $a-page;
+  font-family: $a-font;
 }
-  
-.aw-sidebar {
-  flex-shrink: 0;
-  background: transparent !important;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  
-  /* CRITICAL: Hides scrollbar track while ensuring tooltips can escape */
-  overflow-y: hidden !important;
-  overflow-x: visible !important;
-  overflow: visible !important; 
-  
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  z-index: 10;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.aw-sidebar::-webkit-scrollbar { display: none; }
-  
-.aw-main {
+
+/* Without min-width: 0 a flex child refuses to shrink below its
+   own content width, and slides under the rail rather than
+   narrowing. That is the usual cause of a stubborn overlap once
+   the widths are right. */
+.gaw {
   flex: 1;
   min-width: 0;
-  padding: 32px 40px 72px;
-  background: #f8f9fa;
-  overflow: visible !important; /* Prevents main content container from clipping */
-  transition: width 0.35s ease;
+  overflow: visible;
 }
 
-/* Force override ServiceNow service portal wrapper clipping */
-.panel, .panel-body, .sp-widget {
-  overflow: visible !important;
+.gaw {
+  min-height: 100vh;
+  padding: 30px 38px 72px;
+  background: $a-page;
+  font-family: $a-font;
+  color: $a-navy;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ══ PAGE HEADER ═════════════════════════════════════════════ */
-.aw-ph {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 24px;
-}
-.aw-ph-left { display: flex; align-items: center; gap: 16px; }
-.aw-ph-title { font-size: 26px; font-weight: 800; color: var(--slate-900); margin-bottom: 4px; letter-spacing: -0.5px; }
-.aw-ph-sub { font-size: 13px; color: var(--slate-500); }
-.aw-sub-highlight { font-weight: 600; color: var(--slate-700); }
-  
-.aw-ph-right { display: flex; align-items: center; gap: 16px; }
-.aw-search-box, .aw-filter-group {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--white); border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 99px;
-  padding: 8px 16px; 
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
-}
-.aw-search-box { min-width: 240px; }
-.aw-search-box i, .aw-filter-group i { color: var(--slate-500); font-size: 12px; }
-.aw-search-box input { border: none; outline: none; font-size: 13px; width: 100%; background: transparent; }
-.aw-time-filter { border: none; outline: none; font-size: 13px; font-weight: 500; color: var(--slate-700); background: transparent; cursor: pointer; }
-  
-.aw-icon-btn, .aw-avatar {
-  width: 40px; height: 40px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-}
-.aw-icon-btn { border: 1px solid rgba(226, 232, 240, 0.8); background: var(--white); color: var(--slate-500); font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02); }
-.aw-avatar { background: var(--brand); color: #fff; font-size: 13px; font-weight: 600; flex-shrink: 0; }
-  
-/* ══ GLASS CARD STYLES ══════════════════════════════════════ */
-.aw-stat-tile, .aw-card {
-  background: #ffffff;
-  border-radius: var(--r-md);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01);
-}
-  
-/* ══ SUMMARY TILES ROW ══════════════════════════════════════ */
-.aw-summary-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-bottom: 24px;
-  width: 100%;
-}
-.aw-stat-tile {
-  display: flex; flex-direction: column; justify-content: center;
-  padding: 24px;
-}
-.aw-tile-lbl { font-size: 11px; font-weight: 600; color: var(--slate-500); letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
-.aw-tile-val { font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 8px; letter-spacing: -1px; }
-.aw-tile-sub { font-size: 12px; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  
-/* Color classes for tiles &amp; highlights */
-.aw-text-indigo { color: #312782 !important; }
-.aw-text-dark { color: #0f172a !important; }
-.aw-text-amber { color: #d97706 !important; }
-  
-/* ══ ACKNOWLEDGEMENT ALERT BANNER ══════════════════════════ */
-.aw-ack-alert {
-  display: flex; 
-  align-items: center; 
+.gaw *,
+.gaw *::before,
+.gaw *::after { box-sizing: border-box; }
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.gaw-top {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 20px 24px; 
-  margin-bottom: 24px;
-  width: 100%;
-  background: #fff5f5 !important;
-  border: 1px solid #fed7d7 !important;
-  border-left: 6px solid #e11d48 !important;
-  border-radius: var(--r-md);
-  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.04);
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 26px;
 }
-.aw-ack-alert-left { display: flex; align-items: center; gap: 16px; }
-.aw-ack-alert-icon {
-  width: 40px; height: 40px; border-radius: 12px;
-  background: var(--red-lt); color: var(--red);
-  display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+
+.gaw .gaw-top__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: $a-navy;
 }
-.aw-ack-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
-.aw-ack-title-row strong { font-size: 15px; font-weight: 700; color: var(--slate-900); }
-.aw-badge {
-  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px;
+
+.gaw-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.aw-badge--red { background: var(--red-lt); color: var(--red); }
-.aw-ack-alert-sub { font-size: 13px; color: var(--slate-500); }
-.aw-text-dark-bold { font-weight: 700; color: #0f172a; }
-  
-.aw-cta--solid {
-  background: #312782 !important; 
-  color: #ffffff !important; 
-  border: none !important;
-  padding: 12px 24px !important; 
-  border-radius: 99px !important; 
-  font-size: 13px !important; 
-  font-weight: 600 !important; 
-  cursor: pointer !important;
-  white-space: nowrap !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  box-shadow: 0 4px 12px rgba(49, 39, 130, 0.15);
-  transition: all 0.2s ease;
+
+.gaw-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 320px;
+  height: 42px;
+  padding: 0 12px 0 14px;
+  margin: 0;
+  border: 1px solid $a-line;
+  border-radius: 11px;
+  background: $a-white;
+  font-weight: 400;
+  transition: border-color 0.4s $a-ease, box-shadow 0.4s $a-ease;
 }
-.aw-cta--solid span { color: #ffffff !important; }
-.aw-cta--solid:hover { background: #251d66 !important; transform: translateY(-1px); }
-  
-/* ══ EXECUTIVE AWARD LETTER MODAL REDESIGN ══════════════════ */
-.aw-letter-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(5px);
+
+.gaw-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $a-blue-1;
+}
+
+.gaw-search__icon {
+  font-size: 13px;
+  color: $a-ink-4;
+  flex-shrink: 0;
+}
+
+.gaw-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: $a-navy;
+}
+
+.gaw-search__field::placeholder { color: $a-ink-4; }
+
+.gaw-search__clear {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  padding: 24px;
-  animation: awFadeIn .2s ease both;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $a-tint;
+  color: $a-ink-3;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
-  
-.aw-letter-modal {
-  background: #ffffff;
-  border-radius: 20px;
-  width: 100%;
-  max-width: 720px;
-  max-height: 88vh;
+
+.gaw-avatar {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  animation: awModalIn .25s cubic-bezier(.16, 1, .3, 1) both;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: $a-navy;
+  color: $a-white;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
-  
-/* Header Strip */
-.aw-letter-modal-header {
+
+
+/* =========================================================
+   NOTHING YET
+   ========================================================= */
+
+.gaw-blank {
+  max-width: 520px;
+  margin: 70px auto;
+  padding: 52px 34px 46px;
+  border: 1px solid $a-line;
+  border-radius: 18px;
+  background: $a-white;
+  text-align: center;
+}
+
+.gaw-blank__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: $a-blue-1;
+  color: $a-blue;
+  font-size: 22px;
+}
+
+.gaw .gaw-blank__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: $a-navy;
+}
+
+.gaw .gaw-blank__text {
+  max-width: 44ch;
+  margin: 11px auto 24px;
+  font-size: 15px;
+  line-height: 1.64;
+  color: $a-ink-3;
+}
+
+
+/* =========================================================
+   TILES
+   ========================================================= */
+
+.gaw-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.gaw-tile {
+  position: relative;
+  padding: 20px 22px 22px;
+  border: 1px solid $a-line;
+  border-radius: 16px;
+  background: $a-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: transform 0.5s $a-ease, box-shadow 0.5s $a-ease;
+}
+
+.gaw-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
+}
+
+.gaw-tile__rule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: $a-blue-2;
+  transform-origin: left center;
+}
+
+.gaw-tile.is-alert .gaw-tile__rule { background: $a-warn-2; }
+
+.gaw .gaw-tile__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $a-ink-4;
+}
+
+.gaw .gaw-tile__value {
+  margin: 12px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.034em;
+  font-variant-numeric: tabular-nums;
+  color: $a-navy;
+}
+
+.gaw .gaw-tile__note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: $a-ink-3;
+}
+
+.gaw-tile.is-alert .gaw-tile__note {
+  color: $a-warn;
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   TABS
+   ========================================================= */
+
+.gaw-filters {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 32px;
-  background: linear-gradient(135deg, var(--brand) 0%, #4338ca 100%);
-  border-bottom: 3px solid var(--amber);
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid $a-line;
 }
-.aw-letter-header-left {
+
+.gaw-tabs {
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.aw-letter-badge {
-  width: 46px; height: 46px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.15);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
-  color: #ffffff;
+
+.gaw-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: $a-ink-2;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.4s $a-ease, border-color 0.4s $a-ease, color 0.4s $a-ease;
+}
+
+.gaw-tab:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: $a-navy;
+}
+
+.gaw-tab.is-on {
+  background: $a-white;
+  border-color: $a-line;
+  color: $a-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
+}
+
+.gaw-tab__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $a-ink-4;
   flex-shrink: 0;
 }
-.aw-letter-eyebrow {
+
+/* only the tab with something to do carries the accent */
+.gaw-tab__dot--pending  { background: $a-warn; }
+.gaw-tab__dot--active   { background: $a-blue; }
+.gaw-tab__dot--done     { background: $a-good; }
+.gaw-tab__dot--declined { background: $a-ink-4; }
+
+.gaw-tab__count {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: $a-ink-4;
+}
+
+.gaw .gaw-range {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: $a-ink-4;
+}
+
+
+/* =========================================================
+   AWARD CARD
+   ========================================================= */
+
+.gaw-list {
+  display: grid;
+  gap: 14px;
+}
+
+.gaw-card {
+  position: relative;
+  padding: 22px 26px 20px 28px;
+  border: 1px solid $a-line;
+  border-radius: 16px;
+  background: $a-white;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+  transition: border-color 0.5s $a-ease, box-shadow 0.5s $a-ease;
+}
+
+.gaw-card:hover {
+  border-color: $a-blue-2;
+  box-shadow: 0 14px 34px rgba(10, 37, 64, 0.08);
+}
+
+/* the rail states where the award stands without another badge */
+.gaw-card__rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+}
+
+.gaw-card--pending .gaw-card__rail  { background: $a-warn; }
+.gaw-card--active .gaw-card__rail   { background: $a-blue; }
+.gaw-card--done .gaw-card__rail     { background: $a-good; }
+.gaw-card--declined .gaw-card__rail { background: rgba(10, 37, 64, 0.16); }
+
+/* an award waiting on a decision is the only thing here with a
+   cost attached to ignoring it, so it is the only one tinted */
+.gaw-card--pending { background: linear-gradient(180deg, rgba(164, 116, 31, 0.04) 0%, $a-white 42%); }
+
+.gaw-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 26px;
+  align-items: start;
+  padding-bottom: 18px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid $a-line-2;
+}
+
+.gaw-card__lead { min-width: 0; }
+
+.gaw-card__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.gaw-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gaw-state__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gaw-state--pending  { color: $a-warn; }
+.gaw-state--active   { color: $a-blue-dk; }
+.gaw-state--done     { color: $a-good; }
+.gaw-state--declined { color: $a-ink-4; }
+
+.gaw-state--pending .gaw-state__dot  { background: $a-warn; }
+.gaw-state--active .gaw-state__dot   { background: $a-blue; }
+.gaw-state--done .gaw-state__dot     { background: $a-good; }
+.gaw-state--declined .gaw-state__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);
+}
+
+.gaw-card__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $a-ink-4;
+}
+
+.gaw-card__sep { color: rgba(10, 37, 64, 0.22); }
+
+.gaw-wait {
+  padding: 3px 9px;
+  border: 1px solid $a-warn-2;
+  border-radius: 6px;
+  background: $a-warn-1;
+  color: $a-warn;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gaw .gaw-card__program {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.018em;
+  color: $a-navy;
+}
+
+.gaw .gaw-card__title {
+  max-width: 68ch;
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: $a-ink-2;
+}
+
+.gaw .gaw-card__hint {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: $a-ink-4;
+}
+
+.gaw-card--declined .gaw-card__program { color: $a-ink-3; }
+
+
+/* ---------- the amount ---------- */
+
+.gaw-card__figure {
+  text-align: right;
+  min-width: 0;
+}
+
+.gaw-figure__label {
   display: block;
   font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 700;
-  margin-bottom: 3px;
-}
-.aw-letter-modal-header h3 {
-  font-size: 17px;
-  font-weight: 700;
-  color: #ffffff;
-  margin: 0;
-  letter-spacing: -0.2px;
-}
-
-.aw-letter-close {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  font-size: 20px;
-  color: #ffffff;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s ease;
-}
-.aw-letter-close:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-  
-/* Quick-facts strip */
-.aw-letter-facts {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  padding: 20px 32px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  flex-shrink: 0;
-}
-.aw-letter-fact { 
-  background: #ffffff;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  display: flex; 
-  flex-direction: column; 
-  gap: 4px; 
-}
-.aw-letter-fact-lbl {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #64748b;
-  font-weight: 700;
-}
-.aw-letter-fact-val {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--slate-900);
-}
-  
-.aw-letter-modal-body {
-  padding: 32px;
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #334155;
-  background: #ffffff;
-}
-.aw-letter-modal-body p { margin-bottom: 16px; }
-.aw-letter-modal-body p:last-child { margin-bottom: 0; }
-.aw-letter-modal-body strong { color: var(--brand); font-weight: 600; }
-.aw-letter-modal-body ul { margin: 0 0 16px 0; padding-left: 20px; }
-.aw-letter-modal-body li { margin-bottom: 6px; }
-  
-/* Footer actions */
-.aw-letter-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px 32px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
-  flex-shrink: 0;
-}
-.aw-letter-btn-secondary {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 10px 20px;
-  border-radius: 10px;
   font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $a-ink-4;
+}
+
+.gaw-figure__value {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: $a-navy;
+}
+
+/* said plainly rather than left to be assumed, because a
+   requested figure is not an awarded one */
+.gaw-figure__note {
+  display: block;
+  margin-top: 7px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: $a-ink-4;
+}
+
+
+/* ---------- foot ---------- */
+
+.gaw-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.gaw .gaw-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 30px;
+  margin: 0;
+  padding: 0;
+}
+
+.gaw-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gaw .gaw-fact dt {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $a-ink-4;
+}
+
+.gaw .gaw-fact dd {
+  margin: 0;
   font-size: 14px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.aw-letter-btn-secondary:hover { 
-  background: #f1f5f9; 
-  border-color: #94a3b8;
-}
-  
-.aw-letter-btn-primary {
-  background-color: #312782 !important;
-  background-image: none !important;
-  border: 1px solid #312782 !important;
-  color: #ffffff !important;
-  padding: 10px 22px !important;
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
-  cursor: pointer !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  box-shadow: 0 4px 12px rgba(49, 39, 130, 0.25) !important;
-  transition: background-color 0.15s ease, transform 0.1s ease !important;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  font-variant-numeric: tabular-nums;
+  color: $a-navy;
 }
 
-.aw-letter-btn-primary i, 
-.aw-letter-btn-primary span {
-  color: #ffffff !important;
-  visibility: visible !important;
-  opacity: 1 !important;
+.gaw-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.aw-letter-btn-primary:hover {
-  background-color: #251d66 !important;
-  border-color: #251d66 !important;
-  color: #ffffff !important;
-  transform: translateY(-1px);
-}
-  
-@keyframes awFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes awModalIn {
-  from { opacity: 0; transform: translateY(12px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-  
-/* ══ CARDS GRID (2 Columns) ═════════════════════════════════ */
-.aw-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-  width: 100%;
-}
-  
-.aw-card {
-  padding: 24px; 
-  display: flex; 
-  flex-direction: column; 
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+.gaw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
-  transition: box-shadow .2s ease, transform .2s ease;
+  text-decoration: none;
+  transition: background 0.4s $a-ease, border-color 0.4s $a-ease, color 0.4s $a-ease;
 }
-.aw-card:hover { 
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06); 
-  transform: translateY(-2px);
+
+.gaw-btn--primary {
+  background: $a-blue;
+  border-color: $a-blue;
+  color: $a-white;
 }
-  
-.aw-card-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.aw-card-num { font-size: 12px; font-weight: 500; color: var(--slate-500); }
-  
-.aw-status-pill { font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 12px; }
-.status-green { background: #dcfce7; color: #059669; }
-.status-amber { background: #fef3c7; color: #d97706; }
-  
-.aw-card-title { font-size: 18px; font-weight: 800; color: var(--slate-900); margin-bottom: 24px; min-height: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; letter-spacing: -0.3px; }
-  
-.aw-card-meta-grid {
-  display: grid; 
-  grid-template-columns: repeat(3, 1fr); 
-  gap: 16px;
-  margin-bottom: 32px;
+
+.gaw-btn--primary:hover,
+.gaw-btn--primary:focus {
+  background: $a-blue-dk;
+  border-color: $a-blue-dk;
+  color: $a-white;
+  text-decoration: none;
 }
-.aw-meta-col { display: flex; flex-direction: column; gap: 6px; }
-.aw-meta-lbl { font-size: 10px; font-weight: 600; color: var(--slate-500); letter-spacing: 0.5px; text-transform: uppercase; }
-.aw-meta-val { font-size: 14px; font-weight: 700; color: var(--slate-900); }
-.aw-card-amount-colored { color: #0f172a; font-weight: 700; }
-  
-.aw-card-foot {
-  display: flex; align-items: center; gap: 12px;
-  margin-top: auto;
+
+/* Declining cannot be undone, so it does not look like every
+   other button on the page. It is not filled either, because a
+   solid red next to a solid blue is a coin toss at speed. */
+.gaw-btn--danger {
+  border-color: $a-stop-2;
+  color: $a-stop;
 }
-.aw-btn-ghost-dark {
-  background: transparent; border: 1px solid rgba(226, 232, 240, 0.8);
-  color: var(--slate-700); border-radius: 99px; padding: 8px 16px;
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+
+.gaw-btn--danger:hover,
+.gaw-btn--danger:focus {
+  background: $a-stop-1;
+  border-color: $a-stop;
+  color: $a-stop;
+  text-decoration: none;
 }
-.aw-btn-ghost-dark:hover { background: var(--slate-50); }
-  
-.aw-btn-ghost-blue {
-  background: #eff6ff; border: 1px solid #bfdbfe;
-  color: #2563eb; border-radius: 99px; padding: 8px 16px;
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+
+.gaw-btn--ghost {
+  border-color: $a-line;
+  color: $a-ink-2;
 }
-.aw-btn-ghost-blue:hover { background: #dbeafe; }
-.aw-btn-ghost-blue[disabled] { opacity: 0.5; cursor: not-allowed; background: transparent; border-color: #e2e8f0; color: #94a3b8; }
-  
-/* ══ RESPONSIVE ══════════════════════════════════════════════ */
+
+.gaw-btn--ghost:hover,
+.gaw-btn--ghost:focus {
+  border-color: $a-blue-2;
+  color: $a-blue-dk;
+  text-decoration: none;
+}
+
+.gaw-btn--quiet { color: $a-ink-3; }
+
+.gaw-btn--quiet:hover,
+.gaw-btn--quiet:focus {
+  color: $a-navy;
+  text-decoration: none;
+}
+
+.gaw-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.gaw-btn:focus-visible,
+.gaw-tab:focus-visible,
+.gaw-search__clear:focus-visible {
+  outline: 2px solid $a-blue;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   NO MATCH AND PAGER
+   ========================================================= */
+
+.gaw-nomatch {
+  padding: 62px 24px;
+  border: 1px dashed $a-line;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.gaw .gaw-nomatch__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: $a-navy;
+}
+
+.gaw .gaw-nomatch__text {
+  max-width: 44ch;
+  margin: 9px auto 18px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: $a-ink-3;
+}
+
+.gaw-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 26px;
+}
+
+.gaw-pager__nums {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.gaw-pager__step,
+.gaw-pager__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: $a-ink-2;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.4s $a-ease, border-color 0.4s $a-ease, color 0.4s $a-ease;
+}
+
+.gaw-pager__step {
+  border-color: $a-line;
+  background: $a-white;
+}
+
+.gaw-pager__step:hover:not(:disabled),
+.gaw-pager__num:hover:not(:disabled) {
+  background: $a-white;
+  color: $a-navy;
+}
+
+.gaw-pager__step:disabled {
+  color: rgba(10, 37, 64, 0.22);
+  cursor: default;
+}
+
+.gaw-pager__num.is-on {
+  background: $a-blue;
+  border-color: $a-blue;
+  color: $a-white;
+  font-weight: 600;
+}
+
+.gaw-pager__num.is-gap {
+  min-width: 20px;
+  color: $a-ink-4;
+  cursor: default;
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  @keyframes gawRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes gawDrawX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+
+  .gaw-top   { animation: gawRise 0.6s $a-ease backwards; }
+  .gaw-blank { animation: gawRise 0.6s $a-ease 0.08s backwards; }
+
+  .gaw-tile { animation: gawRise 0.62s $a-ease backwards; }
+
+  .gaw-tile--pending { animation-delay: 0.06s; }
+  .gaw-tile--active  { animation-delay: 0.12s; }
+  .gaw-tile--value   { animation-delay: 0.18s; }
+  .gaw-tile--done    { animation-delay: 0.24s; }
+
+  .gaw-tile__rule { animation: gawDrawX 0.7s $a-ease 0.3s backwards; }
+
+  .gaw-filters { animation: gawRise 0.6s $a-ease 0.28s backwards; }
+
+  /* replays on every tab change, because ng-repeat rebuilds its
+     nodes and the keyframe starts again with them */
+  .gaw-card { animation: gawRise 0.5s $a-ease backwards; }
+
+  .gaw-card--n1  { animation-delay: 0.02s; }
+  .gaw-card--n2  { animation-delay: 0.05s; }
+  .gaw-card--n3  { animation-delay: 0.08s; }
+  .gaw-card--n4  { animation-delay: 0.11s; }
+  .gaw-card--n5  { animation-delay: 0.14s; }
+  .gaw-card--n6  { animation-delay: 0.17s; }
+  .gaw-card--n7  { animation-delay: 0.20s; }
+  .gaw-card--n8  { animation-delay: 0.23s; }
+  .gaw-card--n9  { animation-delay: 0.26s; }
+  .gaw-card--n10 { animation-delay: 0.29s; }
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+  .gaw { padding: 26px 24px 64px; }
+
+  .gaw-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 900px) {
-  .aw-summary-row { grid-template-columns: 1fr; }
-  .aw-cards { grid-template-columns: 1fr; }
-  .aw-ph-right { flex-wrap: wrap; }
+
+  .gaw { padding: 22px 16px 56px; }
+
+  .gaw-top__right {
+    width: 100%;
+    order: 2;
+  }
+
+  .gaw-search { width: 100%; }
+
+  .gaw-tiles { grid-template-columns: minmax(0, 1fr); }
+
+  .gaw-tabs {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gaw-tab { flex-shrink: 0; }
+
+  /* the amount moves under the heading rather than being
+     squeezed into a column too narrow to hold it */
+  .gaw-card__head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .gaw-card__figure {
+    text-align: left;
+    padding-top: 14px;
+    border-top: 1px solid $a-line-2;
+  }
+
+  .gaw-card__foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .gaw-acts { width: 100%; }
+
+  .gaw-btn { flex: 1; }
 }
-  
-@media (max-width: 560px) {
-  .aw-letter-facts { grid-template-columns: repeat(2, 1fr); }
-  .aw-letter-modal-header,
-  .aw-letter-modal-body,
-  .aw-letter-modal-footer { padding: 18px 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gaw * { transition: none; }
+  .gaw-tile:hover { transform: none; }
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -628,284 +1192,663 @@
         <name>My Award</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function () {
-    // Load the sidebar widget into data
-    data.sideBar = $sp.getWidget('sidebar');
 
-    data.detail_page = options.detail_page_id || 'my_award_detail';
- 
-    // Handle incoming widget server action when "Acknowledge award" is clicked
-    if (input && input.action === 'acknowledge_award' && input.sys_id) {
-        var updateGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        if (updateGr.get(input.sys_id)) {
-            updateGr.setValue('applicant_response', 'acknowledged');
-            updateGr.update();
+  /* =========================================================
+     GATENOW · MY AWARDS
+     Service Portal widget · Server script
+
+     WHERE AN AWARD LIVES
+
+     There is no separate award record in the schema you shared,
+     so an award is an application that has reached an award
+     state. The five that matter:
+
+       award_pending          offered, waiting on the applicant
+       award_acknowledged     accepted, project not open yet
+       project_in_progress    accepted and being delivered
+       project_completed      delivered
+       declined_by_applicant  turned down
+
+     If a grant awards table does exist on your instance, tell me
+     and this reads from there instead. The states are reliable
+     either way, which is why they are the source here.
+
+     GlideRecordSecure throughout, and the two write actions only
+     ever touch a record belonging to the person signed in.
+     ========================================================= */
+
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var PROJECT   = 'x_enno_gatenow_project';
+
+  var AWARD_STATES = 'award_pending,award_acknowledged,project_in_progress,project_completed,declined_by_applicant';
+
+  var me = gs.getUserID();
+
+  data.success = false;
+  data.error   = '';
+
+  if (typeof input === 'undefined' || input === null) input = {};
+
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function param(key, dflt) {
+    try {
+      if (input && input[key] !== undefined && input[key] !== null) return input[key];
+    } catch (e) { /* fall through */ }
+    return dflt;
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  function daysSince(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    try {
+      var ms = GlideDateTime.subtract(g, new GlideDateTime()).getNumericValue();
+      return Math.round(ms / 86400000);
+    } catch (e) { return null; }
+  }
+
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  /* written out rather than toLocaleString, which is not
+     dependable on the server engine */
+  function commas(n) {
+    var s = '' + Math.round(n);
+    var out = '';
+    var c = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      c++;
+      if (c % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return out;
+  }
+
+  function fmtFull(n)  { return n > 0 ? '$' + commas(n) : ''; }
+
+  function fmtShort(n) {
+    if (!n) return '$0';
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000)    return '$' + Math.round(n / 1000) + 'K';
+    return '$' + commas(n);
+  }
+
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
         }
+      } catch (e) { /* next */ }
     }
- 
-    data.awards = [];
-    data.totalAwarded = 0;
-    data.activeAwardCount = 0;
-    data.awaitingAckCount = 0;
-    data.closingSoonestDate = '';
-    data.closingSoonestProgram = '';
- 
-    var currentUser = gs.getUserID();
-    var currentUserObj = gs.getUser();
-    var isAdmin = gs.hasRole('admin'); // Check if current user is admin
-    
-    data.userInitials = (currentUserObj.getFirstName().charAt(0) + currentUserObj.getLastName().charAt(0)).toUpperCase();
-    data.userDisplayName = currentUserObj.getDisplayName();
- 
-    var applicantIds = [];
-    var applicantGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-    
-    if (!isAdmin) {
-        applicantGr.addQuery('user', currentUser);
+    return '';
+  }
+
+
+  /* ============================================================
+     WRITE ACTIONS
+     Both re-read the record and check ownership before touching
+     it. A sys_id in a payload is not proof of anything.
+     ============================================================ */
+
+  var action = String(param('action', ''));
+
+  function moveTo(sysId, fromState, toState, failMsg) {
+
+    if (!sysId) { data.error = gs.getMessage('Nothing to update.'); return; }
+
+    var gr = new GlideRecordSecure(APPLICANT);
+
+    if (!gr.get(sysId)) {
+      data.error = gs.getMessage('That award could not be found.');
+      return;
     }
-    applicantGr.query();
-    while (applicantGr.next()) {
-        applicantIds.push(applicantGr.getUniqueValue());
+
+    if (gr.getValue('user') !== me) {
+      data.error = gs.getMessage('That award does not belong to you.');
+      gs.warn('[Awards] ' + me + ' attempted to change ' + sysId);
+      return;
     }
- 
-    // Proceed to query awards if admin OR if applicant records are found for this user
-    if (isAdmin || applicantIds.length > 0) {
-        var responseFilter = 'pending,acknowledged,rejected,Pending,Acknowledged,Rejected';
- 
-        var awardGr = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        awardGr.addQuery('applicant_response', 'IN', responseFilter);
-        
-        // If not admin, filter by the specific applicant IDs
-        if (!isAdmin) {
-            var applicantIdList = applicantIds.join(',');
-            awardGr.addQuery('applicant', 'IN', applicantIdList);
+
+    if (lower(gr.getValue('state')) !== fromState) {
+      data.error = failMsg;
+      return;
+    }
+
+    gr.setValue('state', toState);
+
+    if (toState === 'declined_by_applicant' && gr.isValidField('decline_reason')) {
+      gr.setValue('decline_reason', String(param('reason', '')));
+    }
+
+    if (gr.update()) {
+      data.success = true;
+    } else {
+      data.error = gs.getMessage('The update did not save. Try again.');
+    }
+  }
+
+  if (action === 'acknowledge') {
+    moveTo(String(param('sys_id', '')),
+           'award_pending',
+           'award_acknowledged',
+           gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.'));
+  }
+
+  if (action === 'decline') {
+    moveTo(String(param('sys_id', '')),
+           'award_pending',
+           'declined_by_applicant',
+           gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.'));
+  }
+
+
+  /* ============================================================
+     CHROME
+     ============================================================ */
+
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
+
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
+
+  data.pages = {
+    programs: opt('programs_page', 'x_enno_gatenow_programs'),
+    project : opt('project_page', 'x_enno_gatenow_project_detail'),
+    detail  : opt('application_page', 'x_enno_gatenow_application')
+  };
+
+
+  /* ============================================================
+     AWARDS
+     ============================================================ */
+
+  data.awards = [];
+
+  var counts  = { all: 0, pending: 0, active: 0, done: 0, declined: 0 };
+  var totalValue = 0;
+  var pendingValue = 0;
+  var oldestPending = null;
+
+  var STATE_MAP = {
+    award_pending: {
+      key   : 'pending',
+      label : gs.getMessage('Waiting on you'),
+      hint  : gs.getMessage('Accept or decline to move this forward')
+    },
+    award_acknowledged: {
+      key   : 'active',
+      label : gs.getMessage('Accepted'),
+      hint  : gs.getMessage('The project opens once the program team sets it up')
+    },
+    project_in_progress: {
+      key   : 'active',
+      label : gs.getMessage('In delivery'),
+      hint  : gs.getMessage('Reporting and claims run from the project')
+    },
+    project_completed: {
+      key   : 'done',
+      label : gs.getMessage('Completed'),
+      hint  : gs.getMessage('Delivered and closed')
+    },
+    declined_by_applicant: {
+      key   : 'declined',
+      label : gs.getMessage('Declined'),
+      hint  : gs.getMessage('You turned this award down')
+    }
+  };
+
+  try {
+
+    var gr = new GlideRecordSecure(APPLICANT);
+    gr.addQuery('user', me);
+    gr.addQuery('state', 'IN', AWARD_STATES);
+    gr.orderByDesc('sys_updated_on');
+    gr.setLimit(200);
+    gr.query();
+
+    while (gr.next()) {
+
+      var stateVal = lower(gr.getValue('state'));
+      var meta = STATE_MAP[stateVal];
+      if (!meta) continue;
+
+      /* An award amount field is not on the applicant table in
+         the schema I have, so the requested budget stands in and
+         is labelled as such. If your instance holds an awarded
+         figure, add its field name to the list below and the
+         label switches automatically. */
+      var awarded  = num(pick(gr, ['award_amount', 'awarded_amount', 'granted_amount']));
+      var asked    = num(pick(gr, ['requested_budget']));
+      var isActual = awarded > 0;
+      var value    = isActual ? awarded : asked;
+
+      /* sys_updated_on is the closest thing to an award date
+         without a dedicated field on the record */
+      var movedRaw = gr.getValue('sys_updated_on');
+      var waiting  = (stateVal === 'award_pending') ? daysSince(movedRaw) : null;
+
+      var projectId = '';
+      var projectName = '';
+
+      if (stateVal === 'project_in_progress' || stateVal === 'project_completed') {
+        var pj = new GlideRecordSecure(PROJECT);
+        pj.addQuery('applicant', gr.getUniqueValue());
+        pj.setLimit(1);
+        pj.query();
+        if (pj.next()) {
+          projectId = pj.getUniqueValue();
+          projectName = pick(pj, ['project_name', 'short_description']) || pj.getValue('number');
         }
-        
-        awardGr.orderByDesc('sys_created_on');
-        awardGr.query();
- 
-        var nearestDateMs = null;
- 
-        while (awardGr.next()) {
-            var responseValue = String(awardGr.getValue('applicant_response') || '').toLowerCase();
-            var amount = parseFloat(awardGr.getValue('build_grant_amount') || 0);
- 
-            if (responseValue === 'pending') {
-                data.awaitingAckCount++;
-            }
- 
-            data.totalAwarded += amount;
-            data.activeAwardCount++;
- 
-            var endDateStr = awardGr.getValue('award_end_date');
-            if (endDateStr && responseValue !== 'rejected') {
-                var gdt = new GlideDateTime(endDateStr);
-                var currentEdMs = gdt.getNumericValue();
-                if (!nearestDateMs || currentEdMs < nearestDateMs) {
-                    nearestDateMs = currentEdMs;
-                    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                    var monthIndex = gdt.getMonthUTC() - 1;
-                    data.closingSoonestDate = months[monthIndex] + ' ' + gdt.getYearUTC();
-                    data.closingSoonestProgram = awardGr.getDisplayValue('program_name');
-                }
-            }
- 
-            data.awards.push({
-                sys_id: awardGr.getUniqueValue(),
-                number: awardGr.getDisplayValue('number'),
-                program_name: awardGr.getDisplayValue('program_name'),
-                award_start_date: awardGr.getDisplayValue('award_start_date'),
-                award_end_date: awardGr.getDisplayValue('award_end_date'),
-                award_amount: amount,
-                applicant_response: responseValue,
-                applicant_response_display: awardGr.getDisplayValue('applicant_response'),
-                grant_program_id: awardGr.getDisplayValue('grant_program'),
-                award_letter: awardGr.getValue('award_letter') || ''
-            });
+      }
+
+      data.awards.push({
+        sysId      : gr.getUniqueValue(),
+        number     : gr.getValue('number'),
+        program    : gr.getDisplayValue('program'),
+        category   : gr.getValue('program_category') || gr.getDisplayValue('category'),
+        title      : pick(gr, ['proposal_title', 'short_description']),
+        state      : meta.key,
+        stateLabel : meta.label,
+        stateHint  : meta.hint,
+        rawState   : stateVal,
+        value      : value,
+        valueText  : fmtFull(value),
+        valueIsFinal: isActual,
+        submitted  : fmtDate(gr.getValue('submission_date')),
+        moved      : fmtDate(movedRaw),
+        waitingDays: waiting,
+        projectId  : projectId,
+        projectName: projectName,
+        canAct     : (stateVal === 'award_pending')
+      });
+
+      counts.all++;
+      counts[meta.key]++;
+
+      if (meta.key !== 'declined') totalValue += value;
+
+      if (stateVal === 'award_pending') {
+        pendingValue += value;
+        if (waiting !== null && (oldestPending === null || waiting > oldestPending)) {
+          oldestPending = waiting;
         }
+      }
     }
+
+  } catch (e) {
+    gs.error('[Awards] ' + e.message);
+  }
+
+  data.counts = counts;
+
+
+  /* ---------- tiles ---------- */
+  data.tiles = [
+    {
+      key  : 'pending',
+      label: gs.getMessage('Waiting on you'),
+      value: '' + counts.pending,
+      note : counts.pending === 0
+               ? gs.getMessage('nothing needs a decision')
+               : (oldestPending !== null && oldestPending > 0
+                    ? gs.getMessage('oldest has been waiting') + ' ' + oldestPending + ' ' + gs.getMessage('days')
+                    : gs.getMessage('awaiting your decision')),
+      alert: counts.pending > 0
+    },
+    {
+      key  : 'active',
+      label: gs.getMessage('Active awards'),
+      value: '' + counts.active,
+      note : gs.getMessage('accepted or in delivery')
+    },
+    {
+      key  : 'value',
+      label: gs.getMessage('Total awarded'),
+      value: fmtShort(totalValue),
+      note : gs.getMessage('across every award except declined')
+    },
+    {
+      key  : 'done',
+      label: gs.getMessage('Completed'),
+      value: '' + counts.done,
+      note : gs.getMessage('delivered and closed')
+    }
+  ];
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+
+  data.t = {
+    title      : opt('label_title', gs.getMessage('My awards')),
+    search     : gs.getMessage('Search by program, reference or title'),
+    tabAll     : gs.getMessage('All'),
+    tabPending : gs.getMessage('Waiting on you'),
+    tabActive  : gs.getMessage('Active'),
+    tabDone    : gs.getMessage('Completed'),
+    tabDeclined: gs.getMessage('Declined'),
+
+    awarded    : gs.getMessage('Awarded'),
+    requested  : gs.getMessage('Requested'),
+    reference  : gs.getMessage('Reference'),
+    submitted  : gs.getMessage('Submitted'),
+    updated    : gs.getMessage('Last change'),
+    project    : gs.getMessage('Project'),
+
+    accept     : gs.getMessage('Accept award'),
+    decline    : gs.getMessage('Decline'),
+    viewProject: gs.getMessage('Open project'),
+    viewApp    : gs.getMessage('View application'),
+
+    waitingFor : gs.getMessage('Waiting'),
+    days       : gs.getMessage('days'),
+    day        : gs.getMessage('day'),
+
+    emptyTitle : gs.getMessage('No awards yet'),
+    emptyText  : gs.getMessage('Awards appear here once a funding panel has made a decision on one of your applications.'),
+    emptyBtn   : gs.getMessage('Browse open programs'),
+    noMatch    : gs.getMessage('Nothing matches this filter'),
+    noMatchText: gs.getMessage('Try another tab, or clear the search.'),
+    clear      : gs.getMessage('Clear'),
+
+    acceptTitle: gs.getMessage('Accept this award?'),
+    acceptText : gs.getMessage('Accepting starts the project and commits you to the reporting schedule attached to this program.'),
+    acceptYes  : gs.getMessage('Yes, accept it'),
+    declineTitle: gs.getMessage('Decline this award?'),
+    declineText: gs.getMessage('This cannot be undone. The funding will be released to another applicant.'),
+    declineYes : gs.getMessage('Yes, decline it'),
+    keep       : gs.getMessage('Go back'),
+
+    accepted   : gs.getMessage('Award accepted'),
+    declined   : gs.getMessage('Award declined'),
+    failed     : gs.getMessage('That did not work'),
+    ok         : gs.getMessage('OK'),
+    estimate   : gs.getMessage('Requested figure, the awarded amount is confirmed in your award letter')
+  };
+
+  data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-24 07:23:34</sys_created_on>
         <sys_id>b4e137cf0f720710712b6af300d1b2fc</sys_id>
-        <sys_mod_count>16</sys_mod_count>
+        <sys_mod_count>28</sys_mod_count>
         <sys_name>My Award</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b4e137cf0f720710712b6af300d1b2fc</sys_update_name>
-        <sys_updated_by>farheen.maqbool</sys_updated_by>
-        <sys_updated_on>2026-08-24 11:16:17</sys_updated_on>
-        <template><![CDATA[<!-- Master Flexbox Layout Container -->
-<div class="gn-layout" style="display:flex; min-height:100vh; align-items:stretch;">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-31 02:45:52</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · MY AWARDS
+     Service Portal widget · HTML template
 
-  <!-- DYNAMIC SIDEBAR WRAPPER -->
-  <div class="aw-sidebar" ng-style="{'width': c.isSidebarCollapsed ? '64px' : '96px', 'min-width': c.isSidebarCollapsed ? '64px' : '96px', 'max-width': c.isSidebarCollapsed ? '64px' : '96px', 'flex': c.isSidebarCollapsed ? '0 0 64px' : '0 0 96px'}" style="position:sticky; top:0; height:100vh; overflow:visible; z-index: 10;">
+     Same shell as the dashboard and the funding programs page,
+     so the sidebar behaves identically across all three.
+
+     An award waiting on a decision is the only thing on this
+     page that needs doing, so those rows carry the accent and
+     sort to the top regardless of which tab is open.
+     ========================================================= -->
+
+<!-- The wrapper holds the rail and nothing more.
+
+     It used to declare a width through an ng-style, which is
+     what caused the overlap: it reserved 96px while the rail
+     draws 236px, so 140px of the rail painted over this page.
+
+     The rail sets its own width, does its own sticking and owns
+     the collapsed state, so the column has nothing left to say. -->
+<div class="gn-layout">
+
+  <!-- SIDEBAR -->
+  <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
-  
-  <main class="aw-main" style="width: 100%; margin: 0; padding: 24px;">
-  <div class="aw-ph">
-    <div class="aw-ph-left">
-      <div>
-        <h1 class="aw-ph-title">My Awards</h1>
+
+<main class="gaw">
+
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="gaw-top">
+
+      <h1 class="gaw-top__title">{{c.data.t.title}}</h1>
+
+      <div class="gaw-top__right">
+
+        <label class="gaw-search" ng-if="c.data.awards.length">
+          <i class="fa fa-search gaw-search__icon" aria-hidden="true"></i>
+          <input type="text"
+                 class="gaw-search__field"
+                 ng-model="c.query"
+                 ng-change="c.onChange()"
+                 ng-model-options="{debounce: 120}"
+                 placeholder="{{c.data.t.search}}"
+                 aria-label="{{c.data.t.search}}">
+          <button type="button" class="gaw-search__clear" ng-if="c.query" ng-click="c.clearSearch()"
+                  aria-label="{{c.data.t.clear}}">
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </button>
+        </label>
+
+        <span class="gaw-avatar">{{c.data.userInitials}}</span>
+
       </div>
+
+    </header>
+
+
+    <!-- ═══════════════ NOTHING YET ═══════════════ -->
+    <div class="gaw-blank" ng-if="!c.data.awards.length">
+      <span class="gaw-blank__mark" aria-hidden="true"><i class="fa fa-trophy"></i></span>
+      <p class="gaw-blank__title">{{c.data.t.emptyTitle}}</p>
+      <p class="gaw-blank__text">{{c.data.t.emptyText}}</p>
+      <a class="gaw-btn gaw-btn--primary" ng-href="?id={{c.data.pages.programs}}">
+        {{c.data.t.emptyBtn}}
+      </a>
     </div>
 
-    <div class="aw-ph-right">
-      <div class="aw-search-box">
-        <i class="fa fa-search"></i>
-        <input type="text" ng-model="c.searchQuery" placeholder="Search programs, applications...">
-      </div>
-      <div class="aw-filter-group">
-        <i class="fa fa-calendar-o"></i>
-        <select class="aw-time-filter" ng-model="c.timeFilter">
-          <option value="last12">Last 12 months</option>
-          <option value="all">All time</option>
-        </select>
-      </div>
-     
-      <div class="aw-avatar" title="{{data.userDisplayName}}">{{data.userInitials}}</div>
-    </div>
-  </div>
 
-  <!-- ===== Summary Tiles ===== -->
-  <div class="aw-summary-row" ng-if="data.awards.length > 0">
-    <div class="aw-stat-tile">
-      <span class="aw-tile-lbl">TOTAL AWARDED</span>
-      <span class="aw-tile-val aw-text-indigo">{{c.getTotalAwarded() | currency:'$':0}}</span>
-      <span class="aw-tile-sub">Across {{c.filteredAwards().length}} active awards</span>
-    </div>
+    <div ng-if="c.data.awards.length">
 
-    <div class="aw-stat-tile">
-      <span class="aw-tile-lbl">AWAITING ACKNOWLEDGEMENT</span>
-      <span class="aw-tile-val aw-text-amber">{{c.awaitingAckCount() || 0}}</span>
-      <span class="aw-tile-sub">Action required</span>
-    </div>
+      <!-- ═══════════════ TILES ═══════════════ -->
+      <section class="gaw-tiles">
+        <article class="gaw-tile"
+                 ng-repeat="t in c.data.tiles track by t.key"
+                 ng-class="['gaw-tile--' + t.key, {'is-alert': t.alert}]">
+          <span class="gaw-tile__rule" aria-hidden="true"></span>
+          <p class="gaw-tile__label">{{t.label}}</p>
+          <p class="gaw-tile__value">{{t.value}}</p>
+          <p class="gaw-tile__note">{{t.note}}</p>
+        </article>
+      </section>
 
-    <div class="aw-stat-tile">
-      <span class="aw-tile-lbl">CLOSING SOONEST</span>
-      <span class="aw-tile-val aw-text-dark">{{data.closingSoonestDate || 'N/A'}}</span>
-      <span class="aw-tile-sub">{{data.closingSoonestProgram || 'No upcoming closures'}}</span>
-    </div>
-  </div>
 
-  <!-- ===== Single Consolidated Acknowledgement Alert Banner ===== -->
-  <div class="aw-ack-alert" ng-if="c.awaitingAckCount() > 0" style="display: flex; flex-direction: column; align-items: stretch; gap: 12px;">
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      <div class="aw-ack-alert-left">
-        <div class="aw-ack-alert-icon"><i class="fa fa-lock"></i></div>
-        <div>
-          <div class="aw-ack-title-row">
-            <strong>{{c.awaitingAckCount()}} grant award(s) require your attention</strong>
-            <span class="aw-badge aw-badge--red">Acknowledgement overdue</span>
-          </div>
-          <div class="aw-ack-alert-sub">
-            Funds release after applicant acknowledgement is completed.
-          </div>
+      <!-- ═══════════════ TABS ═══════════════ -->
+      <div class="gaw-filters">
+
+        <div class="gaw-tabs" role="group">
+          <button type="button" class="gaw-tab"
+                  ng-repeat="t in c.tabs track by t.key"
+                  ng-class="{'is-on': c.tab === t.key}"
+                  ng-click="c.setTab(t.key)"
+                  ng-attr-aria-pressed="{{c.tab === t.key}}">
+            <span class="gaw-tab__dot" ng-class="'gaw-tab__dot--' + t.key" aria-hidden="true"></span>
+            {{t.label}}
+            <span class="gaw-tab__count">{{c.data.counts[t.key]}}</span>
+          </button>
         </div>
-      </div>
-    </div>
 
-    <!-- Inner list of individual pending awards with transparent background -->
-    <div style="border-top: 1px solid rgba(220, 38, 38, 0.15); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-      <div ng-repeat="award in data.awards" ng-if="award.applicant_response === 'pending'" style="display: flex; align-items: center; justify-content: space-between; background: transparent; padding: 8px 12px;">
-        <div>
-          <strong>{{award.number}}</strong> &middot; {{award.program_name}} 
-          <span class="aw-text-dark-bold" style="margin-left: 8px;">({{award.award_amount | currency:'$':0}})</span>
-        </div>
-        <button class="aw-cta--solid" ng-click="c.acknowledgeAward(award, $event)" ng-disabled="c.acking[award.sys_id]" style="padding: 6px 16px; font-size: 13px;">
-          <span style="display: inline-block; color: #ffffff !important; visibility: visible !important; opacity: 1 !important;" ng-if="!c.acking[award.sys_id]">Acknowledge</span>
-          <span style="display: inline-block; color: #ffffff !important; visibility: visible !important; opacity: 1 !important;" ng-if="c.acking[award.sys_id]">Processing...</span>
+        <p class="gaw-range" ng-if="c.total()">
+          {{c.rangeFrom()}}&ndash;{{c.rangeTo()}} of {{c.total()}}
+        </p>
+
+      </div>
+
+
+      <!-- ═══════════════ LIST ═══════════════ -->
+      <div class="gaw-list">
+
+        <article class="gaw-card"
+                 ng-repeat="a in c.shown() track by a.sysId"
+                 ng-class="['gaw-card--' + a.state, 'gaw-card--n' + (($index % 10) + 1)]">
+
+          <span class="gaw-card__rail" aria-hidden="true"></span>
+
+          <div class="gaw-card__head">
+
+            <div class="gaw-card__lead">
+
+              <span class="gaw-card__top">
+                <span class="gaw-state" ng-class="'gaw-state--' + a.state">
+                  <span class="gaw-state__dot" aria-hidden="true"></span>{{a.stateLabel}}
+                </span>
+                <span class="gaw-card__meta">
+                  <span ng-if="a.category">{{a.category}}</span>
+                  <span class="gaw-card__sep" ng-if="a.category" aria-hidden="true">&middot;</span>
+                  <span>{{a.number}}</span>
+                </span>
+                <span class="gaw-wait" ng-if="a.state === 'pending' && a.waitingDays > 0">
+                  {{c.data.t.waitingFor}} {{a.waitingDays}} {{a.waitingDays === 1 ? c.data.t.day : c.data.t.days}}
+                </span>
+              </span>
+
+              <h2 class="gaw-card__program">{{a.program}}</h2>
+              <p class="gaw-card__title" ng-if="a.title">{{a.title}}</p>
+              <p class="gaw-card__hint">{{a.stateHint}}</p>
+
+            </div>
+
+            <div class="gaw-card__figure">
+              <span class="gaw-figure__label">
+                {{a.valueIsFinal ? c.data.t.awarded : c.data.t.requested}}
+              </span>
+              <span class="gaw-figure__value">{{a.valueText || '—'}}</span>
+              <span class="gaw-figure__note" ng-if="!a.valueIsFinal && a.valueText">
+                {{c.data.t.estimate}}
+              </span>
+            </div>
+
+          </div>
+
+          <div class="gaw-card__foot">
+
+            <dl class="gaw-facts">
+              <div class="gaw-fact" ng-if="a.submitted">
+                <dt>{{c.data.t.submitted}}</dt>
+                <dd>{{a.submitted}}</dd>
+              </div>
+              <div class="gaw-fact" ng-if="a.moved">
+                <dt>{{c.data.t.updated}}</dt>
+                <dd>{{a.moved}}</dd>
+              </div>
+              <div class="gaw-fact" ng-if="a.projectName">
+                <dt>{{c.data.t.project}}</dt>
+                <dd>{{a.projectName}}</dd>
+              </div>
+            </dl>
+
+            <div class="gaw-acts">
+
+              <button type="button" class="gaw-btn gaw-btn--primary"
+                      ng-if="a.canAct"
+                      ng-disabled="c.busy === a.sysId"
+                      ng-click="c.accept(a)">
+                {{c.busy === a.sysId ? '…' : c.data.t.accept}}
+              </button>
+
+              <button type="button" class="gaw-btn gaw-btn--danger"
+                      ng-if="a.canAct"
+                      ng-disabled="c.busy === a.sysId"
+                      ng-click="c.decline(a)">
+                {{c.data.t.decline}}
+              </button>
+
+              <a class="gaw-btn gaw-btn--ghost"
+                 ng-if="a.projectId"
+                 ng-href="?id={{c.data.pages.project}}&sys_id={{a.projectId}}">
+                {{c.data.t.viewProject}}
+              </a>
+
+              <a class="gaw-btn gaw-btn--quiet"
+                 ng-href="?id={{c.data.pages.detail}}&sys_id={{a.sysId}}">
+                {{c.data.t.viewApp}}
+              </a>
+
+            </div>
+
+          </div>
+
+        </article>
+
+      </div>
+
+
+      <div class="gaw-nomatch" ng-if="!c.shown().length">
+        <p class="gaw-nomatch__title">{{c.data.t.noMatch}}</p>
+        <p class="gaw-nomatch__text">{{c.data.t.noMatchText}}</p>
+        <button type="button" class="gaw-btn gaw-btn--ghost" ng-click="c.clearAll()">
+          {{c.data.t.clear}}
         </button>
       </div>
-    </div>
-  </div>
 
-  <!-- ===== Award Cards Grid ===== -->
-  <div class="aw-cards" ng-if="c.filteredAwards().length > 0">
-    <div class="aw-card" ng-repeat="award in c.filteredAwards()" ng-click="c.openAward(award)">
-      <div class="aw-card-row1">
-        <span class="aw-card-num">{{award.number}}</span>
-        <span class="aw-status-pill"
-              ng-class="{'status-green': award.applicant_response === 'acknowledged', 'status-amber': award.applicant_response === 'pending'}">
-          {{c.displayStatus(award)}}
-        </span>
-      </div>
 
-      <h3 class="aw-card-title">{{award.program_name}}</h3>
-
-      <div class="aw-card-meta-grid">
-        <div class="aw-meta-col">
-          <span class="aw-meta-lbl">Award value</span>
-          <span class="aw-meta-val aw-card-amount-colored">{{award.award_amount | currency:'$':0}}</span>
-        </div>
-        <div class="aw-meta-col">
-          <span class="aw-meta-lbl">Term ends</span>
-          <span class="aw-meta-val">{{award.award_end_date || '—'}}</span>
-        </div>
-        <div class="aw-meta-col">
-          <span class="aw-meta-lbl">Reporting</span>
-          <span class="aw-meta-val">{{award.reporting_frequency || 'Monthly'}}</span>
-        </div>
-      </div>
-
-      <div class="aw-card-foot">
-        <button class="aw-btn-ghost-blue"
-                ng-disabled="!award.award_letter"
-                ng-click="c.openAwardLetter(award, $event); $event.stopPropagation()">
-          Award letter
+      <nav class="gaw-pager" ng-if="c.pageCount() > 1">
+        <button type="button" class="gaw-pager__step" ng-click="c.prev()" ng-disabled="c.page === 1">
+          <i class="fa fa-angle-left" aria-hidden="true"></i>
         </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== Award Letter Modal ===== -->
-  <div class="aw-letter-overlay" ng-if="c.activeLetter" ng-click="c.closeAwardLetter()">
-    <div class="aw-letter-modal" ng-click="$event.stopPropagation()">
-      <div class="aw-letter-modal-header">
-        <div class="aw-letter-header-left">
-          <div class="aw-letter-badge"><i class="fa fa-file-text-o"></i></div>
-          <div>
-            <span class="aw-letter-eyebrow">Official Award Document</span>
-            <h3>{{c.activeLetter.number}} <span ng-if="c.activeLetter.program_name">&middot; {{c.activeLetter.program_name}}</span></h3>
-          </div>
+        <div class="gaw-pager__nums">
+          <button type="button"
+                  ng-repeat="n in c.pages() track by $index"
+                  class="gaw-pager__num"
+                  ng-class="{'is-on': n === c.page, 'is-gap': n === '...'}"
+                  ng-disabled="n === '...'"
+                  ng-click="c.goto(n)">{{n}}</button>
         </div>
-        <button class="aw-letter-close" ng-click="c.closeAwardLetter()" title="Close">&times;</button>
-      </div>
-
-      <div class="aw-letter-facts">
-        <div class="aw-letter-fact">
-          <span class="aw-letter-fact-lbl">Award value</span>
-          <span class="aw-letter-fact-val">{{c.activeLetter.award_amount | currency:'$':0}}</span>
-        </div>
-        <div class="aw-letter-fact">
-          <span class="aw-letter-fact-lbl">Term ends</span>
-          <span class="aw-letter-fact-val">{{c.activeLetter.award_end_date || '—'}}</span>
-        </div>
-        <div class="aw-letter-fact">
-          <span class="aw-letter-fact-lbl">Reporting</span>
-          <span class="aw-letter-fact-val">{{c.activeLetter.reporting_frequency || 'Monthly'}}</span>
-        </div>
-        <div class="aw-letter-fact">
-          <span class="aw-letter-fact-lbl">Status</span>
-          <span class="aw-letter-fact-val">{{c.displayStatus(c.activeLetter)}}</span>
-        </div>
-      </div>
-
-      <div class="aw-letter-modal-body" ng-bind-html="c.activeLetter.html"></div>
-
-      <div class="aw-letter-modal-footer">
-        <button class="aw-letter-btn-secondary" ng-click="c.closeAwardLetter()">Close</button>
-        <button class="aw-letter-btn-primary" ng-click="c.downloadAwardLetter(c.activeLetter, $event)">
-          <i class="fa fa-download"></i> Download PDF
+        <button type="button" class="gaw-pager__step" ng-click="c.next()" ng-disabled="c.page === c.pageCount()">
+          <i class="fa fa-angle-right" aria-hidden="true"></i>
         </button>
-      </div>
+      </nav>
+
     </div>
-  </div>
-</main>]]></template>
+
+  </main>
+
+</div>]]></template>
     </sp_widget>
 </record_update>
