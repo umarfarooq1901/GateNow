@@ -1,8 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller=function($rootScope) {
-    /* No triggers needed. Native routing handles the login intercept. */
+        <client_script><![CDATA[api.controller = function($location) {
+  var c = this;
+  c.modal = { show: false };
+
+  c.checkLoginAndRedirect = function(event, url) {
+    event.preventDefault();
+    
+    if (!c.data.isLoggedIn) {
+      // Not logged in -> Show Authentication Modal
+      c.modal = {
+        show: true,
+        title: 'Authentication Required',
+        message: 'You are not logged in. Please log in first to access the dashboard.',
+        confirmLabel: 'Okay',
+        confirmAction: function() { c.modal.show = false; }
+      };
+    } else if (!c.data.hasAwardRole) {
+      // Logged in but missing role -> Show Restricted Modal
+      c.modal = {
+        show: true,
+        title: 'Access Restricted',
+        message: 'Your application hasn\'t been awarded a grant yet. Once you\'re awarded, you\'ll be able to access the dashboard.',
+        confirmLabel: 'Okay',
+        confirmAction: function() { c.modal.show = false; }
+      };
+    } else {
+      // Logged in and has role -> Go straight to the dashboard
+      $location.href = url;
+    }
+  };
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* =========================================================&#13;
@@ -428,6 +456,147 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
 @media (prefers-reduced-motion: reduce) {&#13;
   .gnt-foot * { transition: none; }&#13;
   .gnt-mark:hover { transform: none; }&#13;
+}&#13;
+&#13;
+/* =========================================================&#13;
+   MODAL STYLES (Appended from Hero)&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-modal-overlay {&#13;
+  position: fixed;&#13;
+  inset: 0;&#13;
+  background: rgba(10, 37, 64, 0.55);&#13;
+  backdrop-filter: blur(4px);&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  z-index: 9999;&#13;
+  padding: 20px;&#13;
+  animation: gnFadeIn 0.2s ease-out;&#13;
+}&#13;
+&#13;
+.gn-modal {&#13;
+  position: relative;&#13;
+  width: 100%;&#13;
+  max-width: 400px;&#13;
+  background: #ffffff;&#13;
+  border-radius: 24px;&#13;
+  padding: 44px 38px 36px;&#13;
+  text-align: center;&#13;
+  font-family: $gnt-font;&#13;
+  box-shadow: 0 30px 60px rgba(10, 37, 64, 0.22);&#13;
+  animation: gnPopIn 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);&#13;
+}&#13;
+&#13;
+.gn-modal-title {&#13;
+  margin: 0 0 10px;&#13;
+  font-size: 24px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.02em;&#13;
+  color: $gnt-navy;&#13;
+}&#13;
+&#13;
+.gn-modal-message {&#13;
+  margin: 0 0 30px;&#13;
+  font-size: 15.5px;&#13;
+  font-weight: 400;&#13;
+  line-height: 1.55;&#13;
+  letter-spacing: -0.005em;&#13;
+  color: $gnt-body;&#13;
+}&#13;
+&#13;
+.gn-modal-actions {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 10px;&#13;
+}&#13;
+&#13;
+.gn-btn-primary {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  height: 56px;&#13;
+  padding: 0 32px;&#13;
+  border: none;&#13;
+  border-radius: 999px;&#13;
+  background: $gnt-blue;&#13;
+  color: #ffffff;&#13;
+  font-family: $gnt-font;&#13;
+  font-size: 16px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.01em;&#13;
+  cursor: pointer;&#13;
+  box-shadow: 0 14px 30px rgba(21, 96, 224, 0.30);&#13;
+  transition: background 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;&#13;
+}&#13;
+&#13;
+.gn-btn-primary:hover {&#13;
+  background: $gnt-blue-dk;&#13;
+  box-shadow: 0 18px 38px rgba(21, 96, 224, 0.38);&#13;
+  transform: translateY(-2px);&#13;
+}&#13;
+&#13;
+.gn-btn-text {&#13;
+  background: none;&#13;
+  border: none;&#13;
+  padding: 6px;&#13;
+  font-family: $gnt-font;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  color: $gnt-body;&#13;
+  cursor: pointer;&#13;
+  transition: color 0.18s ease;&#13;
+}&#13;
+&#13;
+.gn-btn-text:hover {&#13;
+  color: $gnt-navy;&#13;
+}&#13;
+&#13;
+.gn-modal-close {&#13;
+  position: absolute;&#13;
+  top: 18px;&#13;
+  right: 18px;&#13;
+  width: 32px;&#13;
+  height: 32px;&#13;
+  border: none;&#13;
+  background: none;&#13;
+  border-radius: 50%;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  color: $gnt-body;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.18s ease, color 0.18s ease;&#13;
+}&#13;
+&#13;
+.gn-modal-close:hover {&#13;
+  background: #e8f0fe;&#13;
+  color: $gnt-navy;&#13;
+}&#13;
+&#13;
+@keyframes gnFadeIn {&#13;
+  from { opacity: 0; }&#13;
+  to   { opacity: 1; }&#13;
+}&#13;
+&#13;
+@keyframes gnPopIn {&#13;
+  from { opacity: 0; transform: scale(0.92) translateY(10px); }&#13;
+  to   { opacity: 1; transform: scale(1) translateY(0); }&#13;
+}&#13;
+&#13;
+@media (max-width: 620px) {&#13;
+  .gn-modal {&#13;
+    padding: 36px 26px 28px;&#13;
+    border-radius: 20px;&#13;
+  }&#13;
+  .gn-modal-title { font-size: 21px; }&#13;
+  .gn-modal-message { font-size: 14.5px; }&#13;
+  .gn-btn-primary { height: 52px; font-size: 15px; }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gn-modal-overlay,&#13;
+  .gn-modal { animation: none; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -443,9 +612,8 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
         <name>Footer Applicant</name>
         <option_schema/>
         <public>true</public>
-        <roles/>
+        <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function () {
-
   function opt(name, fallback) {
     var value = options[name];
     if (value === null || value === undefined || value === '') {
@@ -454,11 +622,7 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
     return value.toString();
   }
 
-  /* =========================================================
-     GATENOW LOGO - Updated with URL encoding for the space
-     ========================================================= */
   var LOGO = 'x_enno_gatenow.GateNow%20Logo.png';
-
   data.logoUrl = opt('logo_url', LOGO);
   data.logoAlt = opt('logo_alt', 'GateNow');
   data.markLead = opt('mark_lead', 'Gate');
@@ -472,16 +636,26 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
   data.navLabel = opt('nav_label', gs.getMessage('Footer navigation'));
 
   /* =========================================================
-     DASHBOARD NATIVE ROUTING
+     ACCESS CONTROL CHECK
      ========================================================= */
-  var dashboardUrl;
+  data.isLoggedIn = gs.getSession().isLoggedIn();
+  data.hasAwardRole = false;
 
-  if (gs.isLoggedIn() && !gs.hasRole('x_enno_gatenow_applicant')) {
-    dashboardUrl = opt('home_url', '?id=' + portalHomepage);
-  } else {
-    dashboardUrl = opt('dashboard_url', '?id=' + applicantDashboardPage);
+  if (data.isLoggedIn) {
+    var gr = new GlideRecordSecure('sys_user_has_role');
+    gr.addQuery('user', gs.getUserID());
+    gr.addQuery('role.name', 'x_enno_gatenow.grant_awards_user');
+    gr.query();
+    if (gr.next()) {
+      data.hasAwardRole = true;
+    }
   }
 
+  var dashboardUrl = opt('dashboard_url', '?id=' + applicantDashboardPage);
+
+  /* =========================================================
+     FOOTER LINKS
+     ========================================================= */
   data.links = [
     {
       label: gs.getMessage('Programs'),
@@ -493,7 +667,8 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
     },
     {
       label: gs.getMessage('Dashboard'),
-      url: dashboardUrl
+      url: dashboardUrl,
+      isDashboard: true // Flag to trigger custom click logic in HTML
     }
   ];
 
@@ -504,49 +679,46 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
   data.legal = [
     {
       label: gs.getMessage('Privacy Policy'),
-      url: opt('privacy_url', '?id=x_enno_gatenow_privacy')
+      url: opt('privacy_url', '?id=privacy_policy')
     }
   ];
-
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-25 06:47:54</sys_created_on>
         <sys_id>db3bacd92f13be10d2a0d68fcea4e397</sys_id>
-        <sys_mod_count>29</sys_mod_count>
+        <sys_mod_count>37</sys_mod_count>
         <sys_name>Footer Applicant</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_db3bacd92f13be10d2a0d68fcea4e397</sys_update_name>
-        <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-08-28 07:09:50</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:52:07</sys_updated_on>
         <template><![CDATA[<footer class="gnt-foot" role="contentinfo">
   <div class="gnt-foot__inner">
     <div class="gnt-top">
       <div class="gnt-brand">
-
-        <!-- Changed from <a> to <div> to remove all click/link behavior -->
         <div class="gnt-mark">
           <img class="gnt-mark__img"
                ng-if="c.data.logoUrl"
                ng-src="{{c.data.logoUrl}}"
                alt="{{c.data.logoAlt}}">
-          
           <span class="gnt-mark__type" ng-if="!c.data.logoUrl">
             <span class="gnt-mark__a">{{c.data.markLead}}</span><span class="gnt-mark__b">{{c.data.markTail}}</span>
           </span>
         </div>
-
         <p class="gnt-brand__line">{{c.data.tagline}}</p>
       </div>
 
       <nav class="gnt-nav" aria-label="{{c.data.navLabel}}">
+        <!-- Added conditional ng-click to intercept Dashboard link -->
         <a class="gnt-nav__link"
            ng-repeat="l in c.data.links track by $index"
            ng-class="'gnt-nav__link--' + ($index + 1)"
-           ng-href="{{l.url}}">
+           ng-href="{{l.url}}"
+           ng-click="l.isDashboard && c.checkLoginAndRedirect($event, l.url)">
           {{l.label}}
           <span class="gnt-nav__rule" aria-hidden="true"></span>
         </a>
@@ -568,6 +740,25 @@ $gnt-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
           </a>
         </li>
       </ul>
+    </div>
+  </div>
+
+  <!-- Modal Overlay appended inside footer -->
+  <div class="gn-modal-overlay" ng-if="c.modal.show">
+    <div class="gn-modal">
+      <button class="gn-modal-close" ng-click="c.modal.show = false" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <h3 class="gn-modal-title">{{c.modal.title}}</h3>
+      <p class="gn-modal-message">{{c.modal.message}}</p>
+
+      <div class="gn-modal-actions">
+        <button class="gn-btn-primary" ng-if="c.modal.confirmLabel" ng-click="c.modal.confirmAction()">{{c.modal.confirmLabel}}</button>
+        <button class="gn-btn-text" ng-if="c.modal.cancelLabel" ng-click="c.modal.show = false">{{c.modal.cancelLabel}}</button>
+      </div>
     </div>
   </div>
 </footer>]]></template>

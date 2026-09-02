@@ -1,0 +1,572 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($location, $anchorScroll, $timeout) {
+  var c = this;
+  
+  c.scrollTo = function(sectionId) {
+    // Allows Angular to update the hash and smoothly scroll to the section
+    $location.hash(sectionId);
+    $timeout(function() {
+        $anchorScroll();
+    }, 0);
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  
+html { scroll-behavior: smooth; }
+
+/* Full width background container */
+.gn-page-background {
+  /* Fallback */
+  background-color: #eef0f8;
+  /* Smoothly fades to white at the bottom */
+  background: linear-gradient(to bottom, #eef0f8 0%, #eef0f8 85%, #ffffff 100%);
+  min-height: 100vh;
+  width: 100%;
+  padding: 120px 0 72px 0; 
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+/* Centered content wrapper */
+.gn-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  color: #1a1a2e;
+}
+
+/* Header Styles */
+.gn-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.gn-header .gn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #2563eb;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.gn-header .gn-badge .dot {
+  width: 7px;
+  height: 7px;
+  background: #2563eb;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.gn-header h1 {
+  font-size: 48px;
+  font-weight: 900;
+  color: #1a1a2e;
+  line-height: 1.2;
+  margin-bottom: 12px;
+  letter-spacing: -1px;
+}
+
+.gn-header h1 span { 
+  color: #2fb8e0;
+}
+
+.gn-header p {
+  font-size: 16px;
+  color: #64748b;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+.gn-dots {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+  justify-content: center;
+}
+
+.gn-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #93c5fd;
+  display: inline-block;
+}
+
+.gn-dots span:nth-child(2) { background: #2fb8e0; opacity: 1; }
+.gn-dots span:nth-child(3) { background: #93c5fd; opacity: 0.6; }
+
+/* Two-Column Layout */
+.gn-layout {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+/* Left Table of Contents Sidebar */
+.gn-toc-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 40px; 
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 30px;
+  border: 1px solid #e8e6f5;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
+}
+
+.gn-toc-sidebar h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f0fa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gn-toc-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gn-toc-list a {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: color 0.2s ease;
+  display: block;
+}
+
+.gn-toc-list a:hover {
+  color: #2563eb;
+}
+
+/* Main Document Card */
+.gn-card {
+  flex: 1;
+  min-width: 0;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 50px 60px;
+  border: 1px solid #e8e6f5;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
+  margin-bottom: 30px;
+}
+
+@media (max-width: 960px) {
+  .gn-layout { flex-direction: column; }
+  .gn-toc-sidebar { width: 100%; position: static; }
+  .gn-card { padding: 30px 20px; }
+}
+
+.gn-content .last-updated {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 32px;
+  font-style: italic;
+}
+
+.gn-content h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2563eb;
+  margin-top: 40px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f0fa;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gn-content h2:first-child { margin-top: 0; }
+
+.gn-content p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #334155;
+  margin-bottom: 16px;
+}
+
+.gn-content ul {
+  margin-bottom: 20px;
+  padding-left: 20px;
+  list-style: none;
+}
+
+.gn-content ul li {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #334155;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.gn-content ul li::before {
+  content: '•';
+  color: #2fb8e0;
+  font-weight: bold;
+  font-size: 18px;
+  position: absolute;
+  left: -16px;
+  top: -2px;
+}
+
+/* Modern Contact Section */
+.gn-contact-section {
+  margin-top: 60px;
+  padding-top: 40px;
+  border-top: 2px solid #f1f0fa;
+}
+
+.gn-contact-section h3 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a2e;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.gn-contact-section p.subtitle {
+  text-align: center;
+  color: #64748b;
+  font-size: 15px;
+  margin-bottom: 32px;
+}
+
+.gn-contact-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .gn-contact-cards { grid-template-columns: 1fr; }
+}
+
+.gn-contact-card-modern {
+  background: #fcfcfd;
+  border: 1px solid #e8e6f5;
+  border-radius: 16px;
+  padding: 28px 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.gn-contact-card-modern:hover {
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+  transform: translateY(-4px);
+  border-color: #bfdbfe;
+}
+
+.gn-contact-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+
+/* Explicit sizing to prevent massive icons */
+.gn-contact-icon svg {
+  width: 24px !important;
+  height: 24px !important;
+  fill: currentColor;
+}
+
+.icon-phone { background-color: #fce7f3; color: #db2777; }
+.icon-email { background-color: #e0f2fe; color: #3b82f6; }
+.icon-website { background-color: #e0f2fe; color: #3b82f6; }
+
+.gn-contact-card-modern h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+}
+
+.gn-contact-card-modern a, 
+.gn-contact-card-modern span {
+  font-size: 15px;
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+  display: block;
+}
+
+.gn-contact-card-modern a:hover {
+  color: #2fb8e0;
+}
+
+/* Footer */
+.gn-footer {
+  text-align: center;
+  margin-top: 40px;
+  font-size: 12.5px;
+  color: #94a3b8;
+  line-height: 2;
+}
+
+.gn-footer a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.gn-footer a:hover { color: #2fb8e0; }</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id>privacy_policy</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Privacy Policy</name>
+        <option_schema/>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[(function() {
+  /* populate the 'data' object */
+  /* e.g., data.table = $sp.getValue('table'); */
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-31 10:37:55</sys_created_on>
+        <sys_id>7f512ce10f0fc310712b6af300d1b27e</sys_id>
+        <sys_mod_count>14</sys_mod_count>
+        <sys_name>Privacy Policy</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_7f512ce10f0fc310712b6af300d1b27e</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-01 10:12:46</sys_updated_on>
+        <template><![CDATA[<div class="gn-page-background">
+  <div class="gn-wrapper">
+
+    <!-- Header -->
+    <div class="gn-header">
+      <div><span class="gn-badge"><span class="dot"></span> GATENOW PRIVACY</span></div>
+      <h1>Privacy&#160;<span>Policy</span></h1>
+      <p>How The Organization collects and uses your information when you apply for funding through GateNow.</p>
+    </div>
+
+    <div class="gn-dots">
+      <span></span><span></span><span></span>
+    </div>
+
+    <!-- Content Layout with Sidebar -->
+    <div class="gn-layout">
+
+      <!-- Left Sidebar: Table of Contents -->
+      <div class="gn-toc-sidebar">
+        <h3>Contents</h3>
+        <ul class="gn-toc-list">
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-1')">1. About This Privacy Policy</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-2')">2. Information We Collect</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-3')">3. How We Use Your Information</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-4')">4. Access to Information</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-5')">5. Sharing of Information</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-6')">6. Storage</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-7')">7. Data Security</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-8')">8. Retention</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-9')">9. Your Privacy Rights</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-10')">10. Cookies &#38; Technologies</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-11')">11. Third-Party Services</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-12')">12. Children's Privacy</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-13')">13. Policy Changes</a></li>
+          <li><a href="javascript:void(0)" ng-click="c.scrollTo('sec-14')">14. Support Contact</a></li>
+        </ul>
+      </div>
+
+      <!-- Right Side: Main Content Card -->
+      <div class="gn-card gn-content">
+        <div class="last-updated">Last Updated: 31-Aug-2026</div>
+        
+        <h2 id="sec-1">1. About This Privacy Policy</h2>
+        <p>This Privacy Policy explains how The Organization collects, uses, stores, and protects information submitted by applicants through the GateNow Applicant Portal.</p>
+        <p>GateNow is a grant application and management platform provided by EnableNow, Inc. and operates within The Organization's ServiceNow environment. Information submitted through this portal is collected and managed by The Organization for the purposes described in this Privacy Policy.</p>
+        <p>By submitting an application or other information through this portal, you acknowledge that your information will be processed as described below.</p>
+
+        <h2 id="sec-2">2. Information We Collect</h2>
+        <p>Depending on the grant program and application requirements, we may collect information such as:</p>
+        <ul>
+          <li>Your name and contact information</li>
+          <li>Organization and account information</li>
+          <li>Grant applications and proposals</li>
+          <li>Project descriptions and supporting information</li>
+          <li>Budget and financial information</li>
+          <li>Supporting documents and attachments</li>
+          <li>Information provided during the review and evaluation process</li>
+          <li>Award and agreement information</li>
+          <li>Project milestones, reports, and deliverables</li>
+          <li>Reimbursement-related information</li>
+          <li>Other information necessary to administer the grant program</li>
+        </ul>
+        <p>We only request information that is relevant to the administration and evaluation of the applicable grant program.</p>
+
+        <h2 id="sec-3">3. How We Use Your Information</h2>
+        <p>We may use the information you provide to:</p>
+        <ul>
+          <li>Receive and process grant applications</li>
+          <li>Evaluate and review applications</li>
+          <li>Communicate with applicants regarding their applications</li>
+          <li>Make funding and award decisions</li>
+          <li>Administer grant awards and agreements</li>
+          <li>Monitor funded projects and required deliverables</li>
+          <li>Process reports and reimbursement requests</li>
+          <li>Maintain records required for program administration</li>
+          <li>Meet legal, regulatory, auditing, and compliance requirements</li>
+          <li>Communicate important updates, notifications, or actions related to your application or award</li>
+        </ul>
+        <p>Your information is not used by GateNow for advertising or unrelated commercial purposes. This is consistent with the GateNow application policy, which states that the application is not designed to use customer data for advertising or unrelated profiling.</p>
+
+        <h2 id="sec-4">4. Who Can Access Your Information?</h2>
+        <p>Your information may be accessed by authorized personnel involved in administering the grant program, including:</p>
+        <ul>
+          <li>Program administrators</li>
+          <li>Grant managers</li>
+          <li>Application reviewers and evaluators</li>
+          <li>Approvers</li>
+          <li>Other authorized personnel within The Organization</li>
+        </ul>
+        <p>Access is controlled according to The Organization's roles, permissions, and security policies.</p>
+
+        <h2 id="sec-5">5. Sharing of Information</h2>
+        <p>The Organization does not sell or rent your personal information.</p>
+        <p>Information may be shared with third parties when necessary to:</p>
+        <ul>
+          <li>Administer the grant program</li>
+          <li>Meet legal or regulatory requirements</li>
+          <li>Comply with a valid legal or governmental request</li>
+          <li>Perform services necessary for application or grant administration</li>
+          <li>Meet auditing, reporting, or compliance obligations</li>
+        </ul>
+        <p>Any sharing of information will be handled in accordance with applicable laws and The Organization's policies.</p>
+
+        <h2 id="sec-6">6. How Your Information Is Stored</h2>
+        <p>Information submitted through GateNow is stored within The Organization's ServiceNow environment.</p>
+        <p>GateNow does not require a separate external application database as part of its standard architecture. The hosting, infrastructure, backup, storage location, and related platform controls are governed by The Organization's ServiceNow environment.</p>
+
+        <h2 id="sec-7">7. Data Security</h2>
+        <p>We take reasonable administrative, technical, and organizational measures to protect information submitted through the portal.</p>
+        <p>GateNow operates using security capabilities available within the ServiceNow platform, including authentication, authorization, role-based access controls, encrypted transmission, and audit logging.</p>
+        <p>However, no electronic system can guarantee absolute security.</p>
+
+        <h2 id="sec-8">8. How Long We Keep Your Information</h2>
+        <p>We retain your information for the period necessary to:</p>
+        <ul>
+          <li>Administer your application or grant</li>
+          <li>Meet applicable legal and regulatory requirements</li>
+          <li>Satisfy auditing and record-keeping obligations</li>
+          <li>Resolve disputes or enforce applicable agreements</li>
+          <li>Meet other legitimate administrative requirements</li>
+        </ul>
+        <p>The specific retention period may vary depending on the grant program and applicable requirements.</p>
+
+        <h2 id="sec-9">9. Your Privacy Rights</h2>
+        <p>Depending on applicable law, you may have rights concerning your personal information, including the right to:</p>
+        <ul>
+          <li>Request access to your personal information</li>
+          <li>Request correction of inaccurate information</li>
+          <li>Request deletion of information where legally permitted</li>
+          <li>Request restriction of certain processing</li>
+          <li>Object to certain processing</li>
+          <li>Withdraw consent where processing is based on consent</li>
+        </ul>
+        <p>Some requests may be subject to legal, regulatory, record-retention, or grant-administration requirements.</p>
+        <p>To exercise your rights, please contact our Privacy Contact using the information below.</p>
+
+        <h2 id="sec-10">10. Cookies and Similar Technologies</h2>
+        <p>The Organization may use cookies or similar technologies necessary for authentication, security, session management, and proper operation of the applicant portal.</p>
+        <p>These technologies are used to support the functionality and security of the portal and are not intended for unrelated advertising.</p>
+
+        <h2 id="sec-11">11. Third-Party Services</h2>
+        <p>GateNow operates within The Organization's ServiceNow environment.</p>
+        <p>If The Organization enables third-party integrations or services in connection with the application process, those services may have their own privacy practices and additional privacy information may be provided where applicable.</p>
+
+        <h2 id="sec-12">12. Children's Privacy</h2>
+        <p>Applicants should not provide personal information belonging to children unless specifically requested and permitted as part of the applicable grant program.</p>
+        <p>If you believe that personal information has been submitted improperly, please contact us using the information below.</p>
+
+        <h2 id="sec-13">13. Changes to This Privacy Policy</h2>
+        <p>We may update this Privacy Policy from time to time to reflect changes in the grant program, application process, applicable laws, or our information-handling practices.</p>
+        <p>The latest version will be made available through the applicant portal.</p>
+
+        <!-- Modern Support Contact Section -->
+        <div id="sec-14" class="gn-contact-section">
+          <h3>Support Contact</h3>
+          <p class="subtitle">For questions regarding this Privacy Policy or GateNow</p>
+          
+          <div class="gn-contact-cards">
+            
+            <!-- Phone Card -->
+            <div class="gn-contact-card-modern">
+              <div class="gn-contact-icon icon-phone">
+                <svg width="24" height="24" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+              </div>
+              <h4>Phone</h4>
+              <span>(202) 800-6040</span>
+            </div>
+
+            <!-- Email Card -->
+            <div class="gn-contact-card-modern">
+              <div class="gn-contact-icon icon-email">
+                <svg width="24" height="24" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+              </div>
+              <h4>Email</h4>
+              <a href="mailto:servicenow@enablenow.com">servicenow@enablenow.com</a>
+            </div>
+
+            <!-- Website Card -->
+            <div class="gn-contact-card-modern">
+              <div class="gn-contact-icon icon-website">
+                <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              </div>
+              <h4>Website</h4>
+              <a href="https://www.enablenow.com" target="_blank" rel="noopener noreferrer">www.enablenow.com</a>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="gn-footer">
+      Powered by GateNow / EnableNow<br/>
+      EnableNow, Inc. &#8212; 30 N Gould ST, STE R, Sheridan, Wyoming 82801
+    </div>
+
+  </div>
+</div>]]></template>
+    </sp_widget>
+</record_update>

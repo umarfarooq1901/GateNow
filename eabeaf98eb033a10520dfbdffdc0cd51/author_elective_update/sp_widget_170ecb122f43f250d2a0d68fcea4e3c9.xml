@@ -1,0 +1,591 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $location, spUtil) {
+  var c = this;
+
+  // Background image: use widget option if set, else fallback
+  c.backgroundImage = c.options.background_image ||
+    '/sp?id=attachment&table=sp_widget&sys_id=' + c.data.widgetSysId;
+
+  c.startNewApplication = function() {
+    // Navigate to your “new grant application” page
+    $location.url('/sp?id=grant_new_application');
+  };
+
+  c.browseOpportunities = function() {
+    // Navigate to opportunity listing
+    $location.url('/sp?id=grant_opportunity_catalog');
+  };
+
+  c.viewGuides = function() {
+    // Navigate to guides / knowledge page
+    $location.url('/sp?id=grant_applicant_guides');
+  };
+}
+]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.grants-hero-banner {&#13;
+  position: relative;&#13;
+  padding: 80px 0 90px 0;&#13;
+  color: #ffffff;&#13;
+  background-size: cover;&#13;
+  background-position: center;&#13;
+  background-repeat: no-repeat;&#13;
+}&#13;
+&#13;
+.grants-hero-banner::before {&#13;
+  content: "";&#13;
+  position: absolute;&#13;
+  inset: 0;&#13;
+  background: linear-gradient(120deg, rgba(5, 30, 70, 0.92), rgba(3, 80, 130, 0.80));&#13;
+}&#13;
+&#13;
+.grants-hero-content {&#13;
+  position: relative;&#13;
+  z-index: 1;&#13;
+}&#13;
+&#13;
+.grants-hero-title {&#13;
+  font-size: 2.5rem;&#13;
+  font-weight: 700;&#13;
+  margin-bottom: 15px;&#13;
+}&#13;
+&#13;
+.grants-hero-title span {&#13;
+  color: #ffd66b;&#13;
+}&#13;
+&#13;
+.grants-hero-subtitle {&#13;
+  font-size: 1.05rem;&#13;
+  max-width: 620px;&#13;
+  margin-bottom: 20px;&#13;
+  line-height: 1.6;&#13;
+}&#13;
+&#13;
+.grants-hero-benefits li {&#13;
+  margin-bottom: 6px;&#13;
+  font-size: 0.98rem;&#13;
+}&#13;
+&#13;
+.grants-hero-benefits i {&#13;
+  margin-right: 8px;&#13;
+  color: #ffd66b;&#13;
+}&#13;
+&#13;
+.grants-hero-actions {&#13;
+  margin-top: 20px;&#13;
+  margin-bottom: 12px;&#13;
+}&#13;
+&#13;
+.grants-hero-actions .btn-primary {&#13;
+  background-color: #ffb52c;&#13;
+  border-color: #ffb52c;&#13;
+  color: #062445;&#13;
+}&#13;
+&#13;
+.grants-hero-actions .btn-primary:hover {&#13;
+  background-color: #ffca5d;&#13;
+  border-color: #ffca5d;&#13;
+}&#13;
+&#13;
+.grants-hero-secondary {&#13;
+  color: #ffffff;&#13;
+  text-decoration: underline;&#13;
+}&#13;
+&#13;
+.grants-hero-trust {&#13;
+  font-size: 0.85rem;&#13;
+  opacity: 0.85;&#13;
+}&#13;
+&#13;
+.grants-hero-side-panel {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: flex-end;&#13;
+}&#13;
+&#13;
+.grants-hero-card {&#13;
+  background: rgba(4, 27, 60, 0.9);&#13;
+  border-radius: 12px;&#13;
+  padding: 20px 22px;&#13;
+  max-width: 320px;&#13;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);&#13;
+}&#13;
+&#13;
+.grants-hero-card h3 {&#13;
+  font-size: 1.1rem;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+.grants-hero-card ol {&#13;
+  padding-left: 18px;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+.grants-hero-card li {&#13;
+  font-size: 0.92rem;&#13;
+  margin-bottom: 4px;&#13;
+}&#13;
+&#13;
+.grants-hero-link {&#13;
+  font-size: 0.9rem;&#13;
+  color: #ffd66b;&#13;
+  cursor: pointer;&#13;
+}&#13;
+&#13;
+@media (max-width: 767px) {&#13;
+  .grants-hero-banner {&#13;
+    padding: 50px 0 60px 0;&#13;
+    text-align: left;&#13;
+  }&#13;
+  .grants-hero-side-panel {&#13;
+    justify-content: flex-start;&#13;
+    margin-top: 25px;&#13;
+  }&#13;
+}&#13;
+&#13;
+&#13;
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>applicant_hero_banner</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Applicant Hero Banner</name>
+        <option_schema/>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[
+(function () {
+  function optVal(opt, fallback) {
+    if (!opt)
+      return fallback || "";
+    if (typeof opt === "string")
+      return opt;
+    if (opt.value)
+      return opt.value;
+    return fallback || "";
+  }
+
+  // Background image from db_image
+  var bgId = optVal(options.background_image);
+  if (bgId) {
+    var image_gr = new GlideRecordSecure("db_image");
+    if (image_gr.get(bgId)) {
+      options.background_image = encodeURIComponent(image_gr.name);
+    } else {
+      options.background_image = "";
+    }
+  } else {
+    options.background_image = "";
+  }
+
+  // Heading and description from JSON options
+  var rawHeading = optVal(
+    options.heading,
+    "Powering America's Grant Innovation"
+  );
+  data.heading = rawHeading;
+
+  var rawDesc = optVal(
+    options.description,
+    "Discover, apply for, and track federal grant opportunities that advance infrastructure, safety, and community impact."
+  );
+  data.description = rawDesc;
+
+  // Alignment (fallback to left)
+  options.alignment = optVal(options.alignment, "left");
+
+  // Static badge
+  data.badge = "Federal Grant Opportunities";
+})();
+
+
+]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-02-16 10:57:44</sys_created_on>
+        <sys_id>170ecb122f43f250d2a0d68fcea4e3c9</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_name>Applicant Hero Banner</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_170ecb122f43f250d2a0d68fcea4e3c9</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-21 06:39:45</sys_updated_on>
+        <template><![CDATA[<div class="grants-hero-banner"
+     ng-style="{'background-image': 'url(' + c.backgroundImage + ')'}">
+
+  <div class="container grants-hero-content">
+    <div class="row">
+      <div class="col-md-7 col-sm-12">
+        <h1 class="grants-hero-title">
+          Empowering <span>your</span> grant journey
+        </h1>
+
+        <p class="grants-hero-subtitle">
+          Apply for federal funding with confidence. Our guided workspace helps you find
+          opportunities, check eligibility, and submit compliant applications in one secure portal.
+        </p>
+
+        <ul class="grants-hero-benefits list-unstyled">
+          <li>
+            <i class="fa fa-search"></i>
+            Discover active grant opportunities across US agencies
+          </li>
+          <li>
+            <i class="fa fa-check-circle"></i>
+            Track application status in real time
+          </li>
+          <li>
+            <i class="fa fa-users"></i>
+            Collaborate with your organization in a single workspace
+          </li>
+        </ul>
+
+        <div class="grants-hero-actions">
+          <button class="btn btn-primary btn-lg"
+                  ng-click="c.startNewApplication()">
+            Start a new application
+          </button>
+
+          <button class="btn btn-link btn-lg grants-hero-secondary"
+                  ng-click="c.browseOpportunities()">
+            Browse open opportunities
+          </button>
+        </div>
+
+        <p class="grants-hero-trust">
+          Secure, compliant, and aligned with current US federal grant guidelines.
+        </p>
+      </div>
+
+      <div class="col-md-5 col-sm-12 grants-hero-side-panel">
+        <!-- Optional quick-links / stats area -->
+        <div class="grants-hero-card">
+          <h3>Getting started</h3>
+          <ol>
+            <li>Create or update your applicant profile</li>
+            <li>Find a matching opportunity</li>
+            <li>Complete and submit your application package</li>
+          </ol>
+          <a class="grants-hero-link" ng-click="c.viewGuides()">
+            View applicant guides
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_170ecb122f43f250d2a0d68fcea4e3c9</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function($scope, $location, spUtil) {
+  var c = this;
+
+  // Background image: use widget option if set, else fallback
+  c.backgroundImage = c.options.background_image ||
+    '/sp?id=attachment&amp;table=sp_widget&amp;sys_id=' + c.data.widgetSysId;
+
+  c.startNewApplication = function() {
+    // Navigate to your “new grant application” page
+    $location.url('/sp?id=grant_new_application');
+  };
+
+  c.browseOpportunities = function() {
+    // Navigate to opportunity listing
+    $location.url('/sp?id=grant_opportunity_catalog');
+  };
+
+  c.viewGuides = function() {
+    // Navigate to guides / knowledge page
+    $location.url('/sp?id=grant_applicant_guides');
+  };
+}
+]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;.grants-hero-banner {&amp;#13;
+  position: relative;&amp;#13;
+  padding: 80px 0 90px 0;&amp;#13;
+  color: #ffffff;&amp;#13;
+  background-size: cover;&amp;#13;
+  background-position: center;&amp;#13;
+  background-repeat: no-repeat;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-banner::before {&amp;#13;
+  content: "";&amp;#13;
+  position: absolute;&amp;#13;
+  inset: 0;&amp;#13;
+  background: linear-gradient(120deg, rgba(5, 30, 70, 0.92), rgba(3, 80, 130, 0.80));&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-content {&amp;#13;
+  position: relative;&amp;#13;
+  z-index: 1;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-title {&amp;#13;
+  font-size: 2.5rem;&amp;#13;
+  font-weight: 700;&amp;#13;
+  margin-bottom: 15px;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-title span {&amp;#13;
+  color: #ffd66b;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-subtitle {&amp;#13;
+  font-size: 1.05rem;&amp;#13;
+  max-width: 620px;&amp;#13;
+  margin-bottom: 20px;&amp;#13;
+  line-height: 1.6;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-benefits li {&amp;#13;
+  margin-bottom: 6px;&amp;#13;
+  font-size: 0.98rem;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-benefits i {&amp;#13;
+  margin-right: 8px;&amp;#13;
+  color: #ffd66b;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-actions {&amp;#13;
+  margin-top: 20px;&amp;#13;
+  margin-bottom: 12px;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-actions .btn-primary {&amp;#13;
+  background-color: #ffb52c;&amp;#13;
+  border-color: #ffb52c;&amp;#13;
+  color: #062445;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-actions .btn-primary:hover {&amp;#13;
+  background-color: #ffca5d;&amp;#13;
+  border-color: #ffca5d;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-secondary {&amp;#13;
+  color: #ffffff;&amp;#13;
+  text-decoration: underline;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-trust {&amp;#13;
+  font-size: 0.85rem;&amp;#13;
+  opacity: 0.85;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-side-panel {&amp;#13;
+  display: flex;&amp;#13;
+  align-items: center;&amp;#13;
+  justify-content: flex-end;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-card {&amp;#13;
+  background: rgba(4, 27, 60, 0.9);&amp;#13;
+  border-radius: 12px;&amp;#13;
+  padding: 20px 22px;&amp;#13;
+  max-width: 320px;&amp;#13;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-card h3 {&amp;#13;
+  font-size: 1.1rem;&amp;#13;
+  margin-bottom: 10px;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-card ol {&amp;#13;
+  padding-left: 18px;&amp;#13;
+  margin-bottom: 10px;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-card li {&amp;#13;
+  font-size: 0.92rem;&amp;#13;
+  margin-bottom: 4px;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.grants-hero-link {&amp;#13;
+  font-size: 0.9rem;&amp;#13;
+  color: #ffd66b;&amp;#13;
+  cursor: pointer;&amp;#13;
+}&amp;#13;
+&amp;#13;
+@media (max-width: 767px) {&amp;#13;
+  .grants-hero-banner {&amp;#13;
+    padding: 50px 0 60px 0;&amp;#13;
+    text-align: left;&amp;#13;
+  }&amp;#13;
+  .grants-hero-side-panel {&amp;#13;
+    justify-content: flex-start;&amp;#13;
+    margin-top: 25px;&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+&amp;#13;
+&amp;#13;
+&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;false&lt;/has_preview&gt;&lt;id&gt;applicant_hero_banner&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Applicant Hero Banner&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;true&lt;/public&gt;&lt;roles/&gt;&lt;script&gt;&lt;![CDATA[
+(function () {
+  function optVal(opt, fallback) {
+    if (!opt)
+      return fallback || "";
+    if (typeof opt === "string")
+      return opt;
+    if (opt.value)
+      return opt.value;
+    return fallback || "";
+  }
+
+  // Background image from db_image
+  var bgId = optVal(options.background_image);
+  if (bgId) {
+    var image_gr = new GlideRecordSecure("db_image");
+    if (image_gr.get(bgId)) {
+      options.background_image = encodeURIComponent(image_gr.name);
+    } else {
+      options.background_image = "";
+    }
+  } else {
+    options.background_image = "";
+  }
+
+  // Heading and description from JSON options
+  var rawHeading = optVal(
+    options.heading,
+    "Powering America's Grant Innovation"
+  );
+  data.heading = rawHeading;
+
+  var rawDesc = optVal(
+    options.description,
+    "Discover, apply for, and track federal grant opportunities that advance infrastructure, safety, and community impact."
+  );
+  data.description = rawDesc;
+
+  // Alignment (fallback to left)
+  options.alignment = optVal(options.alignment, "left");
+
+  // Static badge
+  data.badge = "Federal Grant Opportunities";
+})();
+
+
+]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;umar.farooq&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-02-16 10:57:44&lt;/sys_created_on&gt;&lt;sys_id&gt;170ecb122f43f250d2a0d68fcea4e3c9&lt;/sys_id&gt;&lt;sys_mod_count&gt;4&lt;/sys_mod_count&gt;&lt;sys_name&gt;Applicant Hero Banner&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_170ecb122f43f250d2a0d68fcea4e3c9&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;umar.farooq&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-08-21 06:39:45&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="grants-hero-banner"
+     ng-style="{'background-image': 'url(' + c.backgroundImage + ')'}"&gt;
+
+  &lt;div class="container grants-hero-content"&gt;
+    &lt;div class="row"&gt;
+      &lt;div class="col-md-7 col-sm-12"&gt;
+        &lt;h1 class="grants-hero-title"&gt;
+          Empowering &lt;span&gt;your&lt;/span&gt; grant journey
+        &lt;/h1&gt;
+
+        &lt;p class="grants-hero-subtitle"&gt;
+          Apply for federal funding with confidence. Our guided workspace helps you find
+          opportunities, check eligibility, and submit compliant applications in one secure portal.
+        &lt;/p&gt;
+
+        &lt;ul class="grants-hero-benefits list-unstyled"&gt;
+          &lt;li&gt;
+            &lt;i class="fa fa-search"&gt;&lt;/i&gt;
+            Discover active grant opportunities across US agencies
+          &lt;/li&gt;
+          &lt;li&gt;
+            &lt;i class="fa fa-check-circle"&gt;&lt;/i&gt;
+            Track application status in real time
+          &lt;/li&gt;
+          &lt;li&gt;
+            &lt;i class="fa fa-users"&gt;&lt;/i&gt;
+            Collaborate with your organization in a single workspace
+          &lt;/li&gt;
+        &lt;/ul&gt;
+
+        &lt;div class="grants-hero-actions"&gt;
+          &lt;button class="btn btn-primary btn-lg"
+                  ng-click="c.startNewApplication()"&gt;
+            Start a new application
+          &lt;/button&gt;
+
+          &lt;button class="btn btn-link btn-lg grants-hero-secondary"
+                  ng-click="c.browseOpportunities()"&gt;
+            Browse open opportunities
+          &lt;/button&gt;
+        &lt;/div&gt;
+
+        &lt;p class="grants-hero-trust"&gt;
+          Secure, compliant, and aligned with current US federal grant guidelines.
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div class="col-md-5 col-sm-12 grants-hero-side-panel"&gt;
+        &lt;!-- Optional quick-links / stats area --&gt;
+        &lt;div class="grants-hero-card"&gt;
+          &lt;h3&gt;Getting started&lt;/h3&gt;
+          &lt;ol&gt;
+            &lt;li&gt;Create or update your applicant profile&lt;/li&gt;
+            &lt;li&gt;Find a matching opportunity&lt;/li&gt;
+            &lt;li&gt;Complete and submit your application package&lt;/li&gt;
+          &lt;/ol&gt;
+          &lt;a class="grants-hero-link" ng-click="c.viewGuides()"&gt;
+            View applicant guides
+          &lt;/a&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>-113215719</payload_hash>
+        <record_name>Applicant Hero Banner</record_name>
+        <reverted_from/>
+        <source>67a05b350fb28b10712b6af300d1b202</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-08-21 06:39:45</sys_created_on>
+        <sys_id>821b809e0fb20f10712b6af300d1b2b0</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a0230c06840000001</sys_recorded_at>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-08-21 06:39:45</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>0e1b809ebeb20f100b86d2bf3dedbcae</update_guid>
+        <update_guid_history>0e1b809ebeb20f100b86d2bf3dedbcae:-113215719,efba485e60b20f10db6bd9f9a7e979d6:-1001156786,cb2dca4df041c71071e9e3844f5ec6b7:0,714b86017e41c7109784db02b3a17709:1746984058,8d03b8dbc8e003108e02ae526770592f:285046747</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Applicant Hero Banner">1600bfce930b4b10d444c9b877373cee</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-09-02 14:57:14</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>05b7972c0dd74308b9563f9ad672b640</sys_id>
+        <sys_metadata>170ecb122f43f250d2a0d68fcea4e3c9</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Applicant Hero Banner</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_170ecb122f43f250d2a0d68fcea4e3c9</sys_update_name>
+        <sys_update_version display_value="sp_widget_170ecb122f43f250d2a0d68fcea4e3c9">821b809e0fb20f10712b6af300d1b2b0</sys_update_version>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-02 14:57:14</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

@@ -1,0 +1,1639 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $http, spUtil) {
+    var c = this;
+
+    c.submitting = false;
+    c.submitted = false;
+    c.submittedClaimNumber = '';
+    c.reimbursementFile = null;
+
+    // Initialize structure
+    c.reimbursement = {
+        project_id: '',
+        line_a: 0, line_b: 0, line_c: 0,
+        line_d: 0, line_e: 0, line_f: 0,
+        line_g: 0, line_h: 0, line_i: 0,
+		   	est_fed_cash_outlays: 0,       // <-- ADDED THIS
+        est_balance_cash_on_hand: 0,
+        amount_requested_advance: 0
+    };
+
+    // When the project changes, fetch applicant details
+    c.fetchProjectDetails = function() {
+        if (!c.reimbursement.project_id) {
+            c.clearApplicantDetails();
+            return;
+        }
+
+        c.server.get({
+            action: 'get_project_applicant',
+            project_id: c.reimbursement.project_id
+        }).then(function(r) {
+            if (r.data.applicantDetails) {
+                var app = r.data.applicantDetails;
+                c.reimbursement.name = app.first_name || '';
+                c.reimbursement.organization = app.organization || '';
+                c.reimbursement.street = app.street || '';
+                c.reimbursement.city = app.city || '';
+                c.reimbursement.country = app.country || '';
+                c.reimbursement.zip = app.zip_postal_code || '';
+                c.reimbursement.grant_number = app.award_number || '';
+            }
+        });
+    };
+
+    c.clearApplicantDetails = function() {
+        c.reimbursement.name = '';
+        c.reimbursement.organization = '';
+        c.reimbursement.street = '';
+        c.reimbursement.city = '';
+        c.reimbursement.country = '';
+        c.reimbursement.zip = '';
+        c.reimbursement.grant_number = '';
+    };
+
+    c.calculateReimbursement = function() {
+        var a = parseFloat(c.reimbursement.line_a) || 0;
+        var b = parseFloat(c.reimbursement.line_b) || 0;
+        var d = parseFloat(c.reimbursement.line_d) || 0;
+        var f = parseFloat(c.reimbursement.line_f) || 0;
+        var h = parseFloat(c.reimbursement.line_h) || 0;
+
+        c.reimbursement.line_c = a - b;
+        c.reimbursement.line_e = c.reimbursement.line_c + d;
+        c.reimbursement.line_g = c.reimbursement.line_e - f;
+        c.reimbursement.line_i = c.reimbursement.line_g - h;
+    };
+
+    c.onReimbursementFileSelect = function(inputElement) {
+        if (inputElement.files && inputElement.files.length > 0) {
+            c.reimbursementFile = inputElement.files[0];
+            $scope.$applyAsync();
+        }
+    };
+
+    c.removeReimbursementFile = function() {
+        c.reimbursementFile = null;
+    };
+
+    c.toDateOnly = function(dateVal) {
+        if (!dateVal) return dateVal;
+        var d = new Date(dateVal);
+        if (isNaN(d.getTime())) return dateVal;
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    };
+
+    c.submitReimbursement = function() {
+        c.submitting = true;
+
+        var safeData = angular.copy(c.reimbursement);
+        safeData.period_from = c.toDateOnly(safeData.period_from);
+        safeData.period_to = c.toDateOnly(safeData.period_to);
+
+        c.server.get({
+            action: 'submit_reimbursement',
+            reimbursementData: safeData
+        }).then(function(response) {
+            if (response.data.success) {
+                var newRecordSysId = response.data.new_record_sys_id;
+                var newRecordNumber = response.data.new_record_number;
+
+                if (c.reimbursementFile && newRecordSysId) {
+                    var formData = new FormData();
+                    formData.append('table_name', 'x_enno_gatenow_reimbursement');
+                    formData.append('table_sys_id', newRecordSysId);
+                    formData.append('uploadFile', c.reimbursementFile);
+
+                    $http({
+                        method: 'POST',
+                        url: '/api/now/attachment/upload',
+                        headers: { 'Content-Type': undefined },
+                        data: formData,
+                        transformRequest: angular.identity
+                    }).then(function() {
+                        c.finishSuccess(newRecordNumber);
+                    }, function() {
+                        spUtil.addErrorMessage("Claim created, but attachment upload failed.");
+                        c.finishSuccess(newRecordNumber);
+                    });
+                } else {
+                    c.finishSuccess(newRecordNumber);
+                }
+            } else {
+                c.submitting = false;
+                spUtil.addErrorMessage("Error submitting the request. Please try again.");
+            }
+        });
+    };
+
+    c.finishSuccess = function(claimNumber) {
+        c.submitting = false;
+        c.submitted = true;
+        c.submittedClaimNumber = claimNumber || '';
+        spUtil.addInfoMessage("Reimbursement claim submitted successfully.");
+    };
+
+    c.closeAfterSuccess = function() {
+        $scope.$emit('claim_submitted_successfully');
+    };
+
+    c.closeModal = function() {
+        $scope.$emit('claim_submitted_successfully');
+    };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.reimb-modal-wrapper {
+  padding: 24px 30px;
+  font-family: 'Inter', Roboto, sans-serif;
+  background: #f8fafc;
+  max-height: 75vh; 
+  overflow-y: auto;
+}
+
+/* --- CUSTOM SCROLLBAR --- */
+.reimb-modal-wrapper::-webkit-scrollbar { width: 8px; }
+.reimb-modal-wrapper::-webkit-scrollbar-track { background: transparent; margin: 10px 0; }
+.reimb-modal-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.reimb-modal-wrapper::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.gpa-card:first-child { margin-top: 5px; }
+
+.gpa-card {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.gpa-card__header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+.gpa-card__header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.gpa-card__header h3 i { margin-right: 6px; color: #475569;}
+.gpa-card__header p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+
+.gpa-card__body { padding: 24px; }
+.gpa-card__body.no-pad { padding: 0; }
+
+.modern-input {
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+  font-size: 14px;
+  color: #1e293b;
+}
+.modern-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+.read-only-bg { background-color: #f1f5f9; cursor: not-allowed; color: #475569; }
+
+label { font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 8px; }
+.required { color: #ef4444; margin-left: 2px; }
+.section-label { font-size: 14px; color: #0f172a; margin-bottom: 16px; display: block; font-weight: 700; }
+.sub-label { font-size: 12px; color: #64748b; }
+.modern-divider { border-top: 1px solid #e2e8f0; margin: 24px 0; }
+
+/* --- FINANCIAL ROWS --- */
+.financial-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 24px; border-bottom: 1px solid #e2e8f0;
+}
+.financial-row:last-child { border-bottom: none; }
+
+.calc-row { background: #f8fafc; }
+.success-row { background: #f0fdf4; border-top: 2px solid #10b981; }
+
+.fin-label { font-size: 14px; color: #334155; font-weight: 500; flex: 1; padding-right: 20px;}
+.fin-label em { color: #64748b; font-style: italic; font-size: 13px; font-weight: 400; margin-left: 4px;}
+.fin-input { width: 280px; }
+
+/* Force Flexbox on Input Groups to prevent table layout distortions */
+.fin-input .input-group {
+  display: flex !important;
+  width: 100%;
+}
+.fin-input .input-group-addon {
+  width: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none;
+  border-radius: 6px 0 0 6px; color: #64748b; font-weight: 500;
+}
+.fin-input .form-control {
+  flex: 1; height: 40px; border-radius: 0 6px 6px 0; border: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+}
+
+/* Styling specifically for the read-only calculated inputs */
+.read-only-calc { background: transparent !important; color: #0f172a; font-weight: 700; }
+
+/* Styling for the Green Output Rows */
+.success-row .input-group-addon { color: #10b981; font-weight: 700; background: #fff; }
+.success-row .form-control { color: #0f172a; font-weight: 700; background: #fff; }
+
+/* --- FILE DROPZONE --- */
+.upload-dropzone {
+  border: 1px dashed #94a3b8; border-radius: 8px; padding: 40px;
+  text-align: center; background: #fff; transition: 0.2s ease;
+}
+.upload-dropzone:hover { border-color: #3b82f6; background: #f8fafc; }
+.upload-icon { font-size: 28px; color: #94a3b8; margin-bottom: 8px; display: block;}
+.upload-text { font-size: 14px; color: #475569; display: block;}
+.upload-link { color: #3b82f6; font-weight: 600; text-decoration: none;}
+
+.file-card {
+  display: flex; align-items: center; padding: 12px 16px;
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-top: 16px;
+}
+.file-icon-wrapper { margin-right: 12px; font-size: 20px; }
+.file-details { flex: 1; display: flex; flex-direction: column; }
+.file-name { font-weight: 600; font-size: 13px; }
+.file-meta { font-size: 11px; color: #16a34a; }
+.btn-action-icon { background: transparent; border: none; font-size: 16px; cursor: pointer; }
+
+.modal-footer-actions {
+  display: flex; justify-content: flex-end; gap: 12px;
+  padding-top: 24px; border-top: 1px solid #e2e8f0; margin-top: 30px;
+}
+.btn { padding: 10px 24px; font-size: 14px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; transition: 0.2s;}
+.btn-primary { background: #4f46e5; color: #fff; }
+.btn-primary:hover { background: #4338ca; }
+.btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+.btn-default { background: #fff; border: 1px solid #cbd5e1; color: #475569; }
+.btn-default:hover { background: #f1f5f9; }
+
+/* --- SUCCESS CONFIRMATION PANEL --- */
+.reimb-success {
+  text-align: center;
+  padding: 48px 24px;
+}
+.reimb-success__icon {
+  font-size: 56px;
+  color: #10b981;
+  margin-bottom: 16px;
+}
+.reimb-success__title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+.reimb-success__text {
+  font-size: 14px;
+  color: #64748b;
+  max-width: 380px;
+  margin: 0 auto;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>reimbursement_form</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Reimbursement Form</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
+        <script><![CDATA[(function() {
+    var loggedInUser = gs.getUserID();
+
+    // 1. Load active projects for the dropdown on init
+    data.projects = [];
+
+    // Gather ALL applicant records for the logged-in user, in case they have more than one
+    var applicantIds = [];
+    var appRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    appRec.addQuery('user', loggedInUser);
+    appRec.query();
+    while (appRec.next()) {
+        applicantIds.push(appRec.getUniqueValue());
+    }
+
+    var projRec = new GlideRecordSecure('x_enno_gatenow_project');
+
+    if (applicantIds.length > 0) {
+        // Normal user: fetch projects matching ANY of their applicant IDs
+        projRec.addQuery('applicant', 'IN', applicantIds.join(','));
+    } else {
+        // Fallback for users without any applicant profile
+        projRec.addQuery('sys_created_by', gs.getUserName());
+    }
+
+    projRec.orderBy('project_name');
+    projRec.query();
+
+    while (projRec.next()) {
+        data.projects.push({
+            sys_id: projRec.getUniqueValue(),
+            name: projRec.getDisplayValue('project_name') || projRec.getDisplayValue()
+        });
+    }
+
+    // 2. Handle Action: Fetch specific applicant details when a project is selected
+    if (input && input.action === 'get_project_applicant') {
+        data.applicantDetails = {};
+        var pRec = new GlideRecordSecure('x_enno_gatenow_project');
+        if (pRec.get(input.project_id)) {
+            data.applicantDetails.award_number = pRec.getDisplayValue('award');
+
+            var aRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+            if (aRec.get(pRec.getValue('applicant'))) {
+                data.applicantDetails.first_name = aRec.getDisplayValue('first_name');
+                data.applicantDetails.organization = aRec.getDisplayValue('organization');
+                data.applicantDetails.street = aRec.getDisplayValue('street');
+                data.applicantDetails.city = aRec.getDisplayValue('city');
+                data.applicantDetails.country = aRec.getDisplayValue('country');
+                data.applicantDetails.zip_postal_code = aRec.getDisplayValue('zip_postal_code');
+            }
+        }
+        return;
+    }
+
+    // 3. Handle Action: Submit the New Reimbursement
+    if (input && input.action === 'submit_reimbursement') {
+        var formData = input.reimbursementData || {};
+        var targetProjectId = formData.project_id;
+
+        var reimbFormRec = new GlideRecordSecure('x_enno_gatenow_reimbursement');
+        reimbFormRec.initialize();
+
+        // Project / Applicant Auto-population
+        reimbFormRec.setValue('project', targetProjectId);
+        var projectCheck = new GlideRecordSecure('x_enno_gatenow_project');
+        if (projectCheck.get(targetProjectId)) {
+            reimbFormRec.setValue('program', projectCheck.getValue('program'));
+            reimbFormRec.setValue('applicant', projectCheck.getValue('applicant'));
+        }
+
+        // Checkboxes & Dropdowns
+        if (formData.payment_type === 'advance') {
+            reimbFormRec.setValue('advance', true);
+            reimbFormRec.setValue('reimbursement', false);
+        } else if (formData.payment_type === 'reimbursement') {
+            reimbFormRec.setValue('advance', false);
+            reimbFormRec.setValue('reimbursement', true);
+        }
+
+        if (formData.request_status === 'final') {
+            reimbFormRec.setValue('final', true);
+            reimbFormRec.setValue('partial', false);
+        } else if (formData.request_status === 'partial') {
+            reimbFormRec.setValue('final', false);
+            reimbFormRec.setValue('partial', true);
+        }
+
+        if (formData.basis === 'cash') {
+            reimbFormRec.setValue('cash', true);
+            reimbFormRec.setValue('accrual', false);
+        } else if (formData.basis === 'accrual') {
+            reimbFormRec.setValue('cash', false);
+            reimbFormRec.setValue('accrual', true);
+        }
+
+        // Details mapping
+			  reimbFormRec.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
+			  reimbFormRec.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
+        reimbFormRec.setValue('federal_grant_or_other_identifying_number_assigned_by_federal_agency', formData.grant_number);
+        reimbFormRec.setValue('employer_identification_number', formData.ein);
+        reimbFormRec.setValue('from', formData.period_from);
+        reimbFormRec.setValue('to', formData.period_to);
+
+        // Computation mapping
+        reimbFormRec.setValue('total_program_outlays_to_date', formData.line_a);
+        reimbFormRec.setValue('less_cumulative_program_income', formData.line_b);
+        reimbFormRec.setValue('net_program_outlays_total_program_outlays_to_less_cumulative_program_income', formData.line_c);
+        reimbFormRec.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
+        reimbFormRec.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
+        reimbFormRec.setValue('non_federal_share_of_amount_on_total', formData.line_f);
+        reimbFormRec.setValue('federal_share_of_amount_on_total', formData.line_g);
+        reimbFormRec.setValue('federal_payments_previously_requested', formData.line_h);
+        reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previous', formData.line_i);
+
+        // Monthly breakdown
+        reimbFormRec.setValue('request_1st_month', formData.request_1st_month);
+        reimbFormRec.setValue('request_2nd_month', formData.request_2nd_month);
+        reimbFormRec.setValue('request_3rd_month', formData.request_3rd_month);
+
+        // --- CRITICAL FIX FOR DASHBOARD AMOUNTS ---
+        var finalClaimAmount = (formData.payment_type === 'advance') ? formData.amount_requested_advance : formData.line_i;
+        reimbFormRec.setValue('amount_requested', finalClaimAmount || 0);
+
+// Replace the text inside the quotes with the exact Name of the first field
+reimbFormRec.setValue('estimated_federal_cash_outlays_that_will_be_made_during_period_covered_by_the_ad', formData.est_fed_cash_outlays);
+
+// Replace the text inside the quotes with the exact Name of the second field
+reimbFormRec.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.est_balance_cash_on_hand);
+
+        var newSysId = reimbFormRec.insert();
+
+        if (newSysId) {
+            data.success = true;
+            data.new_record_sys_id = newSysId.toString();
+            data.new_record_number = reimbFormRec.getValue('number');
+        } else {
+            data.success = false;
+        }
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>Sheeba.showkat</sys_created_by>
+        <sys_created_on>2026-08-19 14:54:40</sys_created_on>
+        <sys_id>67a82f2993b64b10d444c9b877373ccd</sys_id>
+        <sys_mod_count>36</sys_mod_count>
+        <sys_name>Reimbursement Form</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_67a82f2993b64b10d444c9b877373ccd</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-01 10:17:05</sys_updated_on>
+        <template><![CDATA[<div class="reimb-modal-wrapper" ng-cloak>
+
+  <!-- SUCCESS CONFIRMATION -->
+  <div class="reimb-success" ng-if="c.submitted">
+    <div class="reimb-success__icon">
+      <i class="fa fa-check-circle"></i>
+    </div>
+    <h3 class="reimb-success__title">Claim Submitted</h3>
+    <p class="reimb-success__text" ng-if="c.submittedClaimNumber">
+      Your reimbursement claim <strong>{{c.submittedClaimNumber}}</strong> has been submitted and is now awaiting review.
+    </p>
+    <p class="reimb-success__text" ng-if="!c.submittedClaimNumber">
+      Your reimbursement claim has been submitted and is now awaiting review.
+    </p>
+    <div class="modal-footer-actions" style="justify-content: center;">
+      <button type="button" class="btn btn-primary" ng-click="c.closeAfterSuccess()">Done</button>
+    </div>
+  </div>
+
+  <!-- FORM (hidden after successful submission) -->
+  <form name="reimbursementForm" ng-submit="c.submitReimbursement()" ng-if="!c.submitted">
+
+    <!-- Project Selection -->
+    <div class="gpa-card modern-spacing">
+      <div class="gpa-card__header">
+        <h3><i class="fa fa-folder-open-o"></i> Select Project</h3>
+      </div>
+      <div class="gpa-card__body">
+        <div class="form-group">
+          <label>Project <span class="required">*</span></label>
+          <select class="form-control modern-input" ng-model="c.reimbursement.project_id" ng-options="p.sys_id as p.name for p in c.data.projects" ng-change="c.fetchProjectDetails()" required>
+            <option value="">-- Select a Project --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id">
+      <div class="gpa-card__header">
+        <h3><i class="fa fa-file-text-o"></i> Request Details</h3>
+        <p class="text-muted">General information for your advance or reimbursement request.</p>
+      </div>
+      <div class="gpa-card__body">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Type of Payment <span class="required">*</span></label>
+              <select class="form-control modern-input" ng-model="c.reimbursement.payment_type" required>
+                <option value="">-- Select --</option>
+                <option value="advance">Advance</option>
+                <option value="reimbursement">Reimbursement</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Applicable Box <span class="required">*</span></label>
+              <select class="form-control modern-input" ng-model="c.reimbursement.request_status" required>
+                <option value="">-- Select --</option>
+                <option value="final">Final</option>
+                <option value="partial">Partial</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Basis of Request <span class="required">*</span></label>
+              <select class="form-control modern-input" ng-model="c.reimbursement.basis" required>
+                <option value="">-- Select --</option>
+                <option value="cash">Cash</option>
+                <option value="accrual">Accrual</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Federal Grant / ID Number <span class="required">*</span></label>
+              <input type="text" class="form-control modern-input" ng-model="c.reimbursement.grant_number" required>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Employer ID Number (EIN) <span class="required">*</span></label>
+              <input type="text" class="form-control modern-input" ng-model="c.reimbursement.ein" required>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Partial Payment Request Number</label>
+              <input type="text" class="form-control modern-input" ng-model="c.reimbursement.partial_payment_number">
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Financial Assistance ID Number</label>
+              <input type="text" class="form-control modern-input" ng-model="c.reimbursement.financial_assistance_number">
+            </div>
+          </div>
+        </div>
+
+        <hr class="modern-divider">
+
+        <div class="row">
+          <div class="col-md-12">
+            <label class="section-label">Period Covered By This Request <span class="required">*</span></label>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="sub-label">From:</label>
+              <input type="date" class="form-control modern-input" ng-model="c.reimbursement.period_from" required>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="sub-label">To:</label>
+              <input type="date" class="form-control modern-input" ng-model="c.reimbursement.period_to" required>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipient Organization -->
+    <div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id">
+      <div class="gpa-card__header">
+        <h3><i class="fa fa-building-o"></i> Recipient Organization</h3>
+      </div>
+      <div class="gpa-card__body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Name</label>
+              <input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.name" readonly>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Organization</label>
+              <input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.organization" readonly>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-8">
+            <div class="form-group">
+              <label>Street</label>
+              <input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.street" readonly>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>City</label>
+              <input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.city" readonly>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Country</label>
+              <input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.country" readonly>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>ZIP / Postal Code</label>
+              <input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.zip" readonly>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Computations (Card 1) - ONLY SHOWS FOR REIMBURSEMENT -->
+    <div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id && c.reimbursement.payment_type === 'reimbursement'">
+      <div class="gpa-card__header">
+        <h3><i class="fa fa-calculator"></i> Computation of Amount</h3>
+        <p class="text-muted">Enter financial outlays. Net and total values will calculate automatically.</p>
+      </div>
+      <div class="gpa-card__body no-pad">
+        <div class="financial-grid-modern">
+          <div class="financial-row">
+            <div class="fin-label">Total Program outlays to date</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_a" ng-change="c.calculateReimbursement()"></div>
+            </div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Less: Cumulative Program income</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_b" ng-change="c.calculateReimbursement()"></div>
+            </div>
+          </div>
+          <div class="financial-row calc-row">
+            <div class="fin-label">Net Program Outlays <em>(Total Program outlays - Less: Cumulative Program income)</em></div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_c" readonly></div>
+            </div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Estimated net cash outlays for advance period</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_d" ng-change="c.calculateReimbursement()"></div>
+            </div>
+          </div>
+          <div class="financial-row calc-row">
+            <div class="fin-label">Total <em>(Sum of Net Program Outlays & Estimated cash outlays for advance period)</em></div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_e" readonly></div>
+            </div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Non-Federal share of amount <em>(on Total)</em></div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_f" ng-change="c.calculateReimbursement()"></div>
+            </div>
+          </div>
+          <div class="financial-row calc-row">
+            <div class="fin-label">Federal share of amount <em>(Total minus Non-Federal share)</em></div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_g" readonly></div>
+            </div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Federal payments previously requested</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.line_h" ng-change="c.calculateReimbursement()"></div>
+            </div>
+          </div>
+          <div class="financial-row success-row">
+            <div class="fin-label">Federal share now requested</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="text" class="form-control text-right" ng-value="c.reimbursement.line_i" readonly></div>
+            </div>
+          </div>
+
+          <!-- Monthly Breakdown Fields (Attached to the bottom of Card 1) -->
+          <div class="financial-row" style="margin-top: 10px; border-top: none;">
+            <div class="fin-label" style="font-weight: 800; font-size: 14px; color: #0f172a;">Monthly Breakdown for Request</div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Request 1st Month</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_1st_month"></div>
+            </div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Request 2nd Month</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_2nd_month"></div>
+            </div>
+          </div>
+          <div class="financial-row">
+            <div class="fin-label">Request 3rd Month</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.request_3rd_month"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+   <!-- Alternate Computation (Card 2) - ONLY SHOWS FOR ADVANCE -->
+    <div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id && c.reimbursement.payment_type === 'advance'">
+      <div class="gpa-card__header">
+        <h3><i class="fa fa-refresh"></i> Alternate Computation for Advances Only</h3>
+        <p class="text-muted">Complete only if requesting an advance payment.</p>
+      </div>
+      <div class="gpa-card__body no-pad">
+        <div class="financial-grid-modern">
+          
+          <!-- 1. NEW FIELD ADDED HERE -->
+          <div class="financial-row">
+            <div class="fin-label">Estimated Federal Cash Outlays that will be made during period covered by the Advance</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.est_fed_cash_outlays"></div>
+            </div>
+          </div>
+          
+          <!-- 2. EXISTING FIELD -->
+          <div class="financial-row">
+            <div class="fin-label">Estimated balance of Federal cash on hand as of beginning of Advance Period</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.est_balance_cash_on_hand"></div>
+            </div>
+          </div>
+          
+          <!-- 3. EXISTING FIELD -->
+          <div class="financial-row success-row">
+            <div class="fin-label">Amount Requested</div>
+            <div class="fin-input">
+              <div class="input-group"><span class="input-group-addon">$</span><input type="number" class="form-control text-right" ng-model="c.reimbursement.amount_requested_advance"></div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+
+    <!-- Attachments (Card 3) -->
+    <div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id">
+      <div class="gpa-card__header">
+        <h3><i class="fa fa-paperclip"></i> Supporting Documents</h3>
+        <p class="text-muted">Attach receipts, invoices, or other documentation supporting this request.</p>
+      </div>
+      <div class="gpa-card__body">
+        <div class="upload-dropzone">
+          <label class="upload-label" style="width: 100%; margin: 0; cursor: pointer;">
+            <div class="upload-content">
+              <i class="fa fa-cloud-upload upload-icon"></i>
+              <span class="upload-text"><span class="upload-link">Select a file</span> to attach to this request</span>
+            </div>
+            <input type="file" style="display: none;" onchange="angular.element(this).scope().c.onReimbursementFileSelect(this)">
+          </label>
+        </div>
+
+        <div ng-if="c.reimbursementFile" class="file-card m-t-sm">
+          <div class="file-icon-wrapper"><i class="fa fa-check-circle text-success"></i></div>
+          <div class="file-details">
+            <span class="file-name text-success">{{c.reimbursementFile.name}}</span>
+            <span class="file-meta">Staged for upload upon submission</span>
+          </div>
+          <div class="file-actions">
+            <button type="button" class="btn-action-icon text-danger" ng-click="c.removeReimbursementFile()">
+              <i class="fa fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer-actions" ng-if="c.reimbursement.project_id">
+      <button type="button" class="btn btn-default" ng-click="c.closeModal()">Cancel</button>
+      <button type="submit" class="btn btn-primary" ng-disabled="reimbursementForm.$invalid || c.submitting">
+        <span ng-if="!c.submitting">Submit Claim</span>
+        <span ng-if="c.submitting"><i class="fa fa-spinner fa-spin"></i> Submitting...</span>
+      </button>
+    </div>
+
+  </form>
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_67a82f2993b64b10d444c9b877373ccd</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function($scope, $http, spUtil) {
+    var c = this;
+
+    c.submitting = false;
+    c.submitted = false;
+    c.submittedClaimNumber = '';
+    c.reimbursementFile = null;
+
+    // Initialize structure
+    c.reimbursement = {
+        project_id: '',
+        line_a: 0, line_b: 0, line_c: 0,
+        line_d: 0, line_e: 0, line_f: 0,
+        line_g: 0, line_h: 0, line_i: 0,
+		   	est_fed_cash_outlays: 0,       // &lt;-- ADDED THIS
+        est_balance_cash_on_hand: 0,
+        amount_requested_advance: 0
+    };
+
+    // When the project changes, fetch applicant details
+    c.fetchProjectDetails = function() {
+        if (!c.reimbursement.project_id) {
+            c.clearApplicantDetails();
+            return;
+        }
+
+        c.server.get({
+            action: 'get_project_applicant',
+            project_id: c.reimbursement.project_id
+        }).then(function(r) {
+            if (r.data.applicantDetails) {
+                var app = r.data.applicantDetails;
+                c.reimbursement.name = app.first_name || '';
+                c.reimbursement.organization = app.organization || '';
+                c.reimbursement.street = app.street || '';
+                c.reimbursement.city = app.city || '';
+                c.reimbursement.country = app.country || '';
+                c.reimbursement.zip = app.zip_postal_code || '';
+                c.reimbursement.grant_number = app.award_number || '';
+            }
+        });
+    };
+
+    c.clearApplicantDetails = function() {
+        c.reimbursement.name = '';
+        c.reimbursement.organization = '';
+        c.reimbursement.street = '';
+        c.reimbursement.city = '';
+        c.reimbursement.country = '';
+        c.reimbursement.zip = '';
+        c.reimbursement.grant_number = '';
+    };
+
+    c.calculateReimbursement = function() {
+        var a = parseFloat(c.reimbursement.line_a) || 0;
+        var b = parseFloat(c.reimbursement.line_b) || 0;
+        var d = parseFloat(c.reimbursement.line_d) || 0;
+        var f = parseFloat(c.reimbursement.line_f) || 0;
+        var h = parseFloat(c.reimbursement.line_h) || 0;
+
+        c.reimbursement.line_c = a - b;
+        c.reimbursement.line_e = c.reimbursement.line_c + d;
+        c.reimbursement.line_g = c.reimbursement.line_e - f;
+        c.reimbursement.line_i = c.reimbursement.line_g - h;
+    };
+
+    c.onReimbursementFileSelect = function(inputElement) {
+        if (inputElement.files &amp;&amp; inputElement.files.length &gt; 0) {
+            c.reimbursementFile = inputElement.files[0];
+            $scope.$applyAsync();
+        }
+    };
+
+    c.removeReimbursementFile = function() {
+        c.reimbursementFile = null;
+    };
+
+    c.toDateOnly = function(dateVal) {
+        if (!dateVal) return dateVal;
+        var d = new Date(dateVal);
+        if (isNaN(d.getTime())) return dateVal;
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    };
+
+    c.submitReimbursement = function() {
+        c.submitting = true;
+
+        var safeData = angular.copy(c.reimbursement);
+        safeData.period_from = c.toDateOnly(safeData.period_from);
+        safeData.period_to = c.toDateOnly(safeData.period_to);
+
+        c.server.get({
+            action: 'submit_reimbursement',
+            reimbursementData: safeData
+        }).then(function(response) {
+            if (response.data.success) {
+                var newRecordSysId = response.data.new_record_sys_id;
+                var newRecordNumber = response.data.new_record_number;
+
+                if (c.reimbursementFile &amp;&amp; newRecordSysId) {
+                    var formData = new FormData();
+                    formData.append('table_name', 'x_enno_gatenow_reimbursement');
+                    formData.append('table_sys_id', newRecordSysId);
+                    formData.append('uploadFile', c.reimbursementFile);
+
+                    $http({
+                        method: 'POST',
+                        url: '/api/now/attachment/upload',
+                        headers: { 'Content-Type': undefined },
+                        data: formData,
+                        transformRequest: angular.identity
+                    }).then(function() {
+                        c.finishSuccess(newRecordNumber);
+                    }, function() {
+                        spUtil.addErrorMessage("Claim created, but attachment upload failed.");
+                        c.finishSuccess(newRecordNumber);
+                    });
+                } else {
+                    c.finishSuccess(newRecordNumber);
+                }
+            } else {
+                c.submitting = false;
+                spUtil.addErrorMessage("Error submitting the request. Please try again.");
+            }
+        });
+    };
+
+    c.finishSuccess = function(claimNumber) {
+        c.submitting = false;
+        c.submitted = true;
+        c.submittedClaimNumber = claimNumber || '';
+        spUtil.addInfoMessage("Reimbursement claim submitted successfully.");
+    };
+
+    c.closeAfterSuccess = function() {
+        $scope.$emit('claim_submitted_successfully');
+    };
+
+    c.closeModal = function() {
+        $scope.$emit('claim_submitted_successfully');
+    };
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;.reimb-modal-wrapper {
+  padding: 24px 30px;
+  font-family: 'Inter', Roboto, sans-serif;
+  background: #f8fafc;
+  max-height: 75vh; 
+  overflow-y: auto;
+}
+
+/* --- CUSTOM SCROLLBAR --- */
+.reimb-modal-wrapper::-webkit-scrollbar { width: 8px; }
+.reimb-modal-wrapper::-webkit-scrollbar-track { background: transparent; margin: 10px 0; }
+.reimb-modal-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.reimb-modal-wrapper::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.gpa-card:first-child { margin-top: 5px; }
+
+.gpa-card {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.gpa-card__header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+.gpa-card__header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.gpa-card__header h3 i { margin-right: 6px; color: #475569;}
+.gpa-card__header p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+
+.gpa-card__body { padding: 24px; }
+.gpa-card__body.no-pad { padding: 0; }
+
+.modern-input {
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+  font-size: 14px;
+  color: #1e293b;
+}
+.modern-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+.read-only-bg { background-color: #f1f5f9; cursor: not-allowed; color: #475569; }
+
+label { font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 8px; }
+.required { color: #ef4444; margin-left: 2px; }
+.section-label { font-size: 14px; color: #0f172a; margin-bottom: 16px; display: block; font-weight: 700; }
+.sub-label { font-size: 12px; color: #64748b; }
+.modern-divider { border-top: 1px solid #e2e8f0; margin: 24px 0; }
+
+/* --- FINANCIAL ROWS --- */
+.financial-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 24px; border-bottom: 1px solid #e2e8f0;
+}
+.financial-row:last-child { border-bottom: none; }
+
+.calc-row { background: #f8fafc; }
+.success-row { background: #f0fdf4; border-top: 2px solid #10b981; }
+
+.fin-label { font-size: 14px; color: #334155; font-weight: 500; flex: 1; padding-right: 20px;}
+.fin-label em { color: #64748b; font-style: italic; font-size: 13px; font-weight: 400; margin-left: 4px;}
+.fin-input { width: 280px; }
+
+/* Force Flexbox on Input Groups to prevent table layout distortions */
+.fin-input .input-group {
+  display: flex !important;
+  width: 100%;
+}
+.fin-input .input-group-addon {
+  width: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none;
+  border-radius: 6px 0 0 6px; color: #64748b; font-weight: 500;
+}
+.fin-input .form-control {
+  flex: 1; height: 40px; border-radius: 0 6px 6px 0; border: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+}
+
+/* Styling specifically for the read-only calculated inputs */
+.read-only-calc { background: transparent !important; color: #0f172a; font-weight: 700; }
+
+/* Styling for the Green Output Rows */
+.success-row .input-group-addon { color: #10b981; font-weight: 700; background: #fff; }
+.success-row .form-control { color: #0f172a; font-weight: 700; background: #fff; }
+
+/* --- FILE DROPZONE --- */
+.upload-dropzone {
+  border: 1px dashed #94a3b8; border-radius: 8px; padding: 40px;
+  text-align: center; background: #fff; transition: 0.2s ease;
+}
+.upload-dropzone:hover { border-color: #3b82f6; background: #f8fafc; }
+.upload-icon { font-size: 28px; color: #94a3b8; margin-bottom: 8px; display: block;}
+.upload-text { font-size: 14px; color: #475569; display: block;}
+.upload-link { color: #3b82f6; font-weight: 600; text-decoration: none;}
+
+.file-card {
+  display: flex; align-items: center; padding: 12px 16px;
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-top: 16px;
+}
+.file-icon-wrapper { margin-right: 12px; font-size: 20px; }
+.file-details { flex: 1; display: flex; flex-direction: column; }
+.file-name { font-weight: 600; font-size: 13px; }
+.file-meta { font-size: 11px; color: #16a34a; }
+.btn-action-icon { background: transparent; border: none; font-size: 16px; cursor: pointer; }
+
+.modal-footer-actions {
+  display: flex; justify-content: flex-end; gap: 12px;
+  padding-top: 24px; border-top: 1px solid #e2e8f0; margin-top: 30px;
+}
+.btn { padding: 10px 24px; font-size: 14px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; transition: 0.2s;}
+.btn-primary { background: #4f46e5; color: #fff; }
+.btn-primary:hover { background: #4338ca; }
+.btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+.btn-default { background: #fff; border: 1px solid #cbd5e1; color: #475569; }
+.btn-default:hover { background: #f1f5f9; }
+
+/* --- SUCCESS CONFIRMATION PANEL --- */
+.reimb-success {
+  text-align: center;
+  padding: 48px 24px;
+}
+.reimb-success__icon {
+  font-size: 56px;
+  color: #10b981;
+  margin-bottom: 16px;
+}
+.reimb-success__title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+.reimb-success__text {
+  font-size: 14px;
+  color: #64748b;
+  max-width: 380px;
+  margin: 0 auto;
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;false&lt;/has_preview&gt;&lt;id&gt;reimbursement_form&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Reimbursement Form&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles&gt;x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user&lt;/roles&gt;&lt;script&gt;&lt;![CDATA[(function() {
+    var loggedInUser = gs.getUserID();
+
+    // 1. Load active projects for the dropdown on init
+    data.projects = [];
+
+    // Gather ALL applicant records for the logged-in user, in case they have more than one
+    var applicantIds = [];
+    var appRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+    appRec.addQuery('user', loggedInUser);
+    appRec.query();
+    while (appRec.next()) {
+        applicantIds.push(appRec.getUniqueValue());
+    }
+
+    var projRec = new GlideRecordSecure('x_enno_gatenow_project');
+
+    if (applicantIds.length &gt; 0) {
+        // Normal user: fetch projects matching ANY of their applicant IDs
+        projRec.addQuery('applicant', 'IN', applicantIds.join(','));
+    } else {
+        // Fallback for users without any applicant profile
+        projRec.addQuery('sys_created_by', gs.getUserName());
+    }
+
+    projRec.orderBy('project_name');
+    projRec.query();
+
+    while (projRec.next()) {
+        data.projects.push({
+            sys_id: projRec.getUniqueValue(),
+            name: projRec.getDisplayValue('project_name') || projRec.getDisplayValue()
+        });
+    }
+
+    // 2. Handle Action: Fetch specific applicant details when a project is selected
+    if (input &amp;&amp; input.action === 'get_project_applicant') {
+        data.applicantDetails = {};
+        var pRec = new GlideRecordSecure('x_enno_gatenow_project');
+        if (pRec.get(input.project_id)) {
+            data.applicantDetails.award_number = pRec.getDisplayValue('award');
+
+            var aRec = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+            if (aRec.get(pRec.getValue('applicant'))) {
+                data.applicantDetails.first_name = aRec.getDisplayValue('first_name');
+                data.applicantDetails.organization = aRec.getDisplayValue('organization');
+                data.applicantDetails.street = aRec.getDisplayValue('street');
+                data.applicantDetails.city = aRec.getDisplayValue('city');
+                data.applicantDetails.country = aRec.getDisplayValue('country');
+                data.applicantDetails.zip_postal_code = aRec.getDisplayValue('zip_postal_code');
+            }
+        }
+        return;
+    }
+
+    // 3. Handle Action: Submit the New Reimbursement
+    if (input &amp;&amp; input.action === 'submit_reimbursement') {
+        var formData = input.reimbursementData || {};
+        var targetProjectId = formData.project_id;
+
+        var reimbFormRec = new GlideRecordSecure('x_enno_gatenow_reimbursement');
+        reimbFormRec.initialize();
+
+        // Project / Applicant Auto-population
+        reimbFormRec.setValue('project', targetProjectId);
+        var projectCheck = new GlideRecordSecure('x_enno_gatenow_project');
+        if (projectCheck.get(targetProjectId)) {
+            reimbFormRec.setValue('program', projectCheck.getValue('program'));
+            reimbFormRec.setValue('applicant', projectCheck.getValue('applicant'));
+        }
+
+        // Checkboxes &amp; Dropdowns
+        if (formData.payment_type === 'advance') {
+            reimbFormRec.setValue('advance', true);
+            reimbFormRec.setValue('reimbursement', false);
+        } else if (formData.payment_type === 'reimbursement') {
+            reimbFormRec.setValue('advance', false);
+            reimbFormRec.setValue('reimbursement', true);
+        }
+
+        if (formData.request_status === 'final') {
+            reimbFormRec.setValue('final', true);
+            reimbFormRec.setValue('partial', false);
+        } else if (formData.request_status === 'partial') {
+            reimbFormRec.setValue('final', false);
+            reimbFormRec.setValue('partial', true);
+        }
+
+        if (formData.basis === 'cash') {
+            reimbFormRec.setValue('cash', true);
+            reimbFormRec.setValue('accrual', false);
+        } else if (formData.basis === 'accrual') {
+            reimbFormRec.setValue('cash', false);
+            reimbFormRec.setValue('accrual', true);
+        }
+
+        // Details mapping
+			  reimbFormRec.setValue('partial_payment_request_number_for_this_request', formData.partial_payment_number);
+			  reimbFormRec.setValue('financial_assistance_idebtification_number', formData.financial_assistance_number);
+        reimbFormRec.setValue('federal_grant_or_other_identifying_number_assigned_by_federal_agency', formData.grant_number);
+        reimbFormRec.setValue('employer_identification_number', formData.ein);
+        reimbFormRec.setValue('from', formData.period_from);
+        reimbFormRec.setValue('to', formData.period_to);
+
+        // Computation mapping
+        reimbFormRec.setValue('total_program_outlays_to_date', formData.line_a);
+        reimbFormRec.setValue('less_cumulative_program_income', formData.line_b);
+        reimbFormRec.setValue('net_program_outlays_total_program_outlays_to_less_cumulative_program_income', formData.line_c);
+        reimbFormRec.setValue('estimated_net_cash_outlays_for_advance_period', formData.line_d);
+        reimbFormRec.setValue('total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period', formData.line_e);
+        reimbFormRec.setValue('non_federal_share_of_amount_on_total', formData.line_f);
+        reimbFormRec.setValue('federal_share_of_amount_on_total', formData.line_g);
+        reimbFormRec.setValue('federal_payments_previously_requested', formData.line_h);
+        reimbFormRec.setValue('federal_share_now_requested_federal_share_of_amount_federals_payments_previous', formData.line_i);
+
+        // Monthly breakdown
+        reimbFormRec.setValue('request_1st_month', formData.request_1st_month);
+        reimbFormRec.setValue('request_2nd_month', formData.request_2nd_month);
+        reimbFormRec.setValue('request_3rd_month', formData.request_3rd_month);
+
+        // --- CRITICAL FIX FOR DASHBOARD AMOUNTS ---
+        var finalClaimAmount = (formData.payment_type === 'advance') ? formData.amount_requested_advance : formData.line_i;
+        reimbFormRec.setValue('amount_requested', finalClaimAmount || 0);
+
+// Replace the text inside the quotes with the exact Name of the first field
+reimbFormRec.setValue('estimated_federal_cash_outlays_that_will_be_made_during_period_covered_by_the_ad', formData.est_fed_cash_outlays);
+
+// Replace the text inside the quotes with the exact Name of the second field
+reimbFormRec.setValue('estimated_balance_of_federal_cash_on_hand_as_of_beginning_of_advance_period', formData.est_balance_cash_on_hand);
+
+        var newSysId = reimbFormRec.insert();
+
+        if (newSysId) {
+            data.success = true;
+            data.new_record_sys_id = newSysId.toString();
+            data.new_record_number = reimbFormRec.getValue('number');
+        } else {
+            data.success = false;
+        }
+    }
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;Sheeba.showkat&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-08-19 14:54:40&lt;/sys_created_on&gt;&lt;sys_id&gt;67a82f2993b64b10d444c9b877373ccd&lt;/sys_id&gt;&lt;sys_mod_count&gt;36&lt;/sys_mod_count&gt;&lt;sys_name&gt;Reimbursement Form&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_67a82f2993b64b10d444c9b877373ccd&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;younis.khan&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-09-01 10:17:05&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="reimb-modal-wrapper" ng-cloak&gt;
+
+  &lt;!-- SUCCESS CONFIRMATION --&gt;
+  &lt;div class="reimb-success" ng-if="c.submitted"&gt;
+    &lt;div class="reimb-success__icon"&gt;
+      &lt;i class="fa fa-check-circle"&gt;&lt;/i&gt;
+    &lt;/div&gt;
+    &lt;h3 class="reimb-success__title"&gt;Claim Submitted&lt;/h3&gt;
+    &lt;p class="reimb-success__text" ng-if="c.submittedClaimNumber"&gt;
+      Your reimbursement claim &lt;strong&gt;{{c.submittedClaimNumber}}&lt;/strong&gt; has been submitted and is now awaiting review.
+    &lt;/p&gt;
+    &lt;p class="reimb-success__text" ng-if="!c.submittedClaimNumber"&gt;
+      Your reimbursement claim has been submitted and is now awaiting review.
+    &lt;/p&gt;
+    &lt;div class="modal-footer-actions" style="justify-content: center;"&gt;
+      &lt;button type="button" class="btn btn-primary" ng-click="c.closeAfterSuccess()"&gt;Done&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- FORM (hidden after successful submission) --&gt;
+  &lt;form name="reimbursementForm" ng-submit="c.submitReimbursement()" ng-if="!c.submitted"&gt;
+
+    &lt;!-- Project Selection --&gt;
+    &lt;div class="gpa-card modern-spacing"&gt;
+      &lt;div class="gpa-card__header"&gt;
+        &lt;h3&gt;&lt;i class="fa fa-folder-open-o"&gt;&lt;/i&gt; Select Project&lt;/h3&gt;
+      &lt;/div&gt;
+      &lt;div class="gpa-card__body"&gt;
+        &lt;div class="form-group"&gt;
+          &lt;label&gt;Project &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="form-control modern-input" ng-model="c.reimbursement.project_id" ng-options="p.sys_id as p.name for p in c.data.projects" ng-change="c.fetchProjectDetails()" required&gt;
+            &lt;option value=""&gt;-- Select a Project --&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id"&gt;
+      &lt;div class="gpa-card__header"&gt;
+        &lt;h3&gt;&lt;i class="fa fa-file-text-o"&gt;&lt;/i&gt; Request Details&lt;/h3&gt;
+        &lt;p class="text-muted"&gt;General information for your advance or reimbursement request.&lt;/p&gt;
+      &lt;/div&gt;
+      &lt;div class="gpa-card__body"&gt;
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Type of Payment &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+              &lt;select class="form-control modern-input" ng-model="c.reimbursement.payment_type" required&gt;
+                &lt;option value=""&gt;-- Select --&lt;/option&gt;
+                &lt;option value="advance"&gt;Advance&lt;/option&gt;
+                &lt;option value="reimbursement"&gt;Reimbursement&lt;/option&gt;
+              &lt;/select&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Applicable Box &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+              &lt;select class="form-control modern-input" ng-model="c.reimbursement.request_status" required&gt;
+                &lt;option value=""&gt;-- Select --&lt;/option&gt;
+                &lt;option value="final"&gt;Final&lt;/option&gt;
+                &lt;option value="partial"&gt;Partial&lt;/option&gt;
+              &lt;/select&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Basis of Request &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+              &lt;select class="form-control modern-input" ng-model="c.reimbursement.basis" required&gt;
+                &lt;option value=""&gt;-- Select --&lt;/option&gt;
+                &lt;option value="cash"&gt;Cash&lt;/option&gt;
+                &lt;option value="accrual"&gt;Accrual&lt;/option&gt;
+              &lt;/select&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Federal Grant / ID Number &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input" ng-model="c.reimbursement.grant_number" required&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Employer ID Number (EIN) &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input" ng-model="c.reimbursement.ein" required&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Partial Payment Request Number&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input" ng-model="c.reimbursement.partial_payment_number"&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Financial Assistance ID Number&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input" ng-model="c.reimbursement.financial_assistance_number"&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;hr class="modern-divider"&gt;
+
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-12"&gt;
+            &lt;label class="section-label"&gt;Period Covered By This Request &lt;span class="required"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label class="sub-label"&gt;From:&lt;/label&gt;
+              &lt;input type="date" class="form-control modern-input" ng-model="c.reimbursement.period_from" required&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label class="sub-label"&gt;To:&lt;/label&gt;
+              &lt;input type="date" class="form-control modern-input" ng-model="c.reimbursement.period_to" required&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Recipient Organization --&gt;
+    &lt;div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id"&gt;
+      &lt;div class="gpa-card__header"&gt;
+        &lt;h3&gt;&lt;i class="fa fa-building-o"&gt;&lt;/i&gt; Recipient Organization&lt;/h3&gt;
+      &lt;/div&gt;
+      &lt;div class="gpa-card__body"&gt;
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Name&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.name" readonly&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Organization&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.organization" readonly&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-8"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Street&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.street" readonly&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-4"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;City&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.city" readonly&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="row"&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;Country&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.country" readonly&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="col-md-6"&gt;
+            &lt;div class="form-group"&gt;
+              &lt;label&gt;ZIP / Postal Code&lt;/label&gt;
+              &lt;input type="text" class="form-control modern-input read-only-bg" ng-model="c.reimbursement.zip" readonly&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Computations (Card 1) - ONLY SHOWS FOR REIMBURSEMENT --&gt;
+    &lt;div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id &amp;&amp; c.reimbursement.payment_type === 'reimbursement'"&gt;
+      &lt;div class="gpa-card__header"&gt;
+        &lt;h3&gt;&lt;i class="fa fa-calculator"&gt;&lt;/i&gt; Computation of Amount&lt;/h3&gt;
+        &lt;p class="text-muted"&gt;Enter financial outlays. Net and total values will calculate automatically.&lt;/p&gt;
+      &lt;/div&gt;
+      &lt;div class="gpa-card__body no-pad"&gt;
+        &lt;div class="financial-grid-modern"&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Total Program outlays to date&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.line_a" ng-change="c.calculateReimbursement()"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Less: Cumulative Program income&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.line_b" ng-change="c.calculateReimbursement()"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row calc-row"&gt;
+            &lt;div class="fin-label"&gt;Net Program Outlays &lt;em&gt;(Total Program outlays - Less: Cumulative Program income)&lt;/em&gt;&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_c" readonly&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Estimated net cash outlays for advance period&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.line_d" ng-change="c.calculateReimbursement()"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row calc-row"&gt;
+            &lt;div class="fin-label"&gt;Total &lt;em&gt;(Sum of Net Program Outlays &amp; Estimated cash outlays for advance period)&lt;/em&gt;&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_e" readonly&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Non-Federal share of amount &lt;em&gt;(on Total)&lt;/em&gt;&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.line_f" ng-change="c.calculateReimbursement()"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row calc-row"&gt;
+            &lt;div class="fin-label"&gt;Federal share of amount &lt;em&gt;(Total minus Non-Federal share)&lt;/em&gt;&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="text" class="form-control text-right read-only-calc" ng-value="c.reimbursement.line_g" readonly&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Federal payments previously requested&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.line_h" ng-change="c.calculateReimbursement()"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row success-row"&gt;
+            &lt;div class="fin-label"&gt;Federal share now requested&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="text" class="form-control text-right" ng-value="c.reimbursement.line_i" readonly&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;!-- Monthly Breakdown Fields (Attached to the bottom of Card 1) --&gt;
+          &lt;div class="financial-row" style="margin-top: 10px; border-top: none;"&gt;
+            &lt;div class="fin-label" style="font-weight: 800; font-size: 14px; color: #0f172a;"&gt;Monthly Breakdown for Request&lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Request 1st Month&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.request_1st_month"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Request 2nd Month&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.request_2nd_month"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Request 3rd Month&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.request_3rd_month"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+   &lt;!-- Alternate Computation (Card 2) - ONLY SHOWS FOR ADVANCE --&gt;
+    &lt;div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id &amp;&amp; c.reimbursement.payment_type === 'advance'"&gt;
+      &lt;div class="gpa-card__header"&gt;
+        &lt;h3&gt;&lt;i class="fa fa-refresh"&gt;&lt;/i&gt; Alternate Computation for Advances Only&lt;/h3&gt;
+        &lt;p class="text-muted"&gt;Complete only if requesting an advance payment.&lt;/p&gt;
+      &lt;/div&gt;
+      &lt;div class="gpa-card__body no-pad"&gt;
+        &lt;div class="financial-grid-modern"&gt;
+          
+          &lt;!-- 1. NEW FIELD ADDED HERE --&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Estimated Federal Cash Outlays that will be made during period covered by the Advance&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.est_fed_cash_outlays"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+          &lt;!-- 2. EXISTING FIELD --&gt;
+          &lt;div class="financial-row"&gt;
+            &lt;div class="fin-label"&gt;Estimated balance of Federal cash on hand as of beginning of Advance Period&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.est_balance_cash_on_hand"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+          &lt;!-- 3. EXISTING FIELD --&gt;
+          &lt;div class="financial-row success-row"&gt;
+            &lt;div class="fin-label"&gt;Amount Requested&lt;/div&gt;
+            &lt;div class="fin-input"&gt;
+              &lt;div class="input-group"&gt;&lt;span class="input-group-addon"&gt;$&lt;/span&gt;&lt;input type="number" class="form-control text-right" ng-model="c.reimbursement.amount_requested_advance"&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Attachments (Card 3) --&gt;
+    &lt;div class="gpa-card modern-spacing" ng-if="c.reimbursement.project_id"&gt;
+      &lt;div class="gpa-card__header"&gt;
+        &lt;h3&gt;&lt;i class="fa fa-paperclip"&gt;&lt;/i&gt; Supporting Documents&lt;/h3&gt;
+        &lt;p class="text-muted"&gt;Attach receipts, invoices, or other documentation supporting this request.&lt;/p&gt;
+      &lt;/div&gt;
+      &lt;div class="gpa-card__body"&gt;
+        &lt;div class="upload-dropzone"&gt;
+          &lt;label class="upload-label" style="width: 100%; margin: 0; cursor: pointer;"&gt;
+            &lt;div class="upload-content"&gt;
+              &lt;i class="fa fa-cloud-upload upload-icon"&gt;&lt;/i&gt;
+              &lt;span class="upload-text"&gt;&lt;span class="upload-link"&gt;Select a file&lt;/span&gt; to attach to this request&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;input type="file" style="display: none;" onchange="angular.element(this).scope().c.onReimbursementFileSelect(this)"&gt;
+          &lt;/label&gt;
+        &lt;/div&gt;
+
+        &lt;div ng-if="c.reimbursementFile" class="file-card m-t-sm"&gt;
+          &lt;div class="file-icon-wrapper"&gt;&lt;i class="fa fa-check-circle text-success"&gt;&lt;/i&gt;&lt;/div&gt;
+          &lt;div class="file-details"&gt;
+            &lt;span class="file-name text-success"&gt;{{c.reimbursementFile.name}}&lt;/span&gt;
+            &lt;span class="file-meta"&gt;Staged for upload upon submission&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div class="file-actions"&gt;
+            &lt;button type="button" class="btn-action-icon text-danger" ng-click="c.removeReimbursementFile()"&gt;
+              &lt;i class="fa fa-trash"&gt;&lt;/i&gt;
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class="modal-footer-actions" ng-if="c.reimbursement.project_id"&gt;
+      &lt;button type="button" class="btn btn-default" ng-click="c.closeModal()"&gt;Cancel&lt;/button&gt;
+      &lt;button type="submit" class="btn btn-primary" ng-disabled="reimbursementForm.$invalid || c.submitting"&gt;
+        &lt;span ng-if="!c.submitting"&gt;Submit Claim&lt;/span&gt;
+        &lt;span ng-if="c.submitting"&gt;&lt;i class="fa fa-spinner fa-spin"&gt;&lt;/i&gt; Submitting...&lt;/span&gt;
+      &lt;/button&gt;
+    &lt;/div&gt;
+
+  &lt;/form&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>-21268552</payload_hash>
+        <record_name>Reimbursement Form</record_name>
+        <reverted_from/>
+        <source>0960f7d90f87c310712b6af300d1b2c3</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-09-01 10:17:05</sys_created_on>
+        <sys_id>345629310f8f4710712b6af300d1b227</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a05c78f45d0000001</sys_recorded_at>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-01 10:17:05</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>70562931118f47100442c9f3b1c54626</update_guid>
+        <update_guid_history>70562931118f47100442c9f3b1c54626:-21268552,2cc71db94c8b8710c8ba686d1a932204:-1844076898,674f8131f74b87100204ac0a7a8e8d0e:-1208119989,7737d5e9d9cb0710900187fe0834d5b9:-617937174,8735d5e593cb0710fbe6a5c07e885f93:-120387111,1db8bca5810b071037efc245ac3ad506:-65031933,2bb234e9c1c707105fbb4cdb555b97a8:184882893,88527069bbc707105664b645a0d62765:-1072553365,c73230698fc70710336b8c4503c917ac:669428296,fdc17ce5bec70710884f889e56ab1498:-373953331,3d8170e5e6c70710fbd79f04114d20e5:-345022546,0451b4a5cfc707109137bc35d03fa65b:-1754317218,b63ce82d20870710d4914d661a5b5cf2:-1072553365,faeba42961870710999a0a0bd106769f:184882893,40e9e4e5108707106591ce36b8469a3d:-1072553365,aef720213887071014edf143850f7dab:-553079586,2ef6686d91470710757d331210c56823:-1563300007,fd75e8a9a747071037ec6b7ab622abb8:-862403732,d6741469a2c307100adcf4eaea165e9a:669428296,b1549069f5c30710b2fa9772f70e6b8b:-862403732,ce2350e58cc3071034ffa9c95e8acba4:669428296,a662d86554c307109923362564686a97:-983020811,09f19c25abc30710f854f73d0f9e34f6:669428296,44224865cf43071001f0ed9f1b2057a9:-983020811,ce114ce134430710de6e9997ce77d689:1955169658,7c90c0c27b3a8b10735e99335deea8b6:1159695228,8636bf310bf68b106a2a8efb8edf8f99:-1217566903,ff1333f94cb68b10c38bf877c1b8284c:1235865835,810233791bb68b10ca9c458311393f7a:-611879144,988ce77d55768b10a099f254c48fcf25:888226994,c4b72bb13b768b10009987f4ee427e17:-286451880,5fd6affd37368b1004110c329ebdd882:-1765261028,5c90907165fa4b105799c4f1aef44b54:2049570355,e7d0bba522f64b103e65bd9e6009bb0d:-877136649,af6e2ba178f64b100bcd1c05796c3ecf:441881511,ed0da32187f64b10a9b4deabd377c78c:-749246644,94396b6941b64b10a90b3158cfd40355:-616853511</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Reimbursement Form">62c137c2934b4b10d444c9b877373ccb</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-09-02 15:04:54</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>32d84da6a52145008b420fbb6533b900</sys_id>
+        <sys_metadata>67a82f2993b64b10d444c9b877373ccd</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Reimbursement Form</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_67a82f2993b64b10d444c9b877373ccd</sys_update_name>
+        <sys_update_version display_value="sp_widget_67a82f2993b64b10d444c9b877373ccd">345629310f8f4710712b6af300d1b227</sys_update_version>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-02 15:04:54</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

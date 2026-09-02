@@ -73,6 +73,17 @@
   };
 
 
+  /* only the outcomes with something in them. Filtered here
+     rather than with ng-if on the repeat, because ng-repeat and
+     ng-if on one element each make a child scope and the pair
+     is not worth debugging. */
+  c.changeStats = function() {
+    return (c.data.changeStats || []).filter(function(st) {
+      return st.count > 0;
+    });
+  };
+
+
   /* =====================================================
      DETAIL
      ===================================================== */
@@ -480,8 +491,8 @@
      tile      30  700  tabular   headline figures
      title     26  700  -0.03em   page title
      panel     15  600  -0.014em  panel headings
-     data      14  600  tabular    dates and references
-     label     11  600   0.14em    uppercase small caps
+     data      14  600  tabular   dates and references
+     label     11  600   0.14em   uppercase small caps
    ========================================================= */
 
 /* ---------- overflow overrides ---------- */
@@ -503,9 +514,12 @@
 
 .aw-sidebar {
   flex: 0 0 auto;
-  overflow: visible;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 10; /* Ensures sidebar tooltips stay above the scrolling dashboard */
+  overflow: visible; /* Kept visible to prevent tooltip clipping as noted in your comments */
 }
-
 
 /* ---------- typeface ---------- */
 
@@ -560,8 +574,8 @@ $c-blue-2:  rgba(21, 96, 224, 0.16);
 /* ---------- the platform's own RAG scale ---------- */
 $c-green:   #1f8a63;
 $c-green-1: rgba(31, 138, 99, 0.12);
-$c-amber:   #a4741f;
-$c-amber-1: rgba(164, 116, 31, 0.12);
+$c-amber:   #E39944;
+$c-amber-1: rgba(227, 153, 68, 0.12);
 $c-red:     #b8394a;
 $c-red-1:   rgba(184, 57, 74, 0.10);
 $c-red-2:   rgba(184, 57, 74, 0.28);
@@ -812,7 +826,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   transform-origin: left center;
 }
 
-.grc-tile.is-alert .grc-tile__rule { background: rgba(164, 116, 31, 0.34); }
+.grc-tile.is-alert .grc-tile__rule { background: rgba(227, 153, 68, 0.34); }
 
 .grc .grc-tile__label {
   margin: 0;
@@ -841,8 +855,8 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 }
 
 .grc-tile.is-alert .grc-tile__note {
-  color: $c-amber;
-  font-weight: 500;
+ color: $c-ink-3;
+  font-weight: 400;
 }
 
 
@@ -994,204 +1008,263 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
 
 /* =========================================================
-   WHERE THE PRESSURE HAS BEEN
+   REPORTS FILED EACH MONTH
 
-   One row per dimension, each a single bar split by how often
-   that dimension was rated green, yellow or red. The month by
-   month version it replaced drew five empty columns when there
-   were five quiet months, which told you about the sample size
-   rather than the projects.
+   A count over time, drawn the same way as claimed against
+   paid on the reimbursements page, so the two pages read as
+   one product.
+
+   COLOUR, LIGHTLY
+   The tall bar is the accent blue at 70 percent, the short one
+   a muted amber. Nothing here is at full saturation, because
+   the chart is a count rather than an alarm, and a light bar is
+   still perfectly legible against a white plot.
    ========================================================= */
 
-.grc-dims {
-  display: grid;
-  gap: 12px;
-}
-
-.grc-dim {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 44px;
-  align-items: center;
-  gap: 16px;
-}
-
-/* overall is the summary of the four under it, so it is set
-   apart rather than read as a fifth peer */
-.grc-dim.is-lead {
-  padding-bottom: 12px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid $c-line-2;
-}
-
-.grc-dim.is-lead .grc-dim__label {
-  font-weight: 700;
-  color: $c-navy;
-}
-
-.grc-dim__label {
-  font-size: 13.5px;
-  font-weight: 500;
-  color: $c-ink-2;
-}
-
-.grc-dim__track {
+.grc-chart {
   display: flex;
-  height: 26px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: $c-tint;
+  gap: 14px;
 }
 
-.grc-dim__seg {
-  display: block;
-  height: 100%;
-  transform-origin: left center;
-}
-
-.grc-dim__seg--green { background: $c-green; }
-.grc-dim__seg--amber { background: $c-amber; }
-.grc-dim__seg--red   { background: $c-red; }
-
-.grc-dim__count {
+.grc-chart__axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 176px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: $c-ink-4;
   text-align: right;
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $c-ink-3;
 }
 
-.grc-dim__zero { color: $c-ink-4; }
-
-
-/* =========================================================
-   CHANGE REQUEST OUTCOMES AND CATEGORIES
-   ========================================================= */
-
-.grc-outcome {
-  padding-bottom: 18px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid $c-line-2;
+.grc-chart__plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 176px;
 }
 
-.grc-outcome__track {
+.grc-chart__line {
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 0;
+  height: 1px;
+  background: $c-line-2;
+}
+
+.grc-chart__line--mid  { top: 50%; }
+.grc-chart__line--base { top: auto; bottom: 0; background: $c-line; }
+
+.grc-chart__cols {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
-  height: 34px;
-  border-radius: 9px;
-  overflow: hidden;
-  background: $c-tint;
+  align-items: flex-end;
+  justify-content: space-around;
 }
 
-.grc-outcome__seg {
+.grc-col {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-width: 30px;
+  justify-content: flex-end;
   height: 100%;
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: $c-white;
-  transform-origin: left center;
+  min-width: 0;
+  flex: 1;
 }
 
-.grc-outcome__seg--good  { background: $c-green; }
-.grc-outcome__seg--wait  { background: $c-blue; }
-.grc-outcome__seg--bad   { background: $c-red; }
-.grc-outcome__seg--draft { background: rgba(10, 37, 64, 0.28); }
+.grc-col__pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+  padding-bottom: 24px;
+}
 
-.grc .grc-outcome__key {
+/* a min-height so a month with one report is a visible mark
+   rather than a gap the reader has to interpret */
+.grc-col__bar {
+  display: block;
+  width: 17px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  transform-origin: bottom center;
+}
+
+.grc-col__bar--all { background: rgba(21, 96, 224, 0.7); }
+/* Set to solid $c-amber so it perfectly matches the heat map */
+.grc-col__bar--bad { background: $c-amber; }
+
+.grc-col__label {
+  position: absolute;
+  bottom: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: $c-ink-4;
+}
+
+.grc .grc-key {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grc .grc-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: $c-ink-3;
+}
+
+.grc-key__box {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.grc-key__box--all { background: rgba(21, 96, 224, 0.7); }
+.grc-key__box--bad { background: $c-amber; }
+
+
+/* =========================================================
+   COUNT BARS
+
+   Horizontal, one row per thing, measured against the largest
+   of them rather than as a share of a total. The share is what
+   made every bar full width when there was only one report to
+   divide between them.
+
+   One colour, lightened along the run, so the rows rank without
+   four hues arguing about it.
+   ========================================================= */
+
+.grc-rows {
+  display: grid;
+  gap: 11px;
+}
+
+.grc-row2 {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 14px;
+}
+
+.grc-row2__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: $c-ink-2;
+}
+
+.grc-row2__track {
+  display: block;
+  height: 9px;
+  border-radius: 999px;
+  background: $c-tint;
+  overflow: hidden;
+}
+
+.grc-row2__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(21, 96, 224, 0.7);
+  transform-origin: left center;
+}
+
+/* the pressure rows lighten down the ranking */
+.grc-row2--n1 .grc-row2__fill { background: rgba(227, 153, 68, 0.8); }
+.grc-row2--n2 .grc-row2__fill { background: rgba(227, 153, 68, 0.58); }
+.grc-row2--n3 .grc-row2__fill { background: rgba(227, 153, 68, 0.4); }
+.grc-row2--n4 .grc-row2__fill { background: rgba(227, 153, 68, 0.28); }
+
+/* the outcome rows keep their meaning, at the same weight */
+.grc-row2--wait .grc-row2__fill  { background: rgba(21, 96, 224, 0.7); }
+.grc-row2--good .grc-row2__fill  { background: rgba(31, 138, 99, 0.62); }
+.grc-row2--bad .grc-row2__fill   { background: rgba(184, 57, 74, 0.58); }
+.grc-row2--draft .grc-row2__fill { background: rgba(10, 37, 64, 0.2); }
+
+.grc-row2__value {
+  text-align: right;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: $c-navy;
+}
+
+/* a row with nothing in it says so, and steps back */
+.grc-row2.is-clean .grc-row2__label { color: $c-ink-4; }
+
+.grc-row2__none {
+  font-size: 12px;
+  font-weight: 400;
+  color: $c-ink-4;
+}
+
+.grc .grc-note {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid $c-line-2;
+  font-size: 12.5px;
+  color: $c-ink-4;
+}
+
+.grc .grc-sub2 {
+  margin: 26px 0 14px;
+  padding-top: 20px;
+  border-top: 1px solid $c-line;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $c-blue;
+}
+
+.grc .grc-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
   margin: 14px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.grc .grc-outcome__key li {
+.grc .grc-cats li {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid $c-line;
+  border-radius: 999px;
   font-size: 12.5px;
   color: $c-ink-3;
 }
 
-.grc .grc-outcome__key strong {
-  font-weight: 600;
+.grc-cats__name { color: $c-ink-2; }
+
+.grc-cats__n {
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: $c-navy;
 }
-
-.grc-outcome__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.grc-outcome__dot--good  { background: $c-green; }
-.grc-outcome__dot--wait  { background: $c-blue; }
-.grc-outcome__dot--bad   { background: $c-red; }
-.grc-outcome__dot--draft { background: rgba(10, 37, 64, 0.28); }
-
-
-/* =========================================================
-   CATEGORY BARS
-   ========================================================= */
-
-.grc-bars {
-  display: grid;
-  gap: 15px;
-}
-
-.grc-bar { min-width: 0; }
-
-.grc-bar__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 7px;
-}
-
-.grc-bar__name {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: $c-navy;
-}
-
-.grc-bar__count {
-  font-size: 13.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $c-ink-3;
-}
-
-.grc-bar__track {
-  display: block;
-  height: 7px;
-  border-radius: 999px;
-  background: $c-tint;
-  overflow: hidden;
-}
-
-.grc-bar__fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: $c-blue;
-  transform-origin: left center;
-}
-
-.grc-bar--2 .grc-bar__fill { background: rgba(21, 96, 224, 0.72); }
-.grc-bar--3 .grc-bar__fill { background: rgba(21, 96, 224, 0.55); }
-.grc-bar--4 .grc-bar__fill { background: rgba(21, 96, 224, 0.42); }
-.grc-bar--5 .grc-bar__fill { background: rgba(21, 96, 224, 0.32); }
-.grc-bar--6 .grc-bar__fill { background: rgba(21, 96, 224, 0.24); }
 
 
 /* =========================================================
@@ -1206,7 +1279,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   gap: 16px 24px;
   padding: 18px 22px;
   margin-bottom: 16px;
-  border: 1px solid rgba(164, 116, 31, 0.26);
+  border: 1px solid rgba(227, 153, 68, 0.26);
   border-left: 3px solid $c-amber;
   border-radius: 14px;
   background: $c-amber-1;
@@ -2063,25 +2136,23 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   .grc-heat__row--n7 { animation-delay: 0.74s; }
   .grc-heat__row--n8 { animation-delay: 0.80s; }
 
-  /* each dimension bar draws from its own left edge */
-  .grc-dim__seg { animation: grcDrawX 0.7s $c-ease backwards; }
+  @keyframes grcGrowY {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
 
-  .grc-dim--overall .grc-dim__seg   { animation-delay: 0.42s; }
-  .grc-dim--schedule .grc-dim__seg  { animation-delay: 0.48s; }
-  .grc-dim--cost .grc-dim__seg      { animation-delay: 0.54s; }
-  .grc-dim--resources .grc-dim__seg { animation-delay: 0.60s; }
-  .grc-dim--scope .grc-dim__seg     { animation-delay: 0.66s; }
+  /* the columns grow from the axis */
+  .grc-col__bar { animation: grcGrowY 0.6s $c-ease backwards; }
 
-  .grc-outcome__seg { animation: grcDrawX 0.7s $c-ease 0.44s backwards; }
+  .grc-col--n1 .grc-col__bar { animation-delay: 0.42s; }
+  .grc-col--n2 .grc-col__bar { animation-delay: 0.48s; }
+  .grc-col--n3 .grc-col__bar { animation-delay: 0.54s; }
+  .grc-col--n4 .grc-col__bar { animation-delay: 0.60s; }
+  .grc-col--n5 .grc-col__bar { animation-delay: 0.66s; }
+  .grc-col--n6 .grc-col__bar { animation-delay: 0.72s; }
 
-  .grc-bar__fill { animation: grcDrawX 0.8s $c-ease backwards; }
-
-  .grc-bar--1 .grc-bar__fill { animation-delay: 0.44s; }
-  .grc-bar--2 .grc-bar__fill { animation-delay: 0.50s; }
-  .grc-bar--3 .grc-bar__fill { animation-delay: 0.56s; }
-  .grc-bar--4 .grc-bar__fill { animation-delay: 0.62s; }
-  .grc-bar--5 .grc-bar__fill { animation-delay: 0.68s; }
-  .grc-bar--6 .grc-bar__fill { animation-delay: 0.74s; }
+  /* the rows draw out from their left edge */
+  .grc-row2__fill { animation: grcDrawX 0.7s $c-ease 0.46s backwards; }
 
   /* replays on every tab change, because ng-repeat rebuilds its
      nodes and the keyframe starts again with them */
@@ -2176,7 +2247,6 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
   .grc-ragrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  .grc-dim { grid-template-columns: 78px minmax(0, 1fr) 36px; gap: 12px; }
 
   .grc-rate { grid-template-columns: minmax(0, 1fr); }
 
@@ -2211,7 +2281,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <name>Report &amp; Change Requests</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
         <script><![CDATA[(function () {
 
   /* =========================================================
@@ -2364,7 +2434,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   function firstValidTable(list) {
     for (var i = 0; i < list.length; i++) {
       try {
-        var probe = new GlideRecord(list[i]);
+        var probe = new GlideRecordSecure(list[i]);
         if (probe.isValid()) return list[i];
       } catch (e) { /* next candidate */ }
     }
@@ -2609,6 +2679,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   }
 
   var reportedThisMonth = {};
+
   var healthTotals = { green: 0, amber: 0, red: 0, none: 0 };
 
   /* Every dimension counted separately. Overall health alone
@@ -2650,6 +2721,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         }
 
         if (mk === thisMonth) reportedThisMonth[pid2] = true;
+
 
         healthTotals[h.key]++;
 
@@ -2715,7 +2787,7 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
         var state = appr.indexOf('approved') !== -1 ? 'good'
                   : appr.indexOf('rejected') !== -1 ? 'bad'
-                  : appr.indexOf('requested') !== -1 && appr.indexOf('not yet') === -1 ? 'wait'
+                  : (appr.indexOf('requested') !== -1 && appr.indexOf('not yet') === -1) ? 'wait'
                   : 'draft';
 
         if (state === 'good')       approval.approved++;
@@ -2724,7 +2796,15 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         else                        approval.notyet++;
 
         var cat = ch.getDisplayValue('category') || gs.getMessage('Uncategorised');
-        byCategory[cat] = (byCategory[cat] || 0) + 1;
+
+        if (!byCategory[cat]) {
+          byCategory[cat] = { raised: 0, approved: 0, rejected: 0, waiting: 0 };
+        }
+
+        byCategory[cat].raised++;
+        if (state === 'good')      byCategory[cat].approved++;
+        else if (state === 'bad')  byCategory[cat].rejected++;
+        else if (state === 'wait') byCategory[cat].waiting++;
 
         var cpid = ch.getValue('project');
 
@@ -2751,36 +2831,39 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   }
 
 
+
   /* ============================================================
      ANALYTICS
      ============================================================ */
 
   /* ---------- heat map ----------
-     Coloured by the health the report carried, not merely by
+     Coloured by the health each report carried, not merely by
      whether one was filed. A grid of green squares that only
-     means "something was submitted" tells an applicant nothing
-     they did not already know. */
+     means "something arrived" tells an applicant nothing they
+     did not already know.
+     ------------------------------------------------------- */
   data.heat = [];
 
   for (var hp = 0; hp < projectIds.length; hp++) {
+
     var hid = projectIds[hp];
-    var cells = [];
+    var hcells = [];
 
     for (var hm = 0; hm < monthKeys.length; hm++) {
-      var key = monthKeys[hm];
-      var val = grid[hid][key];
+      var hkey = monthKeys[hm];
+      var hval = grid[hid] ? grid[hid][hkey] : null;
 
-      cells.push({
-        key  : val || 'none',
+      hcells.push({
+        key  : hval || 'none',
         month: data.months[hm],
-        label: val ? rag(val === 'amber' ? 'yellow' : val).label : gs.getMessage('No report')
+        label: hval ? rag(hval === 'amber' ? 'yellow' : hval).label : gs.getMessage('No report')
       });
     }
 
     data.heat.push({
       sysId: hid,
       name : projectName[hid],
-      cells: cells
+      cells: hcells
     });
   }
 
@@ -2791,77 +2874,174 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     { key: 'none',  label: gs.getMessage('No report') }
   ];
 
-  /* ---------- where the pressure is ----------
-     The month by month strip was replaced. With a handful of
-     reports it drew five empty columns and one filled one,
-     which is a chart of how little data there is rather than a
-     chart of anything useful.
 
-     This asks a question the data can answer at any volume:
-     across everything you have filed, which of the four things
-     has gone amber or red most often. One report still produces
-     four honest rows. */
-  function dimRow(key, label) {
-    var d = dims[key];
-    var rated = d.green + d.amber + d.red;
+  /* ---------- reports filed each month ----------
 
-    return {
-      key  : key,
-      label: label,
-      green: d.green,
-      amber: d.amber,
-      red  : d.red,
-      none : d.none,
-      rated: rated,
-      pctGreen: rated ? Math.round((d.green / rated) * 100) : 0,
-      pctAmber: rated ? Math.round((d.amber / rated) * 100) : 0,
-      pctRed  : rated ? Math.round((d.red   / rated) * 100) : 0
-    };
-  }
+     Rings, then a matrix, then bars split by percentage, and
+     none of them was the right shape. The honest one is a count
+     over time: how many reports went in each month, and how
+     many of those carried something that needed attention.
 
-  data.dims = [
-    dimRow('overall',   gs.getMessage('Overall')),
-    dimRow('schedule',  gs.getMessage('Schedule')),
-    dimRow('cost',      gs.getMessage('Cost')),
-    dimRow('resources', gs.getMessage('Resources')),
-    dimRow('scope',     gs.getMessage('Scope'))
-  ];
+     Two bars per month, the same chart as claimed against paid
+     on the reimbursements page, so the two read as one product.
+     ------------------------------------------------------- */
 
-  data.dimsRated = healthTotals.green + healthTotals.amber + healthTotals.red;
+  var ratingTotal = healthTotals.green + healthTotals.amber + healthTotals.red;
 
-  /* ---------- change requests by category ---------- */
-  var catRows = [];
-  for (var cn in byCategory) catRows.push({ label: cn, count: byCategory[cn] });
-  catRows.sort(function (a, b) { return b.count - a.count; });
+  data.filed = [];
 
-  var catTop = catRows.length ? catRows[0].count : 0;
+  var filedPeak = 0;
 
-  data.byCategory = [];
-  for (var cr = 0; cr < catRows.length && cr < 6; cr++) {
-    data.byCategory.push({
-      label: catRows[cr].label,
-      count: catRows[cr].count,
-      width: catTop ? Math.max(6, Math.round((catRows[cr].count / catTop) * 100)) : 0
+  for (var fm = 0; fm < monthKeys.length; fm++) {
+    var tm = trend[monthKeys[fm]] || { green: 0, amber: 0, red: 0 };
+    var all = tm.green + tm.amber + tm.red;
+    var flagged = tm.amber + tm.red;
+
+    if (all > filedPeak) filedPeak = all;
+
+    data.filed.push({
+      month  : data.months[fm],
+      total  : all,
+      flagged: flagged
     });
   }
 
-  var apprTotal = approval.approved + approval.rejected +
-                  approval.requested + approval.notyet;
+  /* A peak of one should not draw a bar the full height of the
+     plot, so the axis never tops out below two. */
+  var filedTop = Math.max(2, filedPeak);
 
-  data.approval = approval;
+  for (var fp = 0; fp < data.filed.length; fp++) {
+    data.filed[fp].totalPct   = Math.round((data.filed[fp].total / filedTop) * 100);
+    data.filed[fp].flaggedPct = Math.round((data.filed[fp].flagged / filedTop) * 100);
+  }
 
-  data.approvalSplit = [
-    { key: 'good',  label: gs.getMessage('Approved'),  count: approval.approved,
-      pct: apprTotal ? Math.round((approval.approved / apprTotal) * 100) : 0 },
-    { key: 'wait',  label: gs.getMessage('Requested'), count: approval.requested,
-      pct: apprTotal ? Math.round((approval.requested / apprTotal) * 100) : 0 },
-    { key: 'bad',   label: gs.getMessage('Rejected'),  count: approval.rejected,
-      pct: apprTotal ? Math.round((approval.rejected / apprTotal) * 100) : 0 },
-    { key: 'draft', label: gs.getMessage('Not yet requested'), count: approval.notyet,
-      pct: apprTotal ? Math.round((approval.notyet / apprTotal) * 100) : 0 }
+  data.filedTop = filedTop;
+  data.filedMid = Math.round(filedTop / 2);
+  data.hasFiled = filedPeak > 0;
+
+
+  /* ---------- where the pressure has been ----------
+
+     Counts as horizontal bars against the largest of them, not
+     a percentage split. The split is what made every bar full
+     width when there was only one report to divide.
+     ------------------------------------------------------- */
+
+  var PRESSURE = [
+    { key: 'schedule',  label: gs.getMessage('Schedule') },
+    { key: 'cost',      label: gs.getMessage('Cost') },
+    { key: 'resources', label: gs.getMessage('Resources') },
+    { key: 'scope',     label: gs.getMessage('Scope') }
   ];
 
-  data.approvalTotal = apprTotal;
+  var pressPeak = 0;
+
+  for (var pi = 0; pi < PRESSURE.length; pi++) {
+    var pd = dims[PRESSURE[pi].key];
+    if ((pd.amber + pd.red) > pressPeak) pressPeak = pd.amber + pd.red;
+  }
+
+  data.pressure = [];
+
+  for (var pj2 = 0; pj2 < PRESSURE.length; pj2++) {
+    var pd2 = dims[PRESSURE[pj2].key];
+    var bad = pd2.amber + pd2.red;
+
+    data.pressure.push({
+      key  : PRESSURE[pj2].key,
+      label: PRESSURE[pj2].label,
+      count: bad,
+      amber: pd2.amber,
+      red  : pd2.red,
+      /* a zero stays at zero. A dimension that has never gone
+         amber should read as empty, not as a token stub. */
+      width: pressPeak ? Math.round((bad / pressPeak) * 100) : 0,
+      clean: bad === 0
+    });
+  }
+
+  data.pressure.sort(function (a, b) {
+    return ((b.red * 2) + b.amber) - ((a.red * 2) + a.amber);
+  });
+
+  data.hasPressure = ratingTotal > 0;
+
+  data.pressureNote = !ratingTotal ? ''
+    : (pressPeak
+        ? ratingTotal + ' ' + gs.getMessage('ratings filed in total')
+        : gs.getMessage('Every rating you have filed has been green.'));
+
+
+  /* ---------- change requests ----------
+
+     The same horizontal count bars, so the panel matches the
+     one beside it. One request used to render as a full width
+     saturated bar with a 1 in it, which was a lot of ink for
+     one number.
+     ------------------------------------------------------- */
+
+  var OUTCOMES = [
+    { key: 'wait',  label: gs.getMessage('Awaiting a decision'), count: approval.requested },
+    { key: 'good',  label: gs.getMessage('Approved'),            count: approval.approved },
+    { key: 'bad',   label: gs.getMessage('Rejected'),            count: approval.rejected },
+    { key: 'draft', label: gs.getMessage('Not yet requested'),   count: approval.notyet }
+  ];
+
+  var outPeak = 0;
+  var outTotal = 0;
+
+  for (var oi = 0; oi < OUTCOMES.length; oi++) {
+    outTotal += OUTCOMES[oi].count;
+    if (OUTCOMES[oi].count > outPeak) outPeak = OUTCOMES[oi].count;
+  }
+
+  data.outcomes = [];
+
+  for (var oj = 0; oj < OUTCOMES.length; oj++) {
+    data.outcomes.push({
+      key  : OUTCOMES[oj].key,
+      label: OUTCOMES[oj].label,
+      count: OUTCOMES[oj].count,
+      width: outPeak ? Math.round((OUTCOMES[oj].count / outPeak) * 100) : 0,
+      clean: OUTCOMES[oj].count === 0
+    });
+  }
+
+  var changeDecided = approval.approved + approval.rejected;
+
+  /* An approval rate over no decisions is undefined, not zero. */
+  data.changeNote = !outTotal ? ''
+    : (changeDecided
+        ? Math.round((approval.approved / changeDecided) * 100) + '% ' +
+          gs.getMessage('approved of') + ' ' + changeDecided + ' ' + gs.getMessage('decided')
+        : gs.getMessage('Nothing decided yet.'));
+
+  data.hasChanges = outTotal > 0;
+
+  /* the categories, as a plain list. One chart per panel. */
+  var catRows = [];
+
+  for (var cn in byCategory) {
+    catRows.push({
+      label   : cn,
+      raised  : byCategory[cn].raised,
+      approved: byCategory[cn].approved
+    });
+  }
+
+  catRows.sort(function (a, b) { return b.raised - a.raised; });
+
+  data.byCategory = [];
+
+  for (var cr = 0; cr < catRows.length && cr < 6; cr++) {
+    data.byCategory.push({
+      label   : catRows[cr].label,
+      raised  : catRows[cr].raised,
+      approved: catRows[cr].approved
+    });
+  }
+
+  data.approval = approval;
 
 
   /* ---------- who still owes a report this month ---------- */
@@ -3022,14 +3202,23 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     heatHint : gs.getMessage('One square per project per month. The colour is the health that report carried, and an empty square means nothing was filed.'),
     heatEmpty: gs.getMessage('No projects to report on yet.'),
 
-    dimsTitle: gs.getMessage('Where the pressure has been'),
-    dimsHint : gs.getMessage('Across every report you have filed, how often each of the four went amber or red'),
-    dimsEmpty: gs.getMessage('Nothing has been reported yet, so there is nothing to compare.'),
-    dimsRated: gs.getMessage('rated'),
+    filedTitle: gs.getMessage('Reports filed each month'),
+    filedHint : gs.getMessage('How many went in, and how many of those carried something that needed attention'),
+    filedEmpty: gs.getMessage('Nothing filed in the last six months.'),
+    filedKeyAll: gs.getMessage('Filed'),
+    filedKeyBad: gs.getMessage('Needed attention'),
 
-    catTitle: gs.getMessage('What you have asked to change'),
-    catHint : gs.getMessage('Every change request you have raised, by outcome and by category'),
-    catEmpty: gs.getMessage('No change requests raised yet.'),
+    pressTitle: gs.getMessage('Where the pressure has been'),
+    pressHint : gs.getMessage('How many times each of the four has been rated amber or red'),
+    pressEmpty: gs.getMessage('Nothing has been rated yet.'),
+    pressClean: gs.getMessage('never'),
+
+    outTitle: gs.getMessage('Change requests'),
+    outHint : gs.getMessage('Where every request you have raised currently stands'),
+    outEmpty: gs.getMessage('No change requests raised yet.'),
+    catByKind: gs.getMessage('By category'),
+    catApproved: gs.getMessage('approved'),
+    catRaised  : gs.getMessage('raised'),
 
     dueTitle: gs.getMessage('Still to report this month'),
     dueNone : gs.getMessage('Every open project has reported this month.'),
@@ -3133,14 +3322,14 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-08-19 08:10:57</sys_created_on>
         <sys_id>44bc4ee193fa0b10d444c9b877373ce1</sys_id>
-        <sys_mod_count>34</sys_mod_count>
+        <sys_mod_count>51</sys_mod_count>
         <sys_name>Report &amp; Change Requests</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_44bc4ee193fa0b10d444c9b877373ce1</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-31 02:48:42</sys_updated_on>
+        <sys_updated_on>2026-09-02 11:46:42</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · REPORTS AND CHANGE REQUESTS
      Service Portal widget · HTML template
@@ -3270,86 +3459,118 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       <!-- ═══════════════ TREND + CATEGORY ═══════════════ -->
       <section class="grc-panels">
 
+        <!-- reports filed each month -->
+        <article class="grc-panel">
+
+          <header class="grc-panel__head">
+            <div>
+              <h2 class="grc-panel__title">{{c.data.t.filedTitle}}</h2>
+              <p class="grc-panel__hint">{{c.data.t.filedHint}}</p>
+            </div>
+            <ul class="grc-key">
+              <li><span class="grc-key__box grc-key__box--all" aria-hidden="true"></span>{{c.data.t.filedKeyAll}}</li>
+              <li><span class="grc-key__box grc-key__box--bad" aria-hidden="true"></span>{{c.data.t.filedKeyBad}}</li>
+            </ul>
+          </header>
+
+          <div class="grc-chart" ng-if="c.data.hasFiled">
+
+            <div class="grc-chart__axis">
+              <span>{{c.data.filedTop}}</span>
+              <span>{{c.data.filedMid}}</span>
+              <span>0</span>
+            </div>
+
+            <div class="grc-chart__plot">
+
+              <span class="grc-chart__line" aria-hidden="true"></span>
+              <span class="grc-chart__line grc-chart__line--mid" aria-hidden="true"></span>
+              <span class="grc-chart__line grc-chart__line--base" aria-hidden="true"></span>
+
+              <div class="grc-chart__cols">
+                <div class="grc-col"
+                     ng-repeat="m in c.data.filed track by $index"
+                     ng-class="'grc-col--n' + ($index + 1)">
+                  <span class="grc-col__pair">
+                    <span class="grc-col__bar grc-col__bar--all"
+                          ng-style="{height: m.totalPct + '%'}"
+                          title="{{m.total}} {{c.data.t.filedKeyAll}}"></span>
+                    <span class="grc-col__bar grc-col__bar--bad"
+                          ng-style="{height: m.flaggedPct + '%'}"
+                          title="{{m.flagged}} {{c.data.t.filedKeyBad}}"></span>
+                  </span>
+                  <span class="grc-col__label">{{m.month}}</span>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <p class="grc-panel__empty" ng-if="!c.data.hasFiled">{{c.data.t.filedEmpty}}</p>
+
+        </article>
+
+
         <!-- where the pressure has been -->
         <article class="grc-panel">
 
           <header class="grc-panel__head">
             <div>
-              <h2 class="grc-panel__title">{{c.data.t.dimsTitle}}</h2>
-              <p class="grc-panel__hint">{{c.data.t.dimsHint}}</p>
+              <h2 class="grc-panel__title">{{c.data.t.pressTitle}}</h2>
+              <p class="grc-panel__hint">{{c.data.t.pressHint}}</p>
             </div>
           </header>
 
-          <div class="grc-dims" ng-if="c.data.dimsRated">
-            <div class="grc-dim"
-                 ng-repeat="d in c.data.dims track by d.key"
-                 ng-class="['grc-dim--' + d.key, {'is-lead': d.key === 'overall'}]">
-
-              <span class="grc-dim__label">{{d.label}}</span>
-
-              <span class="grc-dim__track">
-                <span class="grc-dim__seg grc-dim__seg--green" ng-if="d.green"
-                      ng-style="{width: d.pctGreen + '%'}" title="{{d.green}} green"></span>
-                <span class="grc-dim__seg grc-dim__seg--amber" ng-if="d.amber"
-                      ng-style="{width: d.pctAmber + '%'}" title="{{d.amber}} yellow"></span>
-                <span class="grc-dim__seg grc-dim__seg--red" ng-if="d.red"
-                      ng-style="{width: d.pctRed + '%'}" title="{{d.red}} red"></span>
+          <div class="grc-rows" ng-if="c.data.hasPressure">
+            <div class="grc-row2"
+                 ng-repeat="p in c.data.pressure track by p.key"
+                 ng-class="['grc-row2--n' + ($index + 1), {'is-clean': p.clean}]">
+              <span class="grc-row2__label">{{p.label}}</span>
+              <span class="grc-row2__track">
+                <span class="grc-row2__fill" ng-style="{width: p.width + '%'}"></span>
               </span>
-
-              <span class="grc-dim__count">
-                <span ng-if="d.rated">{{d.rated}}</span>
-                <span class="grc-dim__zero" ng-if="!d.rated">&mdash;</span>
-              </span>
-
-            </div>
-          </div>
-
-          <p class="grc-panel__empty" ng-if="!c.data.dimsRated">{{c.data.t.dimsEmpty}}</p>
-
-        </article>
-
-        <!-- change requests by category -->
-        <article class="grc-panel">
-
-          <header class="grc-panel__head">
-            <div>
-              <h2 class="grc-panel__title">{{c.data.t.catTitle}}</h2>
-              <p class="grc-panel__hint">{{c.data.t.catHint}}</p>
-            </div>
-          </header>
-
-          <div class="grc-outcome" ng-if="c.data.approvalTotal">
-            <span class="grc-outcome__track">
-              <span class="grc-outcome__seg"
-                    ng-repeat="a in c.data.approvalSplit track by a.key"
-                    ng-if="a.count"
-                    ng-class="'grc-outcome__seg--' + a.key"
-                    ng-style="{width: a.pct + '%'}"
-                    title="{{a.count}} {{a.label}}">{{a.count}}</span>
-            </span>
-            <ul class="grc-outcome__key">
-              <li ng-repeat="a in c.data.approvalSplit track by a.key" ng-if="a.count">
-                <span class="grc-outcome__dot" ng-class="'grc-outcome__dot--' + a.key" aria-hidden="true"></span>
-                {{a.label}} <strong>{{a.count}}</strong>
-              </li>
-            </ul>
-          </div>
-
-          <div class="grc-bars" ng-if="c.data.byCategory.length">
-            <div class="grc-bar"
-                 ng-repeat="b in c.data.byCategory track by $index"
-                 ng-class="'grc-bar--' + ($index + 1)">
-              <span class="grc-bar__row">
-                <span class="grc-bar__name">{{b.label}}</span>
-                <span class="grc-bar__count">{{b.count}}</span>
-              </span>
-              <span class="grc-bar__track">
-                <span class="grc-bar__fill" ng-style="{width: b.width + '%'}"></span>
+              <span class="grc-row2__value">
+                <span ng-if="!p.clean">{{p.count}}</span>
+                <span class="grc-row2__none" ng-if="p.clean">{{c.data.t.pressClean}}</span>
               </span>
             </div>
           </div>
 
-          <p class="grc-panel__empty" ng-if="!c.data.byCategory.length">{{c.data.t.catEmpty}}</p>
+          <p class="grc-note" ng-if="c.data.pressureNote">{{c.data.pressureNote}}</p>
+
+          <p class="grc-panel__empty" ng-if="!c.data.hasPressure">{{c.data.t.pressEmpty}}</p>
+
+
+          <!-- change requests, the same bars so the two halves
+               of the panel read as one thing -->
+          <h4 class="grc-sub2">{{c.data.t.outTitle}}</h4>
+
+          <div class="grc-rows" ng-if="c.data.hasChanges">
+            <div class="grc-row2"
+                 ng-repeat="o in c.data.outcomes track by o.key"
+                 ng-class="['grc-row2--' + o.key, {'is-clean': o.clean}]">
+              <span class="grc-row2__label">{{o.label}}</span>
+              <span class="grc-row2__track">
+                <span class="grc-row2__fill" ng-style="{width: o.width + '%'}"></span>
+              </span>
+              <span class="grc-row2__value">
+                <span ng-if="!o.clean">{{o.count}}</span>
+                <span class="grc-row2__none" ng-if="o.clean">&mdash;</span>
+              </span>
+            </div>
+          </div>
+
+          <p class="grc-note" ng-if="c.data.changeNote">{{c.data.changeNote}}</p>
+
+          <ul class="grc-cats" ng-if="c.data.byCategory.length">
+            <li ng-repeat="b in c.data.byCategory track by $index">
+              <span class="grc-cats__name">{{b.label}}</span>
+              <span class="grc-cats__n">{{b.raised}}</span>
+            </li>
+          </ul>
+
+          <p class="grc-panel__empty" ng-if="!c.data.hasChanges">{{c.data.t.outEmpty}}</p>
 
         </article>
 

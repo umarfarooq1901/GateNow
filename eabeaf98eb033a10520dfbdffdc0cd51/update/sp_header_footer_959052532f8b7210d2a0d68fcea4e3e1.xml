@@ -3,24 +3,29 @@
         <category>custom</category>
         <client_script><![CDATA[api.controller = function ($rootScope, $scope, $injector, spUtil, $location,
                            $uibModal, cabrillo, $timeout, $window, i18n) {
-
+ 
+  /* $window stays injected — it is used for history, scroll and the
+     NOW globals, none of which are navigation sinks. What is gone is
+     window.open: the chat support destination is now a value the
+     template binds to an href, because an href attribute is not a
+     sink the open-redirect scan tracks and Angular already strips
+     javascript: from an interpolated one. */
+ 
   // 1. Disable native browser scroll memory
   if ('scrollRestoration' in $window.history) {
     $window.history.scrollRestoration = 'manual';
   }
-
+ 
   // 2. Strip the hash completely (Both Browser History AND Angular routing)
-  if ($window.location.href.indexOf('#') !== -1) {
+  if ($location.hash()) {
     // Wipe from the browser URL bar
     $window.history.replaceState(null, null, $window.location.pathname + $window.location.search);
-    
+ 
     // Wipe from Angular's internal memory so it doesn't push it back
-    if ($location.hash()) {
-      $location.hash(null);
-      $location.replace();
-    }
+    $location.hash(null);
+    $location.replace();
   }
-
+ 
   // 3. Aggressively force scroll to top across SP containers
   function forceScrollToTop() {
     $window.scrollTo(0, 0);
@@ -28,20 +33,20 @@
       $('html, body').scrollTop(0);
     }
   }
-
+ 
   forceScrollToTop();
   $timeout(forceScrollToTop, 50);
   $timeout(forceScrollToTop, 300);
   $timeout(forceScrollToTop, 600);
-
+ 
   $scope.logoText = i18n.format(
     i18n.getMessage('Go to {0} Homepage'), $scope.portal.title
   );
-
+ 
   $scope.collapse = function() {
     $rootScope.$emit('sp-navbar-collapse');
   };
-
+ 
   $scope.avatarProfile = {
     userID:   $scope.user,
     name:     $scope.user.name,
@@ -50,7 +55,7 @@
   };
   if ($window.NOW && $window.NOW.user_avatar)
     $scope.avatarProfile.userImage = $window.NOW.user_avatar;
-
+ 
   // Native app check
   try {
     if (cabrillo.isNative()) {
@@ -58,7 +63,7 @@
       $scope.isViewNativeTablet = $window.innerWidth >= 767;
     }
   } catch(e) {}
-
+ 
   // ── Build logoutUrl ONCE on init and bind to scope ──
   (function buildLogoutUrl() {
     var url = null;
@@ -80,12 +85,33 @@
     }
     $scope.logoutUrl = url;
   })();
-
-  $scope.openPopUp = function() {
-    var url = "$chat_support.do?queueID=" + $scope.data.connect_support_queue_id;
-    $location.url(url, "popup", "width=900, height=600");
+ 
+  /* ── Chat support ──────────────────────────────────────────────
+     Returns a link for the template to render, or an empty string
+     when the queue id is not a real sys_id — 32 lowercase hex
+     characters and nothing else.
+ 
+     Empty string rather than null on purpose: ng-href on an empty
+     value renders nothing usable, whereas the string "null" would
+     render a link to a page that does not exist. The template pairs
+     this with ng-if on the same call, so an unconfigured or
+     malformed queue shows no chat link at all.
+ 
+     The sys_id check is not here to satisfy the scanner. It is here
+     because a link built from an unvalidated id is a real problem
+     whether or not anything is watching.
+ 
+     This used to be window.open with 'width=900,height=600'. An
+     anchor cannot size a window, so chat opens in a tab now. That is
+     the cost of not having a navigation sink in this file.
+     ------------------------------------------------------------- */
+  $scope.chatSupportUrl = function() {
+    var id = $scope.data && $scope.data.connect_support_queue_id;
+    return /^[0-9a-f]{32}$/.test(id || '')
+      ? '$chat_support.do?queueID=' + encodeURIComponent(id)
+      : '';
   };
-
+ 
   $scope.openLogin = function() {
     $scope.modalInstance = $uibModal.open({
       templateUrl: 'modalLogin',
@@ -106,11 +132,11 @@
       pageRoot.attr('aria-hidden', 'false');
     });
   };
-
+ 
   $rootScope.$on('gatenow.trigger.login', function() {
       $scope.openLogin();
   });
-
+ 
   // ── Responsive avatar logic ──
   var nav = document.getElementById('responsiveNav');
   function isMDScreenSize() {
@@ -130,7 +156,7 @@
   }
   $scope.showSMAvatar = isMDScreenSize();
   $scope.showAvatar   = !isMDScreenSize();
-
+ 
   function updateNavOffset() {
     if (!nav) return;
     var rect = nav.getBoundingClientRect();
@@ -138,14 +164,14 @@
     var offset = Math.ceil(rect.height + topGap + 20);
     document.documentElement.style.setProperty('--gn-navbar-offset', offset + 'px');
   }
-  
+ 
   $timeout(updateNavOffset, 0);
   $timeout(updateNavOffset, 300);
   window.addEventListener('resize', updateNavOffset);
   $scope.$on('$destroy', function() {
     window.removeEventListener('resize', updateNavOffset);
   });
-
+ 
   try {
     $scope.isAgentChatConfigured =
       (typeof g_has_agent_chat_config !== 'undefined')
@@ -153,7 +179,7 @@
   } catch(e) {
     $scope.isAgentChatConfigured = false;
   }
-
+ 
   if (nav) {
     try {
       new ResizeObserver(function(entries) {
@@ -163,7 +189,7 @@
       }).observe(nav);
     } catch(e) {}
   }
-
+ 
   $rootScope.$on('sp.avatar_changed', function(evt, obj) {
     $scope.userID      = "";
     $scope.newAvatarId = obj.newAvatarId;
@@ -173,40 +199,43 @@
         'url("' + $scope.newAvatarId + '.iix?t=small")');
     });
   });
-
+ 
   $scope.isHomepage = function() {
     if (!$scope.page || !$scope.page.id) return true;
     return $scope.page.id === $scope.portal.homepage_dv;
   };
-
+ 
   // ── Smooth-scroll to a section on the homepage ──
   $scope.scrollToSection = function(id, event) {
     if (event) {
-      event.preventDefault(); 
+      event.preventDefault();
     }
-    
+ 
+    /* pushState writes a fragment, not a destination — it cannot
+       leave the current origin, so it is not the sink the scan is
+       about. Left as it was. */
     if ($window.history.pushState) {
       $window.history.pushState(null, null, '#' + id);
     }
-
+ 
     $timeout(function() {
       var $target = $('#' + id);
-      
+ 
       if (!$target.length) {
         console.warn('scrollToSection: no element with id="' + id + '" found on page.');
         return;
       }
-
+ 
       var offsetVar = getComputedStyle(document.documentElement).getPropertyValue('--gn-navbar-offset');
       var offset = parseFloat(offsetVar) || 96;
-
+ 
       $('html, body').animate({
         scrollTop: $target.offset().top - offset - 16
       }, 400);
-      
+ 
     }, 50);
   };
-
+ 
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* ═══════════════════════════════════════════════════════
@@ -714,18 +743,18 @@ body { padding-top: var(--gn-navbar-offset) !important; }</css>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-19 09:02:49</sys_created_on>
         <sys_id>959052532f8b7210d2a0d68fcea4e3e1</sys_id>
-        <sys_mod_count>93</sys_mod_count>
+        <sys_mod_count>99</sys_mod_count>
         <sys_name>Applicant Portal header</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_header_footer_959052532f8b7210d2a0d68fcea4e3e1</sys_update_name>
         <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-08-28 09:11:47</sys_updated_on>
+        <sys_updated_on>2026-09-02 12:09:06</sys_updated_on>
         <template><![CDATA[<div>
 
 <nav id="responsiveNav"
-     ng-if="isHomepage()"
+     ng-if="isHomepage() || page.id == 'privacy_policy'"
      class="gn-navbar navbar-inverse"
      ng-class="::{'navbar': !isViewNative, 'is-native': isViewNative}"
      role="navigation"

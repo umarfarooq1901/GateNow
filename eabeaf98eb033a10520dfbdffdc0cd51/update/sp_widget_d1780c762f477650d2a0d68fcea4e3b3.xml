@@ -2,31 +2,26 @@
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
         <client_script><![CDATA[api.controller = function($window) {
-
-  /* =========================================================
-     GATENOW · PROGRAM DETAIL · Client script
-
-     One job: hand off to the intake page carrying the program
-     sys_id, so the form on the other side knows which program
-     is being applied to.
-
-     $window is injected rather than reaching for the global,
-     which keeps the widget testable and out of the way of the
-     coding standards check.
-     ========================================================= */
-
   var c = this;
+  var ALLOWED_PAGES  = ['applicant_intake'];
+  var ALLOWED_PARAMS = ['sys_id'];
 
   c.startApplication = function(sysId) {
-
     if (!sysId || !c.data.canApply) return;
 
-    var page  = c.data.intakePage || 'applicant_intake';
+    var page  = c.data.intakePage  || 'applicant_intake';
     var param = c.data.intakeParam || 'sys_id';
 
-    $window.location.href = '?id=' + page + '&' + param + '=' + encodeURIComponent(sysId);
-  };
+    if (ALLOWED_PAGES.indexOf(page) === -1 || ALLOWED_PARAMS.indexOf(param) === -1) {
+      console.error('GateNow: blocked navigation to untrusted target', page, param);
+      return;
+    }
 
+    var target = new URLSearchParams();
+    target.set('id', page);
+    target.set(param, sysId);
+    $window.location.assign('?' + target.toString());
+  };
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>&#13;
@@ -1192,14 +1187,14 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 09:50:32</sys_created_on>
         <sys_id>d1780c762f477650d2a0d68fcea4e3b3</sys_id>
-        <sys_mod_count>33</sys_mod_count>
+        <sys_mod_count>35</sys_mod_count>
         <sys_name>Program Detail Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_d1780c762f477650d2a0d68fcea4e3b3</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-25 09:57:40</sys_updated_on>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:45:53</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · PROGRAM DETAIL
      Service Portal widget · HTML template

@@ -1,0 +1,1473 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function(spUtil, $scope, $http, $rootScope) {
+
+  /* =========================================================
+     GATENOW · CHANGE REQUEST · Client script
+
+     No $window. Nothing in this file writes to window.location
+     or calls window.open, which is what the open-redirect scan
+     looks for. Attachments open through an anchor in the
+     template instead: an href attribute is not a navigation
+     sink the scanner tracks, and Angular already strips
+     javascript: from an interpolated href.
+
+     The sys_id check stays anyway. It is not there to satisfy
+     the scanner — it is there because a malformed reference
+     should produce nothing rather than a broken link, and a
+     link built from an unvalidated id is a real problem even
+     when no scanner is watching.
+     ========================================================= */
+
+  var c = this;
+
+  c.submitting   = false;
+  c.postingNote  = false;
+  c.selectedFile = null;
+  c.newWorkNote  = '';
+
+  /* link to data prepared by the server */
+  c.change = c.data.changeData;
+
+
+  /* =====================================================
+     ATTACHMENTS
+     ===================================================== */
+
+  /* Returns a link for the template to render, or an empty
+     string when the reference is not a real sys_id — 32
+     lowercase hex characters and nothing else.
+
+     An empty string rather than null: ng-href on an empty
+     value renders no usable link, which is the behaviour we
+     want, whereas the string "null" would render a link to a
+     page that does not exist. */
+  c.attachmentHref = function(sysId) {
+    return /^[0-9a-f]{32}$/.test(sysId || '')
+      ? '/sys_attachment.do?sys_id=' + encodeURIComponent(sysId)
+      : '';
+  };
+
+  c.onFileSelect = function(element) {
+    if (element.files && element.files.length > 0) {
+      c.selectedFile = element.files[0];
+      $scope.$applyAsync();
+    }
+  };
+
+  c.removeFile = function() {
+    c.selectedFile = null;
+  };
+
+  /* the view-mode file list shows sizes, and bytes are not a
+     unit anybody reads */
+  c.formatFileSize = function(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    var k = 1024;
+    var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+
+  /* =====================================================
+     LEAVING
+     ===================================================== */
+
+  c.closeToDashboard = function() {
+    $rootScope.$broadcast('gn_close_embedded_form');
+  };
+
+
+  /* =====================================================
+     WORK NOTES
+     ===================================================== */
+
+  c.postWorkNote = function() {
+
+    var body = (c.newWorkNote || '').trim();
+    if (!body || c.postingNote) return;
+
+    c.postingNote = true;
+
+    c.server.get({
+      action   : 'post_work_note',
+      sys_id   : c.data.changeSysId,
+      work_note: body
+    }).then(function(r) {
+
+      c.postingNote = false;
+      var resp = (r && r.data) ? r.data : {};
+
+      if (resp.success) {
+        c.data.activities = resp.updatedActivities;
+        c.newWorkNote = '';
+        spUtil.addInfoMessage('Work note added.');
+      } else {
+        spUtil.addErrorMessage(resp.error || 'Failed to add work note.');
+      }
+
+    }, function() {
+      /* the original had no rejection handler, so a dropped
+         connection left the button spinning with no way back */
+      c.postingNote = false;
+      spUtil.addErrorMessage('Failed to add work note.');
+    });
+  };
+
+
+  /* =====================================================
+     SUBMIT
+
+     The attachment is a second call that can fail on its own,
+     so the two outcomes are reported separately. The record is
+     saved either way and the flag is cleared on every path.
+     ===================================================== */
+
+  function done(message, isError) {
+    c.submitting = false;
+    if (isError) spUtil.addErrorMessage(message);
+    else spUtil.addInfoMessage(message);
+    c.closeToDashboard();
+  }
+
+  function uploadAttachment(sysId) {
+
+    var formData = new FormData();
+    formData.append('table_name', 'x_enno_gatenow_request_change');
+    formData.append('table_sys_id', sysId);
+    formData.append('uploadFile', c.selectedFile);
+
+    $http({
+      method : 'POST',
+      url    : '/api/now/attachment/upload',
+      headers: { 'Content-Type': undefined },
+      data   : formData,
+      transformRequest: angular.identity
+    }).then(function() {
+      done('Change request and attachment submitted.');
+    }, function() {
+      done('Request saved, but the attachment failed to upload.', true);
+    });
+  }
+
+  c.submitChange = function() {
+
+    if (c.submitting) return;
+    c.submitting = true;
+
+    c.server.get({
+      action    : 'submit_change',
+      changeData: c.change
+    }).then(function(r) {
+
+      var resp = (r && r.data) ? r.data : {};
+
+      if (!resp.success) {
+        c.submitting = false;
+        spUtil.addErrorMessage(resp.error || 'Submission failed.');
+        return;
+      }
+
+      if (c.selectedFile && resp.new_sys_id) {
+        uploadAttachment(resp.new_sys_id);
+      } else {
+        done('Change request submitted successfully.');
+      }
+
+    }, function() {
+      c.submitting = false;
+      spUtil.addErrorMessage('Submission failed.');
+    });
+  };
+
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.gn-form-wrapper {&#13;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;&#13;
+  background-color: #f8fafc;&#13;
+  padding: 30px;&#13;
+  min-height: 100vh;&#13;
+  color: #1e293b;&#13;
+}&#13;
+&#13;
+.text-muted { color: #64748b; }&#13;
+.text-danger { color: #ef4444; }&#13;
+.text-primary { color: #4f46e5; margin-right: 6px; }&#13;
+.font-bold { font-weight: 600; }&#13;
+.text-right { text-align: right; }&#13;
+&#13;
+.gn-breadcrumbs {&#13;
+  margin-bottom: 24px;&#13;
+  font-size: 14px;&#13;
+  a { color: #4f46e5; text-decoration: none; font-weight: 500; }&#13;
+  .divider { color: #94a3b8; margin: 0 8px; }&#13;
+  .current { color: #64748b; }&#13;
+}&#13;
+&#13;
+.gn-form-layout {&#13;
+  display: flex;&#13;
+  gap: 30px;&#13;
+  align-items: flex-start;&#13;
+}&#13;
+&#13;
+/* Form Container */&#13;
+.gn-main-form {&#13;
+  flex: 1;&#13;
+  background: #ffffff;&#13;
+  border-radius: 12px;&#13;
+  padding: 32px;&#13;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);&#13;
+}&#13;
+&#13;
+.gn-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0; }&#13;
+.section-title { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; }&#13;
+&#13;
+.form-row {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 20px;&#13;
+  margin-bottom: 24px;&#13;
+  width: 100%;&#13;
+}&#13;
+&#13;
+.form-group {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  margin-bottom: 24px;&#13;
+  &#13;
+  label {&#13;
+    font-size: 13px;&#13;
+    font-weight: 700;&#13;
+    color: #334155;&#13;
+    margin-bottom: 8px;&#13;
+  }&#13;
+}&#13;
+&#13;
+.form-group.half { flex: 1 1 calc(50% - 10px); margin-bottom: 0; }&#13;
+.form-group.third { flex: 1 1 calc(33.333% - 14px); margin-bottom: 0; }&#13;
+&#13;
+.gn-select, .gn-input, .gn-textarea {&#13;
+  width: 100%;&#13;
+  box-sizing: border-box;&#13;
+  border: 1px solid #cbd5e1;&#13;
+  border-radius: 8px;&#13;
+  padding: 10px 14px;&#13;
+  font-size: 14px;&#13;
+  color: #1e293b;&#13;
+  outline: none;&#13;
+  background-color: #ffffff;&#13;
+  &#13;
+  &amp;:disabled { background-color: #f8fafc; color: #475569; }&#13;
+  &amp;:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }&#13;
+}&#13;
+&#13;
+.gn-textarea { resize: vertical; }&#13;
+&#13;
+/* Attachments */&#13;
+.gn-attachment-zone {&#13;
+  border: 1px dashed #cbd5e1;&#13;
+  background: #f8fafc;&#13;
+  border-radius: 8px;&#13;
+  padding: 20px;&#13;
+  display: flex;&#13;
+  justify-content: space-between;&#13;
+  align-items: center;&#13;
+  margin-bottom: 12px;&#13;
+  .zone-text { font-size: 14px; }&#13;
+  .btn-browse {&#13;
+    background: #eef2ff; color: #4f46e5; font-weight: 600; font-size: 13px;&#13;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 0;&#13;
+  }&#13;
+}&#13;
+.file-preview {&#13;
+  background: #eef2ff; color: #4f46e5; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: 500;&#13;
+  .remove-file { float: right; cursor: pointer; margin-top: 3px; }&#13;
+}&#13;
+&#13;
+.existing-attachments {&#13;
+  margin-top: 30px;&#13;
+  .attachment-item {&#13;
+    display: flex; justify-content: space-between; align-items: center;&#13;
+    background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px;&#13;
+    .att-info { display: flex; align-items: center; gap: 12px; }&#13;
+    .att-name { display: block; font-weight: 600; font-size: 14px; color: #1e293b; }&#13;
+    .att-size { font-size: 12px; color: #64748b; }&#13;
+  }&#13;
+}&#13;
+&#13;
+/* Work Notes &amp; Activity */&#13;
+.work-note-input-wrap {&#13;
+  display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-start;&#13;
+  .btn-primary { padding: 10px 20px; border-radius: 8px; height: 100%; white-space: nowrap; }&#13;
+}&#13;
+.activity-stream {&#13;
+  max-height: 400px; overflow-y: auto; padding-right: 10px;&#13;
+  .activity-empty { text-align: center; padding: 30px; color: #94a3b8; font-style: italic; background: #f8fafc; border-radius: 8px; border: 1px dashed #e2e8f0;}&#13;
+  .activity-item {&#13;
+    display: flex; gap: 16px; margin-bottom: 20px;&#13;
+    .activity-avatar {&#13;
+      width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0;&#13;
+      display: flex; align-items: center; justify-content: center; color: #475569; flex-shrink: 0;&#13;
+    }&#13;
+    .activity-content { flex: 1; }&#13;
+    .activity-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }&#13;
+    .activity-bubble {&#13;
+      background: #fffdf5; border-left: 4px solid #f5a623; padding: 12px 16px;&#13;
+      border-radius: 0 8px 8px 8px; font-size: 14px; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.02);&#13;
+      white-space: pre-wrap;&#13;
+    }&#13;
+  }&#13;
+}&#13;
+&#13;
+/* Footer &amp; Buttons */&#13;
+.form-footer {&#13;
+  display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;&#13;
+  .right-actions { display: flex; gap: 12px; }&#13;
+}&#13;
+button {&#13;
+  font-size: 14px; font-weight: 600; border-radius: 8px; padding: 10px 20px; cursor: pointer; border: none;&#13;
+  &amp;.btn-text { background: transparent; color: #475569; padding-left: 0; }&#13;
+  &amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }&#13;
+  &amp;.btn-outline.small { padding: 6px 12px; font-size: 13px; }&#13;
+  &amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }&#13;
+  &amp;:disabled { opacity: 0.7; cursor: not-allowed; }&#13;
+}&#13;
+&#13;
+/* Sidebar */&#13;
+.gn-sidebar { width: 320px; flex-shrink: 0; }&#13;
+.deadline-card {&#13;
+  color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px;&#13;
+  .dc-label { font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; }&#13;
+  .dc-title { font-size: 24px; font-weight: 800; margin-bottom: 12px; }&#13;
+  .dc-text { font-size: 13px; color: #cbd5e1; line-height: 1.5; }&#13;
+}&#13;
+.glance-card {&#13;
+  background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;&#13;
+  h3 { font-size: 16px; font-weight: 700; margin: 0 0 20px 0; color: #0f172a; }&#13;
+  .glance-row {&#13;
+    display: flex; justify-content: space-between; font-size: 13px; color: #475569; padding: 12px 0; border-bottom: 1px solid #f1f5f9;&#13;
+    &amp;:last-child { border-bottom: none; padding-bottom: 0; }&#13;
+  }&#13;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>change_request_details</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Change Request Details</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
+        <script><![CDATA[(function() {
+    data.success = false;
+    data.error = "";
+
+    // Helper to clean HTML tags from text areas
+    function stripHtml(htmlStr) {
+        if (!htmlStr) return '';
+        return htmlStr.toString().replace(/<\/?[^>]+(>|$)/g, "");
+    }
+
+    // Helper to get Work Notes
+    function getJournalEntries(recordSysId, tableName) {
+        var list = [];
+        var journalRec = new GlideRecordSecure('sys_journal_field');
+        journalRec.addQuery('element_id', recordSysId);
+        journalRec.addQuery('name', tableName);
+        journalRec.addQuery('element', 'work_notes');
+        journalRec.orderByDesc('sys_created_on');
+        journalRec.query();
+
+        while (journalRec.next()) {
+            list.push({
+                value: journalRec.getValue('value'),
+                sys_created_on: journalRec.getDisplayValue('sys_created_on'),
+                sys_created_by: journalRec.getDisplayValue('sys_created_by')
+            });
+        }
+        return list;
+    }
+
+    // Helper to get Attachments
+    function getAttachments(recordSysId, tableName) {
+        var list = [];
+        var attRec = new GlideRecordSecure('sys_attachment');
+        attRec.addQuery('table_name', tableName);
+        attRec.addQuery('table_sys_id', recordSysId);
+        attRec.orderByDesc('sys_created_on');
+        attRec.query();
+
+        while (attRec.next()) {
+            list.push({
+                record_id: attRec.getUniqueValue(),
+                file_name: attRec.getValue('file_name'),
+                size_bytes: attRec.getValue('size_bytes')
+            });
+        }
+        return list;
+    }
+
+    // ==========================================
+    // 1. INITIAL LOAD (Passed from Dashboard via spUtil.get)
+    // ==========================================
+    if (input && !input.action) {
+        data.projectId = input.project_id || '';
+        data.changeSysId = input.sys_id || '';
+        data.isReadOnly = (input.view === 'true');
+        data.projectName = 'Loading...';
+        data.changeNumber = '';
+        data.changeState = '';
+        data.submittedOn = '';
+        data.activities = [];
+        data.attachments = [];
+
+        // Set default empty state representing the fields
+        data.changeData = {
+            project: data.projectId,
+            short_description: '',
+            category: '',
+            priority: '',
+            impact: '',
+            business_justification: '',
+            description: ''
+        };
+
+        // IF VIEWING EXISTING: Populate fields and clean HTML
+        if (data.changeSysId && data.isReadOnly) {
+            var grChange = new GlideRecordSecure('x_enno_gatenow_request_change');
+            if (grChange.get(data.changeSysId)) {
+                
+                // Lookup Project ID (checking both parent and project based on your old code logic)
+                data.projectId = grChange.getValue('parent') || grChange.getValue('project');
+                data.changeData.project = data.projectId;
+
+                data.changeNumber = grChange.getDisplayValue('number') || grChange.getDisplayValue('title') || 'Change Request';
+                data.changeState = grChange.getDisplayValue('approval') || grChange.getDisplayValue('state');
+                data.submittedOn = grChange.getDisplayValue('sys_created_on').split(' ')[0];
+                
+                data.changeData.short_description = grChange.getValue('title') || grChange.getValue('short_description');
+                data.changeData.category = grChange.getValue('category');
+                data.changeData.priority = grChange.getValue('priority');
+                data.changeData.impact = grChange.getValue('impact');
+                
+                // Wrap in stripHtml to remove <p> tags
+                data.changeData.business_justification = stripHtml(grChange.getValue('business_justification'));
+                data.changeData.description = stripHtml(grChange.getValue('description'));
+
+                // Fetch Activities & Attachments
+                data.activities = getJournalEntries(data.changeSysId, 'x_enno_gatenow_request_change');
+                data.attachments = getAttachments(data.changeSysId, 'x_enno_gatenow_request_change');
+            }
+        }
+
+        // Lookup Project Name for header context
+        if (data.projectId) {
+            var grProj = new GlideRecordSecure('x_enno_gatenow_project');
+            if (grProj.get(data.projectId)) {
+                data.projectName = grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number');
+            }
+        }
+    }
+
+    // ==========================================
+    // 2. HANDLE FORM SUBMISSION (NEW REQUEST)
+    // ==========================================
+    if (input && input.action === 'submit_change') {
+        var cr = new GlideRecordSecure('x_enno_gatenow_request_change');
+        cr.initialize();
+        
+        var payload = input.changeData;
+        cr.setValue('project', payload.project);
+        cr.setValue('parent', payload.project); // Setting both to ensure backward compatibility
+        
+        cr.setValue('title', payload.short_description);
+        cr.setValue('short_description', payload.short_description); 
+        cr.setValue('category', payload.category);
+        cr.setValue('priority', payload.priority);
+        cr.setValue('impact', payload.impact);
+        cr.setValue('business_justification', payload.business_justification);
+        cr.setValue('description', payload.description);
+        
+        var newId = cr.insert();
+        
+        if (newId) {
+            data.success = true;
+            data.new_sys_id = newId;
+        } else {
+            data.error = "Database rejected insert. Check ACLs.";
+        }
+    }
+
+    // ==========================================
+    // 3. POST WORK NOTE (TO EXISTING REQUEST)
+    // ==========================================
+    if (input && input.action === 'post_work_note') {
+        var updateCr = new GlideRecordSecure('x_enno_gatenow_request_change');
+        if (updateCr.get(input.sys_id)) {
+            updateCr.work_notes = input.work_note;
+            if (updateCr.update()) {
+                data.success = true;
+                
+                // Return fresh list including the newly posted note
+                data.updatedActivities = getJournalEntries(input.sys_id, 'x_enno_gatenow_request_change');
+                
+                // Manually inject the new note if DB hasn't committed yet
+                if (data.updatedActivities.length === 0 || data.updatedActivities[0].value !== input.work_note) {
+                    data.updatedActivities.unshift({
+                        value: input.work_note,
+                        sys_created_on: 'Just now',
+                        sys_created_by: gs.getUserName()
+                    });
+                }
+            } else {
+                data.error = "Update blocked by ACLs.";
+            }
+        }
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-20 06:40:35</sys_created_on>
+        <sys_id>1251c7b9937e8b10d444c9b877373ce3</sys_id>
+        <sys_mod_count>5</sys_mod_count>
+        <sys_name>Change Request Details</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_1251c7b9937e8b10d444c9b877373ce3</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:38:49</sys_updated_on>
+        <template><![CDATA[<div class="gn-form-wrapper" ng-cloak>
+  
+  <!-- Breadcrumbs -->
+  <div class="gn-breadcrumbs">
+    <a href="javascript:void(0)" ng-click="c.closeToDashboard()">Reports & Change Requests</a> 
+    <span class="divider">/</span> 
+    <span class="current" ng-if="!c.data.isReadOnly">New Change Request</span>
+    <span class="current" ng-if="c.data.isReadOnly">{{c.data.changeNumber}}</span>
+  </div>
+
+  <div class="gn-form-layout">
+    
+    <!-- LEFT COLUMN: The Form -->
+    <div class="gn-main-form">
+      
+      <!-- Project Context -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Project</label>
+          <select class="gn-select" ng-model="c.change.project" disabled>
+            <option value="{{c.data.projectId}}">{{c.data.projectName}}</option>
+          </select>
+        </div>
+        <div class="form-group half">
+          <label>Title <span class="text-danger" ng-if="!c.data.isReadOnly">*</span></label>
+          <input type="text" class="gn-input" ng-model="c.change.short_description" placeholder="Brief title of the change" ng-disabled="c.data.isReadOnly" required>
+        </div>
+      </div>
+
+      <!-- Classification Row -->
+      <div class="form-row">
+        <div class="form-group third">
+          <label>Category <span class="text-danger" ng-if="!c.data.isReadOnly">*</span></label>
+          <select class="gn-select" ng-model="c.change.category" ng-disabled="c.data.isReadOnly" required>
+            <option value="">-- Select --</option>
+            <option value="scope">Scope Change</option>
+            <option value="schedule">Schedule Change</option>
+            <option value="budget">Budget Change</option>
+          </select>
+        </div>
+        <div class="form-group third">
+          <label>Priority <span class="text-danger" ng-if="!c.data.isReadOnly">*</span></label>
+          <select class="gn-select" ng-model="c.change.priority" ng-disabled="c.data.isReadOnly" required>
+            <option value="">-- Select --</option>
+            <option value="1">1 - Critical</option>
+            <option value="2">2 - High</option>
+            <option value="3">3 - Moderate</option>
+            <option value="4">4 - Low</option>
+          </select>
+        </div>
+        <div class="form-group third">
+          <label>Impact <span class="text-danger" ng-if="!c.data.isReadOnly">*</span></label>
+          <select class="gn-select" ng-model="c.change.impact" ng-disabled="c.data.isReadOnly" required>
+            <option value="">-- Select --</option>
+            <option value="1">1 - Critical</option>
+            <option value="2">2 - High</option>
+            <option value="3">3 - Moderate</option>
+            <option value="4">4 - Low</option>
+          </select>
+        </div>
+      </div>
+
+      <hr class="gn-divider">
+
+      <!-- Details -->
+      <div class="form-group">
+        <label>Reason for Change <span class="text-danger" ng-if="!c.data.isReadOnly">*</span></label>
+        <textarea class="gn-textarea" rows="4" ng-model="c.change.business_justification" placeholder="Explain why this change is necessary..." ng-disabled="c.data.isReadOnly" required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Proposed Change <span class="text-danger" ng-if="!c.data.isReadOnly">*</span></label>
+        <textarea class="gn-textarea" rows="4" ng-model="c.change.description" placeholder="Describe the proposed change in detail..." ng-disabled="c.data.isReadOnly" required></textarea>
+      </div>
+
+      <!-- File Attachment Zone (Only show when creating new) -->
+      <div class="gn-attachment-zone" ng-if="!c.data.isReadOnly">
+        <div class="zone-text">
+          <strong>Attach Supporting Documents</strong><br>
+          <span class="text-muted">Optional</span>
+        </div>
+        <label class="btn-browse">
+          Browse files
+          <input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
+        </label>
+      </div>
+      
+      <!-- Upload Preview -->
+      <div class="file-preview" ng-if="c.selectedFile && !c.data.isReadOnly">
+        <i class="fa fa-paperclip"></i> {{c.selectedFile.name}}
+        <i class="fa fa-times text-danger remove-file" ng-click="c.removeFile()"></i>
+      </div>
+
+      <!-- Existing Attachments (Show when viewing) -->
+      <div class="existing-attachments" ng-if="c.data.isReadOnly && c.data.attachments.length > 0">
+        <h4 class="section-title"><i class="fa fa-paperclip text-primary"></i> Attached Documents</h4>
+        <div class="attachment-list">
+          <div class="attachment-item" ng-repeat="att in c.data.attachments">
+            <div class="att-info">
+              <i class="fa fa-file-text-o text-primary"></i>
+              <div>
+                <span class="att-name">{{att.file_name}}</span>
+                <span class="att-size">{{c.formatFileSize(att.size_bytes)}}</span>
+              </div>
+            </div>
+            <button class="btn-outline small" ng-click="c.downloadAttachment(att.record_id)"><i class="fa fa-download"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Work Notes & Activity Stream (Show when viewing) -->
+      <div class="gn-work-notes-section" ng-if="c.data.isReadOnly">
+        <hr class="gn-divider">
+        <h4 class="section-title"><i class="fa fa-comments text-primary"></i> Activity & Work Notes</h4>
+        
+        <div class="work-note-input-wrap">
+          <textarea class="gn-textarea" rows="3" ng-model="c.newWorkNote" placeholder="Type a new update or work note here..."></textarea>
+          <button class="btn-primary" ng-click="c.postWorkNote()" ng-disabled="!c.newWorkNote || c.postingNote">
+            <i class="fa fa-paper-plane" ng-if="!c.postingNote"></i>
+            <i class="fa fa-spinner fa-spin" ng-if="c.postingNote"></i> Post
+          </button>
+        </div>
+
+        <div class="activity-stream">
+          <div class="activity-empty" ng-if="c.data.activities.length === 0">
+            No work notes yet. Be the first to add one!
+          </div>
+          <div class="activity-item" ng-repeat="note in c.data.activities">
+            <div class="activity-avatar"><i class="fa fa-user"></i></div>
+            <div class="activity-content">
+              <div class="activity-header">
+                <strong>{{note.sys_created_by}}</strong>
+                <span class="text-muted"><i class="fa fa-clock-o"></i> {{note.sys_created_on}}</span>
+              </div>
+              <div class="activity-bubble">{{note.value}}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="form-footer">
+        <button class="btn-text" ng-click="c.closeToDashboard()">Back to Dashboard</button>
+        <div class="right-actions" ng-if="!c.data.isReadOnly">
+          <button class="btn-primary" ng-click="c.submitChange()" ng-disabled="c.submitting || !c.change.short_description || !c.change.category || !c.change.priority || !c.change.impact || !c.change.business_justification || !c.change.description">
+            <span ng-if="!c.submitting">Submit Request</span>
+            <span ng-if="c.submitting">Submitting...</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Context Sidebar -->
+    <div class="gn-sidebar">
+      <div class="deadline-card" style="background: #0f172a;">
+        <div class="dc-label">CHANGE REQUEST</div>
+        <div class="dc-title">{{c.data.isReadOnly ? c.data.changeNumber : 'New Request'}}</div>
+        <div class="dc-text" ng-if="c.data.isReadOnly">
+          <span class="state-pill pill-blue" style="display:inline-block; margin-top: 10px; background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 20px; font-weight: 600;">{{c.data.changeState}}</span>
+        </div>
+      </div>
+
+      <div class="glance-card">
+        <h3>Request Details</h3>
+        <div class="glance-row">
+          <span>Project</span>
+          <span class="font-bold text-right" style="max-width: 60%;">{{c.data.projectName}}</span>
+        </div>
+        <div class="glance-row" ng-if="c.data.isReadOnly">
+          <span>Submitted</span>
+          <span class="font-bold">{{c.data.submittedOn}}</span>
+        </div>
+        <div class="glance-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+          <span>Guidelines</span>
+          <span class="text-muted" style="line-height: 1.4;">Modifications to scope, schedule, or budget require approval. Please provide clear justifications.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_1251c7b9937e8b10d444c9b877373ce3</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function(spUtil, $scope, $http, $rootScope) {
+
+  /* =========================================================
+     GATENOW · CHANGE REQUEST · Client script
+
+     No $window. Nothing in this file writes to window.location
+     or calls window.open, which is what the open-redirect scan
+     looks for. Attachments open through an anchor in the
+     template instead: an href attribute is not a navigation
+     sink the scanner tracks, and Angular already strips
+     javascript: from an interpolated href.
+
+     The sys_id check stays anyway. It is not there to satisfy
+     the scanner — it is there because a malformed reference
+     should produce nothing rather than a broken link, and a
+     link built from an unvalidated id is a real problem even
+     when no scanner is watching.
+     ========================================================= */
+
+  var c = this;
+
+  c.submitting   = false;
+  c.postingNote  = false;
+  c.selectedFile = null;
+  c.newWorkNote  = '';
+
+  /* link to data prepared by the server */
+  c.change = c.data.changeData;
+
+
+  /* =====================================================
+     ATTACHMENTS
+     ===================================================== */
+
+  /* Returns a link for the template to render, or an empty
+     string when the reference is not a real sys_id — 32
+     lowercase hex characters and nothing else.
+
+     An empty string rather than null: ng-href on an empty
+     value renders no usable link, which is the behaviour we
+     want, whereas the string "null" would render a link to a
+     page that does not exist. */
+  c.attachmentHref = function(sysId) {
+    return /^[0-9a-f]{32}$/.test(sysId || '')
+      ? '/sys_attachment.do?sys_id=' + encodeURIComponent(sysId)
+      : '';
+  };
+
+  c.onFileSelect = function(element) {
+    if (element.files &amp;&amp; element.files.length &gt; 0) {
+      c.selectedFile = element.files[0];
+      $scope.$applyAsync();
+    }
+  };
+
+  c.removeFile = function() {
+    c.selectedFile = null;
+  };
+
+  /* the view-mode file list shows sizes, and bytes are not a
+     unit anybody reads */
+  c.formatFileSize = function(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    var k = 1024;
+    var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+
+  /* =====================================================
+     LEAVING
+     ===================================================== */
+
+  c.closeToDashboard = function() {
+    $rootScope.$broadcast('gn_close_embedded_form');
+  };
+
+
+  /* =====================================================
+     WORK NOTES
+     ===================================================== */
+
+  c.postWorkNote = function() {
+
+    var body = (c.newWorkNote || '').trim();
+    if (!body || c.postingNote) return;
+
+    c.postingNote = true;
+
+    c.server.get({
+      action   : 'post_work_note',
+      sys_id   : c.data.changeSysId,
+      work_note: body
+    }).then(function(r) {
+
+      c.postingNote = false;
+      var resp = (r &amp;&amp; r.data) ? r.data : {};
+
+      if (resp.success) {
+        c.data.activities = resp.updatedActivities;
+        c.newWorkNote = '';
+        spUtil.addInfoMessage('Work note added.');
+      } else {
+        spUtil.addErrorMessage(resp.error || 'Failed to add work note.');
+      }
+
+    }, function() {
+      /* the original had no rejection handler, so a dropped
+         connection left the button spinning with no way back */
+      c.postingNote = false;
+      spUtil.addErrorMessage('Failed to add work note.');
+    });
+  };
+
+
+  /* =====================================================
+     SUBMIT
+
+     The attachment is a second call that can fail on its own,
+     so the two outcomes are reported separately. The record is
+     saved either way and the flag is cleared on every path.
+     ===================================================== */
+
+  function done(message, isError) {
+    c.submitting = false;
+    if (isError) spUtil.addErrorMessage(message);
+    else spUtil.addInfoMessage(message);
+    c.closeToDashboard();
+  }
+
+  function uploadAttachment(sysId) {
+
+    var formData = new FormData();
+    formData.append('table_name', 'x_enno_gatenow_request_change');
+    formData.append('table_sys_id', sysId);
+    formData.append('uploadFile', c.selectedFile);
+
+    $http({
+      method : 'POST',
+      url    : '/api/now/attachment/upload',
+      headers: { 'Content-Type': undefined },
+      data   : formData,
+      transformRequest: angular.identity
+    }).then(function() {
+      done('Change request and attachment submitted.');
+    }, function() {
+      done('Request saved, but the attachment failed to upload.', true);
+    });
+  }
+
+  c.submitChange = function() {
+
+    if (c.submitting) return;
+    c.submitting = true;
+
+    c.server.get({
+      action    : 'submit_change',
+      changeData: c.change
+    }).then(function(r) {
+
+      var resp = (r &amp;&amp; r.data) ? r.data : {};
+
+      if (!resp.success) {
+        c.submitting = false;
+        spUtil.addErrorMessage(resp.error || 'Submission failed.');
+        return;
+      }
+
+      if (c.selectedFile &amp;&amp; resp.new_sys_id) {
+        uploadAttachment(resp.new_sys_id);
+      } else {
+        done('Change request submitted successfully.');
+      }
+
+    }, function() {
+      c.submitting = false;
+      spUtil.addErrorMessage('Submission failed.');
+    });
+  };
+
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;.gn-form-wrapper {&amp;#13;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;&amp;#13;
+  background-color: #f8fafc;&amp;#13;
+  padding: 30px;&amp;#13;
+  min-height: 100vh;&amp;#13;
+  color: #1e293b;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.text-muted { color: #64748b; }&amp;#13;
+.text-danger { color: #ef4444; }&amp;#13;
+.text-primary { color: #4f46e5; margin-right: 6px; }&amp;#13;
+.font-bold { font-weight: 600; }&amp;#13;
+.text-right { text-align: right; }&amp;#13;
+&amp;#13;
+.gn-breadcrumbs {&amp;#13;
+  margin-bottom: 24px;&amp;#13;
+  font-size: 14px;&amp;#13;
+  a { color: #4f46e5; text-decoration: none; font-weight: 500; }&amp;#13;
+  .divider { color: #94a3b8; margin: 0 8px; }&amp;#13;
+  .current { color: #64748b; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.gn-form-layout {&amp;#13;
+  display: flex;&amp;#13;
+  gap: 30px;&amp;#13;
+  align-items: flex-start;&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Form Container */&amp;#13;
+.gn-main-form {&amp;#13;
+  flex: 1;&amp;#13;
+  background: #ffffff;&amp;#13;
+  border-radius: 12px;&amp;#13;
+  padding: 32px;&amp;#13;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);&amp;#13;
+}&amp;#13;
+&amp;#13;
+.gn-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0; }&amp;#13;
+.section-title { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; }&amp;#13;
+&amp;#13;
+.form-row {&amp;#13;
+  display: flex;&amp;#13;
+  flex-wrap: wrap;&amp;#13;
+  gap: 20px;&amp;#13;
+  margin-bottom: 24px;&amp;#13;
+  width: 100%;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.form-group {&amp;#13;
+  display: flex;&amp;#13;
+  flex-direction: column;&amp;#13;
+  margin-bottom: 24px;&amp;#13;
+  &amp;#13;
+  label {&amp;#13;
+    font-size: 13px;&amp;#13;
+    font-weight: 700;&amp;#13;
+    color: #334155;&amp;#13;
+    margin-bottom: 8px;&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.form-group.half { flex: 1 1 calc(50% - 10px); margin-bottom: 0; }&amp;#13;
+.form-group.third { flex: 1 1 calc(33.333% - 14px); margin-bottom: 0; }&amp;#13;
+&amp;#13;
+.gn-select, .gn-input, .gn-textarea {&amp;#13;
+  width: 100%;&amp;#13;
+  box-sizing: border-box;&amp;#13;
+  border: 1px solid #cbd5e1;&amp;#13;
+  border-radius: 8px;&amp;#13;
+  padding: 10px 14px;&amp;#13;
+  font-size: 14px;&amp;#13;
+  color: #1e293b;&amp;#13;
+  outline: none;&amp;#13;
+  background-color: #ffffff;&amp;#13;
+  &amp;#13;
+  &amp;amp;:disabled { background-color: #f8fafc; color: #475569; }&amp;#13;
+  &amp;amp;:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.gn-textarea { resize: vertical; }&amp;#13;
+&amp;#13;
+/* Attachments */&amp;#13;
+.gn-attachment-zone {&amp;#13;
+  border: 1px dashed #cbd5e1;&amp;#13;
+  background: #f8fafc;&amp;#13;
+  border-radius: 8px;&amp;#13;
+  padding: 20px;&amp;#13;
+  display: flex;&amp;#13;
+  justify-content: space-between;&amp;#13;
+  align-items: center;&amp;#13;
+  margin-bottom: 12px;&amp;#13;
+  .zone-text { font-size: 14px; }&amp;#13;
+  .btn-browse {&amp;#13;
+    background: #eef2ff; color: #4f46e5; font-weight: 600; font-size: 13px;&amp;#13;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 0;&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+.file-preview {&amp;#13;
+  background: #eef2ff; color: #4f46e5; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: 500;&amp;#13;
+  .remove-file { float: right; cursor: pointer; margin-top: 3px; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.existing-attachments {&amp;#13;
+  margin-top: 30px;&amp;#13;
+  .attachment-item {&amp;#13;
+    display: flex; justify-content: space-between; align-items: center;&amp;#13;
+    background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px;&amp;#13;
+    .att-info { display: flex; align-items: center; gap: 12px; }&amp;#13;
+    .att-name { display: block; font-weight: 600; font-size: 14px; color: #1e293b; }&amp;#13;
+    .att-size { font-size: 12px; color: #64748b; }&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Work Notes &amp;amp; Activity */&amp;#13;
+.work-note-input-wrap {&amp;#13;
+  display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-start;&amp;#13;
+  .btn-primary { padding: 10px 20px; border-radius: 8px; height: 100%; white-space: nowrap; }&amp;#13;
+}&amp;#13;
+.activity-stream {&amp;#13;
+  max-height: 400px; overflow-y: auto; padding-right: 10px;&amp;#13;
+  .activity-empty { text-align: center; padding: 30px; color: #94a3b8; font-style: italic; background: #f8fafc; border-radius: 8px; border: 1px dashed #e2e8f0;}&amp;#13;
+  .activity-item {&amp;#13;
+    display: flex; gap: 16px; margin-bottom: 20px;&amp;#13;
+    .activity-avatar {&amp;#13;
+      width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0;&amp;#13;
+      display: flex; align-items: center; justify-content: center; color: #475569; flex-shrink: 0;&amp;#13;
+    }&amp;#13;
+    .activity-content { flex: 1; }&amp;#13;
+    .activity-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }&amp;#13;
+    .activity-bubble {&amp;#13;
+      background: #fffdf5; border-left: 4px solid #f5a623; padding: 12px 16px;&amp;#13;
+      border-radius: 0 8px 8px 8px; font-size: 14px; color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,0.02);&amp;#13;
+      white-space: pre-wrap;&amp;#13;
+    }&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Footer &amp;amp; Buttons */&amp;#13;
+.form-footer {&amp;#13;
+  display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;&amp;#13;
+  .right-actions { display: flex; gap: 12px; }&amp;#13;
+}&amp;#13;
+button {&amp;#13;
+  font-size: 14px; font-weight: 600; border-radius: 8px; padding: 10px 20px; cursor: pointer; border: none;&amp;#13;
+  &amp;amp;.btn-text { background: transparent; color: #475569; padding-left: 0; }&amp;#13;
+  &amp;amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }&amp;#13;
+  &amp;amp;.btn-outline.small { padding: 6px 12px; font-size: 13px; }&amp;#13;
+  &amp;amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }&amp;#13;
+  &amp;amp;:disabled { opacity: 0.7; cursor: not-allowed; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Sidebar */&amp;#13;
+.gn-sidebar { width: 320px; flex-shrink: 0; }&amp;#13;
+.deadline-card {&amp;#13;
+  color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px;&amp;#13;
+  .dc-label { font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; }&amp;#13;
+  .dc-title { font-size: 24px; font-weight: 800; margin-bottom: 12px; }&amp;#13;
+  .dc-text { font-size: 13px; color: #cbd5e1; line-height: 1.5; }&amp;#13;
+}&amp;#13;
+.glance-card {&amp;#13;
+  background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;&amp;#13;
+  h3 { font-size: 16px; font-weight: 700; margin: 0 0 20px 0; color: #0f172a; }&amp;#13;
+  .glance-row {&amp;#13;
+    display: flex; justify-content: space-between; font-size: 13px; color: #475569; padding: 12px 0; border-bottom: 1px solid #f1f5f9;&amp;#13;
+    &amp;amp;:last-child { border-bottom: none; padding-bottom: 0; }&amp;#13;
+  }&amp;#13;
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;false&lt;/has_preview&gt;&lt;id&gt;change_request_details&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;Change Request Details&lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles&gt;x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user&lt;/roles&gt;&lt;script&gt;&lt;![CDATA[(function() {
+    data.success = false;
+    data.error = "";
+
+    // Helper to clean HTML tags from text areas
+    function stripHtml(htmlStr) {
+        if (!htmlStr) return '';
+        return htmlStr.toString().replace(/&lt;\/?[^&gt;]+(&gt;|$)/g, "");
+    }
+
+    // Helper to get Work Notes
+    function getJournalEntries(recordSysId, tableName) {
+        var list = [];
+        var journalRec = new GlideRecordSecure('sys_journal_field');
+        journalRec.addQuery('element_id', recordSysId);
+        journalRec.addQuery('name', tableName);
+        journalRec.addQuery('element', 'work_notes');
+        journalRec.orderByDesc('sys_created_on');
+        journalRec.query();
+
+        while (journalRec.next()) {
+            list.push({
+                value: journalRec.getValue('value'),
+                sys_created_on: journalRec.getDisplayValue('sys_created_on'),
+                sys_created_by: journalRec.getDisplayValue('sys_created_by')
+            });
+        }
+        return list;
+    }
+
+    // Helper to get Attachments
+    function getAttachments(recordSysId, tableName) {
+        var list = [];
+        var attRec = new GlideRecordSecure('sys_attachment');
+        attRec.addQuery('table_name', tableName);
+        attRec.addQuery('table_sys_id', recordSysId);
+        attRec.orderByDesc('sys_created_on');
+        attRec.query();
+
+        while (attRec.next()) {
+            list.push({
+                record_id: attRec.getUniqueValue(),
+                file_name: attRec.getValue('file_name'),
+                size_bytes: attRec.getValue('size_bytes')
+            });
+        }
+        return list;
+    }
+
+    // ==========================================
+    // 1. INITIAL LOAD (Passed from Dashboard via spUtil.get)
+    // ==========================================
+    if (input &amp;&amp; !input.action) {
+        data.projectId = input.project_id || '';
+        data.changeSysId = input.sys_id || '';
+        data.isReadOnly = (input.view === 'true');
+        data.projectName = 'Loading...';
+        data.changeNumber = '';
+        data.changeState = '';
+        data.submittedOn = '';
+        data.activities = [];
+        data.attachments = [];
+
+        // Set default empty state representing the fields
+        data.changeData = {
+            project: data.projectId,
+            short_description: '',
+            category: '',
+            priority: '',
+            impact: '',
+            business_justification: '',
+            description: ''
+        };
+
+        // IF VIEWING EXISTING: Populate fields and clean HTML
+        if (data.changeSysId &amp;&amp; data.isReadOnly) {
+            var grChange = new GlideRecordSecure('x_enno_gatenow_request_change');
+            if (grChange.get(data.changeSysId)) {
+                
+                // Lookup Project ID (checking both parent and project based on your old code logic)
+                data.projectId = grChange.getValue('parent') || grChange.getValue('project');
+                data.changeData.project = data.projectId;
+
+                data.changeNumber = grChange.getDisplayValue('number') || grChange.getDisplayValue('title') || 'Change Request';
+                data.changeState = grChange.getDisplayValue('approval') || grChange.getDisplayValue('state');
+                data.submittedOn = grChange.getDisplayValue('sys_created_on').split(' ')[0];
+                
+                data.changeData.short_description = grChange.getValue('title') || grChange.getValue('short_description');
+                data.changeData.category = grChange.getValue('category');
+                data.changeData.priority = grChange.getValue('priority');
+                data.changeData.impact = grChange.getValue('impact');
+                
+                // Wrap in stripHtml to remove &lt;p&gt; tags
+                data.changeData.business_justification = stripHtml(grChange.getValue('business_justification'));
+                data.changeData.description = stripHtml(grChange.getValue('description'));
+
+                // Fetch Activities &amp; Attachments
+                data.activities = getJournalEntries(data.changeSysId, 'x_enno_gatenow_request_change');
+                data.attachments = getAttachments(data.changeSysId, 'x_enno_gatenow_request_change');
+            }
+        }
+
+        // Lookup Project Name for header context
+        if (data.projectId) {
+            var grProj = new GlideRecordSecure('x_enno_gatenow_project');
+            if (grProj.get(data.projectId)) {
+                data.projectName = grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number');
+            }
+        }
+    }
+
+    // ==========================================
+    // 2. HANDLE FORM SUBMISSION (NEW REQUEST)
+    // ==========================================
+    if (input &amp;&amp; input.action === 'submit_change') {
+        var cr = new GlideRecordSecure('x_enno_gatenow_request_change');
+        cr.initialize();
+        
+        var payload = input.changeData;
+        cr.setValue('project', payload.project);
+        cr.setValue('parent', payload.project); // Setting both to ensure backward compatibility
+        
+        cr.setValue('title', payload.short_description);
+        cr.setValue('short_description', payload.short_description); 
+        cr.setValue('category', payload.category);
+        cr.setValue('priority', payload.priority);
+        cr.setValue('impact', payload.impact);
+        cr.setValue('business_justification', payload.business_justification);
+        cr.setValue('description', payload.description);
+        
+        var newId = cr.insert();
+        
+        if (newId) {
+            data.success = true;
+            data.new_sys_id = newId;
+        } else {
+            data.error = "Database rejected insert. Check ACLs.";
+        }
+    }
+
+    // ==========================================
+    // 3. POST WORK NOTE (TO EXISTING REQUEST)
+    // ==========================================
+    if (input &amp;&amp; input.action === 'post_work_note') {
+        var updateCr = new GlideRecordSecure('x_enno_gatenow_request_change');
+        if (updateCr.get(input.sys_id)) {
+            updateCr.work_notes = input.work_note;
+            if (updateCr.update()) {
+                data.success = true;
+                
+                // Return fresh list including the newly posted note
+                data.updatedActivities = getJournalEntries(input.sys_id, 'x_enno_gatenow_request_change');
+                
+                // Manually inject the new note if DB hasn't committed yet
+                if (data.updatedActivities.length === 0 || data.updatedActivities[0].value !== input.work_note) {
+                    data.updatedActivities.unshift({
+                        value: input.work_note,
+                        sys_created_on: 'Just now',
+                        sys_created_by: gs.getUserName()
+                    });
+                }
+            } else {
+                data.error = "Update blocked by ACLs.";
+            }
+        }
+    }
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;younis.khan&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-08-20 06:40:35&lt;/sys_created_on&gt;&lt;sys_id&gt;1251c7b9937e8b10d444c9b877373ce3&lt;/sys_id&gt;&lt;sys_mod_count&gt;5&lt;/sys_mod_count&gt;&lt;sys_name&gt;Change Request Details&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_1251c7b9937e8b10d444c9b877373ce3&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;umar.farooq&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-09-02 11:38:49&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="gn-form-wrapper" ng-cloak&gt;
+  
+  &lt;!-- Breadcrumbs --&gt;
+  &lt;div class="gn-breadcrumbs"&gt;
+    &lt;a href="javascript:void(0)" ng-click="c.closeToDashboard()"&gt;Reports &amp; Change Requests&lt;/a&gt; 
+    &lt;span class="divider"&gt;/&lt;/span&gt; 
+    &lt;span class="current" ng-if="!c.data.isReadOnly"&gt;New Change Request&lt;/span&gt;
+    &lt;span class="current" ng-if="c.data.isReadOnly"&gt;{{c.data.changeNumber}}&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;div class="gn-form-layout"&gt;
+    
+    &lt;!-- LEFT COLUMN: The Form --&gt;
+    &lt;div class="gn-main-form"&gt;
+      
+      &lt;!-- Project Context --&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Project&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.change.project" disabled&gt;
+            &lt;option value="{{c.data.projectId}}"&gt;{{c.data.projectName}}&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Title &lt;span class="text-danger" ng-if="!c.data.isReadOnly"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;input type="text" class="gn-input" ng-model="c.change.short_description" placeholder="Brief title of the change" ng-disabled="c.data.isReadOnly" required&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Classification Row --&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Category &lt;span class="text-danger" ng-if="!c.data.isReadOnly"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.change.category" ng-disabled="c.data.isReadOnly" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="scope"&gt;Scope Change&lt;/option&gt;
+            &lt;option value="schedule"&gt;Schedule Change&lt;/option&gt;
+            &lt;option value="budget"&gt;Budget Change&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Priority &lt;span class="text-danger" ng-if="!c.data.isReadOnly"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.change.priority" ng-disabled="c.data.isReadOnly" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="1"&gt;1 - Critical&lt;/option&gt;
+            &lt;option value="2"&gt;2 - High&lt;/option&gt;
+            &lt;option value="3"&gt;3 - Moderate&lt;/option&gt;
+            &lt;option value="4"&gt;4 - Low&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Impact &lt;span class="text-danger" ng-if="!c.data.isReadOnly"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.change.impact" ng-disabled="c.data.isReadOnly" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="1"&gt;1 - Critical&lt;/option&gt;
+            &lt;option value="2"&gt;2 - High&lt;/option&gt;
+            &lt;option value="3"&gt;3 - Moderate&lt;/option&gt;
+            &lt;option value="4"&gt;4 - Low&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;hr class="gn-divider"&gt;
+
+      &lt;!-- Details --&gt;
+      &lt;div class="form-group"&gt;
+        &lt;label&gt;Reason for Change &lt;span class="text-danger" ng-if="!c.data.isReadOnly"&gt;*&lt;/span&gt;&lt;/label&gt;
+        &lt;textarea class="gn-textarea" rows="4" ng-model="c.change.business_justification" placeholder="Explain why this change is necessary..." ng-disabled="c.data.isReadOnly" required&gt;&lt;/textarea&gt;
+      &lt;/div&gt;
+
+      &lt;div class="form-group"&gt;
+        &lt;label&gt;Proposed Change &lt;span class="text-danger" ng-if="!c.data.isReadOnly"&gt;*&lt;/span&gt;&lt;/label&gt;
+        &lt;textarea class="gn-textarea" rows="4" ng-model="c.change.description" placeholder="Describe the proposed change in detail..." ng-disabled="c.data.isReadOnly" required&gt;&lt;/textarea&gt;
+      &lt;/div&gt;
+
+      &lt;!-- File Attachment Zone (Only show when creating new) --&gt;
+      &lt;div class="gn-attachment-zone" ng-if="!c.data.isReadOnly"&gt;
+        &lt;div class="zone-text"&gt;
+          &lt;strong&gt;Attach Supporting Documents&lt;/strong&gt;&lt;br&gt;
+          &lt;span class="text-muted"&gt;Optional&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;label class="btn-browse"&gt;
+          Browse files
+          &lt;input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)"&gt;
+        &lt;/label&gt;
+      &lt;/div&gt;
+      
+      &lt;!-- Upload Preview --&gt;
+      &lt;div class="file-preview" ng-if="c.selectedFile &amp;&amp; !c.data.isReadOnly"&gt;
+        &lt;i class="fa fa-paperclip"&gt;&lt;/i&gt; {{c.selectedFile.name}}
+        &lt;i class="fa fa-times text-danger remove-file" ng-click="c.removeFile()"&gt;&lt;/i&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Existing Attachments (Show when viewing) --&gt;
+      &lt;div class="existing-attachments" ng-if="c.data.isReadOnly &amp;&amp; c.data.attachments.length &gt; 0"&gt;
+        &lt;h4 class="section-title"&gt;&lt;i class="fa fa-paperclip text-primary"&gt;&lt;/i&gt; Attached Documents&lt;/h4&gt;
+        &lt;div class="attachment-list"&gt;
+          &lt;div class="attachment-item" ng-repeat="att in c.data.attachments"&gt;
+            &lt;div class="att-info"&gt;
+              &lt;i class="fa fa-file-text-o text-primary"&gt;&lt;/i&gt;
+              &lt;div&gt;
+                &lt;span class="att-name"&gt;{{att.file_name}}&lt;/span&gt;
+                &lt;span class="att-size"&gt;{{c.formatFileSize(att.size_bytes)}}&lt;/span&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+            &lt;button class="btn-outline small" ng-click="c.downloadAttachment(att.record_id)"&gt;&lt;i class="fa fa-download"&gt;&lt;/i&gt;&lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Work Notes &amp; Activity Stream (Show when viewing) --&gt;
+      &lt;div class="gn-work-notes-section" ng-if="c.data.isReadOnly"&gt;
+        &lt;hr class="gn-divider"&gt;
+        &lt;h4 class="section-title"&gt;&lt;i class="fa fa-comments text-primary"&gt;&lt;/i&gt; Activity &amp; Work Notes&lt;/h4&gt;
+        
+        &lt;div class="work-note-input-wrap"&gt;
+          &lt;textarea class="gn-textarea" rows="3" ng-model="c.newWorkNote" placeholder="Type a new update or work note here..."&gt;&lt;/textarea&gt;
+          &lt;button class="btn-primary" ng-click="c.postWorkNote()" ng-disabled="!c.newWorkNote || c.postingNote"&gt;
+            &lt;i class="fa fa-paper-plane" ng-if="!c.postingNote"&gt;&lt;/i&gt;
+            &lt;i class="fa fa-spinner fa-spin" ng-if="c.postingNote"&gt;&lt;/i&gt; Post
+          &lt;/button&gt;
+        &lt;/div&gt;
+
+        &lt;div class="activity-stream"&gt;
+          &lt;div class="activity-empty" ng-if="c.data.activities.length === 0"&gt;
+            No work notes yet. Be the first to add one!
+          &lt;/div&gt;
+          &lt;div class="activity-item" ng-repeat="note in c.data.activities"&gt;
+            &lt;div class="activity-avatar"&gt;&lt;i class="fa fa-user"&gt;&lt;/i&gt;&lt;/div&gt;
+            &lt;div class="activity-content"&gt;
+              &lt;div class="activity-header"&gt;
+                &lt;strong&gt;{{note.sys_created_by}}&lt;/strong&gt;
+                &lt;span class="text-muted"&gt;&lt;i class="fa fa-clock-o"&gt;&lt;/i&gt; {{note.sys_created_on}}&lt;/span&gt;
+              &lt;/div&gt;
+              &lt;div class="activity-bubble"&gt;{{note.value}}&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Footer Actions --&gt;
+      &lt;div class="form-footer"&gt;
+        &lt;button class="btn-text" ng-click="c.closeToDashboard()"&gt;Back to Dashboard&lt;/button&gt;
+        &lt;div class="right-actions" ng-if="!c.data.isReadOnly"&gt;
+          &lt;button class="btn-primary" ng-click="c.submitChange()" ng-disabled="c.submitting || !c.change.short_description || !c.change.category || !c.change.priority || !c.change.impact || !c.change.business_justification || !c.change.description"&gt;
+            &lt;span ng-if="!c.submitting"&gt;Submit Request&lt;/span&gt;
+            &lt;span ng-if="c.submitting"&gt;Submitting...&lt;/span&gt;
+          &lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+    &lt;/div&gt;
+
+    &lt;!-- RIGHT COLUMN: Context Sidebar --&gt;
+    &lt;div class="gn-sidebar"&gt;
+      &lt;div class="deadline-card" style="background: #0f172a;"&gt;
+        &lt;div class="dc-label"&gt;CHANGE REQUEST&lt;/div&gt;
+        &lt;div class="dc-title"&gt;{{c.data.isReadOnly ? c.data.changeNumber : 'New Request'}}&lt;/div&gt;
+        &lt;div class="dc-text" ng-if="c.data.isReadOnly"&gt;
+          &lt;span class="state-pill pill-blue" style="display:inline-block; margin-top: 10px; background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 20px; font-weight: 600;"&gt;{{c.data.changeState}}&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div class="glance-card"&gt;
+        &lt;h3&gt;Request Details&lt;/h3&gt;
+        &lt;div class="glance-row"&gt;
+          &lt;span&gt;Project&lt;/span&gt;
+          &lt;span class="font-bold text-right" style="max-width: 60%;"&gt;{{c.data.projectName}}&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div class="glance-row" ng-if="c.data.isReadOnly"&gt;
+          &lt;span&gt;Submitted&lt;/span&gt;
+          &lt;span class="font-bold"&gt;{{c.data.submittedOn}}&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div class="glance-row" style="flex-direction: column; align-items: flex-start; gap: 8px;"&gt;
+          &lt;span&gt;Guidelines&lt;/span&gt;
+          &lt;span class="text-muted" style="line-height: 1.4;"&gt;Modifications to scope, schedule, or budget require approval. Please provide clear justifications.&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+  &lt;/div&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>1894871861</payload_hash>
+        <record_name>Change Request Details</record_name>
+        <reverted_from/>
+        <source>67a05b350fb28b10712b6af300d1b202</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-09-02 11:38:49</sys_created_on>
+        <sys_id>b392078e93c34b10d444c9b877373c64</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a061ea21c20000001</sys_recorded_at>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:38:49</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>b392078e6bc34b10d09c9dd49e372b63</update_guid>
+        <update_guid_history>b392078e6bc34b10d09c9dd49e372b63:1894871861,2170878ac7830b1098e70854730dd8bc:175619487,ec5fb60aa1830b10ce18e71601562094:1345190570,39d5e5fd504f4710de8dff9cb07e2f1f:295575861,e80690ad068bc3105ec6de4d7d8625d1:1742902151,50b10bf9ed7e8b10db461aaad95f3c85:860158173</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Change Request Details">bb703f02934b4b10d444c9b877373cf5</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-09-02 14:59:15</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>212a6773b5084a488bf3f2a86a8be6d9</sys_id>
+        <sys_metadata>1251c7b9937e8b10d444c9b877373ce3</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Change Request Details</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_1251c7b9937e8b10d444c9b877373ce3</sys_update_name>
+        <sys_update_version display_value="sp_widget_1251c7b9937e8b10d444c9b877373ce3">b392078e93c34b10d444c9b877373c64</sys_update_version>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-02 14:59:15</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

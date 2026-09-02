@@ -1,0 +1,1159 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($rootScope, spUtil) {
+    var c = this;
+    
+    // Initialize the report object
+    c.report = {
+        project: '', 
+        as_on: '',
+        report_status: '',
+        percent_complete: '',
+        overall_health: '',
+        executive_summary: '',
+        schedule: '',
+        cost: '',
+        resources: '',
+        scope: ''
+    };
+
+    // Auto-populate the dropdown ONLY if called from the Project Details widget
+    if (c.data.passedProjectId) {
+        c.report.project = c.data.passedProjectId;
+    }
+
+    // Close the form and return to the dashboard
+    c.closeToDashboard = function() {
+        // Emit custom event to tell the parent (Project Details) to hide this inline form
+        $rootScope.$emit('gn_close_action_form'); 
+    };
+
+    // Submit the form to the server
+    c.submitReport = function() {
+        c.submitting = true;
+        
+        // Pass the form data to the server script
+        c.data.action = 'submit_report';
+        c.data.newReport = c.report;
+        
+        c.server.update().then(function(response) {
+            c.submitting = false;
+            if (response.success) {
+                spUtil.addInfoMessage("Status report submitted successfully!");
+                // Close inline form on success
+                $rootScope.$emit('gn_close_action_form'); 
+            }
+        });
+    };
+    
+    // Stub for file attachment
+    c.onFileSelect = function(element) {
+        c.selectedFile = element.files[0];
+        // Note: You will need GlideSysAttachment logic to actually upload this!
+    };
+    
+    c.removeFile = function() {
+        c.selectedFile = null;
+    };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.gn-form-wrapper {&#13;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;&#13;
+  background-color: #f8fafc;&#13;
+  padding: 30px;&#13;
+  min-height: 100vh;&#13;
+  color: #1e293b;&#13;
+}&#13;
+&#13;
+.text-muted { color: #64748b; }&#13;
+.text-danger { color: #ef4444; }&#13;
+.text-primary { color: #4f46e5; margin-right: 6px;}&#13;
+&#13;
+.gn-breadcrumbs {&#13;
+  margin-bottom: 24px;&#13;
+  font-size: 14px;&#13;
+  a { color: #4f46e5; text-decoration: none; font-weight: 500; }&#13;
+  .divider { color: #94a3b8; margin: 0 8px; }&#13;
+  .current { color: #64748b; }&#13;
+}&#13;
+&#13;
+.gn-form-layout {&#13;
+  display: flex;&#13;
+  gap: 30px;&#13;
+  align-items: flex-start;&#13;
+}&#13;
+&#13;
+/* Left Column: Form */&#13;
+.gn-main-form {&#13;
+  flex: 1;&#13;
+  background: #ffffff;&#13;
+  border-radius: 12px;&#13;
+  padding: 32px;&#13;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);&#13;
+}&#13;
+&#13;
+.gn-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0; }&#13;
+.section-title { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; }&#13;
+&#13;
+.form-row {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 20px;&#13;
+  margin-bottom: 24px;&#13;
+  width: 100%;&#13;
+}&#13;
+&#13;
+.form-group {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  margin-bottom: 24px;&#13;
+  &#13;
+  label {&#13;
+    font-size: 13px;&#13;
+    font-weight: 700;&#13;
+    color: #334155;&#13;
+    margin-bottom: 8px;&#13;
+  }&#13;
+}&#13;
+&#13;
+.form-group.half { flex: 1 1 calc(50% - 10px); margin-bottom: 0; }&#13;
+.form-group.third { flex: 1 1 calc(30% - 10px); margin-bottom: 0; }&#13;
+.form-group.two-thirds { flex: 1 1 calc(70% - 10px); margin-bottom: 0; }&#13;
+&#13;
+.gn-select, .gn-input, .gn-textarea {&#13;
+  width: 100%;&#13;
+  box-sizing: border-box;&#13;
+  border: 1px solid #cbd5e1;&#13;
+  border-radius: 8px;&#13;
+  padding: 10px 14px;&#13;
+  font-size: 14px;&#13;
+  color: #1e293b;&#13;
+  outline: none;&#13;
+  background-color: #ffffff;&#13;
+  &#13;
+  &amp;:disabled { background-color: #f1f5f9; color: #475569; }&#13;
+  &amp;:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }&#13;
+}&#13;
+&#13;
+.gn-textarea { resize: vertical; }&#13;
+&#13;
+/* Radio Pills */&#13;
+.gn-radio-pills {&#13;
+  display: flex;&#13;
+  gap: 12px;&#13;
+  &#13;
+  .radio-pill {&#13;
+    flex: 1;&#13;
+    display: flex;&#13;
+    align-items: center;&#13;
+    gap: 10px;&#13;
+    padding: 12px 16px;&#13;
+    border: 1px solid #cbd5e1;&#13;
+    border-radius: 8px;&#13;
+    cursor: pointer;&#13;
+    font-size: 14px;&#13;
+    font-weight: 600;&#13;
+    color: #475569;&#13;
+    background: #ffffff;&#13;
+    transition: all 0.2s;&#13;
+    &#13;
+    input[type="radio"] { display: none; }&#13;
+    &#13;
+    .radio-circle {&#13;
+      width: 16px;&#13;
+      height: 16px;&#13;
+      border: 1px solid #cbd5e1;&#13;
+      border-radius: 50%;&#13;
+      position: relative;&#13;
+    }&#13;
+    &#13;
+    &amp;.active-green {&#13;
+      background: #f0fdf4; border-color: #10b981; color: #065f46;&#13;
+      .radio-circle { border-color: #10b981; background: #10b981; box-shadow: inset 0 0 0 3px #f0fdf4; }&#13;
+    }&#13;
+    &amp;.active-orange {&#13;
+      background: #fffbeb; border-color: #f59e0b; color: #92400e;&#13;
+      .radio-circle { border-color: #f59e0b; background: #f59e0b; box-shadow: inset 0 0 0 3px #fffbeb; }&#13;
+    }&#13;
+    &amp;.active-red {&#13;
+      background: #fef2f2; border-color: #ef4444; color: #991b1b;&#13;
+      .radio-circle { border-color: #ef4444; background: #ef4444; box-shadow: inset 0 0 0 3px #fef2f2; }&#13;
+    }&#13;
+  }&#13;
+}&#13;
+&#13;
+/* Attachments */&#13;
+.gn-attachment-zone {&#13;
+  border: 1px dashed #cbd5e1;&#13;
+  background: #f8fafc;&#13;
+  border-radius: 8px;&#13;
+  padding: 20px;&#13;
+  display: flex;&#13;
+  justify-content: space-between;&#13;
+  align-items: center;&#13;
+  margin-bottom: 12px;&#13;
+  &#13;
+  .zone-text { font-size: 14px; }&#13;
+  &#13;
+  .btn-browse {&#13;
+    background: #eef2ff; color: #4f46e5; font-weight: 600; font-size: 13px;&#13;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 0;&#13;
+  }&#13;
+}&#13;
+.file-preview {&#13;
+  background: #eef2ff; color: #4f46e5; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: 500;&#13;
+  .remove-file { float: right; cursor: pointer; margin-top: 3px; }&#13;
+}&#13;
+&#13;
+/* Footer Actions */&#13;
+.form-footer {&#13;
+  display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;&#13;
+  .right-actions { display: flex; gap: 12px; }&#13;
+}&#13;
+&#13;
+button {&#13;
+  font-size: 14px; font-weight: 600; border-radius: 8px; padding: 10px 20px; cursor: pointer; border: none;&#13;
+  &amp;.btn-text { background: transparent; color: #475569; padding-left: 0; font-weight: 700;}&#13;
+  &amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }&#13;
+  &amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }&#13;
+  &amp;:disabled { opacity: 0.7; cursor: not-allowed; }&#13;
+}&#13;
+&#13;
+/* Right Column: Sidebar */&#13;
+.gn-sidebar { width: 320px; flex-shrink: 0; }&#13;
+.deadline-card {&#13;
+  color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px;&#13;
+  .dc-label { font-size: 11px; font-weight: 700; color: #a5b4fc; margin-bottom: 8px; }&#13;
+  .dc-title { font-size: 24px; font-weight: 800; margin-bottom: 12px; }&#13;
+  .dc-text { font-size: 13px; color: #e0e7ff; line-height: 1.5; }&#13;
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>new_status_report</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>New Status Report </name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
+        <script><![CDATA[(function() {
+    data.success = false;
+    data.error = "";
+
+    // ==========================================
+    // 1. INITIAL LOAD (Passed from Dashboard via spUtil.get)
+    // ==========================================
+    if (!input || !input.action) {
+        data.availableProjects = [];
+        
+        // KEY FIX 1: Catch the ID from 'options' (which is how spUtil.get sends data)
+        data.passedProjectId = options.project_id || (input ? input.project_id : '') || '';
+
+        var currentUser = gs.getUserID();
+        var myApplicantIds = [];
+
+        // Step A: Find the user's applicant profile IDs using standard GlideRecord to bypass read ACLs for the dropdown
+        var grApp = new GlideRecordsecure('x_enno_gatenow_service_applicants');
+        grApp.addQuery('user', currentUser);
+        grApp.query();
+        while (grApp.next()) {
+            myApplicantIds.push(grApp.getUniqueValue());
+        }
+
+        // Step B: Find the projects tied to those applicant profiles
+        var grProj = new GlideRecordsecure('x_enno_gatenow_project');
+        var qcP = grProj.addQuery('applicant', 'IN', myApplicantIds.join(','));
+        qcP.addOrCondition('applicant.user', currentUser);
+        qcP.addOrCondition('x_enno_gatenow_applicant.user', currentUser);
+        
+        grProj.orderByDesc('sys_created_on');
+        grProj.query();
+        
+        while (grProj.next()) {
+            var pName = grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number');
+            data.availableProjects.push({
+                sys_id: grProj.getUniqueValue(),
+                name: pName + ' (' + grProj.getValue('number') + ')'
+            });
+        }
+
+        // KEY FIX 2: The "Auto-select first project" logic was completely removed here.
+        // It will now stay blank unless explicitly called from the Project Details widget.
+
+        // Set default state representing ALL your old fields
+        data.reportData = {
+            project: data.passedProjectId, 
+            as_on: '',
+            report_status: 'Monthly Report',
+            overall_health: 'green',
+            percent_complete: null,
+            executive_summary: '',
+            achievements_last_week: '',
+            key_activities_next_week: '',
+            schedule: '',
+            schedule_comments: '',
+            cost: '',
+            cost_comments: '',
+            resources: '',
+            resources_comments: '',
+            scope: '',
+            scope_comments: '',
+            comments: ''
+        };
+    }
+
+    // ==========================================
+    // 2. HANDLE FORM SUBMISSION
+    // ==========================================
+    if (input && input.action === 'submit_report') {
+        // Use GlideRecordSecure to ensure inserting data is strictly permission-checked
+        var newReport = new GlideRecordSecure('x_enno_gatenow_status_report');
+        newReport.initialize();
+        
+        // FIX: Look for 'newReport' (from your client script) OR 'reportData' to prevent save failures
+        var payload = input.newReport || input.reportData;
+        
+        // Failsafe: Prevent insert if project is empty
+        if (!payload || !payload.project) {
+            data.error = "A valid Project must be selected.";
+            return;
+        }
+
+        newReport.setValue('project', payload.project);
+        newReport.setValue('status_date', payload.as_on);
+        newReport.setValue('report_status', payload.report_status);
+        newReport.setValue('overall_health', payload.overall_health);
+        newReport.setValue('percent_complete', payload.percent_complete);
+        newReport.setValue('executive_summary', payload.executive_summary);
+        newReport.setValue('last_week_s_achievements', payload.achievements_last_week);
+        newReport.setValue('key_activities_planned', payload.key_activities_next_week);
+        newReport.setValue('schedule', payload.schedule);
+        newReport.setValue('comments_on_schedule', payload.schedule_comments);
+        newReport.setValue('cost', payload.cost);
+        newReport.setValue('comments_on_cost', payload.cost_comments);
+        newReport.setValue('resources', payload.resources);
+        newReport.setValue('resource_comments', payload.resources_comments);
+        newReport.setValue('scope', payload.scope);
+        newReport.setValue('comments_on_scope', payload.scope_comments);
+        newReport.setValue('comments', payload.comments);
+        
+        var newId = newReport.insert();
+        
+        if (newId) {
+            data.success = true;
+            data.new_sys_id = newId;
+        } else {
+            data.error = "Database rejected insert. Check ACLs.";
+        }
+    }
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-20 07:24:31</sys_created_on>
+        <sys_id>ee5b4f3d93be8b10d444c9b877373c7b</sys_id>
+        <sys_mod_count>6</sys_mod_count>
+        <sys_name>New Status Report </sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_ee5b4f3d93be8b10d444c9b877373c7b</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:18:15</sys_updated_on>
+        <template><![CDATA[<div class="gn-form-wrapper" ng-cloak>
+  
+  <!-- Breadcrumbs -->
+  <div class="gn-breadcrumbs">
+    <a href="javascript:void(0)" ng-click="c.closeToDashboard()">Reports & Change Requests</a> 
+    <span class="divider">/</span> 
+    <span class="current">New status report</span>
+  </div>
+
+  <div class="gn-form-layout">
+    
+    <!-- LEFT COLUMN: The Form -->
+    <div class="gn-main-form">
+      
+      <!-- Project & Status Date -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Project <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.report.project" ng-options="proj.sys_id as proj.name for proj in c.data.availableProjects" required>
+            <option value="" disabled>-- Select Project --</option>
+          </select>
+        </div>
+        <div class="form-group half">
+          <label>Status Date <span class="text-danger">*</span></label>
+          <input type="date" class="gn-input" ng-model="c.report.as_on" required>
+        </div>
+      </div>
+
+      <!-- Report Status & Percent Complete -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Report Status <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.report.report_status" required>
+            <option value="">-- None --</option>
+            <option value="Final Report">Final Report</option>
+            <option value="Monthly Report">Monthly Report</option>
+          </select>
+        </div>
+        <div class="form-group half">
+          <label>Percent Complete <span class="text-danger">*</span></label>
+          <input type="number" class="gn-input" min="0" max="100" ng-model="c.report.percent_complete" required>
+        </div>
+      </div>
+
+      <!-- Overall Health -->
+      <div class="form-group">
+        <label>Overall project health <span class="text-danger">*</span></label>
+        <div class="gn-radio-pills">
+          <label class="radio-pill" ng-class="{'active-green': c.report.overall_health === 'green'}">
+            <input type="radio" ng-model="c.report.overall_health" value="green">
+            <span class="radio-circle"></span> On track (Green)
+          </label>
+          <label class="radio-pill" ng-class="{'active-orange': c.report.overall_health === 'yellow'}">
+            <input type="radio" ng-model="c.report.overall_health" value="yellow">
+            <span class="radio-circle"></span> At risk (Yellow)
+          </label>
+          <label class="radio-pill" ng-class="{'active-red': c.report.overall_health === 'red'}">
+            <input type="radio" ng-model="c.report.overall_health" value="red">
+            <span class="radio-circle"></span> Critical (Red)
+          </label>
+        </div>
+      </div>
+
+      <!-- Executive Summary -->
+      <div class="form-group">
+        <label>Executive Summary <span class="text-danger">*</span></label>
+        <textarea class="gn-textarea" rows="4" ng-model="c.report.executive_summary" placeholder="Provide a high-level summary..." required></textarea>
+      </div>
+
+      <!-- Achievements & Activities -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Achievements Last Month</label>
+          <textarea class="gn-textarea" rows="4" ng-model="c.report.achievements_last_week" placeholder="List key milestones..."></textarea>
+        </div>
+        <div class="form-group half">
+          <label>Key Activities Next Month</label>
+          <textarea class="gn-textarea" rows="4" ng-model="c.report.key_activities_next_week" placeholder="Describe planned activities..."></textarea>
+        </div>
+      </div>
+
+      <hr class="gn-divider">
+
+      <!-- Schedule Status -->
+      <h4 class="section-title"><i class="fa fa-calendar text-primary"></i> Schedule Status</h4>
+      <div class="form-row">
+        <div class="form-group third">
+          <label>Health <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.report.schedule" required>
+            <option value="">-- Select --</option>
+            <option value="green">Green</option>
+            <option value="yellow">Yellow</option>
+            <option value="red">Red</option>
+          </select>
+        </div>
+        <div class="form-group two-thirds">
+          <label>Comments</label>
+          <textarea class="gn-textarea" rows="3" ng-model="c.report.schedule_comments" placeholder="Explain schedule status..."></textarea>
+        </div>
+      </div>
+
+      <!-- Cost Status -->
+      <h4 class="section-title"><i class="fa fa-dollar text-primary"></i> Cost Status</h4>
+      <div class="form-row">
+        <div class="form-group third">
+          <label>Health <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.report.cost" required>
+            <option value="">-- Select --</option>
+            <option value="green">Green</option>
+            <option value="yellow">Yellow</option>
+            <option value="red">Red</option>
+          </select>
+        </div>
+        <div class="form-group two-thirds">
+          <label>Comments</label>
+          <textarea class="gn-textarea" rows="3" ng-model="c.report.cost_comments" placeholder="Explain budget status..."></textarea>
+        </div>
+      </div>
+
+      <!-- Resources Status -->
+      <h4 class="section-title"><i class="fa fa-users text-primary"></i> Resources Status</h4>
+      <div class="form-row">
+        <div class="form-group third">
+          <label>Health <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.report.resources" required>
+            <option value="">-- Select --</option>
+            <option value="green">Green</option>
+            <option value="yellow">Yellow</option>
+            <option value="red">Red</option>
+          </select>
+        </div>
+        <div class="form-group two-thirds">
+          <label>Comments</label>
+          <textarea class="gn-textarea" rows="3" ng-model="c.report.resources_comments" placeholder="Explain resource availability..."></textarea>
+        </div>
+      </div>
+
+      <!-- Scope Status -->
+      <h4 class="section-title"><i class="fa fa-sitemap text-primary"></i> Scope Status</h4>
+      <div class="form-row">
+        <div class="form-group third">
+          <label>Health <span class="text-danger">*</span></label>
+          <select class="gn-select" ng-model="c.report.scope" required>
+            <option value="">-- Select --</option>
+            <option value="green">Green</option>
+            <option value="yellow">Yellow</option>
+            <option value="red">Red</option>
+          </select>
+        </div>
+        <div class="form-group two-thirds">
+          <label>Comments</label>
+          <textarea class="gn-textarea" rows="3" ng-model="c.report.scope_comments" placeholder="Explain scope status..."></textarea>
+        </div>
+      </div>
+
+      <hr class="gn-divider">
+
+      <!-- Additional Comments -->
+      <div class="form-group">
+        <label>Additional Comments</label>
+        <textarea class="gn-textarea" rows="4" ng-model="c.report.comments" placeholder="Any other information..."></textarea>
+      </div>
+
+      <!-- File Attachment Zone -->
+      <div class="gn-attachment-zone">
+        <div class="zone-text">
+          <strong>Attach Supporting Documents</strong><br>
+          <span class="text-muted">Optional</span>
+        </div>
+        <label class="btn-browse">
+          Browse files
+          <input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)">
+        </label>
+      </div>
+      
+      <div class="file-preview" ng-if="c.selectedFile">
+        <i class="fa fa-paperclip"></i> {{c.selectedFile.name}}
+        <i class="fa fa-times text-danger remove-file" ng-click="c.removeFile()"></i>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="form-footer">
+        <button class="btn-text" ng-click="c.closeToDashboard()">Cancel</button>
+        <div class="right-actions">
+          <button class="btn-primary" ng-click="c.submitReport()" ng-disabled="c.submitting || !c.report.project || !c.report.as_on || !c.report.report_status || !c.report.overall_health || !c.report.percent_complete || !c.report.executive_summary || !c.report.schedule || !c.report.cost || !c.report.resources || !c.report.scope">
+            <span ng-if="!c.submitting">Submit report</span>
+            <span ng-if="c.submitting">Submitting...</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Context Sidebar -->
+    <div class="gn-sidebar">
+      <div class="deadline-card" style="background: #312e81;">
+        <div class="dc-label">REPORTING GUIDELINES</div>
+        <div class="dc-title">Status Reports</div>
+        <div class="dc-text">Please provide accurate updates on project progress, schedule, cost, and scope to ensure proper tracking. Late reports may pause reimbursement processing.</div>
+      </div>
+    </div>
+
+  </div>
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_ee5b4f3d93be8b10d444c9b877373c7b</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function($rootScope, spUtil) {
+    var c = this;
+    
+    // Initialize the report object
+    c.report = {
+        project: '', 
+        as_on: '',
+        report_status: '',
+        percent_complete: '',
+        overall_health: '',
+        executive_summary: '',
+        schedule: '',
+        cost: '',
+        resources: '',
+        scope: ''
+    };
+
+    // Auto-populate the dropdown ONLY if called from the Project Details widget
+    if (c.data.passedProjectId) {
+        c.report.project = c.data.passedProjectId;
+    }
+
+    // Close the form and return to the dashboard
+    c.closeToDashboard = function() {
+        // Emit custom event to tell the parent (Project Details) to hide this inline form
+        $rootScope.$emit('gn_close_action_form'); 
+    };
+
+    // Submit the form to the server
+    c.submitReport = function() {
+        c.submitting = true;
+        
+        // Pass the form data to the server script
+        c.data.action = 'submit_report';
+        c.data.newReport = c.report;
+        
+        c.server.update().then(function(response) {
+            c.submitting = false;
+            if (response.success) {
+                spUtil.addInfoMessage("Status report submitted successfully!");
+                // Close inline form on success
+                $rootScope.$emit('gn_close_action_form'); 
+            }
+        });
+    };
+    
+    // Stub for file attachment
+    c.onFileSelect = function(element) {
+        c.selectedFile = element.files[0];
+        // Note: You will need GlideSysAttachment logic to actually upload this!
+    };
+    
+    c.removeFile = function() {
+        c.selectedFile = null;
+    };
+};]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;.gn-form-wrapper {&amp;#13;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;&amp;#13;
+  background-color: #f8fafc;&amp;#13;
+  padding: 30px;&amp;#13;
+  min-height: 100vh;&amp;#13;
+  color: #1e293b;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.text-muted { color: #64748b; }&amp;#13;
+.text-danger { color: #ef4444; }&amp;#13;
+.text-primary { color: #4f46e5; margin-right: 6px;}&amp;#13;
+&amp;#13;
+.gn-breadcrumbs {&amp;#13;
+  margin-bottom: 24px;&amp;#13;
+  font-size: 14px;&amp;#13;
+  a { color: #4f46e5; text-decoration: none; font-weight: 500; }&amp;#13;
+  .divider { color: #94a3b8; margin: 0 8px; }&amp;#13;
+  .current { color: #64748b; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.gn-form-layout {&amp;#13;
+  display: flex;&amp;#13;
+  gap: 30px;&amp;#13;
+  align-items: flex-start;&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Left Column: Form */&amp;#13;
+.gn-main-form {&amp;#13;
+  flex: 1;&amp;#13;
+  background: #ffffff;&amp;#13;
+  border-radius: 12px;&amp;#13;
+  padding: 32px;&amp;#13;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);&amp;#13;
+}&amp;#13;
+&amp;#13;
+.gn-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0; }&amp;#13;
+.section-title { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; }&amp;#13;
+&amp;#13;
+.form-row {&amp;#13;
+  display: flex;&amp;#13;
+  flex-wrap: wrap;&amp;#13;
+  gap: 20px;&amp;#13;
+  margin-bottom: 24px;&amp;#13;
+  width: 100%;&amp;#13;
+}&amp;#13;
+&amp;#13;
+.form-group {&amp;#13;
+  display: flex;&amp;#13;
+  flex-direction: column;&amp;#13;
+  margin-bottom: 24px;&amp;#13;
+  &amp;#13;
+  label {&amp;#13;
+    font-size: 13px;&amp;#13;
+    font-weight: 700;&amp;#13;
+    color: #334155;&amp;#13;
+    margin-bottom: 8px;&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.form-group.half { flex: 1 1 calc(50% - 10px); margin-bottom: 0; }&amp;#13;
+.form-group.third { flex: 1 1 calc(30% - 10px); margin-bottom: 0; }&amp;#13;
+.form-group.two-thirds { flex: 1 1 calc(70% - 10px); margin-bottom: 0; }&amp;#13;
+&amp;#13;
+.gn-select, .gn-input, .gn-textarea {&amp;#13;
+  width: 100%;&amp;#13;
+  box-sizing: border-box;&amp;#13;
+  border: 1px solid #cbd5e1;&amp;#13;
+  border-radius: 8px;&amp;#13;
+  padding: 10px 14px;&amp;#13;
+  font-size: 14px;&amp;#13;
+  color: #1e293b;&amp;#13;
+  outline: none;&amp;#13;
+  background-color: #ffffff;&amp;#13;
+  &amp;#13;
+  &amp;amp;:disabled { background-color: #f1f5f9; color: #475569; }&amp;#13;
+  &amp;amp;:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }&amp;#13;
+}&amp;#13;
+&amp;#13;
+.gn-textarea { resize: vertical; }&amp;#13;
+&amp;#13;
+/* Radio Pills */&amp;#13;
+.gn-radio-pills {&amp;#13;
+  display: flex;&amp;#13;
+  gap: 12px;&amp;#13;
+  &amp;#13;
+  .radio-pill {&amp;#13;
+    flex: 1;&amp;#13;
+    display: flex;&amp;#13;
+    align-items: center;&amp;#13;
+    gap: 10px;&amp;#13;
+    padding: 12px 16px;&amp;#13;
+    border: 1px solid #cbd5e1;&amp;#13;
+    border-radius: 8px;&amp;#13;
+    cursor: pointer;&amp;#13;
+    font-size: 14px;&amp;#13;
+    font-weight: 600;&amp;#13;
+    color: #475569;&amp;#13;
+    background: #ffffff;&amp;#13;
+    transition: all 0.2s;&amp;#13;
+    &amp;#13;
+    input[type="radio"] { display: none; }&amp;#13;
+    &amp;#13;
+    .radio-circle {&amp;#13;
+      width: 16px;&amp;#13;
+      height: 16px;&amp;#13;
+      border: 1px solid #cbd5e1;&amp;#13;
+      border-radius: 50%;&amp;#13;
+      position: relative;&amp;#13;
+    }&amp;#13;
+    &amp;#13;
+    &amp;amp;.active-green {&amp;#13;
+      background: #f0fdf4; border-color: #10b981; color: #065f46;&amp;#13;
+      .radio-circle { border-color: #10b981; background: #10b981; box-shadow: inset 0 0 0 3px #f0fdf4; }&amp;#13;
+    }&amp;#13;
+    &amp;amp;.active-orange {&amp;#13;
+      background: #fffbeb; border-color: #f59e0b; color: #92400e;&amp;#13;
+      .radio-circle { border-color: #f59e0b; background: #f59e0b; box-shadow: inset 0 0 0 3px #fffbeb; }&amp;#13;
+    }&amp;#13;
+    &amp;amp;.active-red {&amp;#13;
+      background: #fef2f2; border-color: #ef4444; color: #991b1b;&amp;#13;
+      .radio-circle { border-color: #ef4444; background: #ef4444; box-shadow: inset 0 0 0 3px #fef2f2; }&amp;#13;
+    }&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Attachments */&amp;#13;
+.gn-attachment-zone {&amp;#13;
+  border: 1px dashed #cbd5e1;&amp;#13;
+  background: #f8fafc;&amp;#13;
+  border-radius: 8px;&amp;#13;
+  padding: 20px;&amp;#13;
+  display: flex;&amp;#13;
+  justify-content: space-between;&amp;#13;
+  align-items: center;&amp;#13;
+  margin-bottom: 12px;&amp;#13;
+  &amp;#13;
+  .zone-text { font-size: 14px; }&amp;#13;
+  &amp;#13;
+  .btn-browse {&amp;#13;
+    background: #eef2ff; color: #4f46e5; font-weight: 600; font-size: 13px;&amp;#13;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 0;&amp;#13;
+  }&amp;#13;
+}&amp;#13;
+.file-preview {&amp;#13;
+  background: #eef2ff; color: #4f46e5; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: 500;&amp;#13;
+  .remove-file { float: right; cursor: pointer; margin-top: 3px; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Footer Actions */&amp;#13;
+.form-footer {&amp;#13;
+  display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;&amp;#13;
+  .right-actions { display: flex; gap: 12px; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+button {&amp;#13;
+  font-size: 14px; font-weight: 600; border-radius: 8px; padding: 10px 20px; cursor: pointer; border: none;&amp;#13;
+  &amp;amp;.btn-text { background: transparent; color: #475569; padding-left: 0; font-weight: 700;}&amp;#13;
+  &amp;amp;.btn-outline { background: white; border: 1px solid #cbd5e1; color: #1e293b; }&amp;#13;
+  &amp;amp;.btn-primary { background: #4f46e5; border: 1px solid #4f46e5; color: white; }&amp;#13;
+  &amp;amp;:disabled { opacity: 0.7; cursor: not-allowed; }&amp;#13;
+}&amp;#13;
+&amp;#13;
+/* Right Column: Sidebar */&amp;#13;
+.gn-sidebar { width: 320px; flex-shrink: 0; }&amp;#13;
+.deadline-card {&amp;#13;
+  color: white; border-radius: 12px; padding: 24px; margin-bottom: 20px;&amp;#13;
+  .dc-label { font-size: 11px; font-weight: 700; color: #a5b4fc; margin-bottom: 8px; }&amp;#13;
+  .dc-title { font-size: 24px; font-weight: 800; margin-bottom: 12px; }&amp;#13;
+  .dc-text { font-size: 13px; color: #e0e7ff; line-height: 1.5; }&amp;#13;
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;false&lt;/has_preview&gt;&lt;id&gt;new_status_report&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]&gt;&lt;/link&gt;&lt;name&gt;New Status Report &lt;/name&gt;&lt;option_schema/&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles&gt;x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user&lt;/roles&gt;&lt;script&gt;&lt;![CDATA[(function() {
+    data.success = false;
+    data.error = "";
+
+    // ==========================================
+    // 1. INITIAL LOAD (Passed from Dashboard via spUtil.get)
+    // ==========================================
+    if (!input || !input.action) {
+        data.availableProjects = [];
+        
+        // KEY FIX 1: Catch the ID from 'options' (which is how spUtil.get sends data)
+        data.passedProjectId = options.project_id || (input ? input.project_id : '') || '';
+
+        var currentUser = gs.getUserID();
+        var myApplicantIds = [];
+
+        // Step A: Find the user's applicant profile IDs using standard GlideRecord to bypass read ACLs for the dropdown
+        var grApp = new GlideRecordsecure('x_enno_gatenow_service_applicants');
+        grApp.addQuery('user', currentUser);
+        grApp.query();
+        while (grApp.next()) {
+            myApplicantIds.push(grApp.getUniqueValue());
+        }
+
+        // Step B: Find the projects tied to those applicant profiles
+        var grProj = new GlideRecordsecure('x_enno_gatenow_project');
+        var qcP = grProj.addQuery('applicant', 'IN', myApplicantIds.join(','));
+        qcP.addOrCondition('applicant.user', currentUser);
+        qcP.addOrCondition('x_enno_gatenow_applicant.user', currentUser);
+        
+        grProj.orderByDesc('sys_created_on');
+        grProj.query();
+        
+        while (grProj.next()) {
+            var pName = grProj.getDisplayValue('project_name') || grProj.getDisplayValue('name') || grProj.getValue('number');
+            data.availableProjects.push({
+                sys_id: grProj.getUniqueValue(),
+                name: pName + ' (' + grProj.getValue('number') + ')'
+            });
+        }
+
+        // KEY FIX 2: The "Auto-select first project" logic was completely removed here.
+        // It will now stay blank unless explicitly called from the Project Details widget.
+
+        // Set default state representing ALL your old fields
+        data.reportData = {
+            project: data.passedProjectId, 
+            as_on: '',
+            report_status: 'Monthly Report',
+            overall_health: 'green',
+            percent_complete: null,
+            executive_summary: '',
+            achievements_last_week: '',
+            key_activities_next_week: '',
+            schedule: '',
+            schedule_comments: '',
+            cost: '',
+            cost_comments: '',
+            resources: '',
+            resources_comments: '',
+            scope: '',
+            scope_comments: '',
+            comments: ''
+        };
+    }
+
+    // ==========================================
+    // 2. HANDLE FORM SUBMISSION
+    // ==========================================
+    if (input &amp;&amp; input.action === 'submit_report') {
+        // Use GlideRecordSecure to ensure inserting data is strictly permission-checked
+        var newReport = new GlideRecordSecure('x_enno_gatenow_status_report');
+        newReport.initialize();
+        
+        // FIX: Look for 'newReport' (from your client script) OR 'reportData' to prevent save failures
+        var payload = input.newReport || input.reportData;
+        
+        // Failsafe: Prevent insert if project is empty
+        if (!payload || !payload.project) {
+            data.error = "A valid Project must be selected.";
+            return;
+        }
+
+        newReport.setValue('project', payload.project);
+        newReport.setValue('status_date', payload.as_on);
+        newReport.setValue('report_status', payload.report_status);
+        newReport.setValue('overall_health', payload.overall_health);
+        newReport.setValue('percent_complete', payload.percent_complete);
+        newReport.setValue('executive_summary', payload.executive_summary);
+        newReport.setValue('last_week_s_achievements', payload.achievements_last_week);
+        newReport.setValue('key_activities_planned', payload.key_activities_next_week);
+        newReport.setValue('schedule', payload.schedule);
+        newReport.setValue('comments_on_schedule', payload.schedule_comments);
+        newReport.setValue('cost', payload.cost);
+        newReport.setValue('comments_on_cost', payload.cost_comments);
+        newReport.setValue('resources', payload.resources);
+        newReport.setValue('resource_comments', payload.resources_comments);
+        newReport.setValue('scope', payload.scope);
+        newReport.setValue('comments_on_scope', payload.scope_comments);
+        newReport.setValue('comments', payload.comments);
+        
+        var newId = newReport.insert();
+        
+        if (newId) {
+            data.success = true;
+            data.new_sys_id = newId;
+        } else {
+            data.error = "Database rejected insert. Check ACLs.";
+        }
+    }
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;younis.khan&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-08-20 07:24:31&lt;/sys_created_on&gt;&lt;sys_id&gt;ee5b4f3d93be8b10d444c9b877373c7b&lt;/sys_id&gt;&lt;sys_mod_count&gt;6&lt;/sys_mod_count&gt;&lt;sys_name&gt;New Status Report &lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_ee5b4f3d93be8b10d444c9b877373c7b&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;younis.khan&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-09-02 11:18:15&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div class="gn-form-wrapper" ng-cloak&gt;
+  
+  &lt;!-- Breadcrumbs --&gt;
+  &lt;div class="gn-breadcrumbs"&gt;
+    &lt;a href="javascript:void(0)" ng-click="c.closeToDashboard()"&gt;Reports &amp; Change Requests&lt;/a&gt; 
+    &lt;span class="divider"&gt;/&lt;/span&gt; 
+    &lt;span class="current"&gt;New status report&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;div class="gn-form-layout"&gt;
+    
+    &lt;!-- LEFT COLUMN: The Form --&gt;
+    &lt;div class="gn-main-form"&gt;
+      
+      &lt;!-- Project &amp; Status Date --&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Project &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.report.project" ng-options="proj.sys_id as proj.name for proj in c.data.availableProjects" required&gt;
+            &lt;option value="" disabled&gt;-- Select Project --&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Status Date &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;input type="date" class="gn-input" ng-model="c.report.as_on" required&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Report Status &amp; Percent Complete --&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Report Status &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.report.report_status" required&gt;
+            &lt;option value=""&gt;-- None --&lt;/option&gt;
+            &lt;option value="Final Report"&gt;Final Report&lt;/option&gt;
+            &lt;option value="Monthly Report"&gt;Monthly Report&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Percent Complete &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;input type="number" class="gn-input" min="0" max="100" ng-model="c.report.percent_complete" required&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Overall Health --&gt;
+      &lt;div class="form-group"&gt;
+        &lt;label&gt;Overall project health &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+        &lt;div class="gn-radio-pills"&gt;
+          &lt;label class="radio-pill" ng-class="{'active-green': c.report.overall_health === 'green'}"&gt;
+            &lt;input type="radio" ng-model="c.report.overall_health" value="green"&gt;
+            &lt;span class="radio-circle"&gt;&lt;/span&gt; On track (Green)
+          &lt;/label&gt;
+          &lt;label class="radio-pill" ng-class="{'active-orange': c.report.overall_health === 'yellow'}"&gt;
+            &lt;input type="radio" ng-model="c.report.overall_health" value="yellow"&gt;
+            &lt;span class="radio-circle"&gt;&lt;/span&gt; At risk (Yellow)
+          &lt;/label&gt;
+          &lt;label class="radio-pill" ng-class="{'active-red': c.report.overall_health === 'red'}"&gt;
+            &lt;input type="radio" ng-model="c.report.overall_health" value="red"&gt;
+            &lt;span class="radio-circle"&gt;&lt;/span&gt; Critical (Red)
+          &lt;/label&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Executive Summary --&gt;
+      &lt;div class="form-group"&gt;
+        &lt;label&gt;Executive Summary &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+        &lt;textarea class="gn-textarea" rows="4" ng-model="c.report.executive_summary" placeholder="Provide a high-level summary..." required&gt;&lt;/textarea&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Achievements &amp; Activities --&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Achievements Last Month&lt;/label&gt;
+          &lt;textarea class="gn-textarea" rows="4" ng-model="c.report.achievements_last_week" placeholder="List key milestones..."&gt;&lt;/textarea&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group half"&gt;
+          &lt;label&gt;Key Activities Next Month&lt;/label&gt;
+          &lt;textarea class="gn-textarea" rows="4" ng-model="c.report.key_activities_next_week" placeholder="Describe planned activities..."&gt;&lt;/textarea&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;hr class="gn-divider"&gt;
+
+      &lt;!-- Schedule Status --&gt;
+      &lt;h4 class="section-title"&gt;&lt;i class="fa fa-calendar text-primary"&gt;&lt;/i&gt; Schedule Status&lt;/h4&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Health &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.report.schedule" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="green"&gt;Green&lt;/option&gt;
+            &lt;option value="yellow"&gt;Yellow&lt;/option&gt;
+            &lt;option value="red"&gt;Red&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group two-thirds"&gt;
+          &lt;label&gt;Comments&lt;/label&gt;
+          &lt;textarea class="gn-textarea" rows="3" ng-model="c.report.schedule_comments" placeholder="Explain schedule status..."&gt;&lt;/textarea&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Cost Status --&gt;
+      &lt;h4 class="section-title"&gt;&lt;i class="fa fa-dollar text-primary"&gt;&lt;/i&gt; Cost Status&lt;/h4&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Health &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.report.cost" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="green"&gt;Green&lt;/option&gt;
+            &lt;option value="yellow"&gt;Yellow&lt;/option&gt;
+            &lt;option value="red"&gt;Red&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group two-thirds"&gt;
+          &lt;label&gt;Comments&lt;/label&gt;
+          &lt;textarea class="gn-textarea" rows="3" ng-model="c.report.cost_comments" placeholder="Explain budget status..."&gt;&lt;/textarea&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Resources Status --&gt;
+      &lt;h4 class="section-title"&gt;&lt;i class="fa fa-users text-primary"&gt;&lt;/i&gt; Resources Status&lt;/h4&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Health &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.report.resources" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="green"&gt;Green&lt;/option&gt;
+            &lt;option value="yellow"&gt;Yellow&lt;/option&gt;
+            &lt;option value="red"&gt;Red&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group two-thirds"&gt;
+          &lt;label&gt;Comments&lt;/label&gt;
+          &lt;textarea class="gn-textarea" rows="3" ng-model="c.report.resources_comments" placeholder="Explain resource availability..."&gt;&lt;/textarea&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Scope Status --&gt;
+      &lt;h4 class="section-title"&gt;&lt;i class="fa fa-sitemap text-primary"&gt;&lt;/i&gt; Scope Status&lt;/h4&gt;
+      &lt;div class="form-row"&gt;
+        &lt;div class="form-group third"&gt;
+          &lt;label&gt;Health &lt;span class="text-danger"&gt;*&lt;/span&gt;&lt;/label&gt;
+          &lt;select class="gn-select" ng-model="c.report.scope" required&gt;
+            &lt;option value=""&gt;-- Select --&lt;/option&gt;
+            &lt;option value="green"&gt;Green&lt;/option&gt;
+            &lt;option value="yellow"&gt;Yellow&lt;/option&gt;
+            &lt;option value="red"&gt;Red&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div class="form-group two-thirds"&gt;
+          &lt;label&gt;Comments&lt;/label&gt;
+          &lt;textarea class="gn-textarea" rows="3" ng-model="c.report.scope_comments" placeholder="Explain scope status..."&gt;&lt;/textarea&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;hr class="gn-divider"&gt;
+
+      &lt;!-- Additional Comments --&gt;
+      &lt;div class="form-group"&gt;
+        &lt;label&gt;Additional Comments&lt;/label&gt;
+        &lt;textarea class="gn-textarea" rows="4" ng-model="c.report.comments" placeholder="Any other information..."&gt;&lt;/textarea&gt;
+      &lt;/div&gt;
+
+      &lt;!-- File Attachment Zone --&gt;
+      &lt;div class="gn-attachment-zone"&gt;
+        &lt;div class="zone-text"&gt;
+          &lt;strong&gt;Attach Supporting Documents&lt;/strong&gt;&lt;br&gt;
+          &lt;span class="text-muted"&gt;Optional&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;label class="btn-browse"&gt;
+          Browse files
+          &lt;input type="file" style="display:none;" onchange="angular.element(this).scope().c.onFileSelect(this)"&gt;
+        &lt;/label&gt;
+      &lt;/div&gt;
+      
+      &lt;div class="file-preview" ng-if="c.selectedFile"&gt;
+        &lt;i class="fa fa-paperclip"&gt;&lt;/i&gt; {{c.selectedFile.name}}
+        &lt;i class="fa fa-times text-danger remove-file" ng-click="c.removeFile()"&gt;&lt;/i&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Footer Actions --&gt;
+      &lt;div class="form-footer"&gt;
+        &lt;button class="btn-text" ng-click="c.closeToDashboard()"&gt;Cancel&lt;/button&gt;
+        &lt;div class="right-actions"&gt;
+          &lt;button class="btn-primary" ng-click="c.submitReport()" ng-disabled="c.submitting || !c.report.project || !c.report.as_on || !c.report.report_status || !c.report.overall_health || !c.report.percent_complete || !c.report.executive_summary || !c.report.schedule || !c.report.cost || !c.report.resources || !c.report.scope"&gt;
+            &lt;span ng-if="!c.submitting"&gt;Submit report&lt;/span&gt;
+            &lt;span ng-if="c.submitting"&gt;Submitting...&lt;/span&gt;
+          &lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+    &lt;/div&gt;
+
+    &lt;!-- RIGHT COLUMN: Context Sidebar --&gt;
+    &lt;div class="gn-sidebar"&gt;
+      &lt;div class="deadline-card" style="background: #312e81;"&gt;
+        &lt;div class="dc-label"&gt;REPORTING GUIDELINES&lt;/div&gt;
+        &lt;div class="dc-title"&gt;Status Reports&lt;/div&gt;
+        &lt;div class="dc-text"&gt;Please provide accurate updates on project progress, schedule, cost, and scope to ensure proper tracking. Late reports may pause reimbursement processing.&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+  &lt;/div&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>-1814772303</payload_hash>
+        <record_name>New Status Report </record_name>
+        <reverted_from/>
+        <source>0960f7d90f87c310712b6af300d1b2c3</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-09-02 11:18:15</sys_created_on>
+        <sys_id>22edbe8293c34b10d444c9b877373c1a</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a061d750650000001</sys_recorded_at>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:18:15</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>6eedbe8224c34b10a6b7834b26565018</update_guid>
+        <update_guid_history>6eedbe8224c34b10a6b7834b26565018:-1814772303,1e75a9bda54f47102de2519c308daea2:364522499,82785ce1e9cbc310a336bd01275bbebd:-1934171709,32773ff90ef2cb10d9fd7296efd681b1:1019806233,3d4eabb9e3b2cb105528563ab5bdf928:-2115381133,4d0d2b39e1b2cb1036e2a2d46406fe82:-1703466493,73bb47bdf0be8b10a7871e24b2323efd:689139449</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="New Status Report ">70a133c2934b4b10d444c9b877373c42</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-09-02 15:04:14</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>d34ef9aa1edf4387a18038eb0b620469</sys_id>
+        <sys_metadata>ee5b4f3d93be8b10d444c9b877373c7b</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>New Status Report </sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_ee5b4f3d93be8b10d444c9b877373c7b</sys_update_name>
+        <sys_update_version display_value="sp_widget_ee5b4f3d93be8b10d444c9b877373c7b">22edbe8293c34b10d444c9b877373c1a</sys_update_version>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-02 15:04:14</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

@@ -1,0 +1,2673 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="DELETE">
+        <category>custom</category>
+        <client_script><![CDATA[function loginCtrl($scope, $http, $window, $location, glideUserSession, glideSystemProperties, spUtil) {
+
+	var c = this;
+
+	c.remember_me = c.data.forgetMe ? false : c.data.rememberMeDefault;
+
+	c.data.url_suffix = $scope.portal ? $scope.portal.url_suffix : "";
+
+	c.masked = true;
+
+
+	/* =========================================================
+	   GATENOW CUSTOMIZATION
+	   ========================================================= */
+
+	/*
+	 * Always send successful applicant login to:
+	 *
+	 * /applicant?id=applicant_dashboard
+	 */
+
+	function getApplicantDashboardUrl() {
+
+		var portalSuffix = "";
+
+		if ($scope.portal && $scope.portal.url_suffix) {
+			portalSuffix = $scope.portal.url_suffix;
+		}
+
+		/*
+		 * Fallback in case portal information is unavailable.
+		 */
+		if (!portalSuffix) {
+			portalSuffix = "applicant";
+		}
+
+		return "/" + portalSuffix + "?id=applicant_dashboard";
+	}
+
+
+	/*
+	 * Redirect to the applicant dashboard.
+	 */
+	function redirectToApplicantDashboard() {
+
+		var dashboardUrl = getApplicantDashboardUrl();
+
+		console.log(
+			"GateNow: Redirecting to applicant dashboard:",
+			dashboardUrl
+		);
+
+		$window.location.replace(dashboardUrl);
+	}
+
+
+	/* =========================================================
+	   SSO
+	   ========================================================= */
+
+	if (!c.data.is_logged_in &&
+		c.data.multisso_enabled &&
+		c.data.default_idp) {
+
+		var pageId =
+			$location.search().id || $scope.page.id;
+
+		var isLoginPage =
+			($scope.portal.login_page_dv == pageId) ||
+			('login' == pageId);
+
+		c.server.get({
+			action: "set_sso_destination",
+			pageURI: isLoginPage ?
+				getApplicantDashboardUrl() :
+				$location.url()
+		}).then(function() {
+
+			$window.location =
+				"/login_with_sso.do?glide_sso_id=" +
+				c.data.default_idp;
+
+		});
+
+	} else if (
+		!c.data.is_logged_in &&
+		c.data.certAuthRedirect &&
+		c.data.cert_based_auth &&
+		c.data.certHeader == "true"
+	) {
+
+		login(null, null, true);
+
+	}
+
+
+	/* =========================================================
+	   LOGIN
+	   ========================================================= */
+
+	c.login = function(username, password, isCertLogin) {
+
+		login(username, password, isCertLogin);
+
+	};
+
+
+	function login(username, password, isCertLogin) {
+
+		var url =
+			spUtil.getURL({
+				sysparm_type: 'view_form.login'
+			});
+
+
+		var pageId =
+			$location.search().id || $scope.page.id;
+
+
+		var isLoginPage =
+			($scope.portal.login_page_dv == pageId) ||
+			('login' == pageId);
+
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * Always specify the applicant dashboard as the
+		 * destination after successful authentication.
+		 *
+		 * We do NOT pass null here.
+		 */
+
+		var applicantDashboardUrl =
+			getApplicantDashboardUrl();
+
+
+		return $http({
+
+			method: 'post',
+
+			url: url,
+
+			data: $.param({
+
+				'sysparm_type': 'login',
+
+				'ni.nolog.user_password': true,
+
+				'remember_me':
+					!!c.remember_me ? true : false,
+
+				'user_name': username,
+
+				'user_password': password,
+
+				'get_redirect_url': true,
+
+				'is_direct_redirect': true,
+
+				/*
+				 * FORCE Service Portal destination
+				 */
+				'sysparm_goto_url':
+					applicantDashboardUrl,
+
+				/*
+				 * MFA destination
+				 */
+				'mfa_redirect_url':
+					applicantDashboardUrl,
+
+				'cert_login':
+					!!isCertLogin
+
+			}),
+
+			headers: {
+
+				'Content-Type':
+					'application/x-www-form-urlencoded'
+
+			}
+
+		}).then(function(response) {
+
+			if (!response.data) {
+
+				c.message =
+					$scope.data.errorMsg;
+
+				return;
+
+			}
+
+
+			/* =================================================
+			   LOGIN SUCCESS
+			   ================================================= */
+
+			if (response.data.status == 'success') {
+
+				if (c.data.multiFactorAuthEnabled) {
+
+					if (response.data.session_token) {
+
+						window.g_ck =
+							response.data.session_token;
+
+					}
+
+
+					/*
+					 * IMPORTANT:
+					 *
+					 * Do not trust ServiceNow's calculated
+					 * redirect_url.
+					 *
+					 * Pass our dashboard URL instead.
+					 */
+
+					c.server.get({
+
+						action:
+							"multi_factor_auth_setup",
+
+						directTo:
+							getApplicantDashboardUrl()
+
+					}).then(
+
+						handleLoginResponse.bind(response),
+
+						handleLoginResponse.bind(response)
+
+					);
+
+				} else {
+
+					handleLoginResponse.call(response);
+
+				}
+
+			}
+
+
+			/* =================================================
+			   MFA CODE REQUIRED
+			   ================================================= */
+
+			else if (
+				response.data.status ==
+				'mfa_code_required'
+			) {
+
+				$window.location =
+					'/validate_multifactor_auth_code.do';
+
+			}
+
+
+			/* =================================================
+			   LOGIN FAILED
+			   ================================================= */
+
+			else {
+
+				c.message =
+					response.data.message;
+
+				c.password = "";
+
+				c.username = "";
+
+				angular
+					.element("#username")
+					.focus();
+
+			}
+
+		}, function errorCallback(response) {
+
+			c.message =
+				$scope.data.errorMsg;
+
+		});
+
+	}
+
+
+	/* =========================================================
+	   OIDC LOGIN
+	   ========================================================= */
+
+	c.oidcLogin = function(idProvider) {
+
+		c.server.get({
+
+			action:
+				"set_sso_destination",
+
+			pageURI:
+				getApplicantDashboardUrl()
+
+		}).then(function() {
+
+			$window.location =
+				"/login_with_sso.do?glide_sso_id=" +
+				idProvider;
+
+		});
+
+	};
+
+
+	/* =========================================================
+	   EXTERNAL LOGIN
+	   ========================================================= */
+
+	c.externalLogin = function() {
+
+		var applicantDashboardUrl =
+			getApplicantDashboardUrl();
+
+
+		c.server.get({
+
+			action:
+				"set_sso_destination",
+
+			pageURI:
+				applicantDashboardUrl
+
+		}).then(function() {
+
+			glideSystemProperties.set(
+				"glide.authenticate.multisso.enabled",
+				true
+			);
+
+
+			glideUserSession
+				.getSsoRedirectUrlForUsername(
+					c.username
+				)
+				.then(
+
+					function(url) {
+
+						$window.location =
+							url;
+
+					},
+
+					function(err) {
+
+						spUtil.addErrorMessage(
+							$scope.data.errorMsg2
+						);
+
+					}
+
+				);
+
+		});
+
+	};
+
+
+	/* =========================================================
+	   LOGIN RESPONSE
+	   ========================================================= */
+
+	function handleLoginResponse() {
+
+		c.success =
+			this.data.message;
+
+
+		/*
+		 * =====================================================
+		 * GATENOW CUSTOM REDIRECT
+		 * =====================================================
+		 *
+		 * Do NOT use:
+		 *
+		 * response.data.redirect_url
+		 *
+		 * Do NOT use:
+		 *
+		 * $location.url(...)
+		 *
+		 * We explicitly send the user to the Service Portal
+		 * applicant dashboard.
+		 */
+
+		redirectToApplicantDashboard();
+
+	}
+
+
+	/* =========================================================
+	   EXTERNAL LOGIN MODE
+	   ========================================================= */
+
+	c.setExternalLogin = function(newVal) {
+
+		c.externalLoginMode =
+			newVal;
+
+		if (!newVal) {
+			c.masked = true;
+		}
+
+	};
+
+
+	/* =========================================================
+	   PASSWORD VISIBILITY
+	   ========================================================= */
+
+	c.renderMaskIcon = function() {
+
+		var passwordEle =
+			document.getElementById("password");
+
+		var maskEle =
+			document.getElementById("mask_icon");
+
+		$(maskEle).tooltip('hide');
+
+		var btnDescription =
+			document.getElementById("btnDescription");
+
+		var element =
+			document.getElementsByClassName(
+				"mask_btn"
+			)[0];
+
+		var isPasswordType =
+			passwordEle.type === 'password';
+
+		maskEle.classList.toggle(
+			'active',
+			isPasswordType
+		);
+
+		maskEle.setAttribute(
+			'data-original-title',
+			(isPasswordType) ?
+				'${Hide password}' :
+				'${Show password}'
+		);
+
+		element.setAttribute(
+			'aria-label',
+			(isPasswordType) ?
+				'${Hide password}' :
+				'${Show password}'
+		);
+
+		passwordEle.type =
+			(isPasswordType) ?
+				'text' :
+				'password';
+
+		btnDescription.textContent =
+			(isPasswordType) ?
+				'${Password shown}' :
+				'${Password hidden}';
+
+	};
+
+}]]></client_script>
+        <controller_as>c</controller_as>
+        <css>.sp-login-widget { 
+  
+  .panel-body {
+    padding: 15px 15px 10px;
+  }
+  
+  .form-control,
+  label[for="username"],
+  label[for="password"] {
+    color: black;
+  }
+  
+  .btn {
+    font-weight: 600;
+    font-size: 2.0rem;
+    background-color: $login-btn-bg;
+    border-color: $login-btn-border;
+  }
+  
+  .list-group {
+    margin-bottom: 12px;
+  }
+  
+  .login-button-old {
+    margin-top: 7px;
+  }
+  
+  .login-alert {
+    margin-left: 0px;
+    margin-right: 0px;
+  }
+
+}
+//STRY50033370: Forgot Password link in the login widget
+//Start -- login widget advanced view
+.sp-login-widget.advanced {  
+  .panel-title {
+    font-size: 25px;
+  }
+  
+  .panel-default &gt; .panel-heading {
+    background-color: $panel-bg; 
+    border: 0px;    
+  }
+  
+  .panel-body {
+    padding: 0px 0px 10px;
+  }
+
+  [placeholder]::-webkit-input-placeholder { 
+    transition: opacity 0.01s 0.01s ease !important; 
+    opacity: 0 !important; 
+  }
+
+  .form-signin {
+    .list-group-item { 
+      border: 0px;
+    }
+    
+    .login-alert {
+    margin-left: 15px;
+    margin-right: 15px;
+    }
+    
+    .btn {
+      font-weight: 400 !important;
+      border-color: $brand-primary;
+      background-color: $brand-primary;
+      border-radius: 2px;
+    }
+
+    .forgot-pwd-div {
+      padding-right: 15px;
+      padding-left: 15px;
+      .forgot-text {
+        font-size: 16px;	
+        line-height: 20px;
+        padding-top: 8px;
+      }
+      
+      .btn {
+        line-height: 16px;
+        font-size: 14px;
+        margin-top: 0px;
+      }
+      
+    }
+    
+    .submit-btn {
+      padding-right: 15px;
+      padding-left: 15px;
+    }
+    
+    .input-group-advanced {
+      margin-top: 10px;
+    }
+
+    .input-advanced {
+      border: 1px solid $btn-default-border !important;
+      border-radius: 3px !important;
+      background-color: $panel-bg !important;
+    }
+    
+    .checkbox {
+      padding-left: 15px !important; 
+    }
+   
+    .label-advanced {
+      position: relative;
+      width: 100%;
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      height: 19px;
+      color: $text-color;
+      font-size: 16px;
+      line-height: 19px;
+    }
+    
+    .mask_btn {
+      background-color: #fcfcfc;
+      border-color: #939393;
+      border-left : 0px;
+      width:fit-content;
+      border-top-left-radius: 0px !important;
+      border-bottom-left-radius: 0px !important;
+      font-size: 1.4rem !important;
+      position: relative;
+
+	&amp;.active {
+		&amp;:after {
+          	background-color: #2e2e2e;
+			content: "";
+			height: 16px;
+			left: 50%;
+	    		margin-top: -8px;
+			margin-inline-start: -1px;
+			margin-block-start: -8px;
+			position: absolute;
+			top: 50%;
+			transform: rotate(45deg);
+			width: 1px;
+			}
+		}
+    }
+
+    
+    .loginWithBtn {
+      padding: 0 1.5rem;
+    }
+    
+  }
+
+}
+//End -- login widget advanced view
+.sp-self-registration {
+  text-align: center;
+}
+.sp-login-widget {
+.bar {
+  margin: 12px 0;
+  span {
+        display: flex;
+        text-wrap: nowrap;
+
+    &amp;:before, &amp;:after {
+      content: '';
+          width: 100%;
+      height: 1px;
+      background-color: #b3bac7;
+          margin-top: 10px;
+    }
+    &amp;:before {
+          margin-right: 10px;
+    }
+    &amp;:after {
+          margin-left: 10px;
+        }
+    }
+  }
+button.cert, a.idp {
+  background-color: #fff !important;
+  border-color: #ccc !important;
+  width: 100%;
+  margin-bottom: 10px;
+
+  &amp;:hover {
+    border-color: #adadad;
+    background-color: #e6e6e6;
+  }
+  img {
+    height: 20px;
+    width: 20px;
+    margin-bottom: 3px;
+    margin-right: 9px;
+  }
+}
+  img.eye-icon {
+    content:url("eye.svg");
+    cursor: pointer;
+    width:18px;
+    height:18px;
+    display: flex;
+    justify-content:center;
+    align-items:center;
+    float:left;
+  }
+  
+  img.eye-icon.slashed {
+    content:url("eye-slash.svg");
+  }
+  
+  .password-group {
+    display:flex;
+    flex-direction:row;
+  }
+ 
+  .mask_btn {
+      background-color: #fcfcfc;
+      border-color: #939393;
+      border-left : 0px;
+      width:fit-content;
+      border-top-left-radius: 0px !important;
+      border-bottom-left-radius: 0px !important;
+      font-size: 1.4rem !important;
+      position: relative;
+
+	&amp;.active {
+		&amp;:after {
+          	background-color: #2e2e2e;
+			content: "";
+			height: 16px;
+			left: 50%;
+	    		margin-top: -8px;
+			margin-inline-start: -1px;
+			margin-block-start: -8px;
+			position: absolute;
+			top: 50%;
+			transform: rotate(45deg);
+			width: 1px;
+			}
+		}
+    }
+  input::-ms-reveal,
+    input::-ms-clear {
+      display: none;
+  }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>gatenow_login</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {  }]]></link>
+        <name>Gatenow login</name>
+        <option_schema>[{"name":"show_panel","section":"Presentation","default_value":"true","label":"Show Panel","type":"boolean"},{"name":"use_advanced","section":"Presentation","default_value":"false","label":"Use Advanced View","type":"boolean"}]</option_schema>
+        <public>true</public>
+        <roles/>
+        <script><![CDATA[(function() {
+
+    options.show_panel =
+        options.show_panel == "true" ||
+        options.show_panel == true;
+
+
+    /* =========================================================
+       GATENOW DASHBOARD URL
+       ========================================================= */
+
+    var GATENOW_DASHBOARD =
+        '/applicant?id=applicant_dashboard';
+
+
+    /* =========================================================
+       MULTI-FACTOR AUTHENTICATION
+       ========================================================= */
+
+    if (
+        input &&
+        input.action === "multi_factor_auth_setup"
+    ) {
+
+        if (
+            gs.getSession()
+              .getProperty(
+                  "setup_multifactor_authn"
+              )
+        ) {
+
+            /*
+             * Ignore the redirect supplied by the
+             * standard login widget.
+             *
+             * Force GateNow dashboard.
+             */
+
+            gs.getSession()
+              .putProperty(
+                  "nav_to",
+                  GATENOW_DASHBOARD
+              );
+
+
+            gs.getSession()
+              .putProperty(
+                  "starting_page",
+                  GATENOW_DASHBOARD
+              );
+
+
+            gs.getSession()
+              .putProperty(
+                  "is_direct_redirect",
+                  "true"
+              );
+
+        }
+
+        return;
+    }
+
+
+    /* =========================================================
+       SSO SELECTOR FIELD
+       ========================================================= */
+
+    var ssoSelectorField =
+        gs.getProperty(
+            'glide.authenticate.multisso.login_locate.user_field',
+            'user_name'
+        );
+
+
+    var td =
+        new GlideTableDescriptor('sys_user');
+
+
+    var ed =
+        td.getElementDescriptor(
+            ssoSelectorField
+        );
+
+
+    if (ed) {
+
+        data.ssoSelectorFieldLabel =
+            ed.getLabel();
+
+    }
+
+
+    /* =========================================================
+       SSO DESTINATION
+       ========================================================= */
+
+    if (
+        input &&
+        input.action === "set_sso_destination"
+    ) {
+
+        /*
+         * Clear existing native destination.
+         */
+
+        var gs_nav_to =
+            gs.getSession()
+              .getProperty("nav_to");
+
+
+        gs.getSession()
+          .putProperty(
+              "nav_to",
+              null
+          );
+
+
+        /*
+         * Always use GateNow dashboard when
+         * the login originates from this portal.
+         */
+
+        gs.getSession()
+          .putProperty(
+              "is_direct_redirect",
+              "true"
+          );
+
+
+        gs.getSession()
+          .putProperty(
+              "starting_page",
+              GATENOW_DASHBOARD
+          );
+
+
+        return;
+    }
+
+
+    /* =========================================================
+       SELF REGISTRATION
+       ========================================================= */
+
+    var portalRecord =
+        $sp.getPortalRecord();
+
+
+    var self_registration_field =
+        portalRecord ?
+        portalRecord.getValue(
+            "user_registration_config"
+        ) :
+        "";
+
+
+    if (self_registration_field) {
+
+        var registration_config =
+            new GlideRecord(
+                "sys_user_registration_config"
+            );
+
+
+        registration_config.addActiveQuery();
+
+
+        registration_config.query(
+            'sys_id',
+            self_registration_field
+        );
+
+
+        if (registration_config.next()) {
+
+            var self_registration_record_producer =
+                registration_config.getValue(
+                    "record_producer"
+                );
+
+
+            var self_registration_label =
+                registration_config.getValue(
+                    "registration_label"
+                ) ||
+                gs.getMessage("Sign Up");
+
+
+            data.self_registration_record_producer =
+                self_registration_record_producer;
+
+
+            data.self_registration_label =
+                self_registration_label;
+
+        }
+    }
+
+
+    /* =========================================================
+       CERTIFICATE AUTHENTICATION
+       ========================================================= */
+
+    if (
+        portalRecord &&
+        (
+            portalRecord.getValue(
+                'enable_certificate_based_authentication'
+            ) == 1
+        )
+    ) {
+
+        data.cert_based_auth =
+            gs.getProperty(
+                'glide.authenticate.mutual.enabled',
+                'false'
+            ) == 'true';
+
+    }
+
+
+    /* =========================================================
+       CERTIFICATE HEADER
+       ========================================================= */
+
+    if (data.cert_based_auth) {
+
+        var request =
+            GlideTransaction
+                .get()
+                .getRequest();
+
+
+        var certHeader =
+            request.getHeader(
+                "X-Client-Cert"
+            );
+
+
+        if (!certHeader) {
+
+            data.certHeader =
+                "false";
+
+
+            gs.log(
+                "Failed to register PIV/CAC certificate to the user account."
+            );
+
+        } else {
+
+            data.certHeader =
+                "true";
+
+        }
+
+    }
+
+
+    /* =========================================================
+       SSO / IDENTITY PROVIDERS
+       ========================================================= */
+
+    data.isShowLoginWithIdps =
+        false;
+
+
+    data.isMultiSSOActive =
+        gs.getProperty(
+            'glide.authenticate.multisso.enabled',
+            'false'
+        ) == 'true';
+
+
+    var gr =
+        new GlideRecord(
+            "sso_properties"
+        );
+
+
+    if (
+        data.isMultiSSOActive &&
+        gr.isValid()
+    ) {
+
+        var ssoUtil =
+            new MultiSSO_OidcUtil();
+
+
+        data.ssoRecords =
+            ssoUtil.getSSORecords();
+
+
+        data.isShowLoginWithIdps =
+            (
+                data.ssoRecords.length > 0
+            );
+
+    }
+
+
+    /* =========================================================
+       PASSWORD RESET
+       ========================================================= */
+
+    data.pswdResetUrl =
+        gs.getProperty(
+            'glide.security.password_reset.uri'
+        );
+
+
+    data.forgotPwdLinkProp =
+        gs.getProperty(
+            'glide.security.forgot_password.display.link'
+        );
+
+
+    /* =========================================================
+       MESSAGES
+       ========================================================= */
+
+    data.errorMsg =
+        gs.getMessage(
+            "There was an error processing your request"
+        );
+
+
+    data.errorMsg2 =
+        gs.getMessage(
+            "An error has occurred - please contact your system administrator"
+        );
+
+
+    data.passwordMsg =
+        gs.getMessage(
+            "Password"
+        );
+
+
+    data.usernameMsg =
+        gs.getMessage(
+            "User name"
+        );
+
+
+    /* =========================================================
+       LOGIN SETTINGS
+       ========================================================= */
+
+    data.forgetMe =
+        GlideProperties.getBoolean(
+            "glide.ui.forgetme"
+        );
+
+
+    data.rememberMeDefault =
+        GlideProperties.getBoolean(
+            'glide.ui.remember.me.default',
+            true
+        );
+
+
+    data.is_logged_in =
+        gs.getSession()
+          .isLoggedIn();
+
+
+    var bypass_sso =
+        options.bypass_sso == "true";
+
+
+    data.multisso_enabled =
+        !bypass_sso &&
+        GlideProperties.getBoolean(
+            "glide.authenticate.multisso.enabled"
+        );
+
+
+    data.default_idp =
+        GlideProperties.get(
+            "glide.authenticate.sso.redirect.idp"
+        );
+
+
+    data.pageURI =
+        new GlideSPUtil()
+            .getPageUri();
+
+
+    data.multiFactorAuthEnabled =
+        GlideProperties.getBoolean(
+            'glide.authenticate.multifactor',
+            false
+        );
+
+
+    data.certAuthRedirect =
+        gs.getProperty(
+            'glide.authenticate.cert.redirect.enable',
+            'false'
+        ) == 'true';
+
+
+    /* =========================================================
+       CUSTOM URL / SSO
+       ========================================================= */
+
+    var customURL =
+        GlideProperties.getBoolean(
+            'glide.customurl.enabled',
+            false
+        );
+
+
+    if (
+        customURL == true &&
+        data.multisso_enabled == true
+    ) {
+
+        var idp =
+            SNC.CustomURLSPUtil
+              .getAutoRedirectIDPForCustomURLWithPortal();
+
+
+        if (
+            GlideStringUtil.notNil(idp)
+        ) {
+
+            data.default_idp =
+                idp;
+
+        }
+
+    }
+
+
+    /* =========================================================
+       SESSION ACCESS MESSAGE
+       ========================================================= */
+
+    var isSessionAccessReduced =
+        GlideSession
+            .get()
+            .getBooleanProperty(
+                "isSessionAccessReduced",
+                false
+            );
+
+
+    var isSessionAccessMessageShown =
+        GlideSession
+            .get()
+            .getBooleanProperty(
+                "isSessionAccessReducedMessageShown",
+                false
+            );
+
+
+    if (
+        isSessionAccessReduced &&
+        !isSessionAccessMessageShown
+    ) {
+
+        SNC.SessionAccessUtil
+            .showUserInfoMessageIfAccessReduced();
+
+    }
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-27 11:25:58</sys_created_on>
+        <sys_id>3c26805c0f4f8b10712b6af300d1b2fe</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_name>Gatenow login</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_3c26805c0f4f8b10712b6af300d1b2fe</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-27 11:40:59</sys_updated_on>
+        <template><![CDATA[<div ng-if="!data.is_logged_in" class="sp-login-widget" ng-class="::(c.options.use_advanced == 'true' ? 'advanced' : '')">
+  <form ng-if="!c.externalLoginMode" class="form-signin" ng-submit="c.login(c.username, c.password)" method="post">
+		<div ng-class="::{'panel panel-default': c.options.show_panel}">
+			<div ng-if="::c.options.show_panel" class="panel-heading padder-v">	      
+				<h3 class="panel-title">${Login}</h3>
+			</div>
+			<div ng-class="::{'panel-body': c.options.show_panel}">
+				<div class="list-group list-group-sm">
+					<div class="list-group-item">
+            <label for="username" class="label-advanced">{{::data.usernameMsg}}</label>
+            <input id="username" name="username" autocapitalize="off" ng-keypress="c.message = ''" ng-click="c.message = ''" class="form-control input-advanced input-group-advanced" type="text" autofocus="true" ng-model="c.username" autocomplete="off"/>
+					</div>
+					<div class="list-group-item">
+            <label for="password" class="label-advanced">{{::data.passwordMsg}}</label>
+                <p id="btnDescription" class="sr-only" aria-live="polite">"${Password hidden}</p>
+            <div class="input-group password-group input-group-advanced">
+					<input id="password" name="password" ng-keypress="c.message = ''" ng-click="c.message = ''" class="form-control input-advanced" type="password" ng-model="c.password" autocomplete="off"/>
+					<span class="input-advanced" >
+              				<button
+						id="mask_icon"
+						type="button"
+						class="btn btn-default icon-preview input-group-append mask_btn sn-tooltip-basic"
+						ng-Click="c.renderMaskIcon()"
+						aria-label="${Show Password}"
+						data-toggle="tooltip"
+						data-container="body"
+						data-original-title="${Show password}"></button>
+    				</span>
+    			</div>
+					</div>
+				</div>
+
+				<div ng-if="c.message" class="alert alert-danger login-alert" role="alert">{{c.message}}</div>
+				<div ng-if="c.success" class="alert alert-success login-alert" role="alert">{{c.success}}</div>
+
+				<div ng-if="::!c.data.forgetMe" class="checkbox">
+          <label>
+            <input name="c.remember_me" ng-model="c.remember_me" checked="checked" id="remember_me" type="checkbox" class="checkbox" value="true"/> ${Remember me}
+					</label>
+				</div>
+        <!--STRY50033370: Forgot Password link in the login widget-->
+        <div class="forgot-pwd-div m-b">
+          <div class="row">
+            <div ng-if="::(c.data.forgotPwdLinkProp == 'true')" class="forgot-text" ng-class="::(c.options.use_advanced == 'true' ? 'col-xs-8' : 'col-xs-12')">
+              <a class="forgot-pwd-link" ng-href="{{::c.data.pswdResetUrl}}">${Forgot Password ?}</a>
+            </div>
+            <div ng-class="::(c.options.use_advanced == 'true' && c.data.forgotPwdLinkProp =='true' ? 'col-xs-4' : 'col-xs-12')">
+              <button name="login" type="submit" class="btn btn-lg btn-primary btn-block login-button-old">
+                ${Login}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="row set-login-type-link m-t" ng-if="::data.multisso_enabled">
+          <div class="col-xs-12 text-center">
+            <a href="javascript:void(0)"
+               ng-click="c.setExternalLogin(true)">${Use external login}</a>
+          </div>
+        </div>
+        <div ng-class="col-xs-12" ng-if="data.cert_based_auth || data.isShowLoginWithIdps">
+              </div>
+        <div ng-class="col-xs-12" ng-if="::c.data.cert_based_auth" class="loginWithBtn">
+           <button name="login" type="button" class="cert btn btn-lg btn-default" ng-click="c.login(null, null, true)"><img alt="" ng-src="certLoginLogo.svg"/>${Login with PIV/CAC card}</button>
+        </div>
+        <div ng-repeat="a in ::c.data.ssoRecords">
+           <div ng-class="col-xs-12" class="loginWithBtn">                 
+              <a name="login" class="idp btn btn-lg btn-default" href="javascript:void(0)" ng-click="c.oidcLogin(a.sysId)">
+              <img ng-if="::a.isLogoUrlValid" alt="" ng-src="{{::a.logoUrl}}"/>${Log in with} {{::a.name}}
+              </a>
+           </div>
+        </div>
+			</div>
+		</div>
+	</form>
+	<form ng-if="c.externalLoginMode" class="form-signin" ng-submit="c.externalLogin()" method="post">
+		<div ng-class="::{'panel panel-default': c.options.show_panel}">
+			<div ng-if="::c.options.show_panel" class="panel-heading">
+				<h3 class="panel-title">${External Login}</h3>
+			</div>
+
+			<div ng-class="::{'panel-body': c.options.show_panel}">
+				<div class="list-group list-group-sm">
+					<div class="list-group-item">
+            <label for="username" class="label-advanced">{{::data.ssoSelectorFieldLabel}}</label>
+            <input id="username" name="username" ng-click="message = ''" class="form-control input-advanced" type="text" autofocus="true" ng-model="c.username"/>
+					</div>
+				</div>
+
+        <div class="submit-btn row">
+          <div class="col-xs-12">
+            <button name="login" type="submit" class="btn btn-lg btn-primary btn-block">
+              ${Submit}
+            </button>
+          </div>
+        </div>
+        <div class="set-login-type-link row m-t">
+          <div class="col-xs-12 text-center">
+            <a href="javascript:void(0)"
+               ng-click="c.setExternalLogin(false)">${Use internal login}</a>    
+          </div>
+        </div>
+      </div>
+		</div>
+	</form>
+  <div class="sp-self-registration forgot-pwd-link" ng-if="::c.data.self_registration_record_producer">${Don't have an account?}
+    <a ng-href="/{{::c.data.url_suffix}}?id=sn_user_registration&sys_id={{::c.data.self_registration_record_producer}}">{{::c.data.self_registration_label}}</a>
+  </div>
+</div>]]></template>
+    </sp_widget>
+    <sys_update_version action="INSERT_OR_UPDATE">
+        <action>DELETE</action>
+        <application display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</application>
+        <file_path/>
+        <instance_id>bb2055c493b17a90d9f6ddd548373c66</instance_id>
+        <instance_name>ven08761</instance_name>
+        <name>sp_widget_3c26805c0f4f8b10712b6af300d1b2fe</name>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update table="sp_widget"&gt;&lt;sp_widget action="INSERT_OR_UPDATE"&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[function loginCtrl($scope, $http, $window, $location, glideUserSession, glideSystemProperties, spUtil) {
+
+	var c = this;
+
+	c.remember_me = c.data.forgetMe ? false : c.data.rememberMeDefault;
+
+	c.data.url_suffix = $scope.portal ? $scope.portal.url_suffix : "";
+
+	c.masked = true;
+
+
+	/* =========================================================
+	   GATENOW CUSTOMIZATION
+	   ========================================================= */
+
+	/*
+	 * Always send successful applicant login to:
+	 *
+	 * /applicant?id=applicant_dashboard
+	 */
+
+	function getApplicantDashboardUrl() {
+
+		var portalSuffix = "";
+
+		if ($scope.portal &amp;&amp; $scope.portal.url_suffix) {
+			portalSuffix = $scope.portal.url_suffix;
+		}
+
+		/*
+		 * Fallback in case portal information is unavailable.
+		 */
+		if (!portalSuffix) {
+			portalSuffix = "applicant";
+		}
+
+		return "/" + portalSuffix + "?id=applicant_dashboard";
+	}
+
+
+	/*
+	 * Redirect to the applicant dashboard.
+	 */
+	function redirectToApplicantDashboard() {
+
+		var dashboardUrl = getApplicantDashboardUrl();
+
+		console.log(
+			"GateNow: Redirecting to applicant dashboard:",
+			dashboardUrl
+		);
+
+		$window.location.replace(dashboardUrl);
+	}
+
+
+	/* =========================================================
+	   SSO
+	   ========================================================= */
+
+	if (!c.data.is_logged_in &amp;&amp;
+		c.data.multisso_enabled &amp;&amp;
+		c.data.default_idp) {
+
+		var pageId =
+			$location.search().id || $scope.page.id;
+
+		var isLoginPage =
+			($scope.portal.login_page_dv == pageId) ||
+			('login' == pageId);
+
+		c.server.get({
+			action: "set_sso_destination",
+			pageURI: isLoginPage ?
+				getApplicantDashboardUrl() :
+				$location.url()
+		}).then(function() {
+
+			$window.location =
+				"/login_with_sso.do?glide_sso_id=" +
+				c.data.default_idp;
+
+		});
+
+	} else if (
+		!c.data.is_logged_in &amp;&amp;
+		c.data.certAuthRedirect &amp;&amp;
+		c.data.cert_based_auth &amp;&amp;
+		c.data.certHeader == "true"
+	) {
+
+		login(null, null, true);
+
+	}
+
+
+	/* =========================================================
+	   LOGIN
+	   ========================================================= */
+
+	c.login = function(username, password, isCertLogin) {
+
+		login(username, password, isCertLogin);
+
+	};
+
+
+	function login(username, password, isCertLogin) {
+
+		var url =
+			spUtil.getURL({
+				sysparm_type: 'view_form.login'
+			});
+
+
+		var pageId =
+			$location.search().id || $scope.page.id;
+
+
+		var isLoginPage =
+			($scope.portal.login_page_dv == pageId) ||
+			('login' == pageId);
+
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * Always specify the applicant dashboard as the
+		 * destination after successful authentication.
+		 *
+		 * We do NOT pass null here.
+		 */
+
+		var applicantDashboardUrl =
+			getApplicantDashboardUrl();
+
+
+		return $http({
+
+			method: 'post',
+
+			url: url,
+
+			data: $.param({
+
+				'sysparm_type': 'login',
+
+				'ni.nolog.user_password': true,
+
+				'remember_me':
+					!!c.remember_me ? true : false,
+
+				'user_name': username,
+
+				'user_password': password,
+
+				'get_redirect_url': true,
+
+				'is_direct_redirect': true,
+
+				/*
+				 * FORCE Service Portal destination
+				 */
+				'sysparm_goto_url':
+					applicantDashboardUrl,
+
+				/*
+				 * MFA destination
+				 */
+				'mfa_redirect_url':
+					applicantDashboardUrl,
+
+				'cert_login':
+					!!isCertLogin
+
+			}),
+
+			headers: {
+
+				'Content-Type':
+					'application/x-www-form-urlencoded'
+
+			}
+
+		}).then(function(response) {
+
+			if (!response.data) {
+
+				c.message =
+					$scope.data.errorMsg;
+
+				return;
+
+			}
+
+
+			/* =================================================
+			   LOGIN SUCCESS
+			   ================================================= */
+
+			if (response.data.status == 'success') {
+
+				if (c.data.multiFactorAuthEnabled) {
+
+					if (response.data.session_token) {
+
+						window.g_ck =
+							response.data.session_token;
+
+					}
+
+
+					/*
+					 * IMPORTANT:
+					 *
+					 * Do not trust ServiceNow's calculated
+					 * redirect_url.
+					 *
+					 * Pass our dashboard URL instead.
+					 */
+
+					c.server.get({
+
+						action:
+							"multi_factor_auth_setup",
+
+						directTo:
+							getApplicantDashboardUrl()
+
+					}).then(
+
+						handleLoginResponse.bind(response),
+
+						handleLoginResponse.bind(response)
+
+					);
+
+				} else {
+
+					handleLoginResponse.call(response);
+
+				}
+
+			}
+
+
+			/* =================================================
+			   MFA CODE REQUIRED
+			   ================================================= */
+
+			else if (
+				response.data.status ==
+				'mfa_code_required'
+			) {
+
+				$window.location =
+					'/validate_multifactor_auth_code.do';
+
+			}
+
+
+			/* =================================================
+			   LOGIN FAILED
+			   ================================================= */
+
+			else {
+
+				c.message =
+					response.data.message;
+
+				c.password = "";
+
+				c.username = "";
+
+				angular
+					.element("#username")
+					.focus();
+
+			}
+
+		}, function errorCallback(response) {
+
+			c.message =
+				$scope.data.errorMsg;
+
+		});
+
+	}
+
+
+	/* =========================================================
+	   OIDC LOGIN
+	   ========================================================= */
+
+	c.oidcLogin = function(idProvider) {
+
+		c.server.get({
+
+			action:
+				"set_sso_destination",
+
+			pageURI:
+				getApplicantDashboardUrl()
+
+		}).then(function() {
+
+			$window.location =
+				"/login_with_sso.do?glide_sso_id=" +
+				idProvider;
+
+		});
+
+	};
+
+
+	/* =========================================================
+	   EXTERNAL LOGIN
+	   ========================================================= */
+
+	c.externalLogin = function() {
+
+		var applicantDashboardUrl =
+			getApplicantDashboardUrl();
+
+
+		c.server.get({
+
+			action:
+				"set_sso_destination",
+
+			pageURI:
+				applicantDashboardUrl
+
+		}).then(function() {
+
+			glideSystemProperties.set(
+				"glide.authenticate.multisso.enabled",
+				true
+			);
+
+
+			glideUserSession
+				.getSsoRedirectUrlForUsername(
+					c.username
+				)
+				.then(
+
+					function(url) {
+
+						$window.location =
+							url;
+
+					},
+
+					function(err) {
+
+						spUtil.addErrorMessage(
+							$scope.data.errorMsg2
+						);
+
+					}
+
+				);
+
+		});
+
+	};
+
+
+	/* =========================================================
+	   LOGIN RESPONSE
+	   ========================================================= */
+
+	function handleLoginResponse() {
+
+		c.success =
+			this.data.message;
+
+
+		/*
+		 * =====================================================
+		 * GATENOW CUSTOM REDIRECT
+		 * =====================================================
+		 *
+		 * Do NOT use:
+		 *
+		 * response.data.redirect_url
+		 *
+		 * Do NOT use:
+		 *
+		 * $location.url(...)
+		 *
+		 * We explicitly send the user to the Service Portal
+		 * applicant dashboard.
+		 */
+
+		redirectToApplicantDashboard();
+
+	}
+
+
+	/* =========================================================
+	   EXTERNAL LOGIN MODE
+	   ========================================================= */
+
+	c.setExternalLogin = function(newVal) {
+
+		c.externalLoginMode =
+			newVal;
+
+		if (!newVal) {
+			c.masked = true;
+		}
+
+	};
+
+
+	/* =========================================================
+	   PASSWORD VISIBILITY
+	   ========================================================= */
+
+	c.renderMaskIcon = function() {
+
+		var passwordEle =
+			document.getElementById("password");
+
+		var maskEle =
+			document.getElementById("mask_icon");
+
+		$(maskEle).tooltip('hide');
+
+		var btnDescription =
+			document.getElementById("btnDescription");
+
+		var element =
+			document.getElementsByClassName(
+				"mask_btn"
+			)[0];
+
+		var isPasswordType =
+			passwordEle.type === 'password';
+
+		maskEle.classList.toggle(
+			'active',
+			isPasswordType
+		);
+
+		maskEle.setAttribute(
+			'data-original-title',
+			(isPasswordType) ?
+				'${Hide password}' :
+				'${Show password}'
+		);
+
+		element.setAttribute(
+			'aria-label',
+			(isPasswordType) ?
+				'${Hide password}' :
+				'${Show password}'
+		);
+
+		passwordEle.type =
+			(isPasswordType) ?
+				'text' :
+				'password';
+
+		btnDescription.textContent =
+			(isPasswordType) ?
+				'${Password shown}' :
+				'${Password hidden}';
+
+	};
+
+}]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;.sp-login-widget { 
+  
+  .panel-body {
+    padding: 15px 15px 10px;
+  }
+  
+  .form-control,
+  label[for="username"],
+  label[for="password"] {
+    color: black;
+  }
+  
+  .btn {
+    font-weight: 600;
+    font-size: 2.0rem;
+    background-color: $login-btn-bg;
+    border-color: $login-btn-border;
+  }
+  
+  .list-group {
+    margin-bottom: 12px;
+  }
+  
+  .login-button-old {
+    margin-top: 7px;
+  }
+  
+  .login-alert {
+    margin-left: 0px;
+    margin-right: 0px;
+  }
+
+}
+//STRY50033370: Forgot Password link in the login widget
+//Start -- login widget advanced view
+.sp-login-widget.advanced {  
+  .panel-title {
+    font-size: 25px;
+  }
+  
+  .panel-default &amp;gt; .panel-heading {
+    background-color: $panel-bg; 
+    border: 0px;    
+  }
+  
+  .panel-body {
+    padding: 0px 0px 10px;
+  }
+
+  [placeholder]::-webkit-input-placeholder { 
+    transition: opacity 0.01s 0.01s ease !important; 
+    opacity: 0 !important; 
+  }
+
+  .form-signin {
+    .list-group-item { 
+      border: 0px;
+    }
+    
+    .login-alert {
+    margin-left: 15px;
+    margin-right: 15px;
+    }
+    
+    .btn {
+      font-weight: 400 !important;
+      border-color: $brand-primary;
+      background-color: $brand-primary;
+      border-radius: 2px;
+    }
+
+    .forgot-pwd-div {
+      padding-right: 15px;
+      padding-left: 15px;
+      .forgot-text {
+        font-size: 16px;	
+        line-height: 20px;
+        padding-top: 8px;
+      }
+      
+      .btn {
+        line-height: 16px;
+        font-size: 14px;
+        margin-top: 0px;
+      }
+      
+    }
+    
+    .submit-btn {
+      padding-right: 15px;
+      padding-left: 15px;
+    }
+    
+    .input-group-advanced {
+      margin-top: 10px;
+    }
+
+    .input-advanced {
+      border: 1px solid $btn-default-border !important;
+      border-radius: 3px !important;
+      background-color: $panel-bg !important;
+    }
+    
+    .checkbox {
+      padding-left: 15px !important; 
+    }
+   
+    .label-advanced {
+      position: relative;
+      width: 100%;
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      height: 19px;
+      color: $text-color;
+      font-size: 16px;
+      line-height: 19px;
+    }
+    
+    .mask_btn {
+      background-color: #fcfcfc;
+      border-color: #939393;
+      border-left : 0px;
+      width:fit-content;
+      border-top-left-radius: 0px !important;
+      border-bottom-left-radius: 0px !important;
+      font-size: 1.4rem !important;
+      position: relative;
+
+	&amp;amp;.active {
+		&amp;amp;:after {
+          	background-color: #2e2e2e;
+			content: "";
+			height: 16px;
+			left: 50%;
+	    		margin-top: -8px;
+			margin-inline-start: -1px;
+			margin-block-start: -8px;
+			position: absolute;
+			top: 50%;
+			transform: rotate(45deg);
+			width: 1px;
+			}
+		}
+    }
+
+    
+    .loginWithBtn {
+      padding: 0 1.5rem;
+    }
+    
+  }
+
+}
+//End -- login widget advanced view
+.sp-self-registration {
+  text-align: center;
+}
+.sp-login-widget {
+.bar {
+  margin: 12px 0;
+  span {
+        display: flex;
+        text-wrap: nowrap;
+
+    &amp;amp;:before, &amp;amp;:after {
+      content: '';
+          width: 100%;
+      height: 1px;
+      background-color: #b3bac7;
+          margin-top: 10px;
+    }
+    &amp;amp;:before {
+          margin-right: 10px;
+    }
+    &amp;amp;:after {
+          margin-left: 10px;
+        }
+    }
+  }
+button.cert, a.idp {
+  background-color: #fff !important;
+  border-color: #ccc !important;
+  width: 100%;
+  margin-bottom: 10px;
+
+  &amp;amp;:hover {
+    border-color: #adadad;
+    background-color: #e6e6e6;
+  }
+  img {
+    height: 20px;
+    width: 20px;
+    margin-bottom: 3px;
+    margin-right: 9px;
+  }
+}
+  img.eye-icon {
+    content:url("eye.svg");
+    cursor: pointer;
+    width:18px;
+    height:18px;
+    display: flex;
+    justify-content:center;
+    align-items:center;
+    float:left;
+  }
+  
+  img.eye-icon.slashed {
+    content:url("eye-slash.svg");
+  }
+  
+  .password-group {
+    display:flex;
+    flex-direction:row;
+  }
+ 
+  .mask_btn {
+      background-color: #fcfcfc;
+      border-color: #939393;
+      border-left : 0px;
+      width:fit-content;
+      border-top-left-radius: 0px !important;
+      border-bottom-left-radius: 0px !important;
+      font-size: 1.4rem !important;
+      position: relative;
+
+	&amp;amp;.active {
+		&amp;amp;:after {
+          	background-color: #2e2e2e;
+			content: "";
+			height: 16px;
+			left: 50%;
+	    		margin-top: -8px;
+			margin-inline-start: -1px;
+			margin-block-start: -8px;
+			position: absolute;
+			top: 50%;
+			transform: rotate(45deg);
+			width: 1px;
+			}
+		}
+    }
+  input::-ms-reveal,
+    input::-ms-clear {
+      display: none;
+  }
+}&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description/&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;false&lt;/has_preview&gt;&lt;id&gt;gatenow_login&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {  }]]&gt;&lt;/link&gt;&lt;name&gt;Gatenow login&lt;/name&gt;&lt;option_schema&gt;[{"name":"show_panel","section":"Presentation","default_value":"true","label":"Show Panel","type":"boolean"},{"name":"use_advanced","section":"Presentation","default_value":"false","label":"Use Advanced View","type":"boolean"}]&lt;/option_schema&gt;&lt;public&gt;true&lt;/public&gt;&lt;roles/&gt;&lt;script&gt;&lt;![CDATA[(function() {
+
+    options.show_panel =
+        options.show_panel == "true" ||
+        options.show_panel == true;
+
+
+    /* =========================================================
+       GATENOW DASHBOARD URL
+       ========================================================= */
+
+    var GATENOW_DASHBOARD =
+        '/applicant?id=applicant_dashboard';
+
+
+    /* =========================================================
+       MULTI-FACTOR AUTHENTICATION
+       ========================================================= */
+
+    if (
+        input &amp;&amp;
+        input.action === "multi_factor_auth_setup"
+    ) {
+
+        if (
+            gs.getSession()
+              .getProperty(
+                  "setup_multifactor_authn"
+              )
+        ) {
+
+            /*
+             * Ignore the redirect supplied by the
+             * standard login widget.
+             *
+             * Force GateNow dashboard.
+             */
+
+            gs.getSession()
+              .putProperty(
+                  "nav_to",
+                  GATENOW_DASHBOARD
+              );
+
+
+            gs.getSession()
+              .putProperty(
+                  "starting_page",
+                  GATENOW_DASHBOARD
+              );
+
+
+            gs.getSession()
+              .putProperty(
+                  "is_direct_redirect",
+                  "true"
+              );
+
+        }
+
+        return;
+    }
+
+
+    /* =========================================================
+       SSO SELECTOR FIELD
+       ========================================================= */
+
+    var ssoSelectorField =
+        gs.getProperty(
+            'glide.authenticate.multisso.login_locate.user_field',
+            'user_name'
+        );
+
+
+    var td =
+        new GlideTableDescriptor('sys_user');
+
+
+    var ed =
+        td.getElementDescriptor(
+            ssoSelectorField
+        );
+
+
+    if (ed) {
+
+        data.ssoSelectorFieldLabel =
+            ed.getLabel();
+
+    }
+
+
+    /* =========================================================
+       SSO DESTINATION
+       ========================================================= */
+
+    if (
+        input &amp;&amp;
+        input.action === "set_sso_destination"
+    ) {
+
+        /*
+         * Clear existing native destination.
+         */
+
+        var gs_nav_to =
+            gs.getSession()
+              .getProperty("nav_to");
+
+
+        gs.getSession()
+          .putProperty(
+              "nav_to",
+              null
+          );
+
+
+        /*
+         * Always use GateNow dashboard when
+         * the login originates from this portal.
+         */
+
+        gs.getSession()
+          .putProperty(
+              "is_direct_redirect",
+              "true"
+          );
+
+
+        gs.getSession()
+          .putProperty(
+              "starting_page",
+              GATENOW_DASHBOARD
+          );
+
+
+        return;
+    }
+
+
+    /* =========================================================
+       SELF REGISTRATION
+       ========================================================= */
+
+    var portalRecord =
+        $sp.getPortalRecord();
+
+
+    var self_registration_field =
+        portalRecord ?
+        portalRecord.getValue(
+            "user_registration_config"
+        ) :
+        "";
+
+
+    if (self_registration_field) {
+
+        var registration_config =
+            new GlideRecord(
+                "sys_user_registration_config"
+            );
+
+
+        registration_config.addActiveQuery();
+
+
+        registration_config.query(
+            'sys_id',
+            self_registration_field
+        );
+
+
+        if (registration_config.next()) {
+
+            var self_registration_record_producer =
+                registration_config.getValue(
+                    "record_producer"
+                );
+
+
+            var self_registration_label =
+                registration_config.getValue(
+                    "registration_label"
+                ) ||
+                gs.getMessage("Sign Up");
+
+
+            data.self_registration_record_producer =
+                self_registration_record_producer;
+
+
+            data.self_registration_label =
+                self_registration_label;
+
+        }
+    }
+
+
+    /* =========================================================
+       CERTIFICATE AUTHENTICATION
+       ========================================================= */
+
+    if (
+        portalRecord &amp;&amp;
+        (
+            portalRecord.getValue(
+                'enable_certificate_based_authentication'
+            ) == 1
+        )
+    ) {
+
+        data.cert_based_auth =
+            gs.getProperty(
+                'glide.authenticate.mutual.enabled',
+                'false'
+            ) == 'true';
+
+    }
+
+
+    /* =========================================================
+       CERTIFICATE HEADER
+       ========================================================= */
+
+    if (data.cert_based_auth) {
+
+        var request =
+            GlideTransaction
+                .get()
+                .getRequest();
+
+
+        var certHeader =
+            request.getHeader(
+                "X-Client-Cert"
+            );
+
+
+        if (!certHeader) {
+
+            data.certHeader =
+                "false";
+
+
+            gs.log(
+                "Failed to register PIV/CAC certificate to the user account."
+            );
+
+        } else {
+
+            data.certHeader =
+                "true";
+
+        }
+
+    }
+
+
+    /* =========================================================
+       SSO / IDENTITY PROVIDERS
+       ========================================================= */
+
+    data.isShowLoginWithIdps =
+        false;
+
+
+    data.isMultiSSOActive =
+        gs.getProperty(
+            'glide.authenticate.multisso.enabled',
+            'false'
+        ) == 'true';
+
+
+    var gr =
+        new GlideRecord(
+            "sso_properties"
+        );
+
+
+    if (
+        data.isMultiSSOActive &amp;&amp;
+        gr.isValid()
+    ) {
+
+        var ssoUtil =
+            new MultiSSO_OidcUtil();
+
+
+        data.ssoRecords =
+            ssoUtil.getSSORecords();
+
+
+        data.isShowLoginWithIdps =
+            (
+                data.ssoRecords.length &gt; 0
+            );
+
+    }
+
+
+    /* =========================================================
+       PASSWORD RESET
+       ========================================================= */
+
+    data.pswdResetUrl =
+        gs.getProperty(
+            'glide.security.password_reset.uri'
+        );
+
+
+    data.forgotPwdLinkProp =
+        gs.getProperty(
+            'glide.security.forgot_password.display.link'
+        );
+
+
+    /* =========================================================
+       MESSAGES
+       ========================================================= */
+
+    data.errorMsg =
+        gs.getMessage(
+            "There was an error processing your request"
+        );
+
+
+    data.errorMsg2 =
+        gs.getMessage(
+            "An error has occurred - please contact your system administrator"
+        );
+
+
+    data.passwordMsg =
+        gs.getMessage(
+            "Password"
+        );
+
+
+    data.usernameMsg =
+        gs.getMessage(
+            "User name"
+        );
+
+
+    /* =========================================================
+       LOGIN SETTINGS
+       ========================================================= */
+
+    data.forgetMe =
+        GlideProperties.getBoolean(
+            "glide.ui.forgetme"
+        );
+
+
+    data.rememberMeDefault =
+        GlideProperties.getBoolean(
+            'glide.ui.remember.me.default',
+            true
+        );
+
+
+    data.is_logged_in =
+        gs.getSession()
+          .isLoggedIn();
+
+
+    var bypass_sso =
+        options.bypass_sso == "true";
+
+
+    data.multisso_enabled =
+        !bypass_sso &amp;&amp;
+        GlideProperties.getBoolean(
+            "glide.authenticate.multisso.enabled"
+        );
+
+
+    data.default_idp =
+        GlideProperties.get(
+            "glide.authenticate.sso.redirect.idp"
+        );
+
+
+    data.pageURI =
+        new GlideSPUtil()
+            .getPageUri();
+
+
+    data.multiFactorAuthEnabled =
+        GlideProperties.getBoolean(
+            'glide.authenticate.multifactor',
+            false
+        );
+
+
+    data.certAuthRedirect =
+        gs.getProperty(
+            'glide.authenticate.cert.redirect.enable',
+            'false'
+        ) == 'true';
+
+
+    /* =========================================================
+       CUSTOM URL / SSO
+       ========================================================= */
+
+    var customURL =
+        GlideProperties.getBoolean(
+            'glide.customurl.enabled',
+            false
+        );
+
+
+    if (
+        customURL == true &amp;&amp;
+        data.multisso_enabled == true
+    ) {
+
+        var idp =
+            SNC.CustomURLSPUtil
+              .getAutoRedirectIDPForCustomURLWithPortal();
+
+
+        if (
+            GlideStringUtil.notNil(idp)
+        ) {
+
+            data.default_idp =
+                idp;
+
+        }
+
+    }
+
+
+    /* =========================================================
+       SESSION ACCESS MESSAGE
+       ========================================================= */
+
+    var isSessionAccessReduced =
+        GlideSession
+            .get()
+            .getBooleanProperty(
+                "isSessionAccessReduced",
+                false
+            );
+
+
+    var isSessionAccessMessageShown =
+        GlideSession
+            .get()
+            .getBooleanProperty(
+                "isSessionAccessReducedMessageShown",
+                false
+            );
+
+
+    if (
+        isSessionAccessReduced &amp;&amp;
+        !isSessionAccessMessageShown
+    ) {
+
+        SNC.SessionAccessUtil
+            .showUserInfoMessageIfAccessReduced();
+
+    }
+
+})();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;younis.khan&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-08-27 11:25:58&lt;/sys_created_on&gt;&lt;sys_id&gt;3c26805c0f4f8b10712b6af300d1b2fe&lt;/sys_id&gt;&lt;sys_mod_count&gt;2&lt;/sys_mod_count&gt;&lt;sys_name&gt;Gatenow login&lt;/sys_name&gt;&lt;sys_package display_value="GateNow" source="x_enno_gatenow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="GateNow"&gt;eabeaf98eb033a10520dfbdffdc0cd51&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_3c26805c0f4f8b10712b6af300d1b2fe&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;younis.khan&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-08-27 11:40:59&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div ng-if="!data.is_logged_in" class="sp-login-widget" ng-class="::(c.options.use_advanced == 'true' ? 'advanced' : '')"&gt;
+  &lt;form ng-if="!c.externalLoginMode" class="form-signin" ng-submit="c.login(c.username, c.password)" method="post"&gt;
+		&lt;div ng-class="::{'panel panel-default': c.options.show_panel}"&gt;
+			&lt;div ng-if="::c.options.show_panel" class="panel-heading padder-v"&gt;	      
+				&lt;h3 class="panel-title"&gt;${Login}&lt;/h3&gt;
+			&lt;/div&gt;
+			&lt;div ng-class="::{'panel-body': c.options.show_panel}"&gt;
+				&lt;div class="list-group list-group-sm"&gt;
+					&lt;div class="list-group-item"&gt;
+            &lt;label for="username" class="label-advanced"&gt;{{::data.usernameMsg}}&lt;/label&gt;
+            &lt;input id="username" name="username" autocapitalize="off" ng-keypress="c.message = ''" ng-click="c.message = ''" class="form-control input-advanced input-group-advanced" type="text" autofocus="true" ng-model="c.username" autocomplete="off"/&gt;
+					&lt;/div&gt;
+					&lt;div class="list-group-item"&gt;
+            &lt;label for="password" class="label-advanced"&gt;{{::data.passwordMsg}}&lt;/label&gt;
+                &lt;p id="btnDescription" class="sr-only" aria-live="polite"&gt;"${Password hidden}&lt;/p&gt;
+            &lt;div class="input-group password-group input-group-advanced"&gt;
+					&lt;input id="password" name="password" ng-keypress="c.message = ''" ng-click="c.message = ''" class="form-control input-advanced" type="password" ng-model="c.password" autocomplete="off"/&gt;
+					&lt;span class="input-advanced" &gt;
+              				&lt;button
+						id="mask_icon"
+						type="button"
+						class="btn btn-default icon-preview input-group-append mask_btn sn-tooltip-basic"
+						ng-Click="c.renderMaskIcon()"
+						aria-label="${Show Password}"
+						data-toggle="tooltip"
+						data-container="body"
+						data-original-title="${Show password}"&gt;&lt;/button&gt;
+    				&lt;/span&gt;
+    			&lt;/div&gt;
+					&lt;/div&gt;
+				&lt;/div&gt;
+
+				&lt;div ng-if="c.message" class="alert alert-danger login-alert" role="alert"&gt;{{c.message}}&lt;/div&gt;
+				&lt;div ng-if="c.success" class="alert alert-success login-alert" role="alert"&gt;{{c.success}}&lt;/div&gt;
+
+				&lt;div ng-if="::!c.data.forgetMe" class="checkbox"&gt;
+          &lt;label&gt;
+            &lt;input name="c.remember_me" ng-model="c.remember_me" checked="checked" id="remember_me" type="checkbox" class="checkbox" value="true"/&gt; ${Remember me}
+					&lt;/label&gt;
+				&lt;/div&gt;
+        &lt;!--STRY50033370: Forgot Password link in the login widget--&gt;
+        &lt;div class="forgot-pwd-div m-b"&gt;
+          &lt;div class="row"&gt;
+            &lt;div ng-if="::(c.data.forgotPwdLinkProp == 'true')" class="forgot-text" ng-class="::(c.options.use_advanced == 'true' ? 'col-xs-8' : 'col-xs-12')"&gt;
+              &lt;a class="forgot-pwd-link" ng-href="{{::c.data.pswdResetUrl}}"&gt;${Forgot Password ?}&lt;/a&gt;
+            &lt;/div&gt;
+            &lt;div ng-class="::(c.options.use_advanced == 'true' &amp;&amp; c.data.forgotPwdLinkProp =='true' ? 'col-xs-4' : 'col-xs-12')"&gt;
+              &lt;button name="login" type="submit" class="btn btn-lg btn-primary btn-block login-button-old"&gt;
+                ${Login}
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="row set-login-type-link m-t" ng-if="::data.multisso_enabled"&gt;
+          &lt;div class="col-xs-12 text-center"&gt;
+            &lt;a href="javascript:void(0)"
+               ng-click="c.setExternalLogin(true)"&gt;${Use external login}&lt;/a&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div ng-class="col-xs-12" ng-if="data.cert_based_auth || data.isShowLoginWithIdps"&gt;
+              &lt;/div&gt;
+        &lt;div ng-class="col-xs-12" ng-if="::c.data.cert_based_auth" class="loginWithBtn"&gt;
+           &lt;button name="login" type="button" class="cert btn btn-lg btn-default" ng-click="c.login(null, null, true)"&gt;&lt;img alt="" ng-src="certLoginLogo.svg"/&gt;${Login with PIV/CAC card}&lt;/button&gt;
+        &lt;/div&gt;
+        &lt;div ng-repeat="a in ::c.data.ssoRecords"&gt;
+           &lt;div ng-class="col-xs-12" class="loginWithBtn"&gt;                 
+              &lt;a name="login" class="idp btn btn-lg btn-default" href="javascript:void(0)" ng-click="c.oidcLogin(a.sysId)"&gt;
+              &lt;img ng-if="::a.isLogoUrlValid" alt="" ng-src="{{::a.logoUrl}}"/&gt;${Log in with} {{::a.name}}
+              &lt;/a&gt;
+           &lt;/div&gt;
+        &lt;/div&gt;
+			&lt;/div&gt;
+		&lt;/div&gt;
+	&lt;/form&gt;
+	&lt;form ng-if="c.externalLoginMode" class="form-signin" ng-submit="c.externalLogin()" method="post"&gt;
+		&lt;div ng-class="::{'panel panel-default': c.options.show_panel}"&gt;
+			&lt;div ng-if="::c.options.show_panel" class="panel-heading"&gt;
+				&lt;h3 class="panel-title"&gt;${External Login}&lt;/h3&gt;
+			&lt;/div&gt;
+
+			&lt;div ng-class="::{'panel-body': c.options.show_panel}"&gt;
+				&lt;div class="list-group list-group-sm"&gt;
+					&lt;div class="list-group-item"&gt;
+            &lt;label for="username" class="label-advanced"&gt;{{::data.ssoSelectorFieldLabel}}&lt;/label&gt;
+            &lt;input id="username" name="username" ng-click="message = ''" class="form-control input-advanced" type="text" autofocus="true" ng-model="c.username"/&gt;
+					&lt;/div&gt;
+				&lt;/div&gt;
+
+        &lt;div class="submit-btn row"&gt;
+          &lt;div class="col-xs-12"&gt;
+            &lt;button name="login" type="submit" class="btn btn-lg btn-primary btn-block"&gt;
+              ${Submit}
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="set-login-type-link row m-t"&gt;
+          &lt;div class="col-xs-12 text-center"&gt;
+            &lt;a href="javascript:void(0)"
+               ng-click="c.setExternalLogin(false)"&gt;${Use internal login}&lt;/a&gt;    
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+		&lt;/div&gt;
+	&lt;/form&gt;
+  &lt;div class="sp-self-registration forgot-pwd-link" ng-if="::c.data.self_registration_record_producer"&gt;${Don't have an account?}
+    &lt;a ng-href="/{{::c.data.url_suffix}}?id=sn_user_registration&amp;sys_id={{::c.data.self_registration_record_producer}}"&gt;{{::c.data.self_registration_label}}&lt;/a&gt;
+  &lt;/div&gt;
+&lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;&lt;/record_update&gt;</payload>
+        <payload_hash>1638045917</payload_hash>
+        <record_name>Gatenow login</record_name>
+        <reverted_from/>
+        <source>3e75df089387cb10d444c9b877373c7e</source>
+        <source_table>sys_update_set</source_table>
+        <state>previous</state>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-27 11:40:59</sys_created_on>
+        <sys_id>8d9948d8930fcb10d444c9b877373cee</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_recorded_at>1a04305f5dc0000001</sys_recorded_at>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-27 11:40:59</sys_updated_on>
+        <type>Widget</type>
+        <update_guid>c99948d8650fcb10dda7bba24dcacbed</update_guid>
+        <update_guid_history>c99948d8650fcb10dda7bba24dcacbed:1638045917,0857c4dc5b4f8b105c66fdd889be4cda:-720165304,b426c05c834f8b101c7d1c4b991bbe02:1561372368</update_guid_history>
+    </sys_update_version>
+    <sys_metadata_delete action="INSERT_OR_UPDATE">
+        <sys_audit_delete display_value="Gatenow login">f7d5ffd50fc7c310712b6af300d1b263</sys_audit_delete>
+        <sys_class_name>sys_metadata_delete</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-08-31 07:27:17</sys_created_on>
+        <sys_db_object display_value="" name="sp_widget">sp_widget</sys_db_object>
+        <sys_id>7ce29865da8e4fd88a044902ca01d064</sys_id>
+        <sys_metadata>3c26805c0f4f8b10712b6af300d1b2fe</sys_metadata>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Gatenow login</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_parent/>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_scope_delete display_value="">095aa346c8b54bee96df90d0befef064</sys_scope_delete>
+        <sys_update_name>sp_widget_3c26805c0f4f8b10712b6af300d1b2fe</sys_update_name>
+        <sys_update_version display_value="sp_widget_3c26805c0f4f8b10712b6af300d1b2fe">8d9948d8930fcb10d444c9b877373cee</sys_update_version>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-08-31 07:27:17</sys_updated_on>
+    </sys_metadata_delete>
+</record_update>

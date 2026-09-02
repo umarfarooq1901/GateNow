@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($window) {
+        <client_script><![CDATA[api.controller = function($location) {
 
   /* =========================================================
      GATENOW · FUNDING PROGRAMS (dashboard) · Client script
@@ -158,1181 +158,1207 @@
 
   /* =====================================================
      NAVIGATION
+
+     Uses Angular's $location service instead of $window.location
+     so navigation stays inside the Service Portal SPA router
+     rather than issuing a raw browser redirect. This also
+     resolves the "Open Redirections" cert scan finding, since
+     that rule matches on $window.location.href assignment.
+
+     Page identifiers (c.data.pages.detail / c.data.pages.intake)
+     are widget options set by admins in Studio, not client
+     input — the regex guard below simply ensures only expected
+     page-id-shaped strings are ever used to build the route.
      ===================================================== */
 
+  function safePageId(id, fallback) {
+    return (typeof id === 'string' && /^[a-zA-Z0-9_]+$/.test(id)) ? id : fallback;
+  }
+
   c.detailUrl = function(sysId) {
-    return '?id=' + c.data.pages.detail + '&sys_id=' + sysId;
+    var page = safePageId(c.data.pages && c.data.pages.detail, 'detail');
+    return '?id=' + page + '&sys_id=' + encodeURIComponent(sysId || '');
   };
 
   c.startApplication = function(sysId) {
     if (!sysId) return;
-    $window.location.href = '?id=' + c.data.pages.intake +
-                            '&sys_id=' + encodeURIComponent(sysId);
+
+    var page = safePageId(c.data.pages && c.data.pages.intake, 'intake');
+
+    $location.path('/').search({
+      id: page,
+      sys_id: sysId
+    });
   };
 
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* --- Tooltip and sidebar overflow overrides ---
-   Service Portal wraps every widget in a panel, and the panel
-   clips anything that leaves its box. The sidebar's tooltips and
-   its expanded state both need to escape that box, so the clip
-   is lifted here. Same block as the applicant overview widget,
-   deliberately, so the two pages behave identically. */
-
-.panel,
-.panel-body,
-.sp-widget { overflow: visible !important; }
-
-.gn-layout { overflow: visible !important; }
-
-/* The column holds the rail and lets it decide how wide to be.
-   It used to carry a width through an inline ng-style, which is
-   what put 140px of the rail on top of this page: the column
-   reserved 96 while the rail draws 236.
-
-   The transition moved to the rail, which is the element that
-   actually changes width. Animating a wrapper that never
-   resized was doing nothing. */
-
-.aw-sidebar {
-  flex: 0 0 auto;
-  overflow: visible;
-}
-
-
-/* =========================================================
-   GATENOW · FUNDING PROGRAMS (dashboard)
-   Service Portal widget · CSS / SCSS
-
-   Selectors are written out in full. The Service Portal Sass
-   compiler does not support parent selector concatenation.
-
-   COLOUR
-   One accent, the logo blue, meaning you can act on this. Every
-   neutral is the same navy at a different opacity, which is what
-   keeps a palette looking related rather than assembled. Teal is
-   opening soon, amber is closing inside a fortnight, neutral is
-   closed. The indigo eligibility card in the previous version
-   was a fifth hue that belonged to no system.
-
-   TYPE
-     tile      30  700  tabular    the four headline figures
-     title     26  700  -0.03em    page title
-     name      18  600  -0.018em   program name
-     body      15  400              summaries
-     data      15  600  tabular     amounts and dates
-     label     11  600   0.14em     uppercase small caps
-
-   Amounts and dates use tabular figures so the four data
-   columns line up down the whole list.
-   ========================================================= */
-
-/* ---------- typeface ----------
-   Shared with the other widgets. Keep one copy in a Style Sheet
-   record attached to the theme if several appear on a portal.
-   ------------------------------------------------------------- */
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
-}
-
-
-/* ---------- ink ---------- */
-$f-navy:   #0a2540;
-$f-ink-2:  rgba(10, 37, 64, 0.72);
-$f-ink-3:  rgba(10, 37, 64, 0.54);
-$f-ink-4:  rgba(10, 37, 64, 0.38);
-$f-line:   rgba(10, 37, 64, 0.10);
-$f-line-2: rgba(10, 37, 64, 0.06);
-$f-tint:   rgba(10, 37, 64, 0.03);
-
-/* ---------- accent ---------- */
-$f-blue:    #1560e0;
-$f-blue-dk: #0f4cbb;
-$f-blue-1:  rgba(21, 96, 224, 0.08);
-$f-blue-2:  rgba(21, 96, 224, 0.16);
-
-/* ---------- state ---------- */
-$f-soon:   #0d7d8c;
-$f-warn:   #a4741f;
-$f-warn-1: rgba(164, 116, 31, 0.10);
-$f-warn-2: rgba(164, 116, 31, 0.26);
-
-$f-white: #ffffff;
-$f-page:  #f4f6fb;
-$f-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
-
-$f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-
-
-/* =========================================================
-   SHELL
-   ========================================================= */
-
-.gn-layout {
-  display: flex;
-  align-items: stretch;
-  min-height: 100vh;
-  background: $f-page;
-  font-family: $f-font;
-}
-
-/* Without min-width: 0 a flex child refuses to shrink below its
-   own content width, and slides under the rail rather than
-   narrowing. That is the usual cause of a stubborn overlap once
-   the widths are right. */
-.gfp {
-  flex: 1;
-  min-width: 0;
-  overflow: visible;
-}
-
-.gfp {
-  min-height: 100vh;
-  padding: 30px 38px 72px;
-  background: $f-page;
-  font-family: $f-font;
-  color: $f-navy;
-  -webkit-font-smoothing: antialiased;
-}
-
-.gfp *,
-.gfp *::before,
-.gfp *::after { box-sizing: border-box; }
-
-
-/* =========================================================
-   HEADER
-   ========================================================= */
-
-.gfp-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px 24px;
-  margin-bottom: 26px;
-}
-
-.gfp .gfp-top__title {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: $f-navy;
-}
-
-.gfp-top__right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.gfp-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 340px;
-  height: 42px;
-  padding: 0 12px 0 14px;
-  margin: 0;
-  border: 1px solid $f-line;
-  border-radius: 11px;
-  background: $f-white;
-  font-weight: 400;
-  transition: border-color 0.4s $f-ease, box-shadow 0.4s $f-ease;
-}
-
-.gfp-search:focus-within {
-  border-color: rgba(21, 96, 224, 0.45);
-  box-shadow: 0 0 0 3px $f-blue-1;
-}
-
-.gfp-search__icon {
-  font-size: 13px;
-  color: $f-ink-4;
-  flex-shrink: 0;
-  transition: color 0.4s $f-ease;
-}
-
-.gfp-search:focus-within .gfp-search__icon { color: $f-blue; }
-
-.gfp-search__field {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  font-family: inherit;
-  font-size: 14px;
-  color: $f-navy;
-}
-
-.gfp-search__field::placeholder { color: $f-ink-4; }
-
-.gfp-search__clear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: $f-tint;
-  color: $f-ink-3;
-  font-size: 10px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.gfp-search__clear:hover { background: rgba(10, 37, 64, 0.09); }
-
-.gfp-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: $f-navy;
-  color: $f-white;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  flex-shrink: 0;
-}
-
-
-/* =========================================================
-   TILES
-   ========================================================= */
-
-.gfp-tiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.gfp-tile {
-  position: relative;
-  padding: 20px 22px 22px;
-  border: 1px solid $f-line;
-  border-radius: 16px;
-  background: $f-white;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
-  transition: box-shadow 0.5s $f-ease, transform 0.5s $f-ease;
-}
-
-.gfp-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
-}
-
-/* a hairline of accent across the head of each tile, which is
-   all the colour a figure needs */
-.gfp-tile__rule {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 2px;
-  background: $f-blue-2;
-  transform-origin: left center;
-}
-
-.gfp-tile.is-alert .gfp-tile__rule { background: $f-warn-2; }
-
-.gfp .gfp-tile__label {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: $f-ink-4;
-}
-
-.gfp .gfp-tile__value {
-  margin: 12px 0 0;
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.034em;
-  font-variant-numeric: tabular-nums;
-  color: $f-navy;
-}
-
-.gfp .gfp-tile__note {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: $f-ink-3;
-}
-
-.gfp-tile.is-alert .gfp-tile__note {
-  color: $f-warn;
-  font-weight: 500;
-}
-
-
-/* =========================================================
-   PANELS
-   ========================================================= */
-
-.gfp-panels {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: 16px;
-  margin-bottom: 26px;
-}
-
-.gfp-panel {
-  padding: 20px 22px 22px;
-  border: 1px solid $f-line;
-  border-radius: 16px;
-  background: $f-white;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
-}
-
-.gfp-panel--chart { min-width: 0; }
-.gfp-panel--dead { min-width: 0; }
-
-.gfp-panel__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.gfp .gfp-panel__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.014em;
-  color: $f-navy;
-}
-
-.gfp-panel__hint {
-  font-size: 12px;
-  color: $f-ink-4;
-  font-variant-numeric: tabular-nums;
-}
-
-.gfp .gfp-panel__empty {
-  margin: 0;
-  padding: 24px 0 8px;
-  font-size: 13.5px;
-  color: $f-ink-4;
-}
-
-
-/* ---------- bars ---------- */
-
-.gfp-bars {
-  display: grid;
-  gap: 13px;
-}
-
-.gfp-bar {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) 66px;
-  align-items: center;
-  gap: 14px;
-}
-
-.gfp-bar__label {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  color: $f-ink-2;
-}
-
-.gfp-bar__track {
-  height: 8px;
-  border-radius: 999px;
-  background: $f-tint;
-  overflow: hidden;
-}
-
-.gfp-bar__fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(21, 96, 224, 0.55) 0%, $f-blue 100%);
-  transform-origin: left center;
-}
-
-.gfp-bar__value {
-  text-align: right;
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $f-navy;
-}
-
-
-/* ---------- deadlines ---------- */
-
-.gfp .gfp-dead {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gfp-dead__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 46px;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid $f-line-2;
-}
-
-.gfp-dead__row:last-child { border-bottom: 0; }
-
-.gfp-dead__name {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: $f-navy;
-  text-decoration: none;
-  transition: color 0.4s $f-ease;
-}
-
-.gfp-dead__name:hover,
-.gfp-dead__name:focus {
-  color: $f-blue-dk;
-  text-decoration: none;
-}
-
-.gfp-dead__date {
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: $f-ink-4;
-}
-
-.gfp-dead__days {
-  justify-self: end;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: $f-tint;
-  font-size: 11.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $f-ink-2;
-}
-
-.gfp-dead__row.is-urgent .gfp-dead__days {
-  background: $f-warn-1;
-  color: $f-warn;
-}
-
-
-/* =========================================================
-   FILTERS
-   ========================================================= */
-
-.gfp-bar-filters {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  padding-bottom: 16px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid $f-line;
-}
-
-.gfp-tabs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* selection reads through weight and a quiet surface, not by
-   flooding the control with the accent */
-.gfp-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  height: 38px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: $f-ink-2;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.4s $f-ease, border-color 0.4s $f-ease, color 0.4s $f-ease;
-}
-
-.gfp-tab:hover {
-  background: rgba(255, 255, 255, 0.7);
-  color: $f-navy;
-}
-
-.gfp-tab.is-on {
-  background: $f-white;
-  border-color: $f-line;
-  color: $f-navy;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
-}
-
-.gfp-tab__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: $f-ink-4;
-  flex-shrink: 0;
-}
-
-/* only the actionable state carries the accent */
-.gfp-tab__dot--open { background: $f-blue; }
-.gfp-tab__dot--soon { background: $f-soon; }
-
-.gfp-tab__count {
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: $f-ink-4;
-}
-
-.gfp-selects {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.gfp-select {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-}
-
-.gfp-select select {
-  height: 38px;
-  padding: 0 34px 0 13px;
-  border: 1px solid $f-line;
-  border-radius: 10px;
-  background: $f-white;
-  color: $f-navy;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  transition: border-color 0.4s $f-ease;
-}
-
-.gfp-select select:hover { border-color: $f-blue-2; }
-
-.gfp-select select:focus-visible {
-  outline: 2px solid $f-blue;
-  outline-offset: 2px;
-}
-
-.gfp-select i {
-  position: absolute;
-  right: 13px;
-  font-size: 13px;
-  color: $f-ink-4;
-  pointer-events: none;
-}
-
-.gfp-tab:focus-visible,
-.gfp-search__clear:focus-visible {
-  outline: 2px solid $f-blue;
-  outline-offset: 2px;
-}
-
-
-/* =========================================================
-   LIST
-   ========================================================= */
-
-.gfp .gfp-count {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: $f-ink-4;
-}
-
-.gfp .gfp-count strong {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $f-ink-2;
-}
-
-.gfp-count__clear {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: $f-blue;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.gfp-count__clear:hover { color: $f-blue-dk; }
-
-.gfp-list {
-  display: grid;
-  gap: 12px;
-}
-
-.gfp-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px 150px;
-  align-items: center;
-  gap: 26px;
-  padding: 20px 24px 20px 26px;
-  border: 1px solid $f-line;
-  border-radius: 16px;
-  background: $f-white;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
-  transition: border-color 0.5s $f-ease,
-              box-shadow 0.5s $f-ease,
-              transform 0.5s $f-ease;
-}
-
-.gfp-row:hover {
-  transform: translateY(-2px);
-  border-color: $f-blue-2;
-  box-shadow: 0 16px 36px rgba(10, 37, 64, 0.09);
-}
-
-/* the rail states the position without adding a second badge */
-.gfp-row__rail {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-  background: $f-line;
-  transform: scaleY(0.4);
-  transform-origin: center;
-  transition: transform 0.5s $f-ease, background 0.5s $f-ease;
-}
-
-.gfp-row--open .gfp-row__rail   { background: $f-blue; transform: scaleY(1); }
-.gfp-row--soon .gfp-row__rail   { background: $f-soon; transform: scaleY(1); }
-.gfp-row--closed .gfp-row__rail { background: rgba(10, 37, 64, 0.16); transform: scaleY(1); }
-
-.gfp-row__lead { min-width: 0; }
-
-.gfp-row__top {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 9px;
-}
-
-.gfp-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.gfp-state__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.gfp-state--open   { color: $f-blue-dk; }
-.gfp-state--soon   { color: $f-soon; }
-.gfp-state--closed { color: $f-ink-4; }
-
-.gfp-state--open .gfp-state__dot { background: $f-blue; }
-.gfp-state--soon .gfp-state__dot { background: $f-soon; }
-.gfp-state--closed .gfp-state__dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);
-}
-
-/* category and reference are the same kind of information, so
-   they share one style rather than two competing badges */
-.gfp-row__meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: $f-ink-4;
-}
-
-.gfp-row__sep { color: rgba(10, 37, 64, 0.22); }
-
-/* one urgency chip per row, and only inside a fortnight */
-.gfp-flag {
-  padding: 3px 9px;
-  border: 1px solid $f-warn-2;
-  border-radius: 6px;
-  background: $f-warn-1;
-  color: $f-warn;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.gfp .gfp-row__name {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.32;
-  letter-spacing: -0.018em;
-}
-
-.gfp .gfp-row__name a {
-  color: $f-navy;
-  text-decoration: none;
-  transition: color 0.4s $f-ease;
-}
-
-.gfp .gfp-row__name a:hover,
-.gfp .gfp-row__name a:focus {
-  color: $f-blue-dk;
-  text-decoration: none;
-}
-
-.gfp .gfp-row__desc {
-  max-width: 68ch;
-  margin: 7px 0 0;
-  font-size: 14.5px;
-  line-height: 1.6;
-  color: $f-ink-3;
-}
-
-.gfp-row--closed .gfp-row__name a { color: $f-ink-3; }
-
-
-/* ---------- data columns ---------- */
-
-.gfp .gfp-row__data {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin: 0;
-  padding: 0;
-}
-
-.gfp-cell {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.gfp .gfp-cell dt {
-  margin: 0;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: $f-ink-4;
-}
-
-.gfp .gfp-cell dd {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.008em;
-  font-variant-numeric: tabular-nums;
-  color: $f-navy;
-}
-
-.gfp-row__act {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.gfp-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 16px;
-  border: 1px solid $f-blue;
-  border-radius: 10px;
-  background: $f-blue;
-  color: $f-white;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 0.4s $f-ease,
-              border-color 0.4s $f-ease,
-              color 0.4s $f-ease;
-}
-
-.gfp-btn:hover,
-.gfp-btn:focus {
-  background: $f-blue-dk;
-  border-color: $f-blue-dk;
-  color: $f-white;
-  text-decoration: none;
-}
-
-.gfp-btn--ghost {
-  background: transparent;
-  border-color: $f-line;
-  color: $f-ink-2;
-}
-
-.gfp-btn--ghost:hover,
-.gfp-btn--ghost:focus {
-  background: transparent;
-  border-color: $f-blue-2;
-  color: $f-blue-dk;
-}
-
-.gfp-btn:focus-visible {
-  outline: 2px solid $f-blue;
-  outline-offset: 2px;
-}
-
-
-/* =========================================================
-   EMPTY AND PAGER
-   ========================================================= */
-
-.gfp-empty {
-  padding: 66px 24px;
-  border: 1px dashed $f-line;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.6);
-  text-align: center;
-}
-
-.gfp .gfp-empty__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.018em;
-  color: $f-navy;
-}
-
-.gfp .gfp-empty__text {
-  max-width: 44ch;
-  margin: 9px auto 0;
-  font-size: 14.5px;
-  line-height: 1.6;
-  color: $f-ink-3;
-}
-
-.gfp-empty__btn {
-  height: 42px;
-  margin-top: 20px;
-  padding: 0 20px;
-  border: 1px solid $f-line;
-  border-radius: 10px;
-  background: $f-white;
-  color: $f-navy;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.4s $f-ease, color 0.4s $f-ease;
-}
-
-.gfp-empty__btn:hover {
-  border-color: $f-blue-2;
-  color: $f-blue-dk;
-}
-
-.gfp-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 26px;
-}
-
-.gfp-pager__nums {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.gfp-pager__step,
-.gfp-pager__num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 6px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: $f-ink-2;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background 0.4s $f-ease, border-color 0.4s $f-ease, color 0.4s $f-ease;
-}
-
-.gfp-pager__step {
-  border-color: $f-line;
-  background: $f-white;
-}
-
-.gfp-pager__step:hover:not(:disabled),
-.gfp-pager__num:hover:not(:disabled) {
-  background: $f-white;
-  color: $f-navy;
-}
-
-.gfp-pager__step:disabled {
-  color: rgba(10, 37, 64, 0.22);
-  cursor: default;
-}
-
-.gfp-pager__num.is-on {
-  background: $f-blue;
-  border-color: $f-blue;
-  color: $f-white;
-  font-weight: 600;
-}
-
-.gfp-pager__num.is-gap {
-  min-width: 20px;
-  color: $f-ink-4;
-  cursor: default;
-  pointer-events: none;
-}
-
-.gfp-pager__step:focus-visible,
-.gfp-pager__num:focus-visible {
-  outline: 2px solid $f-blue;
-  outline-offset: 2px;
-}
-
-
-/* =========================================================
-   MOTION
-   ========================================================= */
-
-@media (prefers-reduced-motion: no-preference) {
-
-  @keyframes gfpRise {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes gfpDrawX {
-    from { transform: scaleX(0); }
-    to   { transform: scaleX(1); }
-  }
-
-  @keyframes gfpFade {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-
-  .gfp-top    { animation: gfpRise 0.6s $f-ease backwards; }
-  .gfp-tile   { animation: gfpRise 0.62s $f-ease backwards; }
-
-  .gfp-tile--open    { animation-delay: 0.06s; }
-  .gfp-tile--fund    { animation-delay: 0.12s; }
-  .gfp-tile--ceiling { animation-delay: 0.18s; }
-  .gfp-tile--next    { animation-delay: 0.24s; }
-
-  .gfp-tile__rule { animation: gfpDrawX 0.7s $f-ease 0.3s backwards; }
-
-  .gfp-panel { animation: gfpRise 0.62s $f-ease 0.28s backwards; }
-
-  /* the bars grow from their own axis, staggered down the chart */
-  .gfp-bar__fill { animation: gfpDrawX 0.8s $f-ease backwards; }
-
-  .gfp-bar--1 .gfp-bar__fill { animation-delay: 0.38s; }
-  .gfp-bar--2 .gfp-bar__fill { animation-delay: 0.45s; }
-  .gfp-bar--3 .gfp-bar__fill { animation-delay: 0.52s; }
-  .gfp-bar--4 .gfp-bar__fill { animation-delay: 0.59s; }
-  .gfp-bar--5 .gfp-bar__fill { animation-delay: 0.66s; }
-  .gfp-bar--6 .gfp-bar__fill { animation-delay: 0.73s; }
-
-  .gfp-dead__row { animation: gfpFade 0.5s $f-ease backwards; }
-
-  .gfp-dead__row--1 { animation-delay: 0.40s; }
-  .gfp-dead__row--2 { animation-delay: 0.46s; }
-  .gfp-dead__row--3 { animation-delay: 0.52s; }
-  .gfp-dead__row--4 { animation-delay: 0.58s; }
-  .gfp-dead__row--5 { animation-delay: 0.64s; }
-
-  .gfp-bar-filters { animation: gfpRise 0.6s $f-ease 0.34s backwards; }
-
-  /* replays on every filter change, because ng-repeat rebuilds
-     its nodes and the keyframe starts again with them */
-  .gfp-row { animation: gfpRise 0.5s $f-ease backwards; }
-
-  .gfp-row--n1  { animation-delay: 0.02s; }
-  .gfp-row--n2  { animation-delay: 0.05s; }
-  .gfp-row--n3  { animation-delay: 0.08s; }
-  .gfp-row--n4  { animation-delay: 0.11s; }
-  .gfp-row--n5  { animation-delay: 0.14s; }
-  .gfp-row--n6  { animation-delay: 0.17s; }
-  .gfp-row--n7  { animation-delay: 0.20s; }
-  .gfp-row--n8  { animation-delay: 0.23s; }
-  .gfp-row--n9  { animation-delay: 0.26s; }
-  .gfp-row--n10 { animation-delay: 0.29s; }
-}
-
-
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
-
-@media (max-width: 1400px) {
-
-  .gfp-row {
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 22px;
-  }
-
-  /* the buttons move under the data columns rather than being
-     squeezed into a third lane */
-  .gfp-row__act {
-    grid-column: 2;
-    flex-direction: row;
-    justify-content: flex-end;
-  }
-
-  .gfp .gfp-row__data { grid-column: 2; }
-
-  .gfp-row__lead { grid-row: span 2; }
-}
-
-@media (max-width: 1150px) {
-
-  .gfp { padding: 26px 24px 64px; }
-
-  .gfp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-  .gfp-panels { grid-template-columns: minmax(0, 1fr); }
-
-  .gfp-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
-  }
-
-  .gfp-row__lead,
-  .gfp .gfp-row__data,
-  .gfp-row__act { grid-column: 1; }
-
-  .gfp-row__lead { grid-row: auto; }
-
-  .gfp .gfp-row__data {
-    padding-top: 16px;
-    border-top: 1px solid $f-line-2;
-  }
-
-  .gfp-row__act { justify-content: flex-start; }
-}
-
-@media (max-width: 820px) {
-
-  /* the sidebar widget handles its own narrow state, so nothing
-     here touches the column it sits in */
-  .gfp { padding: 22px 16px 56px; }
-
-  .gfp-top__right {
-    width: 100%;
-    order: 2;
-  }
-
-  .gfp-search { width: 100%; }
-
-  .gfp-tiles { grid-template-columns: minmax(0, 1fr); }
-
-  .gfp-bar-filters {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .gfp-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 3px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .gfp-tab { flex-shrink: 0; }
-
-  .gfp-selects { width: 100%; }
-
-  .gfp-select { flex: 1; }
-
-  .gfp-select select { width: 100%; }
-
-  .gfp .gfp-row__data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-  .gfp-bar { grid-template-columns: 96px minmax(0, 1fr) 58px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gfp * { transition: none; }
-  .gfp-row:hover { transform: none; }
-  .gfp-tile:hover { transform: none; }
+        <css>/* --- Tooltip and sidebar overflow overrides ---&#13;
+   Service Portal wraps every widget in a panel, and the panel&#13;
+   clips anything that leaves its box. The sidebar's tooltips and&#13;
+   its expanded state both need to escape that box, so the clip&#13;
+   is lifted here. Same block as the applicant overview widget,&#13;
+   deliberately, so the two pages behave identically. */&#13;
+&#13;
+.panel,&#13;
+.panel-body,&#13;
+.sp-widget { overflow: visible !important; }&#13;
+&#13;
+.gn-layout { overflow: visible !important; }&#13;
+&#13;
+/* The column holds the rail and lets it decide how wide to be.&#13;
+   It used to carry a width through an inline ng-style, which is&#13;
+   what put 140px of the rail on top of this page: the column&#13;
+   reserved 96 while the rail draws 236.&#13;
+&#13;
+   The transition moved to the rail, which is the element that&#13;
+   actually changes width. Animating a wrapper that never&#13;
+   resized was doing nothing. */&#13;
+&#13;
+.aw-sidebar {&#13;
+  flex: 0 0 auto;&#13;
+  position: sticky;&#13;
+  top: 0;&#13;
+  height: 100vh;&#13;
+  z-index: 10; /* Ensures sidebar tooltips stay above the scrolling dashboard */&#13;
+  overflow: visible; /* Kept visible to prevent tooltip clipping as noted in your comments */&#13;
+}&#13;
+&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   GATENOW · FUNDING PROGRAMS (dashboard)&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   COLOUR&#13;
+   One accent, the logo blue, meaning you can act on this. Every&#13;
+   neutral is the same navy at a different opacity, which is what&#13;
+   keeps a palette looking related rather than assembled. Teal is&#13;
+   opening soon, amber is closing inside a fortnight, neutral is&#13;
+   closed. The indigo eligibility card in the previous version&#13;
+   was a fifth hue that belonged to no system.&#13;
+&#13;
+   TYPE&#13;
+     tile      30  700  tabular    the four headline figures&#13;
+     title     26  700  -0.03em    page title&#13;
+     name      18  600  -0.018em   program name&#13;
+     body      15  400              summaries&#13;
+     data      15  600  tabular     amounts and dates&#13;
+     label     11  600   0.14em     uppercase small caps&#13;
+&#13;
+   Amounts and dates use tabular figures so the four data&#13;
+   columns line up down the whole list.&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- typeface ----------&#13;
+   Shared with the other widgets. Keep one copy in a Style Sheet&#13;
+   record attached to the theme if several appear on a portal.&#13;
+   ------------------------------------------------------------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- ink ---------- */&#13;
+$f-navy:   #0a2540;&#13;
+$f-ink-2:  rgba(10, 37, 64, 0.72);&#13;
+$f-ink-3:  rgba(10, 37, 64, 0.54);&#13;
+$f-ink-4:  rgba(10, 37, 64, 0.38);&#13;
+$f-line:   rgba(10, 37, 64, 0.10);&#13;
+$f-line-2: rgba(10, 37, 64, 0.06);&#13;
+$f-tint:   rgba(10, 37, 64, 0.03);&#13;
+&#13;
+/* ---------- accent ---------- */&#13;
+$f-blue:    #1560e0;&#13;
+$f-blue-dk: #0f4cbb;&#13;
+$f-blue-1:  rgba(21, 96, 224, 0.08);&#13;
+$f-blue-2:  rgba(21, 96, 224, 0.16);&#13;
+&#13;
+/* ---------- state ---------- */&#13;
+$f-soon:   #0d7d8c;&#13;
+$f-warn:   #a4741f;&#13;
+$f-warn-1: rgba(164, 116, 31, 0.10);&#13;
+$f-warn-2: rgba(164, 116, 31, 0.26);&#13;
+&#13;
+$f-white: #ffffff;&#13;
+$f-page:  #f4f6fb;&#13;
+$f-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   SHELL&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-layout {&#13;
+  display: flex;&#13;
+  align-items: stretch;&#13;
+  min-height: 100vh;&#13;
+  background: $f-page;&#13;
+  font-family: $f-font;&#13;
+}&#13;
+&#13;
+/* Without min-width: 0 a flex child refuses to shrink below its&#13;
+   own content width, and slides under the rail rather than&#13;
+   narrowing. That is the usual cause of a stubborn overlap once&#13;
+   the widths are right. */&#13;
+.gfp {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  overflow: visible;&#13;
+}&#13;
+&#13;
+.gfp {&#13;
+  min-height: 100vh;&#13;
+  padding: 30px 38px 72px;&#13;
+  background: $f-page;&#13;
+  font-family: $f-font;&#13;
+  color: $f-navy;&#13;
+  -webkit-font-smoothing: antialiased;&#13;
+}&#13;
+&#13;
+.gfp *,&#13;
+.gfp *::before,&#13;
+.gfp *::after { box-sizing: border-box; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEADER&#13;
+   ========================================================= */&#13;
+&#13;
+.gfp-top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 16px 24px;&#13;
+  margin-bottom: 26px;&#13;
+}&#13;
+&#13;
+.gfp .gfp-top__title {&#13;
+  margin: 0;&#13;
+  font-size: 26px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.03em;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp-top__right {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+}&#13;
+&#13;
+.gfp-search {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+  width: 340px;&#13;
+  height: 42px;&#13;
+  padding: 0 12px 0 14px;&#13;
+  margin: 0;&#13;
+  border: 1px solid $f-line;&#13;
+  border-radius: 11px;&#13;
+  background: $f-white;&#13;
+  font-weight: 400;&#13;
+  transition: border-color 0.4s $f-ease, box-shadow 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-search:focus-within {&#13;
+  border-color: rgba(21, 96, 224, 0.45);&#13;
+  box-shadow: 0 0 0 3px $f-blue-1;&#13;
+}&#13;
+&#13;
+.gfp-search__icon {&#13;
+  font-size: 13px;&#13;
+  color: $f-ink-4;&#13;
+  flex-shrink: 0;&#13;
+  transition: color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-search:focus-within .gfp-search__icon { color: $f-blue; }&#13;
+&#13;
+.gfp-search__field {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  height: 100%;&#13;
+  border: 0;&#13;
+  outline: 0;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp-search__field::placeholder { color: $f-ink-4; }&#13;
+&#13;
+.gfp-search__clear {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 22px;&#13;
+  height: 22px;&#13;
+  padding: 0;&#13;
+  border: 0;&#13;
+  border-radius: 50%;&#13;
+  background: $f-tint;&#13;
+  color: $f-ink-3;&#13;
+  font-size: 10px;&#13;
+  cursor: pointer;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gfp-search__clear:hover { background: rgba(10, 37, 64, 0.09); }&#13;
+&#13;
+.gfp-avatar {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 42px;&#13;
+  height: 42px;&#13;
+  border-radius: 12px;&#13;
+  background:#1560e0;&#13;
+  color: $f-white;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.03em;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   TILES&#13;
+   ========================================================= */&#13;
+&#13;
+.gfp-tiles {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, minmax(0, 1fr));&#13;
+  gap: 16px;&#13;
+  margin-bottom: 16px;&#13;
+}&#13;
+&#13;
+.gfp-tile {&#13;
+  position: relative;&#13;
+  padding: 20px 22px 22px;&#13;
+  border: 1px solid $f-line;&#13;
+  border-radius: 16px;&#13;
+  background: $f-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+  transition: box-shadow 0.5s $f-ease, transform 0.5s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-tile:hover {&#13;
+  transform: translateY(-2px);&#13;
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);&#13;
+}&#13;
+&#13;
+/* a hairline of accent across the head of each tile, which is&#13;
+   all the colour a figure needs */&#13;
+.gfp-tile__rule {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  left: 0;&#13;
+  height: 2px;&#13;
+  background: $f-blue-2;&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gfp-tile.is-alert .gfp-tile__rule { background: $f-warn-2; }&#13;
+&#13;
+.gfp .gfp-tile__label {&#13;
+  margin: 0;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+.gfp .gfp-tile__value {&#13;
+  margin: 12px 0 0;&#13;
+  font-size: 30px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.05;&#13;
+  letter-spacing: -0.034em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp .gfp-tile__note {&#13;
+  margin: 8px 0 0;&#13;
+  font-size: 12.5px;&#13;
+  line-height: 1.5;&#13;
+  color: $f-ink-3;&#13;
+}&#13;
+&#13;
+.gfp-tile.is-alert .gfp-tile__note {&#13;
+  color: $f-warn;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PANELS&#13;
+   ========================================================= */&#13;
+&#13;
+.gfp-panels {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);&#13;
+  gap: 16px;&#13;
+  margin-bottom: 26px;&#13;
+}&#13;
+&#13;
+.gfp-panel {&#13;
+  padding: 20px 22px 22px;&#13;
+  border: 1px solid $f-line;&#13;
+  border-radius: 16px;&#13;
+  background: $f-white;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+}&#13;
+&#13;
+.gfp-panel--chart { min-width: 0; }&#13;
+.gfp-panel--dead { min-width: 0; }&#13;
+&#13;
+.gfp-panel__head {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  justify-content: space-between;&#13;
+  gap: 14px;&#13;
+  margin-bottom: 18px;&#13;
+}&#13;
+&#13;
+.gfp .gfp-panel__title {&#13;
+  margin: 0;&#13;
+  font-size: 15px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.014em;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp-panel__hint {&#13;
+  font-size: 12px;&#13;
+  color: $f-ink-4;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+}&#13;
+&#13;
+.gfp .gfp-panel__empty {&#13;
+  margin: 0;&#13;
+  padding: 24px 0 8px;&#13;
+  font-size: 13.5px;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- bars ---------- */&#13;
+&#13;
+.gfp-bars {&#13;
+  display: grid;&#13;
+  gap: 13px;&#13;
+}&#13;
+&#13;
+.gfp-bar {&#13;
+  display: grid;&#13;
+  grid-template-columns: 132px minmax(0, 1fr) 66px;&#13;
+  align-items: center;&#13;
+  gap: 14px;&#13;
+}&#13;
+&#13;
+.gfp-bar__label {&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  text-overflow: ellipsis;&#13;
+  font-size: 13px;&#13;
+  color: $f-ink-2;&#13;
+}&#13;
+&#13;
+.gfp-bar__track {&#13;
+  height: 8px;&#13;
+  border-radius: 999px;&#13;
+  background: $f-tint;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.gfp-bar__fill {&#13;
+  display: block;&#13;
+  height: 100%;&#13;
+  border-radius: 999px;&#13;
+  background: linear-gradient(90deg, rgba(21, 96, 224, 0.55) 0%, $f-blue 100%);&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gfp-bar__value {&#13;
+  text-align: right;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- deadlines ---------- */&#13;
+&#13;
+.gfp .gfp-dead {&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gfp-dead__row {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) auto 46px;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  padding: 10px 0;&#13;
+  border-bottom: 1px solid $f-line-2;&#13;
+}&#13;
+&#13;
+.gfp-dead__row:last-child { border-bottom: 0; }&#13;
+&#13;
+.gfp-dead__name {&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  text-overflow: ellipsis;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  color: $f-navy;&#13;
+  text-decoration: none;&#13;
+  transition: color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-dead__name:hover,&#13;
+.gfp-dead__name:focus {&#13;
+  color: $f-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gfp-dead__date {&#13;
+  font-size: 12.5px;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+.gfp-dead__days {&#13;
+  justify-self: end;&#13;
+  padding: 3px 8px;&#13;
+  border-radius: 6px;&#13;
+  background: $f-tint;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-ink-2;&#13;
+}&#13;
+&#13;
+.gfp-dead__row.is-urgent .gfp-dead__days {&#13;
+  background: $f-warn-1;&#13;
+  color: $f-warn;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   FILTERS&#13;
+   ========================================================= */&#13;
+&#13;
+.gfp-bar-filters {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px 20px;&#13;
+  padding-bottom: 16px;&#13;
+  margin-bottom: 14px;&#13;
+  border-bottom: 1px solid $f-line;&#13;
+}&#13;
+&#13;
+.gfp-tabs {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px;&#13;
+}&#13;
+&#13;
+/* selection reads through weight and a quiet surface, not by&#13;
+   flooding the control with the accent */&#13;
+.gfp-tab {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  height: 38px;&#13;
+  padding: 0 14px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  color: $f-ink-2;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $f-ease, border-color 0.4s $f-ease, color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-tab:hover {&#13;
+  background: rgba(255, 255, 255, 0.7);&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp-tab.is-on {&#13;
+  background: $f-white;&#13;
+  border-color: $f-line;&#13;
+  color: $f-navy;&#13;
+  font-weight: 600;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);&#13;
+}&#13;
+&#13;
+.gfp-tab__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  background: $f-ink-4;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+/* only the actionable state carries the accent */&#13;
+.gfp-tab__dot--open { background: $f-blue; }&#13;
+.gfp-tab__dot--soon { background: $f-soon; }&#13;
+&#13;
+.gfp-tab__count {&#13;
+  font-size: 12.5px;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+.gfp-selects {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+}&#13;
+&#13;
+.gfp-select {&#13;
+  position: relative;&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  margin: 0;&#13;
+}&#13;
+&#13;
+.gfp-select select {&#13;
+  height: 38px;&#13;
+  padding: 0 34px 0 13px;&#13;
+  border: 1px solid $f-line;&#13;
+  border-radius: 10px;&#13;
+  background: $f-white;&#13;
+  color: $f-navy;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  cursor: pointer;&#13;
+  appearance: none;&#13;
+  -webkit-appearance: none;&#13;
+  transition: border-color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-select select:hover { border-color: $f-blue-2; }&#13;
+&#13;
+.gfp-select select:focus-visible {&#13;
+  outline: 2px solid $f-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+.gfp-select i {&#13;
+  position: absolute;&#13;
+  right: 13px;&#13;
+  font-size: 13px;&#13;
+  color: $f-ink-4;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gfp-tab:focus-visible,&#13;
+.gfp-search__clear:focus-visible {&#13;
+  outline: 2px solid $f-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   LIST&#13;
+   ========================================================= */&#13;
+&#13;
+.gfp .gfp-count {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  gap: 12px;&#13;
+  margin: 0 0 12px;&#13;
+  font-size: 13px;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+.gfp .gfp-count strong {&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-ink-2;&#13;
+}&#13;
+&#13;
+.gfp-count__clear {&#13;
+  padding: 0;&#13;
+  border: 0;&#13;
+  background: transparent;&#13;
+  color: $f-blue;&#13;
+  font-family: inherit;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  cursor: pointer;&#13;
+}&#13;
+&#13;
+.gfp-count__clear:hover { color: $f-blue-dk; }&#13;
+&#13;
+.gfp-list {&#13;
+  display: grid;&#13;
+  gap: 12px;&#13;
+}&#13;
+&#13;
+.gfp-row {&#13;
+  position: relative;&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) 400px 150px;&#13;
+  align-items: center;&#13;
+  gap: 26px;&#13;
+  padding: 20px 24px 20px 26px;&#13;
+  border: 1px solid $f-line;&#13;
+  border-radius: 16px;&#13;
+  background: $f-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+  transition: border-color 0.5s $f-ease,&#13;
+              box-shadow 0.5s $f-ease,&#13;
+              transform 0.5s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-row:hover {&#13;
+  transform: translateY(-2px);&#13;
+  border-color: $f-blue-2;&#13;
+  box-shadow: 0 16px 36px rgba(10, 37, 64, 0.09);&#13;
+}&#13;
+&#13;
+/* the rail states the position without adding a second badge */&#13;
+.gfp-row__rail {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  width: 3px;&#13;
+  background: $f-line;&#13;
+  transform: scaleY(0.4);&#13;
+  transform-origin: center;&#13;
+  transition: transform 0.5s $f-ease, background 0.5s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-row--open .gfp-row__rail   { background: $f-blue; transform: scaleY(1); }&#13;
+.gfp-row--soon .gfp-row__rail   { background: $f-soon; transform: scaleY(1); }&#13;
+.gfp-row--closed .gfp-row__rail { background: rgba(10, 37, 64, 0.16); transform: scaleY(1); }&#13;
+&#13;
+.gfp-row__lead { min-width: 0; }&#13;
+&#13;
+.gfp-row__top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px;&#13;
+  margin-bottom: 9px;&#13;
+}&#13;
+&#13;
+.gfp-state {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 7px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gfp-state__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gfp-state--open   { color: $f-blue-dk; }&#13;
+.gfp-state--soon   { color: $f-soon; }&#13;
+.gfp-state--closed { color: $f-ink-4; }&#13;
+&#13;
+.gfp-state--open .gfp-state__dot { background: $f-blue; }&#13;
+.gfp-state--soon .gfp-state__dot { background: $f-soon; }&#13;
+.gfp-state--closed .gfp-state__dot {&#13;
+  background: transparent;&#13;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);&#13;
+}&#13;
+&#13;
+/* category and reference are the same kind of information, so&#13;
+   they share one style rather than two competing badges */&#13;
+.gfp-row__meta {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+.gfp-row__sep { color: rgba(10, 37, 64, 0.22); }&#13;
+&#13;
+/* one urgency chip per row, and only inside a fortnight */&#13;
+.gfp-flag {&#13;
+  padding: 3px 9px;&#13;
+  border: 1px solid $f-warn-2;&#13;
+  border-radius: 6px;&#13;
+  background: $f-warn-1;&#13;
+  color: $f-warn;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gfp .gfp-row__name {&#13;
+  margin: 0;&#13;
+  font-size: 18px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.32;&#13;
+  letter-spacing: -0.018em;&#13;
+}&#13;
+&#13;
+.gfp .gfp-row__name a {&#13;
+  color: $f-navy;&#13;
+  text-decoration: none;&#13;
+  transition: color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp .gfp-row__name a:hover,&#13;
+.gfp .gfp-row__name a:focus {&#13;
+  color: $f-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gfp .gfp-row__desc {&#13;
+  max-width: 68ch;&#13;
+  margin: 7px 0 0;&#13;
+  font-size: 14.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $f-ink-3;&#13;
+}&#13;
+&#13;
+.gfp-row--closed .gfp-row__name a { color: $f-ink-3; }&#13;
+&#13;
+&#13;
+/* ---------- data columns ---------- */&#13;
+&#13;
+.gfp .gfp-row__data {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, minmax(0, 1fr));&#13;
+  gap: 16px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gfp-cell {&#13;
+  min-width: 0;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 5px;&#13;
+}&#13;
+&#13;
+.gfp .gfp-cell dt {&#13;
+  margin: 0;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $f-ink-4;&#13;
+}&#13;
+&#13;
+.gfp .gfp-cell dd {&#13;
+  margin: 0;&#13;
+  font-size: 15px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp-row__act {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 8px;&#13;
+}&#13;
+&#13;
+.gfp-btn {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  height: 40px;&#13;
+  padding: 0 16px;&#13;
+  border: 1px solid $f-blue;&#13;
+  border-radius: 10px;&#13;
+  background: $f-blue;&#13;
+  color: $f-white;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+  cursor: pointer;&#13;
+  text-decoration: none;&#13;
+  transition: background 0.4s $f-ease,&#13;
+              border-color 0.4s $f-ease,&#13;
+              color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-btn:hover,&#13;
+.gfp-btn:focus {&#13;
+  background: $f-blue-dk;&#13;
+  border-color: $f-blue-dk;&#13;
+  color: $f-white;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gfp-btn--ghost {&#13;
+  background: transparent;&#13;
+  border-color: $f-line;&#13;
+  color: $f-ink-2;&#13;
+}&#13;
+&#13;
+.gfp-btn--ghost:hover,&#13;
+.gfp-btn--ghost:focus {&#13;
+  background: transparent;&#13;
+  border-color: $f-blue-2;&#13;
+  color: $f-blue-dk;&#13;
+}&#13;
+&#13;
+.gfp-btn:focus-visible {&#13;
+  outline: 2px solid $f-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   EMPTY AND PAGER&#13;
+   ========================================================= */&#13;
+&#13;
+.gfp-empty {&#13;
+  padding: 66px 24px;&#13;
+  border: 1px dashed $f-line;&#13;
+  border-radius: 16px;&#13;
+  background: rgba(255, 255, 255, 0.6);&#13;
+  text-align: center;&#13;
+}&#13;
+&#13;
+.gfp .gfp-empty__title {&#13;
+  margin: 0;&#13;
+  font-size: 18px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.018em;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp .gfp-empty__text {&#13;
+  max-width: 44ch;&#13;
+  margin: 9px auto 0;&#13;
+  font-size: 14.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $f-ink-3;&#13;
+}&#13;
+&#13;
+.gfp-empty__btn {&#13;
+  height: 42px;&#13;
+  margin-top: 20px;&#13;
+  padding: 0 20px;&#13;
+  border: 1px solid $f-line;&#13;
+  border-radius: 10px;&#13;
+  background: $f-white;&#13;
+  color: $f-navy;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  cursor: pointer;&#13;
+  transition: border-color 0.4s $f-ease, color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-empty__btn:hover {&#13;
+  border-color: $f-blue-2;&#13;
+  color: $f-blue-dk;&#13;
+}&#13;
+&#13;
+.gfp-pager {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  gap: 6px;&#13;
+  margin-top: 26px;&#13;
+}&#13;
+&#13;
+.gfp-pager__nums {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 2px;&#13;
+}&#13;
+&#13;
+.gfp-pager__step,&#13;
+.gfp-pager__num {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  min-width: 36px;&#13;
+  height: 36px;&#13;
+  padding: 0 6px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 9px;&#13;
+  background: transparent;&#13;
+  color: $f-ink-2;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $f-ease, border-color 0.4s $f-ease, color 0.4s $f-ease;&#13;
+}&#13;
+&#13;
+.gfp-pager__step {&#13;
+  border-color: $f-line;&#13;
+  background: $f-white;&#13;
+}&#13;
+&#13;
+.gfp-pager__step:hover:not(:disabled),&#13;
+.gfp-pager__num:hover:not(:disabled) {&#13;
+  background: $f-white;&#13;
+  color: $f-navy;&#13;
+}&#13;
+&#13;
+.gfp-pager__step:disabled {&#13;
+  color: rgba(10, 37, 64, 0.22);&#13;
+  cursor: default;&#13;
+}&#13;
+&#13;
+.gfp-pager__num.is-on {&#13;
+  background: $f-blue;&#13;
+  border-color: $f-blue;&#13;
+  color: $f-white;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gfp-pager__num.is-gap {&#13;
+  min-width: 20px;&#13;
+  color: $f-ink-4;&#13;
+  cursor: default;&#13;
+  pointer-events: none;&#13;
+}&#13;
+&#13;
+.gfp-pager__step:focus-visible,&#13;
+.gfp-pager__num:focus-visible {&#13;
+  outline: 2px solid $f-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gfpRise {&#13;
+    from { opacity: 0; transform: translateY(14px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gfpDrawX {&#13;
+    from { transform: scaleX(0); }&#13;
+    to   { transform: scaleX(1); }&#13;
+  }&#13;
+&#13;
+  @keyframes gfpFade {&#13;
+    from { opacity: 0; }&#13;
+    to   { opacity: 1; }&#13;
+  }&#13;
+&#13;
+  .gfp-top    { animation: gfpRise 0.6s $f-ease backwards; }&#13;
+  .gfp-tile   { animation: gfpRise 0.62s $f-ease backwards; }&#13;
+&#13;
+  .gfp-tile--open    { animation-delay: 0.06s; }&#13;
+  .gfp-tile--fund    { animation-delay: 0.12s; }&#13;
+  .gfp-tile--ceiling { animation-delay: 0.18s; }&#13;
+  .gfp-tile--next    { animation-delay: 0.24s; }&#13;
+&#13;
+  .gfp-tile__rule { animation: gfpDrawX 0.7s $f-ease 0.3s backwards; }&#13;
+&#13;
+  .gfp-panel { animation: gfpRise 0.62s $f-ease 0.28s backwards; }&#13;
+&#13;
+  /* the bars grow from their own axis, staggered down the chart */&#13;
+  .gfp-bar__fill { animation: gfpDrawX 0.8s $f-ease backwards; }&#13;
+&#13;
+  .gfp-bar--1 .gfp-bar__fill { animation-delay: 0.38s; }&#13;
+  .gfp-bar--2 .gfp-bar__fill { animation-delay: 0.45s; }&#13;
+  .gfp-bar--3 .gfp-bar__fill { animation-delay: 0.52s; }&#13;
+  .gfp-bar--4 .gfp-bar__fill { animation-delay: 0.59s; }&#13;
+  .gfp-bar--5 .gfp-bar__fill { animation-delay: 0.66s; }&#13;
+  .gfp-bar--6 .gfp-bar__fill { animation-delay: 0.73s; }&#13;
+&#13;
+  .gfp-dead__row { animation: gfpFade 0.5s $f-ease backwards; }&#13;
+&#13;
+  .gfp-dead__row--1 { animation-delay: 0.40s; }&#13;
+  .gfp-dead__row--2 { animation-delay: 0.46s; }&#13;
+  .gfp-dead__row--3 { animation-delay: 0.52s; }&#13;
+  .gfp-dead__row--4 { animation-delay: 0.58s; }&#13;
+  .gfp-dead__row--5 { animation-delay: 0.64s; }&#13;
+&#13;
+  .gfp-bar-filters { animation: gfpRise 0.6s $f-ease 0.34s backwards; }&#13;
+&#13;
+  /* replays on every filter change, because ng-repeat rebuilds&#13;
+     its nodes and the keyframe starts again with them */&#13;
+  .gfp-row { animation: gfpRise 0.5s $f-ease backwards; }&#13;
+&#13;
+  .gfp-row--n1  { animation-delay: 0.02s; }&#13;
+  .gfp-row--n2  { animation-delay: 0.05s; }&#13;
+  .gfp-row--n3  { animation-delay: 0.08s; }&#13;
+  .gfp-row--n4  { animation-delay: 0.11s; }&#13;
+  .gfp-row--n5  { animation-delay: 0.14s; }&#13;
+  .gfp-row--n6  { animation-delay: 0.17s; }&#13;
+  .gfp-row--n7  { animation-delay: 0.20s; }&#13;
+  .gfp-row--n8  { animation-delay: 0.23s; }&#13;
+  .gfp-row--n9  { animation-delay: 0.26s; }&#13;
+  .gfp-row--n10 { animation-delay: 0.29s; }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1400px) {&#13;
+&#13;
+  .gfp-row {&#13;
+    grid-template-columns: minmax(0, 1fr) 340px;&#13;
+    gap: 22px;&#13;
+  }&#13;
+&#13;
+  /* the buttons move under the data columns rather than being&#13;
+     squeezed into a third lane */&#13;
+  .gfp-row__act {&#13;
+    grid-column: 2;&#13;
+    flex-direction: row;&#13;
+    justify-content: flex-end;&#13;
+  }&#13;
+&#13;
+  .gfp .gfp-row__data { grid-column: 2; }&#13;
+&#13;
+  .gfp-row__lead { grid-row: span 2; }&#13;
+}&#13;
+&#13;
+@media (max-width: 1150px) {&#13;
+&#13;
+  .gfp { padding: 26px 24px 64px; }&#13;
+&#13;
+  .gfp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gfp-panels { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+  .gfp-row {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 18px;&#13;
+  }&#13;
+&#13;
+  .gfp-row__lead,&#13;
+  .gfp .gfp-row__data,&#13;
+  .gfp-row__act { grid-column: 1; }&#13;
+&#13;
+  .gfp-row__lead { grid-row: auto; }&#13;
+&#13;
+  .gfp .gfp-row__data {&#13;
+    padding-top: 16px;&#13;
+    border-top: 1px solid $f-line-2;&#13;
+  }&#13;
+&#13;
+  .gfp-row__act { justify-content: flex-start; }&#13;
+}&#13;
+&#13;
+@media (max-width: 820px) {&#13;
+&#13;
+  /* the sidebar widget handles its own narrow state, so nothing&#13;
+     here touches the column it sits in */&#13;
+  .gfp { padding: 22px 16px 56px; }&#13;
+&#13;
+  .gfp-top__right {&#13;
+    width: 100%;&#13;
+    order: 2;&#13;
+  }&#13;
+&#13;
+  .gfp-search { width: 100%; }&#13;
+&#13;
+  .gfp-tiles { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+  .gfp-bar-filters {&#13;
+    align-items: stretch;&#13;
+    flex-direction: column;&#13;
+  }&#13;
+&#13;
+  .gfp-tabs {&#13;
+    flex-wrap: nowrap;&#13;
+    overflow-x: auto;&#13;
+    padding-bottom: 3px;&#13;
+    -webkit-overflow-scrolling: touch;&#13;
+  }&#13;
+&#13;
+  .gfp-tab { flex-shrink: 0; }&#13;
+&#13;
+  .gfp-selects { width: 100%; }&#13;
+&#13;
+  .gfp-select { flex: 1; }&#13;
+&#13;
+  .gfp-select select { width: 100%; }&#13;
+&#13;
+  .gfp .gfp-row__data { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gfp-bar { grid-template-columns: 96px minmax(0, 1fr) 58px; }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gfp * { transition: none; }&#13;
+  .gfp-row:hover { transform: none; }&#13;
+  .gfp-tile:hover { transform: none; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -1345,10 +1371,10 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <link><![CDATA[function link(scope, element, attrs, controller) {
   
 }]]></link>
-        <name>Funding Programs Custom</name>
+        <name>Funding Programs</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
         <script><![CDATA[(function () {
 
   /* =========================================================
@@ -1710,14 +1736,14 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-20 10:05:57</sys_created_on>
         <sys_id>a0b0fb350fb68b10712b6af300d1b25b</sys_id>
-        <sys_mod_count>120</sys_mod_count>
-        <sys_name>Funding Programs Custom</sys_name>
+        <sys_mod_count>127</sys_mod_count>
+        <sys_name>Funding Programs</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_a0b0fb350fb68b10712b6af300d1b25b</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-31 02:50:07</sys_updated_on>
+        <sys_updated_on>2026-09-02 15:23:16</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · FUNDING PROGRAMS (dashboard)
      Service Portal widget · HTML template

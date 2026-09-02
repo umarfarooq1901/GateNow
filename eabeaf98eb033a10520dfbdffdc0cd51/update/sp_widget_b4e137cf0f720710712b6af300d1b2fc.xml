@@ -456,7 +456,7 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: $a-navy;
+  background:#1560e0;
   color: $a-white;
   font-size: 13px;
   font-weight: 600;
@@ -1192,74 +1192,51 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <name>My Award</name>
         <option_schema/>
         <public>false</public>
-        <roles>x_enno_gatenow.service_applicant_user</roles>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
         <script><![CDATA[(function () {
-
-  /* =========================================================
-     GATENOW · MY AWARDS
-     Service Portal widget · Server script
-
-     WHERE AN AWARD LIVES
-
-     There is no separate award record in the schema you shared,
-     so an award is an application that has reached an award
-     state. The five that matter:
-
-       award_pending          offered, waiting on the applicant
-       award_acknowledged     accepted, project not open yet
-       project_in_progress    accepted and being delivered
-       project_completed      delivered
-       declined_by_applicant  turned down
-
-     If a grant awards table does exist on your instance, tell me
-     and this reads from there instead. The states are reliable
-     either way, which is why they are the source here.
-
-     GlideRecordSecure throughout, and the two write actions only
-     ever touch a record belonging to the person signed in.
-     ========================================================= */
-
+  
   var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var AWARD     = 'x_enno_gatenow_grant_awards';
   var PROJECT   = 'x_enno_gatenow_project';
-
-  var AWARD_STATES = 'award_pending,award_acknowledged,project_in_progress,project_completed,declined_by_applicant';
-
+  
+  var AWARD_STATES = 'pending,acknowledged,rejected';
+  
   var me = gs.getUserID();
-
+  
   data.success = false;
   data.error   = '';
-
+  
   if (typeof input === 'undefined' || input === null) input = {};
-
+  
   function opt(name, fallback) {
     var v = options[name];
     return (v === null || v === undefined || v === '') ? fallback : v.toString();
   }
-
+  
   function param(key, dflt) {
     try {
       if (input && input[key] !== undefined && input[key] !== null) return input[key];
     } catch (e) { /* fall through */ }
     return dflt;
   }
-
+  
   function lower(v) {
     return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
   }
-
+  
   function toGDT(value) {
     if (!value) return null;
     var s = '' + value;
     if (s.length === 10) s += ' 00:00:00';
     try { return new GlideDateTime(s); } catch (e) { return null; }
   }
-
+  
   function fmtDate(value) {
     var g = toGDT(value);
     if (!g) return '';
     try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
   }
-
+  
   function daysSince(value) {
     var g = toGDT(value);
     if (!g) return null;
@@ -1268,7 +1245,7 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       return Math.round(ms / 86400000);
     } catch (e) { return null; }
   }
-
+  
   function num(raw) {
     if (raw === null || raw === undefined || raw === '') return 0;
     var s = '' + raw;
@@ -1276,9 +1253,7 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     var n = parseFloat(s);
     return isNaN(n) ? 0 : n;
   }
-
-  /* written out rather than toLocaleString, which is not
-     dependable on the server engine */
+  
   function commas(n) {
     var s = '' + Math.round(n);
     var out = '';
@@ -1290,230 +1265,185 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     }
     return out;
   }
-
+  
   function fmtFull(n)  { return n > 0 ? '$' + commas(n) : ''; }
-
+  
   function fmtShort(n) {
     if (!n) return '$0';
     if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     if (n >= 1000)    return '$' + Math.round(n / 1000) + 'K';
     return '$' + commas(n);
   }
-
-  function pick(gr, names) {
-    for (var i = 0; i < names.length; i++) {
-      try {
-        if (gr.isValidField(names[i])) {
-          var v = gr.getValue(names[i]);
-          if (v !== null && v !== undefined && v !== '') return v;
-        }
-      } catch (e) { /* next */ }
-    }
-    return '';
-  }
-
-
+  
   /* ============================================================
      WRITE ACTIONS
-     Both re-read the record and check ownership before touching
-     it. A sys_id in a payload is not proof of anything.
      ============================================================ */
-
+  
   var action = String(param('action', ''));
-
+  
   function moveTo(sysId, fromState, toState, failMsg) {
-
     if (!sysId) { data.error = gs.getMessage('Nothing to update.'); return; }
-
-    var gr = new GlideRecordSecure(APPLICANT);
-
+    
+    var gr = new GlideRecordSecure(AWARD);
     if (!gr.get(sysId)) {
       data.error = gs.getMessage('That award could not be found.');
       return;
     }
-
-    if (gr.getValue('user') !== me) {
+    
+    var appGr = new GlideRecordSecure(APPLICANT);
+    if (!appGr.get(gr.getValue('applicant')) || appGr.getValue('user') !== me) {
       data.error = gs.getMessage('That award does not belong to you.');
-      gs.warn('[Awards] ' + me + ' attempted to change ' + sysId);
       return;
     }
-
-    if (lower(gr.getValue('state')) !== fromState) {
+    
+    if (lower(gr.getValue('applicant_response')) !== fromState) {
       data.error = failMsg;
       return;
     }
-
-    gr.setValue('state', toState);
-
-    if (toState === 'declined_by_applicant' && gr.isValidField('decline_reason')) {
-      gr.setValue('decline_reason', String(param('reason', '')));
-    }
-
+    
+    gr.setValue('applicant_response', toState);
+    
     if (gr.update()) {
       data.success = true;
     } else {
       data.error = gs.getMessage('The update did not save. Try again.');
     }
   }
-
+  
   if (action === 'acknowledge') {
-    moveTo(String(param('sys_id', '')),
-           'award_pending',
-           'award_acknowledged',
-           gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.'));
+    moveTo(String(param('sys_id', '')), 'pending', 'acknowledged', gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.'));
   }
-
+  
   if (action === 'decline') {
-    moveTo(String(param('sys_id', '')),
-           'award_pending',
-           'declined_by_applicant',
-           gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.'));
+    moveTo(String(param('sys_id', '')), 'pending', 'rejected', gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.'));
   }
-
-
+  
   /* ============================================================
      CHROME
      ============================================================ */
-
+  
   data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
-
+  
   var u = gs.getUser();
   var fn = u.getFirstName() || '';
   var ln = u.getLastName() || '';
   data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
                       (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
-
+  
   data.pages = {
     programs: opt('programs_page', 'x_enno_gatenow_programs'),
     project : opt('project_page', 'x_enno_gatenow_project_detail'),
-    detail  : opt('application_page', 'x_enno_gatenow_application')
+    detail  : opt('application_page', 'my_award_detail')
   };
-
-
+  
   /* ============================================================
      AWARDS
      ============================================================ */
-
+  
   data.awards = [];
-
+  
   var counts  = { all: 0, pending: 0, active: 0, done: 0, declined: 0 };
   var totalValue = 0;
   var pendingValue = 0;
   var oldestPending = null;
-
+  
   var STATE_MAP = {
-    award_pending: {
+    pending: {
       key   : 'pending',
       label : gs.getMessage('Waiting on you'),
       hint  : gs.getMessage('Accept or decline to move this forward')
     },
-    award_acknowledged: {
+    acknowledged: {
       key   : 'active',
       label : gs.getMessage('Accepted'),
       hint  : gs.getMessage('The project opens once the program team sets it up')
     },
-    project_in_progress: {
-      key   : 'active',
-      label : gs.getMessage('In delivery'),
-      hint  : gs.getMessage('Reporting and claims run from the project')
-    },
-    project_completed: {
-      key   : 'done',
-      label : gs.getMessage('Completed'),
-      hint  : gs.getMessage('Delivered and closed')
-    },
-    declined_by_applicant: {
+    rejected: {
       key   : 'declined',
       label : gs.getMessage('Declined'),
       hint  : gs.getMessage('You turned this award down')
     }
   };
-
+  
   try {
-
-    var gr = new GlideRecordSecure(APPLICANT);
-    gr.addQuery('user', me);
-    gr.addQuery('state', 'IN', AWARD_STATES);
-    gr.orderByDesc('sys_updated_on');
-    gr.setLimit(200);
-    gr.query();
-
-    while (gr.next()) {
-
-      var stateVal = lower(gr.getValue('state'));
-      var meta = STATE_MAP[stateVal];
-      if (!meta) continue;
-
-      /* An award amount field is not on the applicant table in
-         the schema I have, so the requested budget stands in and
-         is labelled as such. If your instance holds an awarded
-         figure, add its field name to the list below and the
-         label switches automatically. */
-      var awarded  = num(pick(gr, ['award_amount', 'awarded_amount', 'granted_amount']));
-      var asked    = num(pick(gr, ['requested_budget']));
-      var isActual = awarded > 0;
-      var value    = isActual ? awarded : asked;
-
-      /* sys_updated_on is the closest thing to an award date
-         without a dedicated field on the record */
-      var movedRaw = gr.getValue('sys_updated_on');
-      var waiting  = (stateVal === 'award_pending') ? daysSince(movedRaw) : null;
-
-      var projectId = '';
-      var projectName = '';
-
-      if (stateVal === 'project_in_progress' || stateVal === 'project_completed') {
-        var pj = new GlideRecordSecure(PROJECT);
-        pj.addQuery('applicant', gr.getUniqueValue());
-        pj.setLimit(1);
-        pj.query();
-        if (pj.next()) {
-          projectId = pj.getUniqueValue();
-          projectName = pick(pj, ['project_name', 'short_description']) || pj.getValue('number');
+    var applicantIds = [];
+    var applicantGr = new GlideRecordSecure(APPLICANT);
+    applicantGr.addQuery('user', me);
+    applicantGr.query();
+    
+    while (applicantGr.next()) {
+      applicantIds.push(applicantGr.getUniqueValue());
+    }
+    
+    if (applicantIds.length > 0) {
+      var gr = new GlideRecordSecure(AWARD);
+      gr.addQuery('applicant', 'IN', applicantIds.join(','));
+      gr.addQuery('applicant_response', 'IN', AWARD_STATES);
+      gr.orderByDesc('sys_created_on');
+      gr.query();
+      
+      while (gr.next()) {
+        var stateVal = lower(gr.getValue('applicant_response'));
+        var meta = STATE_MAP[stateVal];
+        if (!meta) continue;
+        
+        var value = num(gr.getValue('build_grant_amount'));
+        var waiting = (stateVal === 'pending') ? daysSince(gr.getValue('sys_created_on')) : null;
+        
+        var projectId = '';
+        var projectName = '';
+        
+        if (stateVal === 'acknowledged') {
+          var pj = new GlideRecordSecure(PROJECT);
+          pj.addQuery('x_enno_gatenow_applicant', gr.getValue('applicant'));
+          pj.setLimit(1);
+          pj.query();
+          if (pj.next()) {
+            projectId = pj.getUniqueValue();
+            projectName = pj.getValue('project_name') || pj.getValue('number');
+          }
         }
-      }
-
-      data.awards.push({
-        sysId      : gr.getUniqueValue(),
-        number     : gr.getValue('number'),
-        program    : gr.getDisplayValue('program'),
-        category   : gr.getValue('program_category') || gr.getDisplayValue('category'),
-        title      : pick(gr, ['proposal_title', 'short_description']),
-        state      : meta.key,
-        stateLabel : meta.label,
-        stateHint  : meta.hint,
-        rawState   : stateVal,
-        value      : value,
-        valueText  : fmtFull(value),
-        valueIsFinal: isActual,
-        submitted  : fmtDate(gr.getValue('submission_date')),
-        moved      : fmtDate(movedRaw),
-        waitingDays: waiting,
-        projectId  : projectId,
-        projectName: projectName,
-        canAct     : (stateVal === 'award_pending')
-      });
-
-      counts.all++;
-      counts[meta.key]++;
-
-      if (meta.key !== 'declined') totalValue += value;
-
-      if (stateVal === 'award_pending') {
-        pendingValue += value;
-        if (waiting !== null && (oldestPending === null || waiting > oldestPending)) {
-          oldestPending = waiting;
+        
+        data.awards.push({
+          sysId      : gr.getUniqueValue(),
+          number     : gr.getValue('number'),
+          program    : gr.getDisplayValue('program_name'),
+          category   : gr.getDisplayValue('grant_program'),
+          title      : '',
+          state      : meta.key,
+          stateLabel : meta.label,
+          stateHint  : meta.hint,
+          rawState   : stateVal,
+          value      : value,
+          valueText  : fmtFull(value),
+          valueIsFinal: true,
+          submitted  : fmtDate(gr.getValue('award_start_date')),
+          moved      : fmtDate(gr.getValue('sys_updated_on')),
+          waitingDays: waiting,
+          projectId  : projectId,
+          projectName: projectName,
+          canAct     : (stateVal === 'pending')
+        });
+        
+        counts.all++;
+        counts[meta.key]++;
+        
+        if (meta.key !== 'declined') totalValue += value;
+        
+        if (stateVal === 'pending') {
+          pendingValue += value;
+          if (waiting !== null && (oldestPending === null || waiting > oldestPending)) {
+            oldestPending = waiting;
+          }
         }
       }
     }
-
   } catch (e) {
     gs.error('[Awards] ' + e.message);
   }
-
+  
   data.counts = counts;
-
-
+  
   /* ---------- tiles ---------- */
   data.tiles = [
     {
@@ -1546,12 +1476,11 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       note : gs.getMessage('delivered and closed')
     }
   ];
-
-
+  
   /* ============================================================
      COPY
      ============================================================ */
-
+  
   data.t = {
     title      : opt('label_title', gs.getMessage('My awards')),
     search     : gs.getMessage('Search by program, reference or title'),
@@ -1560,30 +1489,30 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     tabActive  : gs.getMessage('Active'),
     tabDone    : gs.getMessage('Completed'),
     tabDeclined: gs.getMessage('Declined'),
-
+    
     awarded    : gs.getMessage('Awarded'),
     requested  : gs.getMessage('Requested'),
     reference  : gs.getMessage('Reference'),
     submitted  : gs.getMessage('Submitted'),
     updated    : gs.getMessage('Last change'),
     project    : gs.getMessage('Project'),
-
+    
     accept     : gs.getMessage('Accept award'),
     decline    : gs.getMessage('Decline'),
     viewProject: gs.getMessage('Open project'),
-    viewApp    : gs.getMessage('View application'),
-
+    viewApp    : gs.getMessage('View award'),
+    
     waitingFor : gs.getMessage('Waiting'),
     days       : gs.getMessage('days'),
     day        : gs.getMessage('day'),
-
+    
     emptyTitle : gs.getMessage('No awards yet'),
     emptyText  : gs.getMessage('Awards appear here once a funding panel has made a decision on one of your applications.'),
     emptyBtn   : gs.getMessage('Browse open programs'),
     noMatch    : gs.getMessage('Nothing matches this filter'),
     noMatchText: gs.getMessage('Try another tab, or clear the search.'),
     clear      : gs.getMessage('Clear'),
-
+    
     acceptTitle: gs.getMessage('Accept this award?'),
     acceptText : gs.getMessage('Accepting starts the project and commits you to the reporting schedule attached to this program.'),
     acceptYes  : gs.getMessage('Yes, accept it'),
@@ -1591,30 +1520,30 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     declineText: gs.getMessage('This cannot be undone. The funding will be released to another applicant.'),
     declineYes : gs.getMessage('Yes, decline it'),
     keep       : gs.getMessage('Go back'),
-
+    
     accepted   : gs.getMessage('Award accepted'),
     declined   : gs.getMessage('Award declined'),
     failed     : gs.getMessage('That did not work'),
     ok         : gs.getMessage('OK'),
     estimate   : gs.getMessage('Requested figure, the awarded amount is confirmed in your award letter')
   };
-
+  
   data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
-
+  
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-24 07:23:34</sys_created_on>
         <sys_id>b4e137cf0f720710712b6af300d1b2fc</sys_id>
-        <sys_mod_count>28</sys_mod_count>
+        <sys_mod_count>48</sys_mod_count>
         <sys_name>My Award</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b4e137cf0f720710712b6af300d1b2fc</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-31 02:45:52</sys_updated_on>
+        <sys_updated_on>2026-09-02 09:33:01</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · MY AWARDS
      Service Portal widget · HTML template

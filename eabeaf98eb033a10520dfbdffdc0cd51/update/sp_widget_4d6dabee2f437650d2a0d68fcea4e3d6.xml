@@ -2,25 +2,25 @@
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
         <client_script><![CDATA[api.controller = function($scope) {
-
+ 
   /* =========================================================
      GATENOW · GRANT PROGRAMS · Client script
-
+ 
      Search, status, category and paging all run against the
      list already in memory. Nothing here goes back to the
      server, so a keystroke costs nothing and the rows re-enter
      on every change because ng-repeat rebuilds its nodes.
      ========================================================= */
-
+ 
   var c = this;
-
+ 
   c.query    = '';
   c.filter   = 'all';
   c.category = 'all';
   c.page     = 1;
-
+ 
   var PER_PAGE = c.data.pageSize || 10;
-
+ 
   /* Search covers the four things a person actually types: the
      program name, its category, its reference, and the words in
      the summary. Diacritics are left alone, since the fields are
@@ -33,11 +33,10 @@
       (p.synopsis || '').toLowerCase().indexOf(q) !== -1
     );
   }
-
+ 
   /* every filter combined, before paging */
   function matching() {
     var q = (c.query || '').trim().toLowerCase();
-
     return (c.data.programs || []).filter(function(p) {
       if (c.filter !== 'all' && p.state !== c.filter) return false;
       if (c.category !== 'all' && p.category !== c.category) return false;
@@ -45,82 +44,81 @@
       return true;
     });
   }
-
+ 
   c.total = function() {
     return matching().length;
   };
-
+ 
   c.pageCount = function() {
     return Math.max(1, Math.ceil(matching().length / PER_PAGE));
   };
-
+ 
   /* the slice on screen */
   c.shown = function() {
     var start = (c.page - 1) * PER_PAGE;
     return matching().slice(start, start + PER_PAGE);
   };
-
+ 
   /* "1 to 10 of 34", so the count means something */
   c.rangeFrom = function() {
     return matching().length === 0 ? 0 : ((c.page - 1) * PER_PAGE) + 1;
   };
-
+ 
   c.rangeTo = function() {
     return Math.min(c.page * PER_PAGE, matching().length);
   };
-
+ 
   /* any change to what is being filtered sends you back to the
      first page, otherwise you land on an empty page four */
   function reset() {
     c.page = 1;
   }
-
+ 
   c.onSearch = function() {
     reset();
   };
-
+ 
   c.setFilter = function(key) {
     if (c.filter === key) return;
     c.filter = key;
     reset();
   };
-
+ 
   c.setCategory = function(key) {
     if (c.category === key) return;
     c.category = key;
     reset();
   };
-
+ 
   c.clearSearch = function() {
     c.query = '';
     reset();
   };
-
+ 
   c.clearAll = function() {
     c.query = '';
     c.filter = 'all';
     c.category = 'all';
     reset();
   };
-
+ 
   c.isFiltered = function() {
     return c.filter !== 'all' || c.category !== 'all' || !!(c.query || '').trim();
   };
-
-
+ 
   /* =====================================================
      PAGING
      ===================================================== */
-
+ 
   c.goto = function(n) {
     if (n === '...') return;
     if (n < 1 || n > c.pageCount() || n === c.page) return;
     c.page = n;
   };
-
+ 
   c.prev = function() { c.goto(c.page - 1); };
   c.next = function() { c.goto(c.page + 1); };
-
+ 
   /* First and last are always reachable, the current page keeps
      a neighbour either side, and the gaps collapse to an
      ellipsis. Seven slots at most, so the control never wraps. */
@@ -128,1072 +126,1116 @@
     var n = c.pageCount();
     var p = c.page;
     var out = [];
-
+ 
     if (n <= 7) {
       for (var i = 1; i <= n; i++) out.push(i);
       return out;
     }
-
+ 
     out.push(1);
-
+ 
     var from = Math.max(2, p - 1);
     var to   = Math.min(n - 1, p + 1);
-
+ 
     /* keep the run three wide even at either end */
     if (p <= 3) to = 4;
     if (p >= n - 2) from = n - 3;
-
+ 
     if (from > 2) out.push('...');
     for (var j = from; j <= to; j++) out.push(j);
     if (to < n - 1) out.push('...');
-
+ 
     out.push(n);
     return out;
   };
-
-};]]></client_script>
+ 
+};
+ ]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* =========================================================&#13;
-   GATENOW · GRANT PROGRAMS&#13;
-   Service Portal widget · CSS / SCSS&#13;
-&#13;
-   Selectors are written out in full. The Service Portal Sass&#13;
-   compiler does not support parent selector concatenation.&#13;
-&#13;
-   COLOUR&#13;
-   One accent, and it is the blue from the logo. Everything else&#13;
-   is the same navy at different opacities, which is what keeps&#13;
-   a palette looking related rather than assembled. Green and&#13;
-   amber fills are gone. Blue now carries a single meaning on&#13;
-   this page: you can act on this. Anything you cannot act on is&#13;
-   drawn in neutrals.&#13;
-&#13;
-   The one exception is the closing flag, a muted amber that&#13;
-   appears only inside the final seven days. One alert colour,&#13;
-   used in one place, still reads as an alert. Used in four&#13;
-   places it reads as decoration.&#13;
-&#13;
-   TYPE&#13;
-   Six roles and no more:&#13;
-     display   52  700  -0.033em   page title&#13;
-     title     22  600  -0.022em   program name&#13;
-     lead    17.5  400              hero standfirst&#13;
-     body      15  400              descriptions&#13;
-     data      15  600  tabular     amounts and dates&#13;
-     label     11  600   0.14em     uppercase, every small cap&#13;
-&#13;
-   Tracking is negative only above 20px, where it is needed, and&#13;
-   positive only on uppercase labels, where it is required for&#13;
-   legibility. Amounts and dates use tabular figures so the two&#13;
-   fact columns line up down the list.&#13;
-   ========================================================= */&#13;
-&#13;
-/* ---------- typeface ----------&#13;
-   Shared with the landing widgets. Keep a single copy in a&#13;
-   Style Sheet record attached to the theme if several of these&#13;
-   widgets appear on one portal.&#13;
-   ------------------------------------------------------------- */&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 400;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 500;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 600;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 700;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- ink ----------&#13;
-   Every neutral is the navy at an opacity, so nothing on the&#13;
-   page is a stranger to anything else. */&#13;
-$g-navy:     #0a2540;&#13;
-$g-ink-2:    rgba(10, 37, 64, 0.72);&#13;
-$g-ink-3:    rgba(10, 37, 64, 0.54);&#13;
-$g-ink-4:    rgba(10, 37, 64, 0.38);&#13;
-$g-line:     rgba(10, 37, 64, 0.10);&#13;
-$g-line-2:   rgba(10, 37, 64, 0.06);&#13;
-$g-tint:     rgba(10, 37, 64, 0.03);&#13;
-&#13;
-/* ---------- accent, used sparingly ---------- */&#13;
-$g-blue:     #1560e0;&#13;
-$g-blue-dk:  #0f4cbb;&#13;
-$g-blue-1:   rgba(21, 96, 224, 0.08);&#13;
-$g-blue-2:   rgba(21, 96, 224, 0.16);&#13;
-&#13;
-/* ---------- state colours ----------&#13;
-   Blue is now, teal is next, amber is running out, neutral is&#13;
-   over. Four states, four meanings, and each colour appears in&#13;
-   exactly one of them. Teal was chosen over green because green&#13;
-   beside blue reads as a traffic light, and over violet because&#13;
-   at seven pixels a violet dot is just a blue dot. */&#13;
-$g-soon:     #0d7d8c;&#13;
-$g-soon-1:   rgba(13, 125, 140, 0.10);&#13;
-&#13;
-$g-warn:     #a4741f;&#13;
-$g-warn-1:   rgba(164, 116, 31, 0.10);&#13;
-$g-warn-2:   rgba(164, 116, 31, 0.24);&#13;
-&#13;
-$g-white:    #ffffff;&#13;
-$g-ease:     cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
-&#13;
-$g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   PAGE&#13;
-   ========================================================= */&#13;
-&#13;
-.gnpl {&#13;
-  position: relative;&#13;
-  width: 100%;&#13;
-  min-height: 100vh;&#13;
-  font-family: $g-font;&#13;
-  color: $g-navy;&#13;
-  background: $g-white;&#13;
-  -webkit-font-smoothing: antialiased;&#13;
-}&#13;
-&#13;
-.gnpl *,&#13;
-.gnpl *::before,&#13;
-.gnpl *::after { box-sizing: border-box; }&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   HERO&#13;
-   ========================================================= */&#13;
-&#13;
-.gnpl-hero {&#13;
-  position: relative;&#13;
-  padding: 92px 24px 72px;&#13;
-  overflow: hidden;&#13;
-  background: linear-gradient(180deg, #f2f6fc 0%, #f8fafd 64%, #ffffff 100%);&#13;
-}&#13;
-&#13;
-.gnpl-hero__glow {&#13;
-  position: absolute;&#13;
-  top: -260px;&#13;
-  left: 50%;&#13;
-  width: 1080px;&#13;
-  height: 620px;&#13;
-  margin-left: -540px;&#13;
-  border-radius: 50%;&#13;
-  background: radial-gradient(circle, rgba(21, 96, 224, 0.07) 0%, rgba(21, 96, 224, 0) 68%);&#13;
-  pointer-events: none;&#13;
-}&#13;
-&#13;
-.gnpl-hero__inner {&#13;
-  position: relative;&#13;
-  z-index: 2;&#13;
-  max-width: 1180px;&#13;
-  margin: 0 auto;&#13;
-}&#13;
-&#13;
-/* label role */&#13;
-.gnpl .gnpl-eyebrow {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  margin: 0 0 20px;&#13;
-  font-size: 11px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: 0.14em;&#13;
-  text-transform: uppercase;&#13;
-  color: $g-ink-3;&#13;
-}&#13;
-&#13;
-/* display role */&#13;
-.gnpl .gnpl-hero__title {&#13;
-  margin: 0;&#13;
-  max-width: 680px;&#13;
-  font-size: 52px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1.1;&#13;
-  letter-spacing: -0.033em;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-@supports (font-size: clamp(31px, 4.1vw, 52px)) {&#13;
-  .gnpl .gnpl-hero__title { font-size: clamp(31px, 4.1vw, 52px); }&#13;
-}&#13;
-&#13;
-/* lead role */&#13;
-.gnpl .gnpl-hero__sub {&#13;
-  max-width: 52ch;&#13;
-  margin: 20px 0 0;&#13;
-  padding: 0;&#13;
-  font-size: 17.5px;&#13;
-  font-weight: 400;&#13;
-  line-height: 1.65;&#13;
-  color: $g-ink-2;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- live figures ---------- */&#13;
-&#13;
-.gnpl .gnpl-stats {&#13;
-  display: grid;&#13;
-  grid-template-columns: repeat(3, minmax(0, 1fr));&#13;
-  max-width: 680px;&#13;
-  margin: 46px 0 0;&#13;
-  padding: 0;&#13;
-}&#13;
-&#13;
-.gnpl-stat {&#13;
-  position: relative;&#13;
-  padding: 0 30px;&#13;
-}&#13;
-&#13;
-.gnpl-stat--1 { padding-left: 0; }&#13;
-&#13;
-/* hairlines between, not boxes around */&#13;
-.gnpl-stat--2,&#13;
-.gnpl-stat--3 { border-left: 1px solid $g-line; }&#13;
-&#13;
-.gnpl .gnpl-stat__label {&#13;
-  margin: 0;&#13;
-  font-size: 11px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: 0.14em;&#13;
-  text-transform: uppercase;&#13;
-  color: $g-ink-3;&#13;
-}&#13;
-&#13;
-/* the figures are navy, not blue. blue is reserved for things&#13;
-   you can click. */&#13;
-.gnpl .gnpl-stat__value {&#13;
-  margin: 10px 0 0;&#13;
-  font-size: 36px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1;&#13;
-  letter-spacing: -0.035em;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl .gnpl-stat__note {&#13;
-  margin: 7px 0 0;&#13;
-  max-width: 22ch;&#13;
-  font-size: 13px;&#13;
-  line-height: 1.5;&#13;
-  color: $g-ink-3;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   FILTER BAR&#13;
-   ========================================================= */&#13;
-&#13;
-.gnpl-bar {&#13;
-  position: sticky;&#13;
-  top: 0;&#13;
-  z-index: 20;&#13;
-  padding: 13px 24px;&#13;
-  background: rgba(255, 255, 255, 0.9);&#13;
-  border-top: 1px solid $g-line;&#13;
-  border-bottom: 1px solid $g-line;&#13;
-  -webkit-backdrop-filter: blur(14px) saturate(150%);&#13;
-  backdrop-filter: blur(14px) saturate(150%);&#13;
-}&#13;
-&#13;
-.gnpl-bar__inner {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: space-between;&#13;
-  flex-wrap: wrap;&#13;
-  gap: 12px 26px;&#13;
-  max-width: 1180px;&#13;
-  margin: 0 auto;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- search ----------&#13;
-   Full height of the bar and given the first slot, because a&#13;
-   list of forty programs is searched more often than it is&#13;
-   filtered.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-.gnpl-search {&#13;
-  position: relative;&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  gap: 10px;&#13;
-  flex: 1 1 300px;&#13;
-  max-width: 380px;&#13;
-  height: 40px;&#13;
-  padding: 0 12px 0 14px;&#13;
-  margin: 0;&#13;
-  border: 1px solid $g-line;&#13;
-  border-radius: 10px;&#13;
-  background: $g-white;&#13;
-  font-weight: 400;&#13;
-  transition: border-color 0.4s $g-ease, box-shadow 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-search:focus-within {&#13;
-  border-color: rgba(21, 96, 224, 0.45);&#13;
-  box-shadow: 0 0 0 3px $g-blue-1;&#13;
-}&#13;
-&#13;
-.gnpl-search__icon {&#13;
-  font-size: 13px;&#13;
-  color: $g-ink-4;&#13;
-  flex-shrink: 0;&#13;
-  transition: color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-search:focus-within .gnpl-search__icon { color: $g-blue; }&#13;
-&#13;
-.gnpl-search__field {&#13;
-  flex: 1;&#13;
-  min-width: 0;&#13;
-  height: 100%;&#13;
-  border: 0;&#13;
-  outline: 0;&#13;
-  background: transparent;&#13;
-  font-family: inherit;&#13;
-  font-size: 14px;&#13;
-  font-weight: 400;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl-search__field::placeholder {&#13;
-  color: $g-ink-4;&#13;
-  font-weight: 400;&#13;
-}&#13;
-&#13;
-.gnpl-search__clear {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  width: 22px;&#13;
-  height: 22px;&#13;
-  padding: 0;&#13;
-  border: 0;&#13;
-  border-radius: 50%;&#13;
-  background: $g-tint;&#13;
-  color: $g-ink-3;&#13;
-  font-size: 10px;&#13;
-  cursor: pointer;&#13;
-  flex-shrink: 0;&#13;
-  transition: background 0.4s $g-ease, color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-search__clear:hover {&#13;
-  background: rgba(10, 37, 64, 0.09);&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl-search__clear:focus-visible {&#13;
-  outline: 2px solid $g-blue;&#13;
-  outline-offset: 2px;&#13;
-}&#13;
-&#13;
-.gnpl-chips {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  flex-wrap: wrap;&#13;
-  gap: 6px;&#13;
-}&#13;
-&#13;
-/* Selection is shown by weight and a quiet tint, not by&#13;
-   flooding the control with the accent colour. */&#13;
-.gnpl-chip {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  gap: 9px;&#13;
-  height: 38px;&#13;
-  padding: 0 14px;&#13;
-  border: 1px solid transparent;&#13;
-  border-radius: 10px;&#13;
-  background: transparent;&#13;
-  color: $g-ink-2;&#13;
-  font-family: inherit;&#13;
-  font-size: 14px;&#13;
-  font-weight: 500;&#13;
-  cursor: pointer;&#13;
-  transition: background 0.4s $g-ease,&#13;
-              border-color 0.4s $g-ease,&#13;
-              color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-chip:hover {&#13;
-  background: $g-tint;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl-chip.is-on {&#13;
-  background: $g-white;&#13;
-  border-color: $g-line;&#13;
-  color: $g-navy;&#13;
-  font-weight: 600;&#13;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);&#13;
-}&#13;
-&#13;
-.gnpl-chip__label { white-space: nowrap; }&#13;
-&#13;
-.gnpl-chip__dot {&#13;
-  width: 7px;&#13;
-  height: 7px;&#13;
-  border-radius: 50%;&#13;
-  flex-shrink: 0;&#13;
-  background: $g-ink-4;&#13;
-  transition: background 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-chip__dot--open { background: $g-blue; }&#13;
-.gnpl-chip__dot--soon { background: $g-soon; }&#13;
-&#13;
-.gnpl-chip__count {&#13;
-  font-size: 12.5px;&#13;
-  font-weight: 500;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $g-ink-4;&#13;
-  transition: color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-chip.is-on .gnpl-chip__count { color: $g-ink-3; }&#13;
-&#13;
-.gnpl-cats {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  flex-wrap: wrap;&#13;
-  gap: 2px;&#13;
-}&#13;
-&#13;
-.gnpl-cat {&#13;
-  height: 32px;&#13;
-  padding: 0 12px;&#13;
-  border: 0;&#13;
-  border-radius: 8px;&#13;
-  background: transparent;&#13;
-  color: $g-ink-3;&#13;
-  font-family: inherit;&#13;
-  font-size: 13.5px;&#13;
-  font-weight: 500;&#13;
-  white-space: nowrap;&#13;
-  cursor: pointer;&#13;
-  transition: background 0.4s $g-ease, color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-cat:hover {&#13;
-  background: $g-tint;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl-cat.is-on {&#13;
-  background: $g-blue-1;&#13;
-  color: $g-blue-dk;&#13;
-  font-weight: 600;&#13;
-}&#13;
-&#13;
-.gnpl-chip:focus-visible,&#13;
-.gnpl-cat:focus-visible {&#13;
-  outline: 2px solid $g-blue;&#13;
-  outline-offset: 2px;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   DIRECTORY&#13;
-   ========================================================= */&#13;
-&#13;
-.gnpl-body { padding: 30px 24px 108px; }&#13;
-&#13;
-.gnpl-body__inner {&#13;
-  max-width: 1180px;&#13;
-  margin: 0 auto;&#13;
-}&#13;
-&#13;
-.gnpl .gnpl-count {&#13;
-  display: flex;&#13;
-  align-items: baseline;&#13;
-  gap: 9px;&#13;
-  margin: 0 0 14px;&#13;
-  padding: 0;&#13;
-  font-size: 13px;&#13;
-  color: $g-ink-4;&#13;
-}&#13;
-&#13;
-.gnpl .gnpl-count strong {&#13;
-  font-size: 13px;&#13;
-  font-weight: 600;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $g-ink-2;&#13;
-}&#13;
-&#13;
-.gnpl-count__clear {&#13;
-  padding: 0;&#13;
-  border: 0;&#13;
-  background: transparent;&#13;
-  color: $g-blue;&#13;
-  font-family: inherit;&#13;
-  font-size: 13px;&#13;
-  font-weight: 600;&#13;
-  cursor: pointer;&#13;
-  transition: color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-count__clear:hover { color: $g-blue-dk; }&#13;
-&#13;
-.gnpl-count__clear:focus-visible {&#13;
-  outline: 2px solid $g-blue;&#13;
-  outline-offset: 2px;&#13;
-  border-radius: 4px;&#13;
-}&#13;
-&#13;
-.gnpl-list { border-top: 1px solid $g-line; }&#13;
-&#13;
-.gnpl-row {&#13;
-  position: relative;&#13;
-  display: grid;&#13;
-  grid-template-columns: minmax(0, 1fr) 320px 48px;&#13;
-  align-items: center;&#13;
-  gap: 30px;&#13;
-  padding: 26px 24px 26px 28px;&#13;
-  border-bottom: 1px solid $g-line-2;&#13;
-  text-decoration: none;&#13;
-  color: inherit;&#13;
-  overflow: hidden;&#13;
-  transition: transform 0.5s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-row:hover,&#13;
-.gnpl-row:focus {&#13;
-  text-decoration: none;&#13;
-  color: inherit;&#13;
-  transform: translateX(3px);&#13;
-}&#13;
-&#13;
-.gnpl-row:focus-visible {&#13;
-  outline: 2px solid $g-blue;&#13;
-  outline-offset: -3px;&#13;
-}&#13;
-&#13;
-/* a neutral rail that takes the accent only on hover, so the&#13;
-   list is calm until you point at something */&#13;
-.gnpl-row__rail {&#13;
-  position: absolute;&#13;
-  top: 20px;&#13;
-  bottom: 20px;&#13;
-  left: 0;&#13;
-  width: 2px;&#13;
-  border-radius: 0 2px 2px 0;&#13;
-  background: $g-line;&#13;
-  transform: scaleY(0.5);&#13;
-  transform-origin: center;&#13;
-  transition: transform 0.5s $g-ease, background 0.5s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-row:hover .gnpl-row__rail {&#13;
-  transform: scaleY(1);&#13;
-  background: $g-blue;&#13;
-}&#13;
-&#13;
-/* closed rows keep the neutral rail on hover, since there is&#13;
-   nothing to act on */&#13;
-.gnpl-row--soon:hover .gnpl-row__rail   { background: $g-soon; }&#13;
-.gnpl-row--closed:hover .gnpl-row__rail { background: $g-ink-4; }&#13;
-&#13;
-.gnpl-row__wash {&#13;
-  position: absolute;&#13;
-  top: 0;&#13;
-  right: 0;&#13;
-  bottom: 0;&#13;
-  left: 0;&#13;
-  background: $g-tint;&#13;
-  transform: scaleX(0);&#13;
-  transform-origin: left center;&#13;
-  transition: transform 0.55s $g-ease;&#13;
-  pointer-events: none;&#13;
-}&#13;
-&#13;
-.gnpl-row:hover .gnpl-row__wash { transform: scaleX(1); }&#13;
-&#13;
-.gnpl-row__main {&#13;
-  position: relative;&#13;
-  min-width: 0;&#13;
-}&#13;
-&#13;
-.gnpl-row__top {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  flex-wrap: wrap;&#13;
-  gap: 12px;&#13;
-  margin-bottom: 10px;&#13;
-}&#13;
-&#13;
-.gnpl-state {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  gap: 7px;&#13;
-  font-size: 11px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: 0.12em;&#13;
-  text-transform: uppercase;&#13;
-}&#13;
-&#13;
-.gnpl-state__dot {&#13;
-  width: 7px;&#13;
-  height: 7px;&#13;
-  border-radius: 50%;&#13;
-  flex-shrink: 0;&#13;
-}&#13;
-&#13;
-/* open is the only state you can act on, so it is the only one&#13;
-   that gets the accent */&#13;
-.gnpl-state--open   { color: $g-blue-dk; }&#13;
-.gnpl-state--soon   { color: $g-soon; }&#13;
-.gnpl-state--closed { color: $g-ink-4; }&#13;
-&#13;
-.gnpl-state--open .gnpl-state__dot   { background: $g-blue; }&#13;
-.gnpl-state--soon .gnpl-state__dot   { background: $g-soon; }&#13;
-.gnpl-state--closed .gnpl-state__dot {&#13;
-  background: transparent;&#13;
-  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);&#13;
-}&#13;
-&#13;
-/* category and reference share one style, because they are the&#13;
-   same kind of information */&#13;
-.gnpl-row__meta {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  gap: 8px;&#13;
-  font-size: 11px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: 0.12em;&#13;
-  text-transform: uppercase;&#13;
-  color: $g-ink-4;&#13;
-}&#13;
-&#13;
-.gnpl-row__sep { color: rgba(10, 37, 64, 0.22); }&#13;
-&#13;
-/* title role */&#13;
-.gnpl .gnpl-row__name {&#13;
-  margin: 0;&#13;
-  font-size: 22px;&#13;
-  font-weight: 600;&#13;
-  line-height: 1.28;&#13;
-  letter-spacing: -0.022em;&#13;
-  color: $g-navy;&#13;
-  transition: color 0.5s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-row:hover .gnpl-row__name { color: $g-blue-dk; }&#13;
-&#13;
-/* body role, held to a readable measure */&#13;
-.gnpl .gnpl-row__desc {&#13;
-  max-width: 62ch;&#13;
-  margin: 8px 0 0;&#13;
-  padding: 0;&#13;
-  font-size: 15px;&#13;
-  line-height: 1.62;&#13;
-  color: $g-ink-2;&#13;
-}&#13;
-&#13;
-.gnpl-row--closed .gnpl-row__name { color: $g-ink-3; }&#13;
-.gnpl-row--closed .gnpl-row__desc { color: $g-ink-3; }&#13;
-&#13;
-&#13;
-/* ---------- facts ---------- */&#13;
-&#13;
-.gnpl-row__facts {&#13;
-  position: relative;&#13;
-  display: grid;&#13;
-  grid-template-columns: repeat(2, minmax(0, 1fr));&#13;
-  gap: 22px;&#13;
-}&#13;
-&#13;
-.gnpl-fact {&#13;
-  display: flex;&#13;
-  flex-direction: column;&#13;
-  gap: 6px;&#13;
-  min-width: 0;&#13;
-}&#13;
-&#13;
-/* label role, the same one used everywhere else */&#13;
-.gnpl-fact__label {&#13;
-  font-size: 11px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: 0.14em;&#13;
-  text-transform: uppercase;&#13;
-  color: $g-ink-4;&#13;
-}&#13;
-&#13;
-/* data role, tabular so the columns line up down the list */&#13;
-.gnpl-fact__value {&#13;
-  font-size: 15px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.008em;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-/* the one warm colour on the page, and it appears only inside&#13;
-   the final seven days */&#13;
-.gnpl-fact__flag {&#13;
-  align-self: flex-start;&#13;
-  margin-top: 2px;&#13;
-  padding: 2px 8px;&#13;
-  border: 1px solid $g-warn-2;&#13;
-  border-radius: 6px;&#13;
-  background: $g-warn-1;&#13;
-  color: $g-warn;&#13;
-  font-size: 11px;&#13;
-  font-weight: 600;&#13;
-  white-space: nowrap;&#13;
-}&#13;
-&#13;
-.gnpl-row__go {&#13;
-  position: relative;&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  justify-self: end;&#13;
-  width: 38px;&#13;
-  height: 38px;&#13;
-  border-radius: 50%;&#13;
-  background: transparent;&#13;
-  border: 1px solid $g-line;&#13;
-  color: $g-ink-3;&#13;
-  font-size: 12px;&#13;
-  transition: transform 0.5s $g-ease,&#13;
-              background 0.5s $g-ease,&#13;
-              border-color 0.5s $g-ease,&#13;
-              color 0.5s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-row:hover .gnpl-row__go {&#13;
-  transform: translateX(3px);&#13;
-  background: $g-blue;&#13;
-  border-color: $g-blue;&#13;
-  color: $g-white;&#13;
-}&#13;
-&#13;
-.gnpl-row--closed:hover .gnpl-row__go {&#13;
-  background: transparent;&#13;
-  border-color: $g-ink-4;&#13;
-  color: $g-ink-2;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   EMPTY AND MORE&#13;
-   ========================================================= */&#13;
-&#13;
-.gnpl-empty {&#13;
-  padding: 76px 24px;&#13;
-  text-align: center;&#13;
-  border-bottom: 1px solid $g-line-2;&#13;
-}&#13;
-&#13;
-.gnpl .gnpl-empty__title {&#13;
-  margin: 0;&#13;
-  font-size: 20px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.02em;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl .gnpl-empty__text {&#13;
-  max-width: 42ch;&#13;
-  margin: 10px auto 0;&#13;
-  padding: 0;&#13;
-  font-size: 15px;&#13;
-  line-height: 1.64;&#13;
-  color: $g-ink-2;&#13;
-}&#13;
-&#13;
-.gnpl-empty__btn {&#13;
-  height: 44px;&#13;
-  margin-top: 22px;&#13;
-  padding: 0 20px;&#13;
-  border: 1px solid $g-line;&#13;
-  border-radius: 10px;&#13;
-  background: transparent;&#13;
-  color: $g-navy;&#13;
-  font-family: inherit;&#13;
-  font-size: 14px;&#13;
-  font-weight: 600;&#13;
-  cursor: pointer;&#13;
-  transition: border-color 0.4s $g-ease, color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-empty__btn:hover {&#13;
-  border-color: $g-blue-2;&#13;
-  color: $g-blue-dk;&#13;
-}&#13;
-&#13;
-/* ---------- pagination ----------&#13;
-   Numbers rather than an endless button, because someone who&#13;
-   saw a program on page three needs to get back to page three.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-.gnpl-pager {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  gap: 6px;&#13;
-  margin-top: 32px;&#13;
-}&#13;
-&#13;
-.gnpl-pager__nums {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  gap: 2px;&#13;
-}&#13;
-&#13;
-.gnpl-pager__step,&#13;
-.gnpl-pager__num {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  min-width: 38px;&#13;
-  height: 38px;&#13;
-  padding: 0 6px;&#13;
-  border: 1px solid transparent;&#13;
-  border-radius: 9px;&#13;
-  background: transparent;&#13;
-  color: $g-ink-2;&#13;
-  font-family: inherit;&#13;
-  font-size: 14px;&#13;
-  font-weight: 500;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  cursor: pointer;&#13;
-  transition: background 0.4s $g-ease,&#13;
-              border-color 0.4s $g-ease,&#13;
-              color 0.4s $g-ease;&#13;
-}&#13;
-&#13;
-.gnpl-pager__step {&#13;
-  border-color: $g-line;&#13;
-  font-size: 15px;&#13;
-}&#13;
-&#13;
-.gnpl-pager__step:hover:not(:disabled),&#13;
-.gnpl-pager__num:hover:not(:disabled) {&#13;
-  background: $g-tint;&#13;
-  color: $g-navy;&#13;
-}&#13;
-&#13;
-.gnpl-pager__step:disabled {&#13;
-  color: rgba(10, 37, 64, 0.22);&#13;
-  cursor: default;&#13;
-}&#13;
-&#13;
-/* the current page is the one thing here worth the accent */&#13;
-.gnpl-pager__num.is-on {&#13;
-  background: $g-blue;&#13;
-  border-color: $g-blue;&#13;
-  color: $g-white;&#13;
-  font-weight: 600;&#13;
-}&#13;
-&#13;
-.gnpl-pager__num.is-on:hover {&#13;
-  background: $g-blue;&#13;
-  color: $g-white;&#13;
-}&#13;
-&#13;
-/* the ellipsis is a gap, not a control */&#13;
-.gnpl-pager__num.is-gap {&#13;
-  min-width: 22px;&#13;
-  color: $g-ink-4;&#13;
-  cursor: default;&#13;
-  pointer-events: none;&#13;
-}&#13;
-&#13;
-.gnpl-pager__step:focus-visible,&#13;
-.gnpl-pager__num:focus-visible {&#13;
-  outline: 2px solid $g-blue;&#13;
-  outline-offset: 2px;&#13;
-}&#13;
-&#13;
-/* =========================================================&#13;
-   MOTION&#13;
-   ========================================================= */&#13;
-&#13;
-@media (prefers-reduced-motion: no-preference) {&#13;
-&#13;
-  @keyframes gnplRise {&#13;
-    from { opacity: 0; transform: translateY(16px); }&#13;
-    to   { opacity: 1; transform: translateY(0); }&#13;
-  }&#13;
-&#13;
-  @keyframes gnplSlide {&#13;
-    from { opacity: 0; transform: translateX(-14px); }&#13;
-    to   { opacity: 1; transform: translateX(0); }&#13;
-  }&#13;
-&#13;
-  .gnpl .gnpl-eyebrow,&#13;
-  .gnpl .gnpl-hero__title,&#13;
-  .gnpl .gnpl-hero__sub {&#13;
-    animation: gnplRise 0.7s $g-ease backwards;&#13;
-  }&#13;
-&#13;
-  .gnpl .gnpl-hero__title { animation-delay: 0.06s; }&#13;
-  .gnpl .gnpl-hero__sub   { animation-delay: 0.13s; }&#13;
-&#13;
-  .gnpl-stat { animation: gnplRise 0.64s $g-ease backwards; }&#13;
-&#13;
-  .gnpl-stat--1 { animation-delay: 0.20s; }&#13;
-  .gnpl-stat--2 { animation-delay: 0.26s; }&#13;
-  .gnpl-stat--3 { animation-delay: 0.32s; }&#13;
-&#13;
-  .gnpl-bar { animation: gnplRise 0.64s $g-ease 0.38s backwards; }&#13;
-&#13;
-  .gnpl-pager { animation: gnplRise 0.6s $g-ease backwards; }&#13;
-&#13;
-  /* replays on every filter change, since ng-repeat rebuilds&#13;
-     its nodes and the keyframe starts again with them */&#13;
-  .gnpl-row { animation: gnplSlide 0.5s $g-ease backwards; }&#13;
-&#13;
-  .gnpl-row--n1  { animation-delay: 0.02s; }&#13;
-  .gnpl-row--n2  { animation-delay: 0.05s; }&#13;
-  .gnpl-row--n3  { animation-delay: 0.08s; }&#13;
-  .gnpl-row--n4  { animation-delay: 0.11s; }&#13;
-  .gnpl-row--n5  { animation-delay: 0.14s; }&#13;
-  .gnpl-row--n6  { animation-delay: 0.17s; }&#13;
-  .gnpl-row--n7  { animation-delay: 0.20s; }&#13;
-  .gnpl-row--n8  { animation-delay: 0.23s; }&#13;
-  .gnpl-row--n9  { animation-delay: 0.26s; }&#13;
-  .gnpl-row--n10 { animation-delay: 0.29s; }&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   RESPONSIVE&#13;
-   ========================================================= */&#13;
-&#13;
-@media (max-width: 1024px) {&#13;
-&#13;
-  .gnpl-hero { padding: 66px 20px 54px; }&#13;
-&#13;
-  .gnpl .gnpl-stats { max-width: none; }&#13;
-&#13;
-  .gnpl-bar { padding: 11px 20px; }&#13;
-&#13;
-  .gnpl-body { padding: 26px 20px 88px; }&#13;
-&#13;
-  .gnpl-row {&#13;
-    grid-template-columns: minmax(0, 1fr) 42px;&#13;
-    gap: 18px;&#13;
-    padding: 22px 18px 24px 26px;&#13;
-  }&#13;
-&#13;
-  /* the facts move under the name rather than being squeezed&#13;
-     into a column too narrow to hold a date */&#13;
-  .gnpl-row__facts {&#13;
-    grid-column: 1 / -1;&#13;
-    grid-template-columns: repeat(2, minmax(0, 200px));&#13;
-    padding-top: 16px;&#13;
-    border-top: 1px solid $g-line-2;&#13;
-  }&#13;
-&#13;
-  .gnpl-row__go {&#13;
-    grid-column: 2;&#13;
-    grid-row: 1;&#13;
-    align-self: start;&#13;
-  }&#13;
-}&#13;
-&#13;
-@media (max-width: 680px) {&#13;
-&#13;
-  .gnpl-hero { padding: 54px 16px 44px; }&#13;
-&#13;
-  .gnpl .gnpl-stats {&#13;
-    grid-template-columns: minmax(0, 1fr);&#13;
-    gap: 20px;&#13;
-    margin-top: 32px;&#13;
-  }&#13;
-&#13;
-  .gnpl-stat { padding: 0; }&#13;
-&#13;
-  .gnpl-stat--2,&#13;
-  .gnpl-stat--3 {&#13;
-    border-left: 0;&#13;
-    border-top: 1px solid $g-line;&#13;
-    padding-top: 20px;&#13;
-  }&#13;
-&#13;
-  .gnpl .gnpl-stat__value { font-size: 30px; }&#13;
-  .gnpl .gnpl-stat__note { max-width: none; }&#13;
-&#13;
-  /* both filter rows scroll sideways rather than wrapping onto&#13;
-     four lines and burying the list */&#13;
-  .gnpl-bar__inner {&#13;
-    flex-direction: column;&#13;
-    align-items: stretch;&#13;
-    gap: 8px;&#13;
-  }&#13;
-&#13;
-  .gnpl-search {&#13;
-    flex: 1 1 auto;&#13;
-    max-width: none;&#13;
-    width: 100%;&#13;
-  }&#13;
-&#13;
-  .gnpl-chips,&#13;
-  .gnpl-cats {&#13;
-    flex-wrap: nowrap;&#13;
-    width: 100%;&#13;
-    overflow-x: auto;&#13;
-    padding-bottom: 3px;&#13;
-    -webkit-overflow-scrolling: touch;&#13;
-  }&#13;
-&#13;
-  .gnpl-pager__step,&#13;
-  .gnpl-pager__num {&#13;
-    min-width: 34px;&#13;
-    height: 34px;&#13;
-    font-size: 13.5px;&#13;
-  }&#13;
-&#13;
-  .gnpl-chip,&#13;
-  .gnpl-cat { flex-shrink: 0; }&#13;
-&#13;
-  .gnpl-body { padding: 22px 16px 72px; }&#13;
-&#13;
-  .gnpl-row { padding: 20px 14px 22px 20px; }&#13;
-&#13;
-  .gnpl .gnpl-row__name { font-size: 19px; }&#13;
-  .gnpl .gnpl-row__desc { font-size: 14.5px; }&#13;
-&#13;
-  .gnpl-row__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
-&#13;
-  .gnpl-row__go {&#13;
-    width: 34px;&#13;
-    height: 34px;&#13;
-    font-size: 11px;&#13;
-  }&#13;
-}&#13;
-&#13;
-@media (prefers-reduced-motion: reduce) {&#13;
-  .gnpl * { transition: none; }&#13;
-  .gnpl-row:hover { transform: none; }&#13;
-  .gnpl-row:hover .gnpl-row__go { transform: none; }&#13;
-}</css>
+        <css>/* =========================================================
+   GATENOW · GRANT PROGRAMS
+   Service Portal widget · CSS / SCSS
+ 
+   Selectors are written out in full. The Service Portal Sass
+   compiler does not support parent selector concatenation.
+ 
+   COLOUR
+   One accent, and it is the blue from the logo. Everything else
+   is the same navy at different opacities, which is what keeps
+   a palette looking related rather than assembled. Green and
+   amber fills are gone. Blue now carries a single meaning on
+   this page: you can act on this. Anything you cannot act on is
+   drawn in neutrals.
+ 
+   The one exception is the closing flag, a muted amber that
+   appears only inside the final seven days. One alert colour,
+   used in one place, still reads as an alert. Used in four
+   places it reads as decoration.
+ 
+   TYPE
+   Six roles and no more:
+     display   52  700  -0.033em   page title
+     title     22  600  -0.022em   program name
+     lead    17.5  400              hero standfirst
+     body      15  400              descriptions
+     data      15  600  tabular     amounts and dates
+     label     11  600   0.14em     uppercase, every small cap
+ 
+   Tracking is negative only above 20px, where it is needed, and
+   positive only on uppercase labels, where it is required for
+   legibility. Amounts and dates use tabular figures so the two
+   fact columns line up down the list.
+   ========================================================= */
+ 
+/* ---------- typeface ----------
+   Shared with the landing widgets. Keep a single copy in a
+   Style Sheet record attached to the theme if several of these
+   widgets appear on one portal.
+   ------------------------------------------------------------- */
+ 
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
+}
+ 
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
+}
+ 
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
+}
+ 
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
+}
+ 
+ 
+/* ---------- ink ----------
+   Every neutral is the navy at an opacity, so nothing on the
+   page is a stranger to anything else. */
+$g-navy:     #0a2540;
+$g-ink-2:    rgba(10, 37, 64, 0.72);
+$g-ink-3:    rgba(10, 37, 64, 0.54);
+$g-ink-4:    rgba(10, 37, 64, 0.38);
+$g-line:     rgba(10, 37, 64, 0.10);
+$g-line-2:   rgba(10, 37, 64, 0.06);
+$g-tint:     rgba(10, 37, 64, 0.03);
+ 
+/* ---------- accent, used sparingly ---------- */
+$g-blue:     #1560e0;
+$g-blue-dk:  #0f4cbb;
+$g-blue-1:   rgba(21, 96, 224, 0.08);
+$g-blue-2:   rgba(21, 96, 224, 0.16);
+ 
+/* ---------- state colours ----------
+   Blue is now, teal is next, amber is running out, neutral is
+   over. Four states, four meanings, and each colour appears in
+   exactly one of them. Teal was chosen over green because green
+   beside blue reads as a traffic light, and over violet because
+   at seven pixels a violet dot is just a blue dot. */
+$g-soon:     #0d7d8c;
+$g-soon-1:   rgba(13, 125, 140, 0.10);
+ 
+$g-warn:     #a4741f;
+$g-warn-1:   rgba(164, 116, 31, 0.10);
+$g-warn-2:   rgba(164, 116, 31, 0.24);
+ 
+$g-white:    #ffffff;
+$g-ease:     cubic-bezier(0.45, 0.05, 0.25, 1);
+ 
+$g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+ 
+ 
+/* =========================================================
+   PAGE
+   ========================================================= */
+ 
+.gnpl {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  font-family: $g-font;
+  color: $g-navy;
+  background: $g-white;
+  -webkit-font-smoothing: antialiased;
+}
+ 
+.gnpl *,
+.gnpl *::before,
+.gnpl *::after { box-sizing: border-box; }
+ 
+ 
+/* =========================================================
+   HERO
+   ========================================================= */
+ 
+.gnpl-hero {
+  position: relative;
+  padding: 92px 24px 72px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f2f6fc 0%, #f8fafd 64%, #ffffff 100%);
+}
+ 
+.gnpl-hero__glow {
+  position: absolute;
+  top: -260px;
+  left: 50%;
+  width: 1080px;
+  height: 620px;
+  margin-left: -540px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(21, 96, 224, 0.07) 0%, rgba(21, 96, 224, 0) 68%);
+  pointer-events: none;
+}
+ 
+.gnpl-hero__inner {
+  position: relative;
+  z-index: 2;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+ 
+/* back-to-home button. Given its own row and margin below,
+   rather than sat beside the eyebrow, because a bordered button
+   and a plain uppercase label carry different visual weight and
+   crowd each other when forced onto one line. */
+.gnpl .gnpl-hero__home-row {
+  margin: 0 0 28px;
+}
+ 
+.gnpl .gnpl-hero__home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  border: 1px solid $g-line;
+  border-radius: 8px;
+  background: $g-white;
+  color: $g-ink-2;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.3s $g-ease,
+              border-color 0.3s $g-ease,
+              color 0.3s $g-ease;
+}
+ 
+.gnpl .gnpl-hero__home-btn:hover {
+  background: $g-blue-1;
+  border-color: $g-blue-2;
+  color: $g-blue-dk;
+}
+ 
+.gnpl .gnpl-hero__home-btn:focus-visible {
+  outline: 2px solid $g-blue;
+  outline-offset: 2px;
+}
+ 
+.gnpl .gnpl-hero__home-btn i {
+  font-size: 10px;
+}
+ 
+/* label role */
+.gnpl .gnpl-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $g-ink-3;
+}
+ 
+/* display role */
+.gnpl .gnpl-hero__title {
+  margin: 0;
+  max-width: 680px;
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.033em;
+  color: $g-navy;
+}
+ 
+@supports (font-size: clamp(31px, 4.1vw, 52px)) {
+  .gnpl .gnpl-hero__title { font-size: clamp(31px, 4.1vw, 52px); }
+}
+ 
+/* lead role */
+.gnpl .gnpl-hero__sub {
+  max-width: 52ch;
+  margin: 20px 0 0;
+  padding: 0;
+  font-size: 17.5px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: $g-ink-2;
+}
+ 
+ 
+/* ---------- live figures ---------- */
+ 
+.gnpl .gnpl-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 680px;
+  margin: 46px 0 0;
+  padding: 0;
+}
+ 
+.gnpl-stat {
+  position: relative;
+  padding: 0 30px;
+}
+ 
+.gnpl-stat--1 { padding-left: 0; }
+ 
+/* hairlines between, not boxes around */
+.gnpl-stat--2,
+.gnpl-stat--3 { border-left: 1px solid $g-line; }
+ 
+.gnpl .gnpl-stat__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $g-ink-3;
+}
+ 
+/* the figures are navy, not blue. blue is reserved for things
+   you can click. */
+.gnpl .gnpl-stat__value {
+  margin: 10px 0 0;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  color: $g-navy;
+}
+ 
+.gnpl .gnpl-stat__note {
+  margin: 7px 0 0;
+  max-width: 22ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: $g-ink-3;
+}
+ 
+ 
+/* =========================================================
+   FILTER BAR
+   ========================================================= */
+ 
+.gnpl-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 13px 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border-top: 1px solid $g-line;
+  border-bottom: 1px solid $g-line;
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+}
+ 
+.gnpl-bar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 26px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+ 
+ 
+/* ---------- search ----------
+   Full height of the bar and given the first slot, because a
+   list of forty programs is searched more often than it is
+   filtered.
+   ------------------------------------------------------- */
+ 
+.gnpl-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 300px;
+  max-width: 380px;
+  height: 40px;
+  padding: 0 12px 0 14px;
+  margin: 0;
+  border: 1px solid $g-line;
+  border-radius: 10px;
+  background: $g-white;
+  font-weight: 400;
+  transition: border-color 0.4s $g-ease, box-shadow 0.4s $g-ease;
+}
+ 
+.gnpl-search:focus-within {
+  border-color: rgba(21, 96, 224, 0.45);
+  box-shadow: 0 0 0 3px $g-blue-1;
+}
+ 
+.gnpl-search__icon {
+  font-size: 13px;
+  color: $g-ink-4;
+  flex-shrink: 0;
+  transition: color 0.4s $g-ease;
+}
+ 
+.gnpl-search:focus-within .gnpl-search__icon { color: $g-blue; }
+ 
+.gnpl-search__field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: $g-navy;
+}
+ 
+.gnpl-search__field::placeholder {
+  color: $g-ink-4;
+  font-weight: 400;
+}
+ 
+.gnpl-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $g-tint;
+  color: $g-ink-3;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.4s $g-ease, color 0.4s $g-ease;
+}
+ 
+.gnpl-search__clear:hover {
+  background: rgba(10, 37, 64, 0.09);
+  color: $g-navy;
+}
+ 
+.gnpl-search__clear:focus-visible {
+  outline: 2px solid $g-blue;
+  outline-offset: 2px;
+}
+ 
+.gnpl-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+ 
+/* Selection is shown by weight and a quiet tint, not by
+   flooding the control with the accent colour. */
+.gnpl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: $g-ink-2;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.4s $g-ease,
+              border-color 0.4s $g-ease,
+              color 0.4s $g-ease;
+}
+ 
+.gnpl-chip:hover {
+  background: $g-tint;
+  color: $g-navy;
+}
+ 
+.gnpl-chip.is-on {
+  background: $g-white;
+  border-color: $g-line;
+  color: $g-navy;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
+}
+ 
+.gnpl-chip__label { white-space: nowrap; }
+ 
+.gnpl-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: $g-ink-4;
+  transition: background 0.4s $g-ease;
+}
+ 
+.gnpl-chip__dot--open { background: $g-blue; }
+.gnpl-chip__dot--soon { background: $g-soon; }
+ 
+.gnpl-chip__count {
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: $g-ink-4;
+  transition: color 0.4s $g-ease;
+}
+ 
+.gnpl-chip.is-on .gnpl-chip__count { color: $g-ink-3; }
+ 
+.gnpl-cats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+ 
+.gnpl-cat {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: $g-ink-3;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.4s $g-ease, color 0.4s $g-ease;
+}
+ 
+.gnpl-cat:hover {
+  background: $g-tint;
+  color: $g-navy;
+}
+ 
+.gnpl-cat.is-on {
+  background: $g-blue-1;
+  color: $g-blue-dk;
+  font-weight: 600;
+}
+ 
+.gnpl-chip:focus-visible,
+.gnpl-cat:focus-visible {
+  outline: 2px solid $g-blue;
+  outline-offset: 2px;
+}
+ 
+ 
+/* =========================================================
+   DIRECTORY
+   ========================================================= */
+ 
+.gnpl-body { padding: 30px 24px 108px; }
+ 
+.gnpl-body__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+ 
+.gnpl .gnpl-count {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: 13px;
+  color: $g-ink-4;
+}
+ 
+.gnpl .gnpl-count strong {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $g-ink-2;
+}
+ 
+.gnpl-count__clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: $g-blue;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.4s $g-ease;
+}
+ 
+.gnpl-count__clear:hover { color: $g-blue-dk; }
+ 
+.gnpl-count__clear:focus-visible {
+  outline: 2px solid $g-blue;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+ 
+.gnpl-list { border-top: 1px solid $g-line; }
+ 
+.gnpl-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px 48px;
+  align-items: center;
+  gap: 30px;
+  padding: 26px 24px 26px 28px;
+  border-bottom: 1px solid $g-line-2;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: transform 0.5s $g-ease;
+}
+ 
+.gnpl-row:hover,
+.gnpl-row:focus {
+  text-decoration: none;
+  color: inherit;
+  transform: translateX(3px);
+}
+ 
+.gnpl-row:focus-visible {
+  outline: 2px solid $g-blue;
+  outline-offset: -3px;
+}
+ 
+/* a neutral rail that takes the accent only on hover, so the
+   list is calm until you point at something */
+.gnpl-row__rail {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: $g-line;
+  transform: scaleY(0.5);
+  transform-origin: center;
+  transition: transform 0.5s $g-ease, background 0.5s $g-ease;
+}
+ 
+.gnpl-row:hover .gnpl-row__rail {
+  transform: scaleY(1);
+  background: $g-blue;
+}
+ 
+/* closed rows keep the neutral rail on hover, since there is
+   nothing to act on */
+.gnpl-row--soon:hover .gnpl-row__rail   { background: $g-soon; }
+.gnpl-row--closed:hover .gnpl-row__rail { background: $g-ink-4; }
+ 
+.gnpl-row__wash {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: $g-tint;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.55s $g-ease;
+  pointer-events: none;
+}
+ 
+.gnpl-row:hover .gnpl-row__wash { transform: scaleX(1); }
+ 
+.gnpl-row__main {
+  position: relative;
+  min-width: 0;
+}
+ 
+.gnpl-row__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+ 
+.gnpl-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+ 
+.gnpl-state__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+ 
+/* open is the only state you can act on, so it is the only one
+   that gets the accent */
+.gnpl-state--open   { color: $g-blue-dk; }
+.gnpl-state--soon   { color: $g-soon; }
+.gnpl-state--closed { color: $g-ink-4; }
+ 
+.gnpl-state--open .gnpl-state__dot   { background: $g-blue; }
+.gnpl-state--soon .gnpl-state__dot   { background: $g-soon; }
+.gnpl-state--closed .gnpl-state__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);
+}
+ 
+/* category and reference share one style, because they are the
+   same kind of information */
+.gnpl-row__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $g-ink-4;
+}
+ 
+.gnpl-row__sep { color: rgba(10, 37, 64, 0.22); }
+ 
+/* title role */
+.gnpl .gnpl-row__name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.28;
+  letter-spacing: -0.022em;
+  color: $g-navy;
+  transition: color 0.5s $g-ease;
+}
+ 
+.gnpl-row:hover .gnpl-row__name { color: $g-blue-dk; }
+ 
+/* body role, held to a readable measure */
+.gnpl .gnpl-row__desc {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.62;
+  color: $g-ink-2;
+}
+ 
+.gnpl-row--closed .gnpl-row__name { color: $g-ink-3; }
+.gnpl-row--closed .gnpl-row__desc { color: $g-ink-3; }
+ 
+ 
+/* ---------- facts ---------- */
+ 
+.gnpl-row__facts {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+ 
+.gnpl-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+ 
+/* label role, the same one used everywhere else */
+.gnpl-fact__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $g-ink-4;
+}
+ 
+/* data role, tabular so the columns line up down the list */
+.gnpl-fact__value {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  font-variant-numeric: tabular-nums;
+  color: $g-navy;
+}
+ 
+/* the one warm colour on the page, and it appears only inside
+   the final seven days */
+.gnpl-fact__flag {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border: 1px solid $g-warn-2;
+  border-radius: 6px;
+  background: $g-warn-1;
+  color: $g-warn;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+ 
+.gnpl-row__go {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid $g-line;
+  color: $g-ink-3;
+  font-size: 12px;
+  transition: transform 0.5s $g-ease,
+              background 0.5s $g-ease,
+              border-color 0.5s $g-ease,
+              color 0.5s $g-ease;
+}
+ 
+.gnpl-row:hover .gnpl-row__go {
+  transform: translateX(3px);
+  background: $g-blue;
+  border-color: $g-blue;
+  color: $g-white;
+}
+ 
+.gnpl-row--closed:hover .gnpl-row__go {
+  background: transparent;
+  border-color: $g-ink-4;
+  color: $g-ink-2;
+}
+ 
+ 
+/* =========================================================
+   EMPTY AND MORE
+   ========================================================= */
+ 
+.gnpl-empty {
+  padding: 76px 24px;
+  text-align: center;
+  border-bottom: 1px solid $g-line-2;
+}
+ 
+.gnpl .gnpl-empty__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: $g-navy;
+}
+ 
+.gnpl .gnpl-empty__text {
+  max-width: 42ch;
+  margin: 10px auto 0;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.64;
+  color: $g-ink-2;
+}
+ 
+.gnpl-empty__btn {
+  height: 44px;
+  margin-top: 22px;
+  padding: 0 20px;
+  border: 1px solid $g-line;
+  border-radius: 10px;
+  background: transparent;
+  color: $g-navy;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.4s $g-ease, color 0.4s $g-ease;
+}
+ 
+.gnpl-empty__btn:hover {
+  border-color: $g-blue-2;
+  color: $g-blue-dk;
+}
+ 
+/* ---------- pagination ----------
+   Numbers rather than an endless button, because someone who
+   saw a program on page three needs to get back to page three.
+   ------------------------------------------------------- */
+ 
+.gnpl-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 32px;
+}
+ 
+.gnpl-pager__nums {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+ 
+.gnpl-pager__step,
+.gnpl-pager__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: $g-ink-2;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.4s $g-ease,
+              border-color 0.4s $g-ease,
+              color 0.4s $g-ease;
+}
+ 
+.gnpl-pager__step {
+  border-color: $g-line;
+  font-size: 15px;
+}
+ 
+.gnpl-pager__step:hover:not(:disabled),
+.gnpl-pager__num:hover:not(:disabled) {
+  background: $g-tint;
+  color: $g-navy;
+}
+ 
+.gnpl-pager__step:disabled {
+  color: rgba(10, 37, 64, 0.22);
+  cursor: default;
+}
+ 
+/* the current page is the one thing here worth the accent */
+.gnpl-pager__num.is-on {
+  background: $g-blue;
+  border-color: $g-blue;
+  color: $g-white;
+  font-weight: 600;
+}
+ 
+.gnpl-pager__num.is-on:hover {
+  background: $g-blue;
+  color: $g-white;
+}
+ 
+/* the ellipsis is a gap, not a control */
+.gnpl-pager__num.is-gap {
+  min-width: 22px;
+  color: $g-ink-4;
+  cursor: default;
+  pointer-events: none;
+}
+ 
+.gnpl-pager__step:focus-visible,
+.gnpl-pager__num:focus-visible {
+  outline: 2px solid $g-blue;
+  outline-offset: 2px;
+}
+ 
+/* =========================================================
+   MOTION
+   ========================================================= */
+ 
+@media (prefers-reduced-motion: no-preference) {
+ 
+  @keyframes gnplRise {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+ 
+  @keyframes gnplSlide {
+    from { opacity: 0; transform: translateX(-14px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+ 
+  .gnpl .gnpl-eyebrow,
+  .gnpl .gnpl-hero__title,
+  .gnpl .gnpl-hero__sub {
+    animation: gnplRise 0.7s $g-ease backwards;
+  }
+ 
+  .gnpl .gnpl-hero__title { animation-delay: 0.06s; }
+  .gnpl .gnpl-hero__sub   { animation-delay: 0.13s; }
+ 
+  .gnpl-stat { animation: gnplRise 0.64s $g-ease backwards; }
+ 
+  .gnpl-stat--1 { animation-delay: 0.20s; }
+  .gnpl-stat--2 { animation-delay: 0.26s; }
+  .gnpl-stat--3 { animation-delay: 0.32s; }
+ 
+  .gnpl-bar { animation: gnplRise 0.64s $g-ease 0.38s backwards; }
+ 
+  .gnpl-pager { animation: gnplRise 0.6s $g-ease backwards; }
+ 
+  /* replays on every filter change, since ng-repeat rebuilds
+     its nodes and the keyframe starts again with them */
+  .gnpl-row { animation: gnplSlide 0.5s $g-ease backwards; }
+ 
+  .gnpl-row--n1  { animation-delay: 0.02s; }
+  .gnpl-row--n2  { animation-delay: 0.05s; }
+  .gnpl-row--n3  { animation-delay: 0.08s; }
+  .gnpl-row--n4  { animation-delay: 0.11s; }
+  .gnpl-row--n5  { animation-delay: 0.14s; }
+  .gnpl-row--n6  { animation-delay: 0.17s; }
+  .gnpl-row--n7  { animation-delay: 0.20s; }
+  .gnpl-row--n8  { animation-delay: 0.23s; }
+  .gnpl-row--n9  { animation-delay: 0.26s; }
+  .gnpl-row--n10 { animation-delay: 0.29s; }
+}
+ 
+ 
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+ 
+@media (max-width: 1024px) {
+ 
+  .gnpl-hero { padding: 66px 20px 54px; }
+ 
+  .gnpl .gnpl-stats { max-width: none; }
+ 
+  .gnpl-bar { padding: 11px 20px; }
+ 
+  .gnpl-body { padding: 26px 20px 88px; }
+ 
+  .gnpl-row {
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 18px;
+    padding: 22px 18px 24px 26px;
+  }
+ 
+  /* the facts move under the name rather than being squeezed
+     into a column too narrow to hold a date */
+  .gnpl-row__facts {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 200px));
+    padding-top: 16px;
+    border-top: 1px solid $g-line-2;
+  }
+ 
+  .gnpl-row__go {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+}
+ 
+@media (max-width: 680px) {
+ 
+  .gnpl-hero { padding: 54px 16px 44px; }
+ 
+  .gnpl .gnpl-stats {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    margin-top: 32px;
+  }
+ 
+  .gnpl-stat { padding: 0; }
+ 
+  .gnpl-stat--2,
+  .gnpl-stat--3 {
+    border-left: 0;
+    border-top: 1px solid $g-line;
+    padding-top: 20px;
+  }
+ 
+  .gnpl .gnpl-stat__value { font-size: 30px; }
+  .gnpl .gnpl-stat__note { max-width: none; }
+ 
+  /* both filter rows scroll sideways rather than wrapping onto
+     four lines and burying the list */
+  .gnpl-bar__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+ 
+  .gnpl-search {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
+  }
+ 
+  .gnpl-chips,
+  .gnpl-cats {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
+ 
+  .gnpl-pager__step,
+  .gnpl-pager__num {
+    min-width: 34px;
+    height: 34px;
+    font-size: 13.5px;
+  }
+ 
+  .gnpl-chip,
+  .gnpl-cat { flex-shrink: 0; }
+ 
+  .gnpl-body { padding: 22px 16px 72px; }
+ 
+  .gnpl-row { padding: 20px 14px 22px 20px; }
+ 
+  .gnpl .gnpl-row__name { font-size: 19px; }
+  .gnpl .gnpl-row__desc { font-size: 14.5px; }
+ 
+  .gnpl-row__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ 
+  .gnpl-row__go {
+    width: 34px;
+    height: 34px;
+    font-size: 11px;
+  }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .gnpl * { transition: none; }
+  .gnpl-row:hover { transform: none; }
+  .gnpl-row:hover .gnpl-row__go { transform: none; }
+}
+ </css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -1210,35 +1252,35 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
         <script><![CDATA[(function () {
-
+ 
   /* =========================================================
      GATENOW · GRANT PROGRAMS
      Service Portal widget · Server script
-
+ 
      Publishes the programs an applicant is allowed to see, with
      a derived state that the browser filters against.
-
+ 
      Only GlideRecordSecure is used, so a reader sees exactly
      what the read ACLs on the program table allow and nothing
      more.
-
+ 
      Note on option names: every widget instance already has a
      built in "title" field, so options.title returns the
      instance title rather than anything you set. The heading
      option is named heading for that reason. The same applies
      to color, glyph and size.
      ========================================================= */
-
+ 
   var TBL = 'x_enno_gatenow_grant_program';
-
+ 
   /* Statuses an applicant has any business seeing, as stored
      values. Draft, Pending Approval and Rejected are internal
      states and are excluded on purpose, whatever the ACLs
      happen to allow. */
   var PUBLIC_STATUS = 'accepting_proposals,published,program_closed';
-
+ 
   var CLOSING_SOON_DAYS = 7;
-
+ 
   function opt(name, fallback) {
     var value = options[name];
     if (value === null || value === undefined || value === '') {
@@ -1246,24 +1288,24 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     }
     return value.toString();
   }
-
+ 
   function lower(v) {
     return (v === null || v === undefined) ? '' : ('' + v).toLowerCase();
   }
-
+ 
   function toGDT(value) {
     if (!value) return null;
     var s = '' + value;
     if (s.length === 10) s += ' 00:00:00';
     try { return new GlideDateTime(s); } catch (e) { return null; }
   }
-
+ 
   function fmtDate(value) {
     var g = toGDT(value);
     if (!g) return '';
     try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
   }
-
+ 
   /* positive is in the future, negative is past */
   function daysFromNow(value) {
     var g = toGDT(value);
@@ -1273,7 +1315,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       return Math.round(ms / 86400000);
     } catch (e) { return null; }
   }
-
+ 
   function stripHtml(html) {
     if (!html) return '';
     return ('' + html).replace(/<[^>]*>/g, ' ')
@@ -1282,7 +1324,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
                       .replace(/\s+/g, ' ')
                       .trim();
   }
-
+ 
   function pick(gr, names) {
     for (var i = 0; i < names.length; i++) {
       try {
@@ -1294,8 +1336,8 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     }
     return '';
   }
-
-
+ 
+ 
   /* ---------- copy ---------- */
   data.regionLabel = opt('region_label', gs.getMessage('Grant programs'));
   data.eyebrow     = opt('eyebrow', gs.getMessage('Funding'));
@@ -1303,7 +1345,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   data.subhead     = opt('subhead', gs.getMessage(
     'Each one lists what it funds, who can apply and the date it shuts. Check ' +
     'those three before you write anything.'));
-
+ 
   data.filterLabel = opt('filter_label', gs.getMessage('Filter by status'));
   data.sortNote    = opt('sort_note', gs.getMessage('Soonest closing date first'));
   data.labelBudget = opt('label_budget', gs.getMessage('Fund'));
@@ -1317,35 +1359,42 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   data.pagerLabel  = opt('pager_label', gs.getMessage('Program pages'));
   data.prevLabel   = opt('prev_label', gs.getMessage('Previous page'));
   data.nextLabel   = opt('next_label', gs.getMessage('Next page'));
-
+ 
   data.emptyTitle  = opt('empty_title', gs.getMessage('Nothing here right now'));
   data.emptyText   = opt('empty_text', gs.getMessage(
     'Nothing matches what you have narrowed it down to. Try a different word, ' +
     'or clear the filters and start again.'));
   data.emptyAction = opt('empty_action', gs.getMessage('Show all programs'));
-
+ 
   /* ADJUST to the page id of your program detail page */
   var DETAIL_PAGE = opt('detail_page', 'opportunity_details');
-
+ 
   var portalSuffix = '';
   try {
     var pr = $sp.getPortalRecord();
     if (pr) portalSuffix = '/' + pr.getValue('url_suffix');
   } catch (e) { /* relative link still works */ }
-
-
+ 
+  /* Home link in the hero. Falls back to the applicant portal's
+     own base route if url_suffix isn't available for some reason.
+     Exposed as widget options so a reused instance of this widget
+     can point somewhere else without a code change. */
+  data.homeUrl   = opt('home_url', portalSuffix || '/applicant');
+  data.homeLabel = opt('home_label', gs.getMessage('Home'));
+ 
+ 
   /* ---------- programs ---------- */
   data.programs = [];
-
+ 
   var counts = { all: 0, open: 0, soon: 0, closed: 0 };
   var catCounts = {};
   var scanned = 0;
-
+ 
   try {
-
+ 
     var gr = new GlideRecordSecure(TBL);
     gr.addQuery('status', 'IN', PUBLIC_STATUS);
-
+ 
     /* Set the only_active option to true to match the stricter
        rule used elsewhere. It is off by default here so a closed
        program with active unticked still appears in the archive
@@ -1353,31 +1402,31 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     if (opt('only_active', 'false') === 'true') {
       gr.addQuery('active', true);
     }
-
+ 
     gr.orderBy('proposal_close_date');
     gr.setLimit(200);
     gr.query();
-
+ 
     while (gr.next()) {
-
+ 
       scanned++;
-
+ 
       var statusValue = lower(gr.getValue('status'));
-
+ 
       var closeRaw = gr.getValue('proposal_close_date');
       var openRaw  = gr.getValue('proposal_open_date');
-
+ 
       var daysToClose = daysFromNow(closeRaw);
       var daysToOpen  = daysFromNow(openRaw);
-
+ 
       var accepting = statusValue === 'accepting_proposals';
       var closedTag = statusValue === 'program_closed';
-
+ 
       /* Derived state, because status alone does not tell an
          applicant whether they can act today. A program can read
          Accepting Proposals and still be past its close date. */
       var state, stateLabel;
-
+ 
       if (closedTag || (daysToClose !== null && daysToClose < 0)) {
         state = 'closed';
         stateLabel = gs.getMessage('Closed');
@@ -1391,24 +1440,24 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         state = 'soon';
         stateLabel = gs.getMessage('Opening soon');
       }
-
+ 
       var urgent = (state === 'open' && daysToClose !== null && daysToClose <= CLOSING_SOON_DAYS);
-
+ 
       var daysLabel = '';
       if (urgent) {
         daysLabel = daysToClose <= 0
           ? gs.getMessage('Closes today')
           : daysToClose + ' ' + (daysToClose === 1 ? gs.getMessage('day left') : gs.getMessage('days left'));
       }
-
+ 
       var budget = '';
       try {
         var b = gr.getDisplayValue('program_budget');
         if (b) budget = ('' + b).replace(/\.00$/, '');
       } catch (e) { /* leave blank */ }
-
+ 
       var name = pick(gr, ['program_name', 'short_description', 'number']);
-
+ 
       data.programs.push({
         sysId     : gr.getUniqueValue(),
         number    : gr.getValue('number'),
@@ -1424,49 +1473,49 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         stateLabel: stateLabel,
         url       : portalSuffix + '?id=' + DETAIL_PAGE + '&sys_id=' + gr.getUniqueValue()
       });
-
+ 
       counts.all++;
       counts[state]++;
-
+ 
       var catName = gr.getDisplayValue('category');
       if (catName) {
         catCounts[catName] = (catCounts[catName] || 0) + 1;
       }
     }
-
+ 
     if (scanned === 0) {
       gs.info('GateNow programs: no readable records on ' + TBL + ' for ' +
               gs.getUserName() + '. Check the read ACL.');
     }
-
+ 
   } catch (e) {
     gs.error('GateNow programs: ' + e.message);
   }
-
+ 
   /* open first, then opening soon, then closed. within each
      group the query order by closing date is preserved. */
   var RANK = { open: 0, soon: 1, closed: 2 };
   data.programs.sort(function (a, b) {
     return RANK[a.state] - RANK[b.state];
   });
-
+ 
   data.filters = [
     { key: 'all',    label: gs.getMessage('All'),           count: counts.all },
     { key: 'open',   label: gs.getMessage('Open now'),      count: counts.open },
     { key: 'soon',   label: gs.getMessage('Opening soon'),  count: counts.soon },
     { key: 'closed', label: gs.getMessage('Closed'),        count: counts.closed }
   ];
-
+ 
   /* Category is a second filter rather than a replacement. The
      template only draws this row when there is more than one
      category to choose between, since a single option is not a
      choice. */
   data.categories = [{ key: 'all', label: gs.getMessage('All categories'), count: counts.all }];
-
+ 
   var catNames = [];
   for (var cn in catCounts) { catNames.push(cn); }
   catNames.sort();
-
+ 
   for (var ci = 0; ci < catNames.length; ci++) {
     data.categories.push({
       key  : catNames[ci],
@@ -1474,13 +1523,13 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       count: catCounts[catNames[ci]]
     });
   }
-
+ 
   data.categoryLabel = opt('category_label', gs.getMessage('Category'));
-
+ 
   /* Hero figures, counted from the same list the page renders,
      so the numbers cannot drift from what is on screen. */
   var urgentCount = data.programs.filter(function (p) { return p.urgent; }).length;
-
+ 
   data.stats = [
     {
       label: gs.getMessage('Open now'),
@@ -1500,53 +1549,61 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       note : gs.getMessage('areas currently funded')
     }
   ];
-
+ 
   data.pageSize = parseInt(opt('page_size', '10'), 10) || 10;
   data.sortNote = opt('sort_note', gs.getMessage('sorted by soonest closing date'));
-
-})();]]></script>
+ 
+})();
+ ]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 07:53:14</sys_created_on>
         <sys_id>4d6dabee2f437650d2a0d68fcea4e3d6</sys_id>
-        <sys_mod_count>73</sys_mod_count>
+        <sys_mod_count>77</sys_mod_count>
         <sys_name>Opportunities Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_4d6dabee2f437650d2a0d68fcea4e3d6</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-25 08:10:55</sys_updated_on>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-08-31 08:23:42</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · GRANT PROGRAMS
      Service Portal widget · HTML template
-
+ 
      A page hero followed by a directory of rows. Rows rather
      than cards because there is no artwork to carry a card, and
      a card with nothing but text in it is a card missing
      something.
-
+ 
      Filtering runs in the browser against data already loaded,
      so switching status costs no round trip and the rows
      re-enter each time the list is rebuilt.
      ========================================================= -->
-
+ 
 <div class="gnpl" role="region" aria-label="{{c.data.regionLabel}}">
-
+ 
   <!-- ═══════════════════ HERO ═══════════════════ -->
   <section class="gnpl-hero">
-
+ 
     <span class="gnpl-hero__glow" aria-hidden="true"></span>
-
+ 
     <div class="gnpl-hero__inner">
-
+ 
+      <div class="gnpl-hero__home-row">
+        <a class="gnpl-hero__home-btn" ng-href="{{c.data.homeUrl}}">
+          <i class="fa fa-angle-left" aria-hidden="true"></i>
+          {{c.data.homeLabel}}
+        </a>
+      </div>
+ 
       <span class="gnpl-eyebrow" ng-if="c.data.eyebrow">{{c.data.eyebrow}}</span>
-
+ 
       <h1 class="gnpl-hero__title">{{c.data.heading}}</h1>
-
+ 
       <p class="gnpl-hero__sub">{{c.data.subhead}}</p>
-
+ 
       <dl class="gnpl-stats">
         <div class="gnpl-stat"
              ng-repeat="s in c.data.stats track by $index"
@@ -1556,17 +1613,17 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           <dd class="gnpl-stat__note" ng-if="s.note">{{s.note}}</dd>
         </div>
       </dl>
-
+ 
     </div>
-
+ 
   </section>
-
-
+ 
+ 
   <!-- ═══════════════════ FILTERS ═══════════════════ -->
   <div class="gnpl-bar">
-
+ 
     <div class="gnpl-bar__inner">
-
+ 
       <label class="gnpl-search">
         <i class="fa fa-search gnpl-search__icon" aria-hidden="true"></i>
         <input type="text"
@@ -1584,7 +1641,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           <i class="fa fa-times" aria-hidden="true"></i>
         </button>
       </label>
-
+ 
       <div class="gnpl-chips" role="group" aria-label="{{c.data.filterLabel}}">
         <button type="button"
                 class="gnpl-chip"
@@ -1597,7 +1654,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           <span class="gnpl-chip__count">{{f.count}}</span>
         </button>
       </div>
-
+ 
       <div class="gnpl-cats" ng-if="c.data.categories.length > 2">
         <button type="button"
                 class="gnpl-cat"
@@ -1608,17 +1665,17 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           {{k.label}}
         </button>
       </div>
-
+ 
     </div>
-
+ 
   </div>
-
-
+ 
+ 
   <!-- ═══════════════════ DIRECTORY ═══════════════════ -->
   <section class="gnpl-body">
-
+ 
     <div class="gnpl-body__inner">
-
+ 
       <p class="gnpl-count">
         <strong ng-if="c.total()">{{c.rangeFrom()}}&ndash;{{c.rangeTo()}} {{c.data.labelOf}} {{c.total()}}</strong>
         <strong ng-if="!c.total()">0</strong>
@@ -1627,19 +1684,19 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           {{c.data.clearAll}}
         </button>
       </p>
-
+ 
       <div class="gnpl-list">
-
+ 
         <a class="gnpl-row"
            ng-repeat="p in c.shown() track by p.sysId"
            ng-class="['gnpl-row--' + p.state, 'gnpl-row--n' + (($index % 10) + 1)]"
            ng-href="{{p.url}}">
-
+ 
           <span class="gnpl-row__rail" aria-hidden="true"></span>
           <span class="gnpl-row__wash" aria-hidden="true"></span>
-
+ 
           <div class="gnpl-row__main">
-
+ 
             <span class="gnpl-row__top">
               <span class="gnpl-state" ng-class="'gnpl-state--' + p.state">
                 <span class="gnpl-state__dot" aria-hidden="true"></span>
@@ -1651,35 +1708,35 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
                 <span>{{p.number}}</span>
               </span>
             </span>
-
+ 
             <h2 class="gnpl-row__name">{{p.name}}</h2>
-
+ 
             <p class="gnpl-row__desc" ng-if="p.synopsis">{{p.synopsis}}</p>
-
+ 
           </div>
-
+ 
           <div class="gnpl-row__facts">
-
+ 
             <span class="gnpl-fact" ng-if="p.budget">
               <span class="gnpl-fact__label">{{c.data.labelBudget}}</span>
               <span class="gnpl-fact__value">{{p.budget}}</span>
             </span>
-
+ 
             <span class="gnpl-fact">
               <span class="gnpl-fact__label">{{c.data.labelCloses}}</span>
               <span class="gnpl-fact__value">{{p.closes}}</span>
               <span class="gnpl-fact__flag" ng-if="p.urgent">{{p.daysLabel}}</span>
             </span>
-
+ 
           </div>
-
+ 
           <span class="gnpl-row__go" aria-hidden="true"><i class="fa fa-arrow-right"></i></span>
-
+ 
         </a>
-
+ 
       </div>
-
-
+ 
+ 
       <div class="gnpl-empty" ng-if="!c.shown().length">
         <p class="gnpl-empty__title">{{c.data.emptyTitle}}</p>
         <p class="gnpl-empty__text">{{c.data.emptyText}}</p>
@@ -1688,10 +1745,10 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           {{c.data.emptyAction}}
         </button>
       </div>
-
-
+ 
+ 
       <nav class="gnpl-pager" ng-if="c.pageCount() > 1" aria-label="{{c.data.pagerLabel}}">
-
+ 
         <button type="button"
                 class="gnpl-pager__step"
                 ng-click="c.prev()"
@@ -1699,7 +1756,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
                 aria-label="{{c.data.prevLabel}}">
           <i class="fa fa-angle-left" aria-hidden="true"></i>
         </button>
-
+ 
         <div class="gnpl-pager__nums">
           <button type="button"
                   ng-repeat="n in c.pages() track by $index"
@@ -1711,7 +1768,7 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
             {{n}}
           </button>
         </div>
-
+ 
         <button type="button"
                 class="gnpl-pager__step"
                 ng-click="c.next()"
@@ -1719,13 +1776,14 @@ $g-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
                 aria-label="{{c.data.nextLabel}}">
           <i class="fa fa-angle-right" aria-hidden="true"></i>
         </button>
-
+ 
       </nav>
-
+ 
     </div>
-
+ 
   </section>
-
-</div>]]></template>
+ 
+</div>
+ ]]></template>
     </sp_widget>
 </record_update>

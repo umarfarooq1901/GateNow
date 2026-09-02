@@ -139,6 +139,11 @@
     c.server.update();
   };
 
+  // --- THE ONLY CHANGE IS THIS EVENT LISTENER ---
+  $scope.$on('claim_submitted_successfully', function() {
+    c.closeForm();
+  });
+
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* =========================================================
@@ -185,7 +190,11 @@
 
 .aw-sidebar {
   flex: 0 0 auto;
-  overflow: visible;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 10; /* Ensures sidebar tooltips stay above the scrolling dashboard */
+  overflow: visible; /* Kept visible to prevent tooltip clipping as noted in your comments */
 }
 
 
@@ -1825,7 +1834,7 @@ $b-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <name>Reimbursement</name>
         <option_schema/>
         <public>false</public>
-        <roles>x_enno_gatenow.service_applicant_user</roles>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
         <script><![CDATA[(function () {
 
   /* =========================================================
@@ -2145,8 +2154,8 @@ $b-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
           /* funding and reporting details */
           funding: {
-            partialRequest: pick(gr, ['partial_payment_request_number']),
-            assistanceId  : pick(gr, ['financial_assistance_identification_number']),
+            partialRequest: pick(gr, ['partial_payment_request_number_for_this_request']),
+            assistanceId  : pick(gr, ['financial_assistance_idebtification_number']),
             federalGrant  : pick(gr, ['federal_grant_or_other_identifying_number_assigned_by_federal_agency']),
             employerId    : pick(gr, ['employer_identification_number'])
           },
@@ -2154,14 +2163,14 @@ $b-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           /* computation of amount of reimbursements */
           comp: {
             outlays      : money(money2(gr, ['total_program_outlays_to_date'])),
-            income       : money(money2(gr, ['cumulative_program_income'])),
-            netOutlays   : money(money2(gr, ['net_program_outlays'])),
+            income       : money(money2(gr, ['less_cumulative_program_income'])),
+            netOutlays   : money(money2(gr, ['net_program_outlays_total_program_outlays_to_less_cumulative_program_income'])),
             estCash      : money(money2(gr, ['estimated_net_cash_outlays_for_advance_period'])),
-            totalSum     : money(money2(gr, ['total_sum_of_net_program_outlays'])),
-            nonFederal   : money(money2(gr, ['non_federal_share_of_amount'])),
-            federal      : money(money2(gr, ['federal_share_of_amount'])),
+            totalSum     : money(money2(gr, ['total_sum_of_net_program_outlays_estimated_cash_outlays_for_advanced_period'])),
+            nonFederal   : money(money2(gr, ['non_federal_share_of_amount_on_total'])),
+            federal      : money(money2(gr, ['federal_share_of_amount_on_total'])),
             paidBefore   : money(money2(gr, ['federal_payments_previously_requested'])),
-            nowRequested : money(money2(gr, ['federal_share_now_requested'])),
+            nowRequested : money(money2(gr, ['federal_share_now_requested_federal_share_of_amount_federals_payments_previous'])),
             month1       : money(money2(gr, ['request_1st_month'])),
             month2       : money(money2(gr, ['request_2nd_month'])),
             month3       : money(money2(gr, ['request_3rd_month']))
@@ -2495,14 +2504,14 @@ $b-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>Sheeba.showkat</sys_created_by>
         <sys_created_on>2026-08-19 08:17:57</sys_created_on>
         <sys_id>0d2e0ea50f720b10712b6af300d1b2c1</sys_id>
-        <sys_mod_count>205</sys_mod_count>
+        <sys_mod_count>212</sys_mod_count>
         <sys_name>Reimbursement</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_0d2e0ea50f720b10712b6af300d1b2c1</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-31 02:49:39</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-01 10:16:46</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · REIMBURSEMENTS
      Service Portal widget · HTML template

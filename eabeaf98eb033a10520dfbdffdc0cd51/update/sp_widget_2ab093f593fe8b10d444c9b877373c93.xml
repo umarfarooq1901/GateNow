@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope) {
+        <client_script><![CDATA[api.controller = function($scope, $rootScope, $window, spUtil) {
 
   /* =========================================================
      GATENOW · MY PROJECTS · Client script
@@ -14,50 +14,15 @@
 
   c.query = '';
   c.tab   = 'all';
-  c.open  = null;
-  c.mtab  = 'overview';
+
+  /* the embedded detail widget, or null while the list is up */
+  c.detail = null;
 
   c.tabs = [
     { key: 'all',     label: c.data.t.tabAll },
     { key: 'active',  label: c.data.t.tabActive },
     { key: 'done',    label: c.data.t.tabDone },
     { key: 'stopped', label: c.data.t.tabStopped }
-  ];
-
-  /* Each modal tab declares whether it should exist at all, so a
-     project with no risks does not get an empty tab, and neither
-     does an instance with no risk table. */
-  c.modalTabs = [
-    {
-      key: 'overview', label: c.data.t.mOverview,
-      show: function() { return true; },
-      count: function() { return 0; }
-    },
-    {
-      key: 'reports', label: c.data.t.mReports,
-      show: function(p) { return p.reports.length > 0; },
-      count: function(p) { return p.reports.length; }
-    },
-    {
-      key: 'changes', label: c.data.t.mChanges,
-      show: function(p) { return p.changes.length > 0; },
-      count: function(p) { return p.changes.length; }
-    },
-    {
-      key: 'claims', label: c.data.t.mClaims,
-      show: function(p) { return p.claims.length > 0; },
-      count: function(p) { return p.claims.length; }
-    },
-    {
-      key: 'risks', label: c.data.t.mRisks,
-      show: function(p) { return c.data.hasRisks && p.risks.length > 0; },
-      count: function(p) { return p.risks.length; }
-    },
-    {
-      key: 'issues', label: c.data.t.mIssues,
-      show: function(p) { return c.data.hasIssues && p.issues.length > 0; },
-      count: function(p) { return p.issues.length; }
-    }
   ];
 
   function hit(p, q) {
@@ -111,1579 +76,1537 @@
 
 
   /* =====================================================
-     DETAIL
+     HANDING OFF TO THE DETAIL WIDGET
+
+     A project has status reports, change requests, claims,
+     risks and issues hanging off it. That is a page, not a
+     dialog, and it has its own widget. The list loads it in
+     place and steps out of the way.
      ===================================================== */
 
-  c.openDetail = function(project) {
-    c.open = project || null;
-    /* always land on overview, so the tab from the last project
-       does not carry over to one that has no such list */
-    c.mtab = 'overview';
+  c.openProject = function(project) {
+    if (!project || !project.sysId) return;
+
+    c.loading = project.sysId;
+
+    spUtil.get(c.data.detailWidget, { project_id: project.sysId })
+      .then(function(widget) {
+        c.loading = '';
+        c.detail = widget;
+        /* the detail widget starts at its own top, not halfway
+           down wherever the list was scrolled to */
+        $window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, function() {
+        c.loading = '';
+      });
   };
 
-  c.closeDetail = function() {
-    c.open = null;
-  };
+  /* the detail widget emits this from its back button */
+  $rootScope.$on('gn_close_project_details', function() {
+    c.detail = null;
+    /* a report or a claim may have been filed while it was
+       open, so the counts on the list are refetched */
+    c.server.update();
+  });
 
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* =========================================================
-   GATENOW · MY PROJECTS
-   Service Portal widget · CSS / SCSS
-
-   Selectors are written out in full. The Service Portal Sass
-   compiler does not support parent selector concatenation.
-
-   Same tokens as the other dashboard pages: navy, one accent
-   blue, neutrals built from the navy at different opacities.
-
-   THE ONE EXCEPTION
-   Project health is a red, amber, green scale that the platform
-   already publishes on the record, and reporting it in anything
-   other than those three colours would be its own kind of lie.
-   So this page carries all three, desaturated to sit inside the
-   palette rather than shouting over it. They appear only where
-   health is being reported, never as decoration.
-
-   TYPE
-     tile      30  700  tabular   headline figures
-     title     26  700  -0.03em   page title
-     name      19  600  -0.018em  project name
-     percent   22  700  tabular   completion figure
-     body      15  400             descriptions
-     data      14  600  tabular    dates and amounts
-     label     11  600   0.14em    uppercase small caps
-   ========================================================= */
-
-/* ---------- overflow overrides ---------- */
-
-.panel,
-.panel-body,
-.sp-widget { overflow: visible !important; }
-
-.gn-layout { overflow: visible !important; }
-
-/* The column holds the rail and lets it decide how wide to be.
-   It used to carry a width through an inline ng-style, which is
-   what put 140px of the rail on top of this page: the column
-   reserved 96 while the rail draws 236.
-
-   The transition moved to the rail, which is the element that
-   actually changes width. Animating a wrapper that never
-   resized was doing nothing. */
-
-.aw-sidebar {
-  flex: 0 0 auto;
-  overflow: visible;
-}
-
-
-/* ---------- typeface ---------- */
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Outfit";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");
-}
-
-
-/* ---------- ink ---------- */
-$r-navy:   #0a2540;
-$r-ink-2:  rgba(10, 37, 64, 0.72);
-$r-ink-3:  rgba(10, 37, 64, 0.54);
-$r-ink-4:  rgba(10, 37, 64, 0.38);
-$r-line:   rgba(10, 37, 64, 0.10);
-$r-line-2: rgba(10, 37, 64, 0.06);
-$r-tint:   rgba(10, 37, 64, 0.03);
-
-/* ---------- accent ---------- */
-$r-blue:    #1560e0;
-$r-blue-dk: #0f4cbb;
-$r-blue-1:  rgba(21, 96, 224, 0.08);
-$r-blue-2:  rgba(21, 96, 224, 0.16);
-
-/* ---------- health, the platform's own scale ---------- */
-$r-green:   #1f8a63;
-$r-green-1: rgba(31, 138, 99, 0.12);
-$r-amber:   #a4741f;
-$r-amber-1: rgba(164, 116, 31, 0.12);
-$r-red:     #b8394a;
-$r-red-1:   rgba(184, 57, 74, 0.10);
-
-$r-white: #ffffff;
-$r-page:  #f4f6fb;
-$r-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);
-
-$r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-
-
-/* =========================================================
-   PAGE
-   ========================================================= */
-
-.gn-layout {
-  display: flex;
-  align-items: stretch;
-  min-height: 100vh;
-  background: $r-page;
-  font-family: $r-font;
-}
-
-/* Without min-width: 0 a flex child refuses to shrink below its
-   own content width, and slides under the rail rather than
-   narrowing. That is the usual cause of a stubborn overlap once
-   the widths are right. */
-.gpr {
-  flex: 1;
-  min-width: 0;
-  overflow: visible;
-}
-
-.gpr {
-  min-height: 100vh;
-  padding: 28px 36px 68px;
-  background: $r-page;
-  font-family: $r-font;
-  color: $r-navy;
-  -webkit-font-smoothing: antialiased;
-}
-
-.gpr *,
-.gpr *::before,
-.gpr *::after { box-sizing: border-box; }
-
-
-/* =========================================================
-   HEADER
-   ========================================================= */
-
-.gpr-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px 24px;
-  margin-bottom: 22px;
-}
-
-.gpr-top__lead { min-width: 0; }
-
-.gpr .gpr-top__title {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: $r-navy;
-}
-
-.gpr .gpr-top__sub {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 7px 0 0;
-  font-size: 13.5px;
-  color: $r-ink-3;
-}
-
-.gpr-live {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: $r-green;
-  box-shadow: 0 0 0 3px $r-green-1;
-  flex-shrink: 0;
-}
-
-.gpr-top__right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.gpr-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 330px;
-  height: 42px;
-  padding: 0 12px 0 14px;
-  margin: 0;
-  border: 1px solid $r-line;
-  border-radius: 11px;
-  background: $r-white;
-  font-weight: 400;
-  transition: border-color 0.4s $r-ease, box-shadow 0.4s $r-ease;
-}
-
-.gpr-search:focus-within {
-  border-color: rgba(21, 96, 224, 0.45);
-  box-shadow: 0 0 0 3px $r-blue-1;
-}
-
-.gpr-search__icon {
-  font-size: 13px;
-  color: $r-ink-4;
-  flex-shrink: 0;
-}
-
-.gpr-search__field {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  font-family: inherit;
-  font-size: 14px;
-  color: $r-navy;
-}
-
-.gpr-search__field::placeholder { color: $r-ink-4; }
-
-.gpr-search__clear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: $r-tint;
-  color: $r-ink-3;
-  font-size: 10px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.gpr-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: $r-blue;
-  color: $r-white;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  flex-shrink: 0;
-  box-shadow: 0 6px 16px rgba(21, 96, 224, 0.28);
-}
-
-
-/* =========================================================
-   NOTHING YET
-   ========================================================= */
-
-.gpr-blank {
-  max-width: 520px;
-  margin: 70px auto;
-  padding: 52px 34px 46px;
-  border: 1px solid $r-line;
-  border-radius: 18px;
-  background: $r-white;
-  text-align: center;
-}
-
-.gpr-blank__mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 58px;
-  height: 58px;
-  margin: 0 auto 20px;
-  border-radius: 50%;
-  background: $r-blue-1;
-  color: $r-blue;
-  font-size: 22px;
-}
-
-.gpr .gpr-blank__title {
-  margin: 0;
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: -0.024em;
-  color: $r-navy;
-}
-
-.gpr .gpr-blank__text {
-  max-width: 46ch;
-  margin: 11px auto 24px;
-  font-size: 15px;
-  line-height: 1.64;
-  color: $r-ink-3;
-}
-
-
-/* =========================================================
-   TILES
-   ========================================================= */
-
-.gpr-tiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.gpr-tile {
-  position: relative;
-  padding: 20px 22px 22px;
-  border: 1px solid $r-line;
-  border-radius: 16px;
-  background: $r-white;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
-  transition: transform 0.5s $r-ease, box-shadow 0.5s $r-ease;
-}
-
-.gpr-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);
-}
-
-.gpr-tile__rule {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 2px;
-  background: $r-blue-2;
-  transform-origin: left center;
-}
-
-.gpr-tile.is-alert .gpr-tile__rule { background: rgba(164, 116, 31, 0.34); }
-
-.gpr .gpr-tile__label {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-tile__value {
-  margin: 12px 0 0;
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.034em;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-.gpr .gpr-tile__note {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: $r-ink-3;
-}
-
-.gpr-tile.is-alert .gpr-tile__note {
-  color: $r-amber;
-  font-weight: 500;
-}
-
-
-/* =========================================================
-   PANELS
-   ========================================================= */
-
-.gpr-panels {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 16px;
-  margin-bottom: 22px;
-}
-
-.gpr-panel {
-  padding: 22px 24px 24px;
-  border: 1px solid $r-line;
-  border-radius: 16px;
-  background: $r-white;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
-}
-
-.gpr-panel__head { margin-bottom: 20px; }
-
-.gpr .gpr-panel__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.014em;
-  color: $r-navy;
-}
-
-.gpr .gpr-panel__hint {
-  margin: 5px 0 0;
-  font-size: 12.5px;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-panel__empty {
-  margin: 0;
-  padding: 22px 0 4px;
-  font-size: 13.5px;
-  color: $r-ink-4;
-}
-
-
-/* ---------- health split ---------- */
-
-.gpr-split {
-  display: flex;
-  height: 42px;
-  border-radius: 11px;
-  overflow: hidden;
-  background: $r-tint;
-}
-
-.gpr-split__seg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 38px;
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: $r-white;
-  transition: width 0.6s $r-ease;
-}
-
-.gpr-split__seg--green { background: $r-green; }
-.gpr-split__seg--amber { background: $r-amber; }
-.gpr-split__seg--red   { background: $r-red; }
-
-.gpr .gpr-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gpr .gpr-key li {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: $r-ink-3;
-}
-
-.gpr-key__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.gpr-key__dot--green { background: $r-green; }
-.gpr-key__dot--amber { background: $r-amber; }
-.gpr-key__dot--red   { background: $r-red; }
-
-.gpr-key__label { color: $r-ink-3; }
-
-.gpr-key__count {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-
-/* ---------- completion bars ---------- */
-
-.gpr-bars {
-  display: grid;
-  gap: 15px;
-}
-
-.gpr-bar { min-width: 0; }
-
-.gpr-bar__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 7px;
-}
-
-.gpr-bar__name {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: $r-navy;
-}
-
-.gpr-bar__pct {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-3;
-}
-
-.gpr-bar__track {
-  display: block;
-  height: 7px;
-  border-radius: 999px;
-  background: $r-tint;
-  overflow: hidden;
-}
-
-.gpr-bar__fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: $r-blue;
-  transform-origin: left center;
-}
-
-/* the bar takes the project's own health, so a project at 80
-   percent and reporting red does not read as fine */
-.gpr-bar__fill--green { background: $r-blue; }
-.gpr-bar__fill--amber { background: $r-amber; }
-.gpr-bar__fill--red   { background: $r-red; }
-
-
-/* =========================================================
-   TABS
-   ========================================================= */
-
-.gpr-filters {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid $r-line;
-}
-
-.gpr-tabs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.gpr-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  height: 38px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: $r-ink-2;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.4s $r-ease, border-color 0.4s $r-ease, color 0.4s $r-ease;
-}
-
-.gpr-tab:hover {
-  background: rgba(255, 255, 255, 0.7);
-  color: $r-navy;
-}
-
-.gpr-tab.is-on {
-  background: $r-white;
-  border-color: $r-line;
-  color: $r-navy;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
-}
-
-.gpr-tab__count {
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-range {
-  margin: 0;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-4;
-}
-
-
-/* =========================================================
-   PROJECT CARD
-   ========================================================= */
-
-.gpr-list {
-  display: grid;
-  gap: 14px;
-}
-
-.gpr-card {
-  position: relative;
-  padding: 22px 26px 20px 28px;
-  border: 1px solid $r-line;
-  border-radius: 16px;
-  background: $r-white;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
-  transition: border-color 0.5s $r-ease, box-shadow 0.5s $r-ease;
-}
-
-.gpr-card:hover {
-  border-color: $r-blue-2;
-  box-shadow: 0 14px 34px rgba(10, 37, 64, 0.08);
-}
-
-.gpr-card__rail {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-}
-
-.gpr-card--green .gpr-card__rail { background: $r-green; }
-.gpr-card--amber .gpr-card__rail { background: $r-amber; }
-.gpr-card--red .gpr-card__rail   { background: $r-red; }
-
-/* a project reporting red is the one worth reading first */
-.gpr-card--red { background: linear-gradient(180deg, rgba(184, 57, 74, 0.035) 0%, $r-white 42%); }
-
-.gpr-card__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px;
-  gap: 24px;
-  align-items: start;
-  margin-bottom: 16px;
-}
-
-.gpr-card__lead { min-width: 0; }
-
-.gpr-card__top {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.gpr-health {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.gpr-health__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.gpr-health--green { color: $r-green; }
-.gpr-health--amber { color: $r-amber; }
-.gpr-health--red   { color: $r-red; }
-
-.gpr-health--green .gpr-health__dot { background: $r-green; }
-.gpr-health--amber .gpr-health__dot { background: $r-amber; }
-.gpr-health--red .gpr-health__dot   { background: $r-red; }
-
-.gpr-card__meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: $r-ink-4;
-}
-
-.gpr-card__sep { color: rgba(10, 37, 64, 0.22); }
-
-.gpr-due {
-  padding: 3px 9px;
-  border: 1px solid $r-line;
-  border-radius: 6px;
-  background: $r-tint;
-  color: $r-ink-3;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* past its planned end date, which is worth saying out loud */
-.gpr-due.is-late {
-  border-color: rgba(184, 57, 74, 0.28);
-  background: $r-red-1;
-  color: $r-red;
-}
-
-.gpr .gpr-card__name {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.018em;
-  color: $r-navy;
-}
-
-.gpr .gpr-card__desc {
-  max-width: 72ch;
-  margin: 6px 0 0;
-  font-size: 15px;
-  line-height: 1.55;
-  color: $r-ink-3;
-}
-
-.gpr-card__figure {
-  text-align: right;
-  min-width: 0;
-}
-
-.gpr-figure__value {
-  display: block;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-.gpr-figure__label {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  color: $r-ink-4;
-}
-
-.gpr-card__track {
-  display: block;
-  height: 6px;
-  margin-bottom: 18px;
-  border-radius: 999px;
-  background: $r-tint;
-  overflow: hidden;
-}
-
-.gpr-card__fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  transform-origin: left center;
-}
-
-.gpr-card__fill--green { background: $r-blue; }
-.gpr-card__fill--amber { background: $r-amber; }
-.gpr-card__fill--red   { background: $r-red; }
-
-
-/* ---------- phase track ---------- */
-
-.gpr-phase {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.gpr-phase__step { min-width: 0; }
-
-.gpr-phase__bar {
-  display: block;
-  height: 4px;
-  border-radius: 999px;
-  background: $r-line-2;
-  transform-origin: left center;
-}
-
-.gpr-phase__name {
-  display: block;
-  margin-top: 7px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: $r-ink-4;
-}
-
-.gpr-phase__step.is-done .gpr-phase__bar { background: rgba(21, 96, 224, 0.35); }
-.gpr-phase__step.is-done .gpr-phase__name { color: $r-ink-3; }
-
-.gpr-phase__step.is-now .gpr-phase__bar { background: $r-blue; }
-
-.gpr-phase__step.is-now .gpr-phase__name {
-  color: $r-blue-dk;
-  font-weight: 700;
-}
-
-/* cancelled did not reach the last phase, it stopped */
-.gpr-phase.is-stopped .gpr-phase__bar { background: rgba(10, 37, 64, 0.14); }
-.gpr-phase.is-stopped .gpr-phase__name { color: $r-ink-4; }
-
-
-/* ---------- foot ---------- */
-
-.gpr-card__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px 24px;
-  padding-top: 16px;
-  border-top: 1px solid $r-line-2;
-}
-
-.gpr .gpr-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 28px;
-  margin: 0;
-  padding: 0;
-}
-
-.gpr-fact {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.gpr .gpr-fact dt {
-  margin: 0;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-fact dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.008em;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-.gpr .gpr-fact dd.is-blank {
-  font-weight: 400;
-  font-style: italic;
-  color: $r-ink-4;
-}
-
-.gpr-card__right {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.gpr .gpr-counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gpr .gpr-counts li {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 8px;
-  background: $r-tint;
-  font-size: 12px;
-  color: $r-ink-3;
-  white-space: nowrap;
-}
-
-.gpr-counts__n {
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-/* a count of zero is still worth showing, but not worth
-   drawing the eye to */
-.gpr .gpr-counts li.is-zero { opacity: 0.5; }
-.gpr .gpr-counts li.is-zero .gpr-counts__n { color: $r-ink-4; }
-
-
-/* =========================================================
-   BUTTONS
-   ========================================================= */
-
-.gpr-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 17px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 0.4s $r-ease, border-color 0.4s $r-ease, color 0.4s $r-ease;
-}
-
-.gpr-btn--primary {
-  background: $r-blue;
-  border-color: $r-blue;
-  color: $r-white;
-}
-
-.gpr-btn--primary:hover,
-.gpr-btn--primary:focus {
-  background: $r-blue-dk;
-  border-color: $r-blue-dk;
-  color: $r-white;
-  text-decoration: none;
-}
-
-.gpr-btn--ghost {
-  border-color: $r-line;
-  color: $r-ink-2;
-}
-
-.gpr-btn--ghost:hover,
-.gpr-btn--ghost:focus {
-  border-color: $r-blue-2;
-  color: $r-blue-dk;
-  text-decoration: none;
-}
-
-.gpr-btn:focus-visible,
-.gpr-tab:focus-visible,
-.gpr-mtab:focus-visible,
-.gpr-search__clear:focus-visible {
-  outline: 2px solid $r-blue;
-  outline-offset: 2px;
-}
-
-
-/* =========================================================
-   NO MATCH
-   ========================================================= */
-
-.gpr-nomatch {
-  padding: 62px 24px;
-  border: 1px dashed $r-line;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.6);
-  text-align: center;
-}
-
-.gpr .gpr-nomatch__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.018em;
-  color: $r-navy;
-}
-
-.gpr .gpr-nomatch__text {
-  max-width: 44ch;
-  margin: 9px auto 18px;
-  font-size: 14.5px;
-  line-height: 1.6;
-  color: $r-ink-3;
-}
-
-
-/* =========================================================
-   MODAL
-   ========================================================= */
-
-.gpr-modal {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 1050;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 40px 20px;
-  overflow-y: auto;
-  background: rgba(10, 37, 64, 0.42);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
-}
-
-.gpr-modal__panel {
-  width: 100%;
-  max-width: 880px;
-  border-radius: 18px;
-  background: $r-white;
-  box-shadow: 0 30px 80px rgba(10, 37, 64, 0.3);
-  overflow: hidden;
-}
-
-.gpr-modal__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 24px 26px 18px;
-}
-
-.gpr-modal__lead { min-width: 0; }
-
-.gpr-modal__ref {
-  display: block;
-  margin-bottom: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-modal__title {
-  margin: 0 0 11px;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.24;
-  letter-spacing: -0.026em;
-  color: $r-navy;
-}
-
-.gpr-modal__phase {
-  margin-left: 10px;
-  padding-left: 10px;
-  border-left: 1px solid $r-line;
-  color: $r-ink-4;
-}
-
-.gpr-modal__x {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: 1px solid $r-line;
-  border-radius: 10px;
-  background: transparent;
-  color: $r-ink-3;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.4s $r-ease, color 0.4s $r-ease;
-}
-
-.gpr-modal__x:hover {
-  border-color: $r-blue-2;
-  color: $r-blue-dk;
-}
-
-/* the related lists, as tabs rather than one long scroll */
-.gpr-mtabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 26px;
-  border-bottom: 1px solid $r-line-2;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.gpr-mtab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 42px;
-  padding: 0 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: $r-ink-3;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.4s $r-ease, border-color 0.4s $r-ease;
-}
-
-.gpr-mtab:hover { color: $r-navy; }
-
-.gpr-mtab.is-on {
-  border-bottom-color: $r-blue;
-  color: $r-blue-dk;
-  font-weight: 600;
-}
-
-.gpr-mtab__n {
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-4;
-}
-
-.gpr-modal__body {
-  max-height: 58vh;
-  padding: 22px 26px;
-  overflow-y: auto;
-}
-
-.gpr .gpr-kvs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 32px;
-  margin: 0 0 4px;
-  padding: 0;
-}
-
-.gpr-kv { min-width: 0; }
-
-.gpr .gpr-kv dt {
-  margin: 0 0 3px;
-  font-size: 12px;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-kv dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.5;
-  letter-spacing: -0.008em;
-  color: $r-navy;
-  word-break: break-word;
-}
-
-.gpr .gpr-kv dd.gpr-kv--num { font-variant-numeric: tabular-nums; }
-
-.gpr .gpr-kv dd.is-blank {
-  font-weight: 400;
-  font-style: italic;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-sub {
-  margin: 24px 0 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: $r-blue;
-}
-
-.gpr-prose { margin-top: 18px; }
-
-.gpr .gpr-prose__label {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: $r-ink-4;
-}
-
-/* the line breaks the author typed are kept */
-.gpr .gpr-prose__text {
-  margin: 0;
-  max-width: 74ch;
-  font-size: 14.5px;
-  line-height: 1.7;
-  color: $r-ink-2;
-  white-space: pre-line;
-}
-
-.gpr .gpr-empty {
-  margin: 0;
-  padding: 34px 0;
-  text-align: center;
-  font-size: 13.5px;
-  color: $r-ink-4;
-}
-
-
-/* ---------- status report ---------- */
-
-.gpr-report {
-  padding: 18px 20px 20px;
-  margin-bottom: 12px;
-  border: 1px solid $r-line;
-  border-radius: 13px;
-}
-
-.gpr-report:last-child { margin-bottom: 0; }
-
-.gpr-report__head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-bottom: 14px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid $r-line-2;
-}
-
-.gpr-report__num {
-  font-size: 12.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-.gpr-report__type {
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: $r-blue-1;
-  color: $r-blue-dk;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.gpr-report__date {
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-4;
-}
-
-.gpr-health--sm { margin-left: auto; }
-
-/* four ratings side by side, so one red is visible without
-   reading any of them */
-.gpr-rag {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.gpr-rag__item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 9px;
-  background: $r-tint;
-  border-left: 3px solid transparent;
-}
-
-.gpr-rag__item--green { background: $r-green-1; border-left-color: $r-green; }
-.gpr-rag__item--amber { background: $r-amber-1; border-left-color: $r-amber; }
-.gpr-rag__item--red   { background: $r-red-1;   border-left-color: $r-red; }
-
-.gpr-rag__label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: $r-ink-4;
-}
-
-.gpr-rag__value {
-  font-size: 13px;
-  font-weight: 600;
-  color: $r-navy;
-}
-
-
-/* ---------- generic related item ---------- */
-
-.gpr-item {
-  padding: 15px 18px 16px;
-  margin-bottom: 10px;
-  border: 1px solid $r-line;
-  border-radius: 12px;
-}
-
-.gpr-item:last-child { margin-bottom: 0; }
-
-.gpr-item__head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 9px;
-}
-
-.gpr-item__num {
-  font-size: 12.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-.gpr-item__amount {
-  margin-left: auto;
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: $r-navy;
-}
-
-.gpr-item__date {
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-item__title {
-  margin: 0 0 6px;
-  font-size: 14.5px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: $r-navy;
-}
-
-.gpr .gpr-item__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  margin: 0 0 8px;
-  font-size: 12.5px;
-  color: $r-ink-4;
-}
-
-.gpr .gpr-item__meta strong {
-  font-weight: 600;
-  color: $r-ink-2;
-}
-
-.gpr .gpr-item__text {
-  margin: 0;
-  max-width: 74ch;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: $r-ink-3;
-  white-space: pre-line;
-}
-
-.gpr-pill {
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.gpr-pill--good { background: $r-green-1; color: $r-green; }
-.gpr-pill--ok   { background: $r-blue-1;  color: $r-blue-dk; }
-.gpr-pill--wait { background: $r-tint;    color: $r-ink-3; }
-.gpr-pill--bad  { background: $r-red-1;   color: $r-red; }
-
-.gpr-modal__foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 16px 26px;
-  border-top: 1px solid $r-line-2;
-  background: $r-page;
-}
-
-
-/* =========================================================
-   MOTION
-   ========================================================= */
-
-@media (prefers-reduced-motion: no-preference) {
-
-  @keyframes gprRise {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes gprDrawX {
-    from { transform: scaleX(0); }
-    to   { transform: scaleX(1); }
-  }
-
-  @keyframes gprVeil {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-
-  @keyframes gprPanelIn {
-    from { opacity: 0; transform: translateY(16px) scale(0.99); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
-
-  .gpr-top  { animation: gprRise 0.6s $r-ease backwards; }
-  .gpr-tile { animation: gprRise 0.62s $r-ease backwards; }
-
-  .gpr-tile--active   { animation-delay: 0.06s; }
-  .gpr-tile--progress { animation-delay: 0.12s; }
-  .gpr-tile--open     { animation-delay: 0.18s; }
-  .gpr-tile--paid     { animation-delay: 0.24s; }
-
-  .gpr-tile__rule { animation: gprDrawX 0.7s $r-ease 0.3s backwards; }
-
-  .gpr-panel { animation: gprRise 0.62s $r-ease 0.28s backwards; }
-
-  .gpr-bar__fill { animation: gprDrawX 0.8s $r-ease backwards; }
-
-  .gpr-bar--1 .gpr-bar__fill { animation-delay: 0.40s; }
-  .gpr-bar--2 .gpr-bar__fill { animation-delay: 0.46s; }
-  .gpr-bar--3 .gpr-bar__fill { animation-delay: 0.52s; }
-  .gpr-bar--4 .gpr-bar__fill { animation-delay: 0.58s; }
-  .gpr-bar--5 .gpr-bar__fill { animation-delay: 0.64s; }
-  .gpr-bar--6 .gpr-bar__fill { animation-delay: 0.70s; }
-
-  .gpr-filters { animation: gprRise 0.6s $r-ease 0.34s backwards; }
-
-  /* replays on every tab change, because ng-repeat rebuilds its
-     nodes and the keyframe starts again with them */
-  .gpr-card { animation: gprRise 0.5s $r-ease backwards; }
-
-  .gpr-card--n1  { animation-delay: 0.02s; }
-  .gpr-card--n2  { animation-delay: 0.05s; }
-  .gpr-card--n3  { animation-delay: 0.08s; }
-  .gpr-card--n4  { animation-delay: 0.11s; }
-  .gpr-card--n5  { animation-delay: 0.14s; }
-  .gpr-card--n6  { animation-delay: 0.17s; }
-  .gpr-card--n7  { animation-delay: 0.20s; }
-  .gpr-card--n8  { animation-delay: 0.23s; }
-  .gpr-card--n9  { animation-delay: 0.26s; }
-  .gpr-card--n10 { animation-delay: 0.29s; }
-
-  .gpr-card__fill  { animation: gprDrawX 0.7s $r-ease 0.1s backwards; }
-  .gpr-phase__bar  { animation: gprDrawX 0.5s $r-ease 0.16s backwards; }
-
-  .gpr-modal { animation: gprVeil 0.28s $r-ease backwards; }
-  .gpr-modal__panel { animation: gprPanelIn 0.4s $r-ease 0.04s backwards; }
-}
-
-
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
-
-@media (max-width: 1280px) {
-
-  .gpr { padding: 26px 24px 60px; }
-
-  .gpr-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-  .gpr-panels { grid-template-columns: minmax(0, 1fr); }
-}
-
-@media (max-width: 900px) {
-
-  .gpr { padding: 22px 16px 52px; }
-
-  .gpr-top__right {
-    width: 100%;
-    order: 2;
-  }
-
-  .gpr-search { width: 100%; }
-
-  .gpr-tiles { grid-template-columns: minmax(0, 1fr); }
-
-  .gpr-tabs {
-    flex-wrap: nowrap;
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: 3px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .gpr-tab { flex-shrink: 0; }
-
-  .gpr-card__head {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .gpr-card__figure {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    text-align: left;
-  }
-
-  .gpr-figure__label { margin-top: 0; }
-
-  /* five phase labels do not fit across a phone, so only the
-     current one keeps its name */
-  .gpr-phase { gap: 5px; }
-
-  .gpr-phase__name { display: none; }
-
-  .gpr-phase__step.is-now .gpr-phase__name {
-    display: block;
-    white-space: nowrap;
-  }
-
-  .gpr-card__foot {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .gpr-card__right {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .gpr-rag { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-  .gpr .gpr-kvs { grid-template-columns: minmax(0, 1fr); }
-
-  .gpr-modal { padding: 18px 12px; }
-  .gpr-modal__head { padding: 20px 18px 14px; }
-  .gpr-mtabs { padding: 0 18px; }
-  .gpr-modal__body { padding: 18px; max-height: 64vh; }
-  .gpr-modal__foot { padding: 14px 18px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gpr * { transition: none; }
-  .gpr-tile:hover { transform: none; }
+        <css>/* =========================================================&#13;
+   GATENOW · MY PROJECTS&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   Same tokens as the other dashboard pages: navy, one accent&#13;
+   blue, neutrals built from the navy at different opacities.&#13;
+&#13;
+   THE ONE EXCEPTION&#13;
+   Project health is a red, amber, green scale that the platform&#13;
+   already publishes on the record, and reporting it in anything&#13;
+   other than those three colours would be its own kind of lie.&#13;
+   So this page carries all three, desaturated to sit inside the&#13;
+   palette rather than shouting over it. They appear only where&#13;
+   health is being reported, never as decoration.&#13;
+&#13;
+   TYPE&#13;
+     tile      30  700  tabular   headline figures&#13;
+     title     26  700  -0.03em   page title&#13;
+     name      19  600  -0.018em  project name&#13;
+     percent   22  700  tabular   completion figure&#13;
+     body      15  400             descriptions&#13;
+     data      14  600  tabular    dates and amounts&#13;
+     label     11  600   0.14em    uppercase small caps&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- overflow overrides ---------- */&#13;
+&#13;
+.panel,&#13;
+.panel-body,&#13;
+.sp-widget { overflow: visible !important; }&#13;
+&#13;
+.gn-layout { overflow: visible !important; }&#13;
+&#13;
+/* The column holds the rail and lets it decide how wide to be.&#13;
+   It used to carry a width through an inline ng-style, which is&#13;
+   what put 140px of the rail on top of this page: the column&#13;
+   reserved 96 while the rail draws 236.&#13;
+&#13;
+   The transition moved to the rail, which is the element that&#13;
+   actually changes width. Animating a wrapper that never&#13;
+   resized was doing nothing. */&#13;
+&#13;
+.aw-sidebar {&#13;
+  flex: 0 0 auto;&#13;
+  position: sticky;&#13;
+  top: 0;&#13;
+  height: 100vh;&#13;
+  z-index: 10; /* Ensures sidebar tooltips stay above the scrolling dashboard */&#13;
+  overflow: visible; /* Kept visible to prevent tooltip clipping as noted in your comments */&#13;
+}&#13;
+&#13;
+&#13;
+&#13;
+/* ---------- typeface ---------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- ink ---------- */&#13;
+$r-navy:   #0a2540;&#13;
+$r-ink-2:  rgba(10, 37, 64, 0.72);&#13;
+$r-ink-3:  rgba(10, 37, 64, 0.54);&#13;
+$r-ink-4:  rgba(10, 37, 64, 0.38);&#13;
+$r-line:   rgba(10, 37, 64, 0.10);&#13;
+$r-line-2: rgba(10, 37, 64, 0.06);&#13;
+$r-tint:   rgba(10, 37, 64, 0.03);&#13;
+&#13;
+/* ---------- accent ---------- */&#13;
+$r-blue:    #1560e0;&#13;
+$r-blue-dk: #0f4cbb;&#13;
+$r-blue-1:  rgba(21, 96, 224, 0.08);&#13;
+$r-blue-2:  rgba(21, 96, 224, 0.16);&#13;
+&#13;
+/* ---------- health, the platform's own scale ---------- */&#13;
+$r-green:   #1f8a63;&#13;
+$r-green-1: rgba(31, 138, 99, 0.12);&#13;
+$r-amber:   #a4741f;&#13;
+$r-amber-1: rgba(164, 116, 31, 0.12);&#13;
+$r-red:     #b8394a;&#13;
+$r-red-1:   rgba(184, 57, 74, 0.10);&#13;
+&#13;
+$r-white: #ffffff;&#13;
+$r-page:  #f4f6fb;&#13;
+$r-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PAGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-layout {&#13;
+  display: flex;&#13;
+  align-items: stretch;&#13;
+  min-height: 100vh;&#13;
+  background: $r-page;&#13;
+  font-family: $r-font;&#13;
+}&#13;
+&#13;
+/* Without min-width: 0 a flex child refuses to shrink below its&#13;
+   own content width, and slides under the rail rather than&#13;
+   narrowing. That is the usual cause of a stubborn overlap once&#13;
+   the widths are right. */&#13;
+.gpr {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  overflow: visible;&#13;
+}&#13;
+&#13;
+.gpr {&#13;
+  min-height: 100vh;&#13;
+  padding: 28px 36px 68px;&#13;
+  background: $r-page;&#13;
+  font-family: $r-font;&#13;
+  color: $r-navy;&#13;
+  -webkit-font-smoothing: antialiased;&#13;
+}&#13;
+&#13;
+.gpr *,&#13;
+.gpr *::before,&#13;
+.gpr *::after { box-sizing: border-box; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEADER&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-top {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 16px 24px;&#13;
+  margin-bottom: 22px;&#13;
+}&#13;
+&#13;
+.gpr-top__lead { min-width: 0; }&#13;
+&#13;
+.gpr .gpr-top__title {&#13;
+  margin: 0;&#13;
+  font-size: 26px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.03em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-top__sub {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  margin: 7px 0 0;&#13;
+  font-size: 13.5px;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr-live {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  background: $r-green;&#13;
+  box-shadow: 0 0 0 3px $r-green-1;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gpr-top__right {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+}&#13;
+&#13;
+.gpr-search {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+  width: 330px;&#13;
+  height: 42px;&#13;
+  padding: 0 12px 0 14px;&#13;
+  margin: 0;&#13;
+  border: 1px solid $r-line;&#13;
+  border-radius: 11px;&#13;
+  background: $r-white;&#13;
+  font-weight: 400;&#13;
+  transition: border-color 0.4s $r-ease, box-shadow 0.4s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-search:focus-within {&#13;
+  border-color: rgba(21, 96, 224, 0.45);&#13;
+  box-shadow: 0 0 0 3px $r-blue-1;&#13;
+}&#13;
+&#13;
+.gpr-search__icon {&#13;
+  font-size: 13px;&#13;
+  color: $r-ink-4;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gpr-search__field {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  height: 100%;&#13;
+  border: 0;&#13;
+  outline: 0;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr-search__field::placeholder { color: $r-ink-4; }&#13;
+&#13;
+.gpr-search__clear {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 22px;&#13;
+  height: 22px;&#13;
+  padding: 0;&#13;
+  border: 0;&#13;
+  border-radius: 50%;&#13;
+  background: $r-tint;&#13;
+  color: $r-ink-3;&#13;
+  font-size: 10px;&#13;
+  cursor: pointer;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gpr-avatar {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 42px;&#13;
+  height: 42px;&#13;
+  border-radius: 12px;&#13;
+  background: $r-blue;&#13;
+  color: $r-white;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.03em;&#13;
+  flex-shrink: 0;&#13;
+  box-shadow: 0 6px 16px rgba(21, 96, 224, 0.28);&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NOTHING YET&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-blank {&#13;
+  max-width: 520px;&#13;
+  margin: 70px auto;&#13;
+  padding: 52px 34px 46px;&#13;
+  border: 1px solid $r-line;&#13;
+  border-radius: 18px;&#13;
+  background: $r-white;&#13;
+  text-align: center;&#13;
+}&#13;
+&#13;
+.gpr-blank__mark {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 58px;&#13;
+  height: 58px;&#13;
+  margin: 0 auto 20px;&#13;
+  border-radius: 50%;&#13;
+  background: $r-blue-1;&#13;
+  color: $r-blue;&#13;
+  font-size: 22px;&#13;
+}&#13;
+&#13;
+.gpr .gpr-blank__title {&#13;
+  margin: 0;&#13;
+  font-size: 21px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.024em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-blank__text {&#13;
+  max-width: 46ch;&#13;
+  margin: 11px auto 24px;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.64;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   TILES&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-tiles {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, minmax(0, 1fr));&#13;
+  gap: 16px;&#13;
+  margin-bottom: 16px;&#13;
+}&#13;
+&#13;
+.gpr-tile {&#13;
+  position: relative;&#13;
+  padding: 20px 22px 22px;&#13;
+  border: 1px solid $r-line;&#13;
+  border-radius: 16px;&#13;
+  background: $r-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+  transition: transform 0.5s $r-ease, box-shadow 0.5s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-tile:hover {&#13;
+  transform: translateY(-2px);&#13;
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);&#13;
+}&#13;
+&#13;
+.gpr-tile__rule {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  left: 0;&#13;
+  height: 2px;&#13;
+  background: $r-blue-2;&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gpr-tile.is-alert .gpr-tile__rule { background: rgba(164, 116, 31, 0.34); }&#13;
+&#13;
+.gpr .gpr-tile__label {&#13;
+  margin: 0;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr .gpr-tile__value {&#13;
+  margin: 12px 0 0;&#13;
+  font-size: 30px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.05;&#13;
+  letter-spacing: -0.034em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-tile__note {&#13;
+  margin: 8px 0 0;&#13;
+  font-size: 12.5px;&#13;
+  line-height: 1.5;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr-tile.is-alert .gpr-tile__note {&#13;
+  color: $r-amber;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PANELS&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-panels {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);&#13;
+  gap: 16px;&#13;
+  margin-bottom: 22px;&#13;
+}&#13;
+&#13;
+.gpr-panel {&#13;
+  padding: 22px 24px 24px;&#13;
+  border: 1px solid $r-line;&#13;
+  border-radius: 16px;&#13;
+  background: $r-white;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+}&#13;
+&#13;
+.gpr-panel__head { margin-bottom: 20px; }&#13;
+&#13;
+.gpr .gpr-panel__title {&#13;
+  margin: 0;&#13;
+  font-size: 15px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.014em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-panel__hint {&#13;
+  margin: 5px 0 0;&#13;
+  font-size: 12.5px;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr .gpr-panel__empty {&#13;
+  margin: 0;&#13;
+  padding: 22px 0 4px;&#13;
+  font-size: 13.5px;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- what needs attention ----------&#13;
+&#13;
+   The split bar and its three-count legend are gone. At one&#13;
+   project the bar was a full width green block with a 1 in it,&#13;
+   and the legend underneath repeated the same thing in words.&#13;
+&#13;
+   What replaces it names the projects that are wrong and why,&#13;
+   and says so plainly when none are. Colour appears only on the&#13;
+   reasons, never as a background wash, so a page with two&#13;
+   amber projects looks different from a page with none without&#13;
+   either looking like an alarm.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gpr .gpr-attn {&#13;
+  display: grid;&#13;
+  gap: 2px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gpr-attn__row {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) auto;&#13;
+  align-items: center;&#13;
+  gap: 16px;&#13;
+  width: 100%;&#13;
+  padding: 12px 12px 12px 14px;&#13;
+  border: 0;&#13;
+  border-left: 3px solid transparent;&#13;
+  border-radius: 0 10px 10px 0;&#13;
+  background: transparent;&#13;
+  text-align: left;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.35s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-attn__row:hover { background: $r-tint; }&#13;
+&#13;
+.gpr-attn__row:focus-visible {&#13;
+  outline: 2px solid $r-blue;&#13;
+  outline-offset: -2px;&#13;
+}&#13;
+&#13;
+/* the rail carries the health, so the row is identifiable&#13;
+   before any of the reasons are read */&#13;
+.gpr-attn--red .gpr-attn__row   { border-left-color: $r-red; }&#13;
+.gpr-attn--amber .gpr-attn__row { border-left-color: $r-amber; }&#13;
+.gpr-attn--green .gpr-attn__row { border-left-color: $r-blue; }&#13;
+&#13;
+.gpr-attn__name {&#13;
+  min-width: 0;&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  text-overflow: ellipsis;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.012em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr-attn__why {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  justify-content: flex-end;&#13;
+  gap: 6px;&#13;
+}&#13;
+&#13;
+.gpr-tag {&#13;
+  padding: 4px 10px;&#13;
+  border-radius: 7px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gpr-tag--red   { background: rgba(184, 57, 74, 0.1);  color: $r-red; }&#13;
+.gpr-tag--amber { background: rgba(164, 116, 31, 0.12); color: $r-amber; }&#13;
+.gpr-tag--blue  { background: $r-blue-1;                color: $r-blue-dk; }&#13;
+&#13;
+&#13;
+/* ---------- nothing needs attention ----------&#13;
+   A sentence, because that is what the answer is.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gpr-clear {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 14px;&#13;
+  padding: 18px 4px 8px;&#13;
+}&#13;
+&#13;
+.gpr-clear__mark {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 38px;&#13;
+  height: 38px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 50%;&#13;
+  background: rgba(31, 138, 99, 0.1);&#13;
+  color: $r-green;&#13;
+  font-size: 15px;&#13;
+}&#13;
+&#13;
+.gpr-clear__body {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 3px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gpr-clear__title {&#13;
+  font-size: 14.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.014em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr-clear__text {&#13;
+  font-size: 13px;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr-count {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  min-width: 24px;&#13;
+  height: 24px;&#13;
+  padding: 0 8px;&#13;
+  border-radius: 999px;&#13;
+  background: rgba(164, 116, 31, 0.12);&#13;
+  color: $r-amber;&#13;
+  font-size: 12.5px;&#13;
+  font-weight: 700;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- the delivery gap ----------&#13;
+&#13;
+   A row of percent complete bars answered one question and hid&#13;
+   a better one. This plots two points per project on the same&#13;
+   track, schedule elapsed and work complete, and the connector&#13;
+   between them is the finding.&#13;
+&#13;
+   Reading rules:&#13;
+     hollow ring   how much of the schedule has gone&#13;
+     solid dot     how much of the work is done&#13;
+     the bar       the distance between the two&#13;
+&#13;
+   Colour lives on the connector only. The markers stay neutral,&#13;
+   so the eye compares lengths rather than hues, and a portfolio&#13;
+   with three late projects looks different from one with none&#13;
+   without any row shouting on its own.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+$gap-pad: 152px;&#13;
+$gap-val: 48px;&#13;
+&#13;
+.gpr-gap { min-width: 0; }&#13;
+&#13;
+.gpr-gap__scale {&#13;
+  display: grid;&#13;
+  grid-template-columns: $gap-pad minmax(0, 1fr) $gap-val;&#13;
+  gap: 14px;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+.gpr-gap__ticks {&#13;
+  display: flex;&#13;
+  justify-content: space-between;&#13;
+  font-size: 10px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.1em;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-gap__pad { min-width: 0; }&#13;
+&#13;
+.gpr-gap__row {&#13;
+  display: grid;&#13;
+  grid-template-columns: $gap-pad minmax(0, 1fr) $gap-val;&#13;
+  align-items: center;&#13;
+  gap: 14px;&#13;
+  padding: 7px 0;&#13;
+}&#13;
+&#13;
+.gpr-gap__name {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 2px;&#13;
+  min-width: 0;&#13;
+  padding: 0;&#13;
+  border: 0;&#13;
+  background: transparent;&#13;
+  text-align: left;&#13;
+  cursor: pointer;&#13;
+}&#13;
+&#13;
+.gpr-gap__label {&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  text-overflow: ellipsis;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.012em;&#13;
+  color: $r-navy;&#13;
+  transition: color 0.35s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-gap__name:hover .gpr-gap__label { color: $r-blue-dk; }&#13;
+&#13;
+.gpr-gap__name:focus-visible {&#13;
+  outline: 2px solid $r-blue;&#13;
+  outline-offset: 2px;&#13;
+  border-radius: 6px;&#13;
+}&#13;
+&#13;
+.gpr-gap__phase {&#13;
+  font-size: 9.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.1em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-gap__track {&#13;
+  position: relative;&#13;
+  display: block;&#13;
+  height: 20px;&#13;
+}&#13;
+&#13;
+/* three hairlines rather than a grid, because two of them are&#13;
+   only there to stop 50 percent being a guess */&#13;
+.gpr-gap__grid {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  width: 1px;&#13;
+  background: $r-line-2;&#13;
+}&#13;
+&#13;
+.gpr-gap__grid--mid { left: 50%; }&#13;
+.gpr-gap__grid--end { left: auto; right: 0; }&#13;
+&#13;
+/* the connector carries the whole message, so it carries the&#13;
+   colour */&#13;
+.gpr-gap__link {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  height: 5px;&#13;
+  margin-top: -2.5px;&#13;
+  border-radius: 999px;&#13;
+  background: rgba(10, 37, 64, 0.18);&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gpr-gap__row--even .gpr-gap__link  { background: rgba(21, 96, 224, 0.32); }&#13;
+.gpr-gap__row--ahead .gpr-gap__link { background: rgba(31, 138, 99, 0.42); }&#13;
+.gpr-gap__row--watch .gpr-gap__link { background: $r-amber; }&#13;
+.gpr-gap__row--late .gpr-gap__link  { background: $r-red; }&#13;
+&#13;
+/* time gone: a ring, because it is a position rather than an&#13;
+   achievement */&#13;
+.gpr-gap__time {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  width: 13px;&#13;
+  height: 13px;&#13;
+  margin: -6.5px 0 0 -6.5px;&#13;
+  border-radius: 50%;&#13;
+  background: $r-white;&#13;
+  box-shadow: inset 0 0 0 2px rgba(10, 37, 64, 0.42);&#13;
+  z-index: 2;&#13;
+}&#13;
+&#13;
+/* work done: solid, because it is the thing that was actually&#13;
+   delivered */&#13;
+.gpr-gap__done {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  width: 13px;&#13;
+  height: 13px;&#13;
+  margin: -6.5px 0 0 -6.5px;&#13;
+  border-radius: 50%;&#13;
+  background: $r-navy;&#13;
+  border: 2px solid $r-white;&#13;
+  z-index: 3;&#13;
+}&#13;
+&#13;
+.gpr-gap__row--late .gpr-gap__done  { background: $r-red; }&#13;
+.gpr-gap__row--watch .gpr-gap__done { background: $r-amber; }&#13;
+.gpr-gap__row--ahead .gpr-gap__done { background: $r-green; }&#13;
+&#13;
+.gpr-gap__value {&#13;
+  text-align: right;&#13;
+  font-size: 13px;&#13;
+  font-weight: 700;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-gap__row--late .gpr-gap__value  { color: $r-red; }&#13;
+.gpr-gap__row--watch .gpr-gap__value { color: $r-amber; }&#13;
+.gpr-gap__row--ahead .gpr-gap__value { color: $r-green; }&#13;
+&#13;
+.gpr .gpr-gap__verdict {&#13;
+  margin: 16px 0 0;&#13;
+  padding-top: 14px;&#13;
+  border-top: 1px solid $r-line-2;&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr .gpr-legend {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 8px 18px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gpr .gpr-legend li {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 12px;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr-legend__time {&#13;
+  width: 12px;&#13;
+  height: 12px;&#13;
+  border-radius: 50%;&#13;
+  background: $r-white;&#13;
+  box-shadow: inset 0 0 0 2px rgba(10, 37, 64, 0.42);&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gpr-legend__done {&#13;
+  width: 12px;&#13;
+  height: 12px;&#13;
+  border-radius: 50%;&#13;
+  background: $r-navy;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+/* projects that cannot be plotted are named rather than drawn&#13;
+   at a position the data does not support */&#13;
+.gpr-nodate {&#13;
+  margin-top: 18px;&#13;
+  padding-top: 14px;&#13;
+  border-top: 1px solid $r-line-2;&#13;
+}&#13;
+&#13;
+.gpr-nodate__label {&#13;
+  display: block;&#13;
+  margin-bottom: 8px;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr .gpr-nodate__list {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px 10px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gpr .gpr-nodate__list li {&#13;
+  padding: 5px 11px;&#13;
+  border-radius: 8px;&#13;
+  background: $r-tint;&#13;
+  font-size: 12.5px;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr .gpr-nodate__list strong {&#13;
+  font-weight: 700;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   TABS&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-filters {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px 20px;&#13;
+  padding-bottom: 16px;&#13;
+  margin-bottom: 16px;&#13;
+  border-bottom: 1px solid $r-line;&#13;
+}&#13;
+&#13;
+.gpr-tabs {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px;&#13;
+}&#13;
+&#13;
+.gpr-tab {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  height: 38px;&#13;
+  padding: 0 14px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  color: $r-ink-2;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $r-ease, border-color 0.4s $r-ease, color 0.4s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-tab:hover {&#13;
+  background: rgba(255, 255, 255, 0.7);&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr-tab.is-on {&#13;
+  background: $r-white;&#13;
+  border-color: $r-line;&#13;
+  color: $r-navy;&#13;
+  font-weight: 600;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);&#13;
+}&#13;
+&#13;
+.gpr-tab__count {&#13;
+  font-size: 12.5px;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr .gpr-range {&#13;
+  margin: 0;&#13;
+  font-size: 13px;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PROJECT CARD&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-list {&#13;
+  display: grid;&#13;
+  gap: 14px;&#13;
+}&#13;
+&#13;
+.gpr-card {&#13;
+  position: relative;&#13;
+  padding: 22px 26px 20px 28px;&#13;
+  border: 1px solid $r-line;&#13;
+  border-radius: 16px;&#13;
+  background: $r-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+  transition: border-color 0.5s $r-ease, box-shadow 0.5s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-card:hover {&#13;
+  border-color: $r-blue-2;&#13;
+  box-shadow: 0 14px 34px rgba(10, 37, 64, 0.08);&#13;
+}&#13;
+&#13;
+.gpr-card__rail {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  width: 3px;&#13;
+}&#13;
+&#13;
+.gpr-card--green .gpr-card__rail { background: $r-green; }&#13;
+.gpr-card--amber .gpr-card__rail { background: $r-amber; }&#13;
+.gpr-card--red .gpr-card__rail   { background: $r-red; }&#13;
+&#13;
+/* a project reporting red is the one worth reading first */&#13;
+.gpr-card--red { background: linear-gradient(180deg, rgba(184, 57, 74, 0.035) 0%, $r-white 42%); }&#13;
+&#13;
+.gpr-card__head {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) 110px;&#13;
+  gap: 24px;&#13;
+  align-items: start;&#13;
+  margin-bottom: 16px;&#13;
+}&#13;
+&#13;
+.gpr-card__lead { min-width: 0; }&#13;
+&#13;
+.gpr-card__top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+.gpr-health {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 7px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gpr-health__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gpr-health--green { color: $r-green; }&#13;
+.gpr-health--amber { color: $r-amber; }&#13;
+.gpr-health--red   { color: $r-red; }&#13;
+&#13;
+.gpr-health--green .gpr-health__dot { background: $r-green; }&#13;
+.gpr-health--amber .gpr-health__dot { background: $r-amber; }&#13;
+.gpr-health--red .gpr-health__dot   { background: $r-red; }&#13;
+&#13;
+.gpr-card__meta {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-card__sep { color: rgba(10, 37, 64, 0.22); }&#13;
+&#13;
+.gpr-due {&#13;
+  padding: 3px 9px;&#13;
+  border: 1px solid $r-line;&#13;
+  border-radius: 6px;&#13;
+  background: $r-tint;&#13;
+  color: $r-ink-3;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+/* past its planned end date, which is worth saying out loud */&#13;
+.gpr-due.is-late {&#13;
+  border-color: rgba(184, 57, 74, 0.28);&#13;
+  background: $r-red-1;&#13;
+  color: $r-red;&#13;
+}&#13;
+&#13;
+.gpr .gpr-card__name {&#13;
+  margin: 0;&#13;
+  font-size: 19px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.3;&#13;
+  letter-spacing: -0.018em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-card__desc {&#13;
+  max-width: 72ch;&#13;
+  margin: 6px 0 0;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.55;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+.gpr-card__figure {&#13;
+  text-align: right;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gpr-figure__value {&#13;
+  display: block;&#13;
+  font-size: 22px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.1;&#13;
+  letter-spacing: -0.03em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr-figure__label {&#13;
+  display: block;&#13;
+  margin-top: 4px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.13em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-card__track {&#13;
+  display: block;&#13;
+  height: 6px;&#13;
+  margin-bottom: 18px;&#13;
+  border-radius: 999px;&#13;
+  background: $r-tint;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.gpr-card__fill {&#13;
+  display: block;&#13;
+  height: 100%;&#13;
+  border-radius: 999px;&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gpr-card__fill--green { background: $r-blue; }&#13;
+.gpr-card__fill--amber { background: $r-amber; }&#13;
+.gpr-card__fill--red   { background: $r-red; }&#13;
+&#13;
+&#13;
+/* ---------- phase track ---------- */&#13;
+&#13;
+.gpr-phase {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(5, minmax(0, 1fr));&#13;
+  gap: 8px;&#13;
+  margin-bottom: 18px;&#13;
+}&#13;
+&#13;
+.gpr-phase__step { min-width: 0; }&#13;
+&#13;
+.gpr-phase__bar {&#13;
+  display: block;&#13;
+  height: 4px;&#13;
+  border-radius: 999px;&#13;
+  background: $r-line-2;&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gpr-phase__name {&#13;
+  display: block;&#13;
+  margin-top: 7px;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.1em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-phase__step.is-done .gpr-phase__bar { background: rgba(21, 96, 224, 0.35); }&#13;
+.gpr-phase__step.is-done .gpr-phase__name { color: $r-ink-3; }&#13;
+&#13;
+.gpr-phase__step.is-now .gpr-phase__bar { background: $r-blue; }&#13;
+&#13;
+.gpr-phase__step.is-now .gpr-phase__name {&#13;
+  color: $r-blue-dk;&#13;
+  font-weight: 700;&#13;
+}&#13;
+&#13;
+/* cancelled did not reach the last phase, it stopped */&#13;
+.gpr-phase.is-stopped .gpr-phase__bar { background: rgba(10, 37, 64, 0.14); }&#13;
+.gpr-phase.is-stopped .gpr-phase__name { color: $r-ink-4; }&#13;
+&#13;
+&#13;
+/* ---------- foot ---------- */&#13;
+&#13;
+.gpr-card__foot {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 16px 24px;&#13;
+  padding-top: 16px;&#13;
+  border-top: 1px solid $r-line-2;&#13;
+}&#13;
+&#13;
+.gpr .gpr-facts {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 8px 28px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gpr-fact {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 4px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gpr .gpr-fact dt {&#13;
+  margin: 0;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr .gpr-fact dd {&#13;
+  margin: 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-fact dd.is-blank {&#13;
+  font-weight: 400;&#13;
+  font-style: italic;&#13;
+  color: $r-ink-4;&#13;
+}&#13;
+&#13;
+.gpr-card__right {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 16px;&#13;
+}&#13;
+&#13;
+.gpr .gpr-counts {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gpr .gpr-counts li {&#13;
+  display: inline-flex;&#13;
+  align-items: baseline;&#13;
+  gap: 6px;&#13;
+  padding: 5px 11px;&#13;
+  border-radius: 8px;&#13;
+  background: $r-tint;&#13;
+  font-size: 12px;&#13;
+  color: $r-ink-3;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gpr-counts__n {&#13;
+  font-size: 13px;&#13;
+  font-weight: 700;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+/* a count of zero is still worth showing, but not worth&#13;
+   drawing the eye to */&#13;
+.gpr .gpr-counts li.is-zero { opacity: 0.5; }&#13;
+.gpr .gpr-counts li.is-zero .gpr-counts__n { color: $r-ink-4; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BUTTONS&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-btn {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  height: 40px;&#13;
+  padding: 0 17px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+  cursor: pointer;&#13;
+  text-decoration: none;&#13;
+  transition: background 0.4s $r-ease, border-color 0.4s $r-ease, color 0.4s $r-ease;&#13;
+}&#13;
+&#13;
+.gpr-btn--primary {&#13;
+  background: $r-blue;&#13;
+  border-color: $r-blue;&#13;
+  color: $r-white;&#13;
+}&#13;
+&#13;
+.gpr-btn--primary:hover,&#13;
+.gpr-btn--primary:focus {&#13;
+  background: $r-blue-dk;&#13;
+  border-color: $r-blue-dk;&#13;
+  color: $r-white;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gpr-btn--ghost {&#13;
+  border-color: $r-line;&#13;
+  color: $r-ink-2;&#13;
+}&#13;
+&#13;
+.gpr-btn--ghost:hover,&#13;
+.gpr-btn--ghost:focus {&#13;
+  border-color: $r-blue-2;&#13;
+  color: $r-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gpr-btn:focus-visible,&#13;
+.gpr-tab:focus-visible,&#13;
+.gpr-mtab:focus-visible,&#13;
+.gpr-search__clear:focus-visible {&#13;
+  outline: 2px solid $r-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NO MATCH&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-nomatch {&#13;
+  padding: 62px 24px;&#13;
+  border: 1px dashed $r-line;&#13;
+  border-radius: 16px;&#13;
+  background: rgba(255, 255, 255, 0.6);&#13;
+  text-align: center;&#13;
+}&#13;
+&#13;
+.gpr .gpr-nomatch__title {&#13;
+  margin: 0;&#13;
+  font-size: 18px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.018em;&#13;
+  color: $r-navy;&#13;
+}&#13;
+&#13;
+.gpr .gpr-nomatch__text {&#13;
+  max-width: 44ch;&#13;
+  margin: 9px auto 18px;&#13;
+  font-size: 14.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $r-ink-3;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   THE DETAIL SLOT&#13;
+&#13;
+   The modal that used to live here is gone. A project carries&#13;
+   status reports, change requests, claims, risks and issues,&#13;
+   and that is a page rather than a dialog: a dialog would have&#13;
+   put a scrollbar inside a scrollbar and lost the browser back&#13;
+   button.&#13;
+&#13;
+   The embedded widget brings its own layout, so this only gives&#13;
+   it the column.&#13;
+   ========================================================= */&#13;
+&#13;
+.gpr-detail {&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+/* the card is clickable, so it says so */&#13;
+.gpr-card {&#13;
+  cursor: pointer;&#13;
+}&#13;
+&#13;
+.gpr-card:focus-visible {&#13;
+  outline: 2px solid $r-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+/* while the detail widget loads, the card it came from holds&#13;
+   still rather than pretending nothing was pressed */&#13;
+.gpr-card.is-busy {&#13;
+  border-color: $r-blue-2;&#13;
+  box-shadow: 0 14px 34px rgba(10, 37, 64, 0.08);&#13;
+}&#13;
+&#13;
+.gpr-card.is-busy .gpr-card__name { color: $r-blue-dk; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gprRise {&#13;
+    from { opacity: 0; transform: translateY(14px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gprDrawX {&#13;
+    from { transform: scaleX(0); }&#13;
+    to   { transform: scaleX(1); }&#13;
+  }&#13;
+&#13;
+  .gpr-top  { animation: gprRise 0.6s $r-ease backwards; }&#13;
+  .gpr-tile { animation: gprRise 0.62s $r-ease backwards; }&#13;
+&#13;
+  .gpr-tile--active   { animation-delay: 0.06s; }&#13;
+  .gpr-tile--progress { animation-delay: 0.12s; }&#13;
+  .gpr-tile--open     { animation-delay: 0.18s; }&#13;
+  .gpr-tile--paid     { animation-delay: 0.24s; }&#13;
+&#13;
+  .gpr-tile__rule { animation: gprDrawX 0.7s $r-ease 0.3s backwards; }&#13;
+&#13;
+  .gpr-panel { animation: gprRise 0.62s $r-ease 0.28s backwards; }&#13;
+&#13;
+  /* the connectors draw out from their left edge, so the gap&#13;
+     appears rather than arriving */&#13;
+  .gpr-gap__link { animation: gprDrawX 0.7s $r-ease backwards; }&#13;
+&#13;
+  .gpr-gap__row--n1 .gpr-gap__link { animation-delay: 0.40s; }&#13;
+  .gpr-gap__row--n2 .gpr-gap__link { animation-delay: 0.45s; }&#13;
+  .gpr-gap__row--n3 .gpr-gap__link { animation-delay: 0.50s; }&#13;
+  .gpr-gap__row--n4 .gpr-gap__link { animation-delay: 0.55s; }&#13;
+  .gpr-gap__row--n5 .gpr-gap__link { animation-delay: 0.60s; }&#13;
+  .gpr-gap__row--n6 .gpr-gap__link { animation-delay: 0.65s; }&#13;
+  .gpr-gap__row--n7 .gpr-gap__link { animation-delay: 0.70s; }&#13;
+  .gpr-gap__row--n8 .gpr-gap__link { animation-delay: 0.75s; }&#13;
+&#13;
+  .gpr-filters { animation: gprRise 0.6s $r-ease 0.34s backwards; }&#13;
+&#13;
+  /* replays on every tab change, because ng-repeat rebuilds its&#13;
+     nodes and the keyframe starts again with them */&#13;
+  .gpr-card { animation: gprRise 0.5s $r-ease backwards; }&#13;
+&#13;
+  .gpr-card--n1  { animation-delay: 0.02s; }&#13;
+  .gpr-card--n2  { animation-delay: 0.05s; }&#13;
+  .gpr-card--n3  { animation-delay: 0.08s; }&#13;
+  .gpr-card--n4  { animation-delay: 0.11s; }&#13;
+  .gpr-card--n5  { animation-delay: 0.14s; }&#13;
+  .gpr-card--n6  { animation-delay: 0.17s; }&#13;
+  .gpr-card--n7  { animation-delay: 0.20s; }&#13;
+  .gpr-card--n8  { animation-delay: 0.23s; }&#13;
+  .gpr-card--n9  { animation-delay: 0.26s; }&#13;
+  .gpr-card--n10 { animation-delay: 0.29s; }&#13;
+&#13;
+  .gpr-card__fill  { animation: gprDrawX 0.7s $r-ease 0.1s backwards; }&#13;
+  .gpr-phase__bar  { animation: gprDrawX 0.5s $r-ease 0.16s backwards; }&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1280px) {&#13;
+&#13;
+  .gpr { padding: 26px 24px 60px; }&#13;
+&#13;
+  .gpr-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gpr-panels { grid-template-columns: minmax(0, 1fr); }&#13;
+}&#13;
+&#13;
+@media (max-width: 900px) {&#13;
+&#13;
+  .gpr { padding: 22px 16px 52px; }&#13;
+&#13;
+  .gpr-top__right {&#13;
+    width: 100%;&#13;
+    order: 2;&#13;
+  }&#13;
+&#13;
+  .gpr-search { width: 100%; }&#13;
+&#13;
+  .gpr-tiles { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+  .gpr-tabs {&#13;
+    flex-wrap: nowrap;&#13;
+    width: 100%;&#13;
+    overflow-x: auto;&#13;
+    padding-bottom: 3px;&#13;
+    -webkit-overflow-scrolling: touch;&#13;
+  }&#13;
+&#13;
+  .gpr-tab { flex-shrink: 0; }&#13;
+&#13;
+  .gpr-card__head {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 12px;&#13;
+  }&#13;
+&#13;
+  .gpr-card__figure {&#13;
+    display: flex;&#13;
+    align-items: baseline;&#13;
+    gap: 8px;&#13;
+    text-align: left;&#13;
+  }&#13;
+&#13;
+  .gpr-figure__label { margin-top: 0; }&#13;
+&#13;
+  /* five phase labels do not fit across a phone, so only the&#13;
+     current one keeps its name */&#13;
+  .gpr-phase { gap: 5px; }&#13;
+&#13;
+  .gpr-phase__name { display: none; }&#13;
+&#13;
+  .gpr-phase__step.is-now .gpr-phase__name {&#13;
+    display: block;&#13;
+    white-space: nowrap;&#13;
+  }&#13;
+&#13;
+  .gpr-card__foot {&#13;
+    align-items: flex-start;&#13;
+    flex-direction: column;&#13;
+  }&#13;
+&#13;
+  /* the reasons drop under the name rather than being squeezed&#13;
+     into a column that cannot hold two of them */&#13;
+  .gpr-attn__row {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 8px;&#13;
+  }&#13;
+&#13;
+  .gpr-attn__why { justify-content: flex-start; }&#13;
+&#13;
+  /* the name column narrows first, then the value column goes,&#13;
+     because the two markers are the part that has to stay&#13;
+     readable */&#13;
+  .gpr-gap__scale,&#13;
+  .gpr-gap__row {&#13;
+    grid-template-columns: 104px minmax(0, 1fr) 36px;&#13;
+    gap: 10px;&#13;
+  }&#13;
+&#13;
+  .gpr-gap__phase { display: none; }&#13;
+&#13;
+  .gpr-card__right {&#13;
+    width: 100%;&#13;
+    justify-content: space-between;&#13;
+  }&#13;
+&#13;
+  .gpr-rag { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gpr .gpr-kvs { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gpr * { transition: none; }&#13;
+  .gpr-tile:hover { transform: none; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -1699,7 +1622,7 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <name>New Project</name>
         <option_schema/>
         <public>false</public>
-        <roles/>
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
         <script><![CDATA[(function () {
 
   /* =========================================================
@@ -1832,7 +1755,7 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   function firstValidTable(list) {
     for (var i = 0; i < list.length; i++) {
       try {
-        var probe = new GlideRecord(list[i]);
+        var probe = new GlideRecordSecure(list[i]);
         if (probe.isValid()) return list[i];
       } catch (e) { /* next */ }
     }
@@ -2036,6 +1959,25 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           if (claims[pi].state === 'good') paid += claims[pi].amount;
         }
 
+        /* "1 days left" was the template doing arithmetic and
+           then concatenating a plural. The sentence is built
+           here where the number is known. */
+        var toEnd = daysUntil(pj.getValue('planned_end_date'));
+        var dueLabel = '';
+
+        if (group === 'active' && toEnd !== null) {
+          if (toEnd < 0) {
+            var over = Math.abs(toEnd);
+            dueLabel = over + ' ' + (over === 1 ? gs.getMessage('day overdue')
+                                                : gs.getMessage('days overdue'));
+          } else if (toEnd === 0) {
+            dueLabel = gs.getMessage('due today');
+          } else {
+            dueLabel = toEnd + ' ' + (toEnd === 1 ? gs.getMessage('day left')
+                                                  : gs.getMessage('days left'));
+          }
+        }
+
         data.projects.push({
           sysId    : projectId,
           number   : pj.getValue('number'),
@@ -2058,7 +2000,16 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           plannedStart: fmtDate(pj.getValue('planned_start_date')),
           actualEnd   : fmtDate(pj.getValue('actual_end_date')),
           plannedEnd  : fmtDate(pj.getValue('planned_end_date')),
-          daysToEnd   : daysUntil(pj.getValue('planned_end_date')),
+
+          /* kept raw as well, because the delivery gap needs to
+             do arithmetic on them rather than read them */
+          actualStartRaw : pj.getValue('actual_start_date'),
+          plannedStartRaw: pj.getValue('planned_start_date'),
+          actualEndRaw   : pj.getValue('actual_end_date'),
+          plannedEndRaw  : pj.getValue('planned_end_date'),
+          daysToEnd   : toEnd,
+          dueLabel    : dueLabel,
+          late        : (group === 'active' && toEnd !== null && toEnd < 0),
 
           reports : reports,
           changes : changes,
@@ -2136,34 +2087,179 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   ];
 
 
-  /* ---------- health split ---------- */
-  var hTotal = health.green + health.amber + health.red;
+  /* ---------- what needs attention ----------
 
-  data.health = [
-    { key: 'green', label: gs.getMessage('On track'), count: health.green,
-      pct: hTotal ? Math.round((health.green / hTotal) * 100) : 0 },
-    { key: 'amber', label: gs.getMessage('At risk'), count: health.amber,
-      pct: hTotal ? Math.round((health.amber / hTotal) * 100) : 0 },
-    { key: 'red', label: gs.getMessage('Critical'), count: health.red,
-      pct: hTotal ? Math.round((health.red / hTotal) * 100) : 0 }
-  ];
+     The health split bar is gone. With one project it rendered
+     a full width green block with a 1 in it, and the three
+     counts sat underneath it saying the same thing in words. A
+     lot of ink for one number, twice.
 
-  data.healthTotal = hTotal;
+     What a portfolio view is actually for is answering "is
+     anything wrong". So it names the projects that are, and why,
+     and says so plainly when none are. That reads correctly at
+     one project and stays useful at thirty.
+     ------------------------------------------------------- */
 
+  data.attention = [];
 
-  /* ---------- completion by project ---------- */
-  data.progressRows = [];
+  for (var ai = 0; ai < data.projects.length; ai++) {
 
-  var sorted = data.projects.slice(0).sort(function (a, b) { return b.percent - a.percent; });
+    var proj = data.projects[ai];
+    if (proj.group !== 'active') continue;
 
-  for (var s = 0; s < sorted.length && s < 6; s++) {
-    data.progressRows.push({
-      label : sorted[s].name,
-      pct   : sorted[s].percent,
-      health: sorted[s].health
+    var why = [];
+
+    if (proj.health === 'red') {
+      why.push({ tone: 'red', text: gs.getMessage('Reported critical') });
+    } else if (proj.health === 'amber') {
+      why.push({ tone: 'amber', text: gs.getMessage('Reported at risk') });
+    }
+
+    if (proj.late) {
+      why.push({ tone: 'red', text: proj.dueLabel });
+    }
+
+    /* Never reported, or not for a long time. A project in
+       delivery that has gone quiet is the thing this page most
+       needs to surface, and health alone cannot show it because
+       an old green report still reads as green. */
+    if (!proj.reports.length) {
+      why.push({ tone: 'amber', text: gs.getMessage('No report filed yet') });
+    } else {
+      var sinceDays = daysUntil(proj.reports[0].rawDate);
+      if (sinceDays !== null && sinceDays < -45) {
+        why.push({
+          tone: 'amber',
+          text: Math.abs(sinceDays) + ' ' + gs.getMessage('days since the last report')
+        });
+      }
+    }
+
+    if (proj.waiting > 0) {
+      why.push({
+        tone: 'blue',
+        text: proj.waiting + ' ' +
+              (proj.waiting === 1 ? gs.getMessage('item awaiting a decision')
+                                  : gs.getMessage('items awaiting a decision'))
+      });
+    }
+
+    if (why.length) {
+      data.attention.push({
+        sysId : proj.sysId,
+        name  : proj.name,
+        number: proj.number,
+        health: proj.health,
+        why   : why
+      });
+    }
+  }
+
+  /* worst first, so the top of the list is the one to open */
+  var TONE_RANK = { red: 0, amber: 1, blue: 2 };
+
+  data.attention.sort(function (a, b) {
+    return TONE_RANK[a.why[0].tone] - TONE_RANK[b.why[0].tone];
+  });
+
+  data.attentionCount = data.attention.length;
+
+  data.attentionClear = counts.active === 0
+    ? gs.getMessage('Nothing in delivery right now.')
+    : (counts.active === 1
+        ? gs.getMessage('Your project is on track, in date and reporting.')
+        : counts.active + ' ' + gs.getMessage('projects, all on track, in date and reporting.'));
+
+  /* ---------- the delivery gap ----------
+
+     A row of percent complete bars answers "how far along is
+     each project" and nothing else. Twenty percent is fine in
+     month one and alarming in month eleven, and a bar cannot
+     tell you which you are looking at.
+
+     This plots two points per project on the same track: how
+     much of the schedule has gone, and how much of the work is
+     done. The distance between them is the answer, and it reads
+     across the whole portfolio at a glance.
+
+     Projects with no dates cannot be plotted, so they are named
+     underneath rather than drawn at a position the data does not
+     support.
+     ------------------------------------------------------- */
+
+  data.gapRows = [];
+  data.gapNoDates = [];
+
+  for (var gi2 = 0; gi2 < data.projects.length; gi2++) {
+
+    var gp = data.projects[gi2];
+
+    /* a cancelled project has no schedule left to be behind */
+    if (gp.group === 'stopped') continue;
+
+    var startRaw = gp.actualStartRaw || gp.plannedStartRaw;
+    var endRaw   = gp.plannedEndRaw || gp.actualEndRaw;
+
+    if (!startRaw || !endRaw) {
+      data.gapNoDates.push({ sysId: gp.sysId, name: gp.name, pct: gp.percent });
+      continue;
+    }
+
+    var span = daysUntil(endRaw) - daysUntil(startRaw);
+    if (!span || span <= 0) {
+      data.gapNoDates.push({ sysId: gp.sysId, name: gp.name, pct: gp.percent });
+      continue;
+    }
+
+    var gone = 0 - daysUntil(startRaw);
+    var elapsed = Math.max(0, Math.min(100, Math.round((gone / span) * 100)));
+    var done = gp.percent;
+    var gapPts = done - elapsed;
+
+    /* Closed projects are shown at their real numbers rather
+       than forced to 100, because a project closed at sixty
+       percent is a fact worth seeing. */
+    var tone;
+    if (gapPts <= -20)     tone = 'late';
+    else if (gapPts <= -8) tone = 'watch';
+    else if (gapPts >= 8)  tone = 'ahead';
+    else                   tone = 'even';
+
+    data.gapRows.push({
+      sysId  : gp.sysId,
+      name   : gp.name,
+      phase  : gp.phase,
+      group  : gp.group,
+      elapsed: elapsed,
+      done   : done,
+      /* the connector runs between the two markers whichever
+         way round they are */
+      from   : Math.min(elapsed, done),
+      width  : Math.abs(gapPts),
+      gap    : gapPts,
+      gapText: (gapPts > 0 ? '+' : '') + gapPts,
+      tone   : tone
     });
   }
 
+  /* furthest behind first, because that is the row worth
+     opening */
+  data.gapRows.sort(function (a, b) { return a.gap - b.gap; });
+
+  data.hasGap = data.gapRows.length > 0;
+
+  var behind = 0;
+  for (var bi = 0; bi < data.gapRows.length; bi++) {
+    if (data.gapRows[bi].gap <= -8) behind++;
+  }
+
+  data.gapVerdict = !data.gapRows.length
+    ? ''
+    : (behind === 0
+        ? gs.getMessage('Every project with dates is tracking its calendar.')
+        : (behind === 1
+            ? gs.getMessage('One project is meaningfully behind its calendar.')
+            : behind + ' ' + gs.getMessage('projects are meaningfully behind their calendars.')));
 
   /* ============================================================
      COPY
@@ -2178,12 +2274,17 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     tabDone   : gs.getMessage('Closed'),
     tabStopped: gs.getMessage('Cancelled'),
 
-    healthTitle: gs.getMessage('Project health'),
-    healthHint : gs.getMessage('Self reported on the latest status report'),
-    healthEmpty: gs.getMessage('No projects to report on yet.'),
+    attnTitle: gs.getMessage('Needs your attention'),
+    attnHint : gs.getMessage('Projects reporting badly, running past their date, or that have gone quiet'),
+    attnClear: gs.getMessage('Nothing needs attention'),
 
-    progTitle: gs.getMessage('Completion by project'),
-    progHint : gs.getMessage('Percent complete on the project record'),
+    gapTitle : gs.getMessage('Delivery against the calendar'),
+    gapHint  : gs.getMessage('Two points per project: how much of the schedule has gone, and how much of the work is done. The distance between them is the story.'),
+    gapNone  : gs.getMessage('No project has both a start and a planned end date yet, so there is nothing to plot.'),
+    gapDone  : gs.getMessage('Work complete'),
+    gapTime  : gs.getMessage('Schedule elapsed'),
+    gapNoDate: gs.getMessage('No dates set, so not plotted'),
+    gapPoints: gs.getMessage('points'),
 
     listTitle: gs.getMessage('All projects'),
     listHint : gs.getMessage('Sorted by last update'),
@@ -2202,8 +2303,9 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     cRisks  : gs.getMessage('Risks'),
     cIssues : gs.getMessage('Issues'),
 
-    view : gs.getMessage('View project'),
-    close: gs.getMessage('Close'),
+    view   : gs.getMessage('View project'),
+    opening: gs.getMessage('Opening'),
+    close  : gs.getMessage('Close'),
 
     mOverview  : gs.getMessage('Overview'),
     mDates     : gs.getMessage('Dates'),
@@ -2260,20 +2362,23 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     awards: opt('awards_page', 'x_enno_gatenow_awards')
   };
 
+  /* the widget the list hands off to when a project is opened */
+  data.detailWidget = opt('detail_widget', 'each_project_detail');
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-08-20 07:47:26</sys_created_on>
         <sys_id>2ab093f593fe8b10d444c9b877373c93</sys_id>
-        <sys_mod_count>37</sys_mod_count>
+        <sys_mod_count>48</sys_mod_count>
         <sys_name>New Project</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_2ab093f593fe8b10d444c9b877373c93</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-08-31 02:47:52</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:42:32</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · MY PROJECTS
      Service Portal widget · HTML template
@@ -2303,8 +2408,19 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
 <main class="gpr">
 
+    <!-- ═══════════════ ONE PROJECT ═══════════════
+         The detail widget takes the whole column when a project
+         is opened. It emits gn_close_project_details when the
+         person comes back, and the list reappears with fresh
+         counts.
+         ═══════════════════════════════════════════ -->
+    <div class="gpr-detail" ng-if="c.detail">
+      <sp-widget widget="c.detail"></sp-widget>
+    </div>
+
+
     <!-- ═══════════════ HEADER ═══════════════ -->
-    <header class="gpr-top">
+    <header class="gpr-top" ng-if="!c.detail">
 
       <div class="gpr-top__lead">
         <h1 class="gpr-top__title">{{c.data.t.title}}</h1>
@@ -2339,7 +2455,7 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
 
     <!-- ═══════════════ NOTHING YET ═══════════════ -->
-    <div class="gpr-blank" ng-if="!c.data.projects.length">
+    <div class="gpr-blank" ng-if="!c.data.projects.length && !c.detail">
       <span class="gpr-blank__mark" aria-hidden="true"><i class="fa fa-briefcase"></i></span>
       <p class="gpr-blank__title">{{c.data.t.emptyTitle}}</p>
       <p class="gpr-blank__text">{{c.data.t.emptyText}}</p>
@@ -2347,7 +2463,7 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     </div>
 
 
-    <div ng-if="c.data.projects.length">
+    <div ng-if="c.data.projects.length && !c.detail">
 
       <!-- ═══════════════ TILES ═══════════════ -->
       <section class="gpr-tiles">
@@ -2365,55 +2481,122 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       <!-- ═══════════════ PANELS ═══════════════ -->
       <section class="gpr-panels">
 
-        <!-- health -->
+        <!-- what needs attention -->
         <article class="gpr-panel">
 
           <header class="gpr-panel__head">
-            <h2 class="gpr-panel__title">{{c.data.t.healthTitle}}</h2>
-            <p class="gpr-panel__hint">{{c.data.t.healthHint}}</p>
+            <div>
+              <h2 class="gpr-panel__title">{{c.data.t.attnTitle}}</h2>
+              <p class="gpr-panel__hint">{{c.data.t.attnHint}}</p>
+            </div>
+            <span class="gpr-count" ng-if="c.data.attentionCount">{{c.data.attentionCount}}</span>
           </header>
 
-          <div class="gpr-split" ng-if="c.data.healthTotal">
-            <span class="gpr-split__seg"
-                  ng-repeat="h in c.data.health track by h.key"
-                  ng-class="'gpr-split__seg--' + h.key"
-                  ng-if="h.count"
-                  ng-style="{width: h.pct + '%'}">{{h.count}}</span>
-          </div>
-
-          <ul class="gpr-key" ng-if="c.data.healthTotal">
-            <li ng-repeat="h in c.data.health track by h.key">
-              <span class="gpr-key__dot" ng-class="'gpr-key__dot--' + h.key" aria-hidden="true"></span>
-              <span class="gpr-key__label">{{h.label}}</span>
-              <span class="gpr-key__count">{{h.count}}</span>
+          <ul class="gpr-attn" ng-if="c.data.attentionCount">
+            <li ng-repeat="a in c.data.attention track by a.sysId"
+                ng-class="'gpr-attn--' + a.health">
+              <button type="button" class="gpr-attn__row" ng-click="c.openProject(a)">
+                <span class="gpr-attn__name" title="{{a.name}}">{{a.name}}</span>
+                <span class="gpr-attn__why">
+                  <span class="gpr-tag"
+                        ng-repeat="w in a.why track by $index"
+                        ng-class="'gpr-tag--' + w.tone">{{w.text}}</span>
+                </span>
+              </button>
             </li>
           </ul>
 
-          <p class="gpr-panel__empty" ng-if="!c.data.healthTotal">{{c.data.t.healthEmpty}}</p>
+          <!-- said plainly, rather than drawn as a green bar
+               with a number in it -->
+          <div class="gpr-clear" ng-if="!c.data.attentionCount">
+            <span class="gpr-clear__mark" aria-hidden="true">
+              <i class="fa fa-check"></i>
+            </span>
+            <span class="gpr-clear__body">
+              <span class="gpr-clear__title">{{c.data.t.attnClear}}</span>
+              <span class="gpr-clear__text">{{c.data.attentionClear}}</span>
+            </span>
+          </div>
 
         </article>
 
-        <!-- completion -->
+        <!-- delivery against the calendar -->
         <article class="gpr-panel">
 
           <header class="gpr-panel__head">
-            <h2 class="gpr-panel__title">{{c.data.t.progTitle}}</h2>
-            <p class="gpr-panel__hint">{{c.data.t.progHint}}</p>
+            <div>
+              <h2 class="gpr-panel__title">{{c.data.t.gapTitle}}</h2>
+              <p class="gpr-panel__hint">{{c.data.t.gapHint}}</p>
+            </div>
+            <ul class="gpr-legend">
+              <li><span class="gpr-legend__time" aria-hidden="true"></span>{{c.data.t.gapTime}}</li>
+              <li><span class="gpr-legend__done" aria-hidden="true"></span>{{c.data.t.gapDone}}</li>
+            </ul>
           </header>
 
-          <div class="gpr-bars">
-            <div class="gpr-bar"
-                 ng-repeat="r in c.data.progressRows track by $index"
-                 ng-class="'gpr-bar--' + ($index + 1)">
-              <span class="gpr-bar__row">
-                <span class="gpr-bar__name" title="{{r.label}}">{{r.label}}</span>
-                <span class="gpr-bar__pct">{{r.pct}}%</span>
+          <div class="gpr-gap" ng-if="c.data.hasGap">
+
+            <!-- the scale, once, rather than a number on every
+                 row -->
+            <div class="gpr-gap__scale" aria-hidden="true">
+              <span class="gpr-gap__pad"></span>
+              <span class="gpr-gap__ticks">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
               </span>
-              <span class="gpr-bar__track">
-                <span class="gpr-bar__fill" ng-class="'gpr-bar__fill--' + r.health"
-                      ng-style="{width: r.pct + '%'}"></span>
-              </span>
+              <span class="gpr-gap__pad"></span>
             </div>
+
+            <div class="gpr-gap__row"
+                 ng-repeat="g in c.data.gapRows track by g.sysId"
+                 ng-class="['gpr-gap__row--' + g.tone, 'gpr-gap__row--n' + (($index % 8) + 1)]">
+
+              <button type="button" class="gpr-gap__name" ng-click="c.openProject(g)" title="{{g.name}}">
+                <span class="gpr-gap__label">{{g.name}}</span>
+                <span class="gpr-gap__phase" ng-if="g.phase">{{g.phase}}</span>
+              </button>
+
+              <span class="gpr-gap__track">
+
+                <span class="gpr-gap__grid" aria-hidden="true"></span>
+                <span class="gpr-gap__grid gpr-gap__grid--mid" aria-hidden="true"></span>
+                <span class="gpr-gap__grid gpr-gap__grid--end" aria-hidden="true"></span>
+
+                <!-- the connector is the gap itself, which is
+                     the thing the chart is about -->
+                <span class="gpr-gap__link"
+                      ng-style="{left: g.from + '%', width: g.width + '%'}"></span>
+
+                <span class="gpr-gap__time"
+                      ng-style="{left: g.elapsed + '%'}"
+                      title="{{c.data.t.gapTime}} {{g.elapsed}}%"></span>
+
+                <span class="gpr-gap__done"
+                      ng-style="{left: g.done + '%'}"
+                      title="{{c.data.t.gapDone}} {{g.done}}%"></span>
+
+              </span>
+
+              <span class="gpr-gap__value">{{g.gapText}}</span>
+
+            </div>
+
+            <p class="gpr-gap__verdict" ng-if="c.data.gapVerdict">{{c.data.gapVerdict}}</p>
+
+          </div>
+
+          <p class="gpr-panel__empty" ng-if="!c.data.hasGap">{{c.data.t.gapNone}}</p>
+
+          <!-- named rather than plotted at a position the data
+               does not support -->
+          <div class="gpr-nodate" ng-if="c.data.gapNoDates.length">
+            <span class="gpr-nodate__label">{{c.data.t.gapNoDate}}</span>
+            <ul class="gpr-nodate__list">
+              <li ng-repeat="n in c.data.gapNoDates track by n.sysId">
+                {{n.name}} <strong>{{n.pct}}%</strong>
+              </li>
+            </ul>
           </div>
 
         </article>
@@ -2445,7 +2628,11 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
         <article class="gpr-card"
                  ng-repeat="p in c.shown() track by p.sysId"
-                 ng-class="['gpr-card--' + p.health, 'gpr-card--n' + (($index % 10) + 1)]">
+                 ng-class="['gpr-card--' + p.health, 'gpr-card--n' + (($index % 10) + 1),
+                            {'is-busy': c.loading === p.sysId}]"
+                 ng-click="c.openProject(p)"
+                 tabindex="0"
+                 ng-keydown="($event.keyCode === 13) && c.openProject(p)">
 
           <span class="gpr-card__rail" aria-hidden="true"></span>
 
@@ -2462,9 +2649,8 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
                   <span class="gpr-card__sep" ng-if="p.program" aria-hidden="true">&middot;</span>
                   <span>{{p.number}}</span>
                 </span>
-                <span class="gpr-due" ng-if="p.group === 'active' && p.daysToEnd !== null"
-                      ng-class="{'is-late': p.daysToEnd < 0}">
-                  {{p.daysToEnd < 0 ? (-p.daysToEnd + ' ' + c.data.t.overdue) : (p.daysToEnd + ' ' + c.data.t.daysLeft)}}
+                <span class="gpr-due" ng-if="p.dueLabel" ng-class="{'is-late': p.late}">
+                  {{p.dueLabel}}
                 </span>
               </span>
 
@@ -2534,8 +2720,10 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
                 </li>
               </ul>
 
-              <button type="button" class="gpr-btn gpr-btn--ghost" ng-click="c.openDetail(p)">
-                {{c.data.t.view}}
+              <button type="button" class="gpr-btn gpr-btn--ghost"
+                      ng-click="c.openProject(p)"
+                      ng-disabled="c.loading">
+                {{c.loading === p.sysId ? c.data.t.opening : c.data.t.view}}
               </button>
 
             </div>
@@ -2555,208 +2743,6 @@ $r-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
     </div>
 
-
-    <!-- ═══════════════ DETAIL ═══════════════ -->
-    <div class="gpr-modal" ng-if="c.open" ng-click="c.closeDetail()">
-
-      <div class="gpr-modal__panel" role="dialog" aria-modal="true"
-           aria-labelledby="gprModalTitle" ng-click="$event.stopPropagation()">
-
-        <header class="gpr-modal__head">
-
-          <div class="gpr-modal__lead">
-            <span class="gpr-modal__ref">{{c.open.number}}</span>
-            <h2 class="gpr-modal__title" id="gprModalTitle">{{c.open.name}}</h2>
-            <span class="gpr-health" ng-class="'gpr-health--' + c.open.health">
-              <span class="gpr-health__dot" aria-hidden="true"></span>{{c.open.healthLabel}}
-              <span class="gpr-modal__phase">{{c.open.phase}}</span>
-            </span>
-          </div>
-
-          <button type="button" class="gpr-modal__x" ng-click="c.closeDetail()"
-                  aria-label="{{c.data.t.close}}">
-            <i class="fa fa-times" aria-hidden="true"></i>
-          </button>
-
-        </header>
-
-        <nav class="gpr-mtabs">
-          <button type="button" class="gpr-mtab"
-                  ng-repeat="m in c.modalTabs track by m.key"
-                  ng-if="m.show(c.open)"
-                  ng-class="{'is-on': c.mtab === m.key}"
-                  ng-click="c.mtab = m.key">
-            {{m.label}}
-            <span class="gpr-mtab__n" ng-if="m.count(c.open)">{{m.count(c.open)}}</span>
-          </button>
-        </nav>
-
-        <div class="gpr-modal__body">
-
-          <!-- overview -->
-          <section ng-if="c.mtab === 'overview'">
-
-            <dl class="gpr-kvs">
-              <div class="gpr-kv"><dt>{{c.data.t.mProgram}}</dt><dd ng-class="{'is-blank': !c.open.program}">{{c.open.program || c.data.t.mNone}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mAward}}</dt><dd ng-class="{'is-blank': !c.open.award}">{{c.open.award || c.data.t.mNone}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mApplicant}}</dt><dd ng-class="{'is-blank': !c.open.applicant}">{{c.open.applicant || c.data.t.mNone}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.manager}}</dt><dd ng-class="{'is-blank': !c.open.manager}">{{c.open.manager || c.data.t.mNone}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mPhase}}</dt><dd>{{c.open.phase}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mPercent}}</dt><dd class="gpr-kv--num">{{c.open.percent}}%</dd></div>
-            </dl>
-
-            <div class="gpr-prose" ng-if="c.open.description">
-              <p class="gpr-prose__label">{{c.data.t.mDesc}}</p>
-              <p class="gpr-prose__text">{{c.open.description}}</p>
-            </div>
-
-            <div class="gpr-prose" ng-if="c.open.notes">
-              <p class="gpr-prose__label">{{c.data.t.mNotes}}</p>
-              <p class="gpr-prose__text">{{c.open.notes}}</p>
-            </div>
-
-            <h4 class="gpr-sub">{{c.data.t.mDates}}</h4>
-            <dl class="gpr-kvs">
-              <div class="gpr-kv"><dt>{{c.data.t.mActualStart}}</dt><dd ng-class="{'is-blank': !c.open.actualStart}">{{c.open.actualStart || c.data.t.notSet}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mPlannedStart}}</dt><dd ng-class="{'is-blank': !c.open.plannedStart}">{{c.open.plannedStart || c.data.t.notSet}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mActualEnd}}</dt><dd ng-class="{'is-blank': !c.open.actualEnd}">{{c.open.actualEnd || c.data.t.notSet}}</dd></div>
-              <div class="gpr-kv"><dt>{{c.data.t.mPlannedEnd}}</dt><dd ng-class="{'is-blank': !c.open.plannedEnd}">{{c.open.plannedEnd || c.data.t.notSet}}</dd></div>
-            </dl>
-
-          </section>
-
-          <!-- status reports -->
-          <section ng-if="c.mtab === 'reports'">
-
-            <div class="gpr-report" ng-repeat="r in c.open.reports track by $index">
-
-              <header class="gpr-report__head">
-                <span class="gpr-report__num">{{r.number}}</span>
-                <span class="gpr-report__type" ng-if="r.type">{{r.type}}</span>
-                <span class="gpr-report__date">{{r.date}}</span>
-                <span class="gpr-health gpr-health--sm" ng-class="'gpr-health--' + r.health.key">
-                  <span class="gpr-health__dot" aria-hidden="true"></span>{{r.health.label}}
-                </span>
-              </header>
-
-              <!-- the four ratings, side by side rather than in a
-                   list, so a red one is visible at a glance -->
-              <div class="gpr-rag">
-                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.schedule.key">
-                  <span class="gpr-rag__label">{{c.data.t.mSchedule}}</span>
-                  <span class="gpr-rag__value">{{r.schedule.label}}</span>
-                </span>
-                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.cost.key">
-                  <span class="gpr-rag__label">{{c.data.t.mCost}}</span>
-                  <span class="gpr-rag__value">{{r.cost.label}}</span>
-                </span>
-                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.resource.key">
-                  <span class="gpr-rag__label">{{c.data.t.mResources}}</span>
-                  <span class="gpr-rag__value">{{r.resource.label}}</span>
-                </span>
-                <span class="gpr-rag__item" ng-class="'gpr-rag__item--' + r.scope.key">
-                  <span class="gpr-rag__label">{{c.data.t.mScope}}</span>
-                  <span class="gpr-rag__value">{{r.scope.label}}</span>
-                </span>
-              </div>
-
-              <div class="gpr-prose" ng-if="r.summary">
-                <p class="gpr-prose__label">{{c.data.t.mSummary}}</p>
-                <p class="gpr-prose__text">{{r.summary}}</p>
-              </div>
-
-              <div class="gpr-prose" ng-if="r.achieved">
-                <p class="gpr-prose__label">{{c.data.t.mAchieved}}</p>
-                <p class="gpr-prose__text">{{r.achieved}}</p>
-              </div>
-
-              <div class="gpr-prose" ng-if="r.nextUp">
-                <p class="gpr-prose__label">{{c.data.t.mNextUp}}</p>
-                <p class="gpr-prose__text">{{r.nextUp}}</p>
-              </div>
-
-            </div>
-
-            <p class="gpr-empty" ng-if="!c.open.reports.length">{{c.data.t.mEmptyList}}</p>
-
-          </section>
-
-          <!-- change requests -->
-          <section ng-if="c.mtab === 'changes'">
-
-            <div class="gpr-item" ng-repeat="ch in c.open.changes track by $index">
-              <div class="gpr-item__head">
-                <span class="gpr-item__num">{{ch.number}}</span>
-                <span class="gpr-pill" ng-class="'gpr-pill--' + ch.state">{{ch.approval}}</span>
-                <span class="gpr-item__date">{{ch.created}}</span>
-              </div>
-              <p class="gpr-item__title" ng-if="ch.title">{{ch.title}}</p>
-              <p class="gpr-item__meta">
-                <span ng-if="ch.category">{{c.data.t.mCategory}}: <strong>{{ch.category}}</strong></span>
-                <span ng-if="ch.priority">{{c.data.t.mPriority}}: <strong>{{ch.priority}}</strong></span>
-                <span ng-if="ch.impact">{{c.data.t.mImpact}}: <strong>{{ch.impact}}</strong></span>
-              </p>
-              <p class="gpr-item__text" ng-if="ch.reason">{{ch.reason}}</p>
-            </div>
-
-            <p class="gpr-empty" ng-if="!c.open.changes.length">{{c.data.t.mEmptyList}}</p>
-
-          </section>
-
-          <!-- reimbursements -->
-          <section ng-if="c.mtab === 'claims'">
-
-            <div class="gpr-item" ng-repeat="cl in c.open.claims track by $index">
-              <div class="gpr-item__head">
-                <span class="gpr-item__num">{{cl.number}}</span>
-                <span class="gpr-pill" ng-class="'gpr-pill--' + cl.state">{{cl.status}}</span>
-                <span class="gpr-item__amount">{{cl.amountText || '—'}}</span>
-                <span class="gpr-item__date">{{cl.created}}</span>
-              </div>
-              <p class="gpr-item__text" ng-if="cl.summary">{{cl.summary}}</p>
-            </div>
-
-            <p class="gpr-empty" ng-if="!c.open.claims.length">{{c.data.t.mEmptyList}}</p>
-
-          </section>
-
-          <!-- risks -->
-          <section ng-if="c.mtab === 'risks'">
-            <div class="gpr-item" ng-repeat="rk in c.open.risks track by $index">
-              <div class="gpr-item__head">
-                <span class="gpr-item__num">{{rk.number}}</span>
-                <span class="gpr-pill gpr-pill--wait" ng-if="rk.state">{{rk.state}}</span>
-                <span class="gpr-item__date">{{rk.created}}</span>
-              </div>
-              <p class="gpr-item__title" ng-if="rk.title">{{rk.title}}</p>
-            </div>
-            <p class="gpr-empty" ng-if="!c.open.risks.length">{{c.data.t.mEmptyList}}</p>
-          </section>
-
-          <!-- issues -->
-          <section ng-if="c.mtab === 'issues'">
-            <div class="gpr-item" ng-repeat="is in c.open.issues track by $index">
-              <div class="gpr-item__head">
-                <span class="gpr-item__num">{{is.number}}</span>
-                <span class="gpr-pill gpr-pill--wait" ng-if="is.state">{{is.state}}</span>
-                <span class="gpr-item__date">{{is.created}}</span>
-              </div>
-              <p class="gpr-item__title" ng-if="is.title">{{is.title}}</p>
-            </div>
-            <p class="gpr-empty" ng-if="!c.open.issues.length">{{c.data.t.mEmptyList}}</p>
-          </section>
-
-        </div>
-
-        <footer class="gpr-modal__foot">
-          <button type="button" class="gpr-btn gpr-btn--primary" ng-click="c.closeDetail()">
-            {{c.data.t.close}}
-          </button>
-        </footer>
-
-      </div>
-
-    </div>
 
   </main>
 

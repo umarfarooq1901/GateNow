@@ -1,529 +1,1596 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $sce, spUtil, $location, $timeout) {
-    var c = this;
+        <client_script><![CDATA[api.controller = function($window, spModal) {
 
-    c.detailTab = 'overview';
+  /* =========================================================
+     GATENOW · AWARD DETAIL · Client script
 
-    if (c.data.selectedAward) {
-        c.data.selectedAward.award_letter = $sce.trustAsHtml(
-            c.data.selectedAward.award_letter || '<p>No award letter content found.</p>'
-        );
-        if (!c.data.selectedAward.decision_reason) {
-            c.data.selectedAward.decision_reason = 'No rationale provided.';
-        }
-    }
+     Reading is local. The three writes go to the server and
+     then reload, which is the one time a repaint is the right
+     thing to do — the reload brings back the recorded response,
+     the new journal entry, the recounted tiles and the redrawn
+     charts in one pass.
 
-    c.setDetailTab = function(tab) { c.detailTab = tab; };
+     Both decisions confirm first, and the confirm carries an
+     optional note. Declining releases the money to someone else
+     and cannot be undone; accepting commits to a reporting
+     schedule. Neither should happen on a mis-click, and a
+     decline with a reason on it is worth far more to the
+     program office than a bare state change.
 
-    c.backToList = function() { 
-        $location.search({ id: c.data.list_page || 'my_award_list' });
-    };
+     Nothing here calculates chart geometry. The server ships
+     finished coordinates and this binds them, so there is one
+     place to look when a line is in the wrong spot.
+     ========================================================= */
 
-    c.amountPercent = function(award) { return 100; };
+  var c = this;
 
-    c.formatSize = function(bytes) {
-        if (!bytes) return '—';
-        if (bytes < 1024)    return bytes + ' B';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / 1048576).toFixed(1) + ' MB';
-    };
+  c.busy = '';
+  c.note = '';
+  c.tab  = 'overview';
 
-    c.fileIcon = function(contentType) {
-        if (!contentType) return 'fa-file-o';
-        if (contentType.indexOf('pdf')    > -1) return 'fa-file-pdf-o';
-        if (contentType.indexOf('image')  > -1) return 'fa-file-image-o';
-        if (contentType.indexOf('word')   > -1) return 'fa-file-word-o';
-        if (contentType.indexOf('sheet')  > -1 ||
-            contentType.indexOf('excel')  > -1) return 'fa-file-excel-o';
-        if (contentType.indexOf('zip')    > -1) return 'fa-file-archive-o';
-        return 'fa-file-o';
-    };
 
-   c.updateChoice = function(award, statusValue) {
-    if (!award.work_notes || award.work_notes.trim().length < 10) {
-        spUtil.addErrorMessage('Comments are required (minimum 10 characters).');
+  /* =====================================================
+     TABS
+
+     Filtered here rather than with ng-if on the repeat: two
+     directives on one element each make a child scope, and
+     that pair is not worth debugging.
+
+     A tab with nothing behind it is not shown at all. An empty
+     tab is a dead end the reader has to open to find out
+     about.
+     ===================================================== */
+
+  function buildTabs() {
+
+    if (!c.data.found) return [];
+
+    var all = [
+      { key: 'overview', label: c.data.t.tabOverview,
+        show : function() { return true; },
+        count: function() { return 0; } },
+
+      { key: 'letter', label: c.data.t.tabLetter,
+        show : function() { return !!c.data.award.letter; },
+        count: function() { return 0; } },
+
+      { key: 'program', label: c.data.t.tabProgram,
+        show : function() { return !!c.data.program; },
+        count: function() { return 0; } },
+
+      { key: 'applicant', label: c.data.t.tabApp,
+        show : function() { return !!c.data.application; },
+        count: function() { return 0; } },
+
+      { key: 'claims', label: c.data.t.tabClaims,
+        show : function() { return (c.data.claims || []).length > 0; },
+        count: function() { return (c.data.claims || []).length; } },
+
+      { key: 'notes', label: c.data.t.tabNotes,
+        show : function() { return true; },
+        count: function() { return (c.data.notes || []).length; } }
+    ];
+
+    return all.filter(function(t) { return t.show(); });
+  }
+
+  c.tabs = buildTabs();
+
+  c.setTab = function(key) {
+    if (!key || c.tab === key) return;
+    for (var i = 0; i < c.tabs.length; i++) {
+      if (c.tabs[i].key === key) {
+        c.tab = key;
         return;
+      }
     }
+  };
 
-   
-    c.submitting = true;
+  c.isTab = function(key) { return c.tab === key; };
 
-    c.data.action             = 'update_award_choice';
-    c.data.target_id          = award.sys_id;
-    c.data.new_status         = statusValue;
-    c.data.comment_submission = award.work_notes;
 
-    c.server.update().then(function() {
-        award.applicant_response         = statusValue;
-        award.applicant_response_display = (statusValue === 'Acknowledged') ? 'Acknowledged' : 'Rejected';
-        award.work_notes                 = '';
+  /* =====================================================
+     WRITES
+     ===================================================== */
 
-        var msg = statusValue === 'Acknowledged'? 'Award accepted successfully! Thank you for your response.' : ' Award declined. Your response has been recorded.';
-
-        spUtil.addInfoMessage(msg);
-
-        $timeout(function() {
-            c.submitting = false;
-            c.detailTab  = 'overview';
-        }, 1500);
+  function tell(title, message) {
+    spModal.open({
+      title: title,
+      message: message || '',
+      buttons: [{ label: c.data.t.ok, primary: true }]
     });
-};
+  }
+
+  function send(payload, okTitle) {
+    c.busy = payload.action;
+
+    c.server.get(payload).then(function(r) {
+      c.busy = '';
+      var resp = (r && r.data) ? r.data : {};
+
+      if (resp.success) {
+        c.note = '';
+        tell(okTitle, c.data.award.program);
+        c.server.update().then(function() {
+          c.tabs = buildTabs();
+        });
+      } else {
+        tell(c.data.t.failed, resp.error);
+      }
+    }, function() {
+      c.busy = '';
+      tell(c.data.t.failed, '');
+    });
+  }
+
+  /* the confirm carries a free-text field, and whatever is
+     typed into it is written onto the award as a work note
+     alongside the decision */
+  function confirmThen(title, message, yes, action, okTitle) {
+
+    spModal.open({
+      title  : title,
+      message: message,
+      input  : true,
+      label  : c.data.t.reasonLabel,
+      value  : '',
+      buttons: [
+        { label: c.data.t.keep, cancel: true },
+        { label: yes, primary: true }
+      ]
+    }).then(function(result) {
+
+      var reason = '';
+      if (result && typeof result === 'object') reason = result.value || '';
+      else if (typeof result === 'string')      reason = result;
+
+      send({ action: action, reason: reason }, okTitle);
+    });
+  }
+
+  c.accept = function() {
+    if (c.busy || !c.data.award.canAct) return;
+    confirmThen(c.data.t.acceptTitle, c.data.t.acceptText,
+                c.data.t.acceptYes, 'acknowledge', c.data.t.accepted);
+  };
+
+  c.decline = function() {
+    if (c.busy || !c.data.award.canAct) return;
+    confirmThen(c.data.t.declineTitle, c.data.t.declineText,
+                c.data.t.declineYes, 'decline', c.data.t.declined);
+  };
+
+  c.sendNote = function() {
+    if (c.busy) return;
+
+    var body = (c.note || '').trim();
+    if (!body) return;
+
+    send({ action: 'add_note', note: body }, c.data.t.noteSent);
+  };
+
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>/* ══ RESET &amp; VARS ══════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --brand:      #5443AD;
-  --brand-lt:   #ede9fe;
-  --green:      #059669; --green-lt: #dcfce7; --green-mid: #10b981;
-  --amber:      #d97706; --amber-lt: #fef3c7; --amber-mid: #f59e0b;
-  --red:        #dc2626; --red-lt:   #fee2e2; --red-mid:   #ef4444;
-  --slate-900:  #0f172a; --slate-700: #334155; --slate-500: #64748b;
-  --slate-300:  #cbd5e1; --slate-200: #e2e8f0; --slate-100: #f1f5f9; --slate-50: #f8fafc;
-  --white:      #ffffff;
-  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
-}
-
-/* ══ LAYOUT &amp; SIDEBAR ════════════════════════════════════════ */
-.gn-layout {
-  margin-left: -15px;
-  margin-right: -15px;
-  margin-top: 35px;
-  width: calc(100% + 30px);
-  display: flex;
-  align-items: stretch;          
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  background: #f0f2f8;
-  position: relative;
-  min-height: 100vh;
-}
-
-.gn-layout *,
-.gn-layout *::before,
-.gn-layout *::after {
-  box-sizing: border-box;
-}
-
-.aw-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: #5443AD;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  align-self: flex-start;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  z-index: 10;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-/* ══ MAIN DETAIL CONTAINER ═══════════════════════════════════ */
-.aw-detail {
-  flex: 1;
-  min-width: 0;
-  min-height: 100vh;
-  padding: 36px 40px 72px;
-  box-sizing: border-box;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  background: #f0f2f8;
-  animation: awUp .3s ease both;
-}
-
-/* ── Sticky Top Bar ── */
-.dt-topbar {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--white); border: 1px solid #e4e9f2;
-  border-radius: var(--r-lg); padding: 12px 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  animation: awUp .3s ease both;
-}
-.dt-back {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 700; color: var(--brand);
-  background: var(--brand-lt); border: 1px solid rgba(99,102,241,0.25);
-  border-radius: 8px; padding: 7px 14px; cursor: pointer;
-  white-space: nowrap; transition: all .18s;
-}
-.dt-back:hover { background: var(--brand); color: #fff; }
-.dt-topbar-crumb {
-  flex: 1; display: flex; align-items: center; gap: 6px;
-  font-size: 13px; overflow: hidden;
-}
-.dt-crumb-prog {
-  color: var(--slate-500); font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
-}
-.dt-crumb-sep { color: var(--slate-200); }
-.dt-crumb-num { color: var(--slate-900); font-weight: 800; white-space: nowrap; }
-.dt-topbar-badge {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 14px; border-radius: 99px;
-  font-size: 12px; font-weight: 700; flex-shrink: 0;
-}
-.dt-badge--green { background: var(--green-lt); color: var(--green); border: 1px solid #86efac; }
-.dt-badge--amber { background: var(--amber-lt); color: var(--amber); border: 1px solid #fde68a; }
-.dt-badge--red   { background: var(--red-lt);   color: var(--red);   border: 1px solid #fca5a5; }
-
-/* ── Hero ── */
-.dt-hero {
-  border-radius: var(--r-xl); overflow: hidden;
-  margin-bottom: 20px; position: relative;
-  animation: awUp .35s ease both;
-}
-.dt-hero--green { background: linear-gradient(135deg, #022c22 0%, #064e3b 35%, #059669 70%, #34d399 100%); box-shadow: 0 20px 56px rgba(5,150,105,0.35); }
-.dt-hero--amber { background: linear-gradient(135deg, #1c0700 0%, #451a03 35%, #d97706 70%, #fbbf24 100%); box-shadow: 0 20px 56px rgba(217,119,6,0.35); }
-.dt-hero--red   { background: linear-gradient(135deg, #1a0000 0%, #450a0a 35%, #dc2626 70%, #f87171 100%); box-shadow: 0 20px 56px rgba(220,38,38,0.35); }
-.dt-hero-glow {
-  position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at 15% 50%, rgba(255,255,255,0.07) 0%, transparent 55%),
-              radial-gradient(ellipse at 90% 10%, rgba(255,255,255,0.05) 0%, transparent 45%);
-}
-.dt-hero-inner {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 24px; padding: 36px 40px 28px; position: relative; z-index: 1;
-}
-.dt-hero-left { display: flex; align-items: flex-start; gap: 20px; flex: 1; min-width: 0; }
-.dt-hero-icon-wrap {
-  width: 64px; height: 64px; border-radius: 18px; flex-shrink: 0;
-  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 26px; color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-}
-.dt-hero-eyebrow {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700; color: rgba(255,255,255,.65);
-  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
-}
-.dt-hero-title {
-  font-size: 36px; font-weight: 900; color: #fff;
-  letter-spacing: -1px; line-height: 1; margin-bottom: 7px;
-}
-.dt-hero-subtitle { font-size: 15px; color: rgba(255,255,255,.75); margin-bottom: 14px; }
-.dt-hero-tags { display: flex; gap: 8px; flex-wrap: wrap; }
-.dt-hero-tag {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
-  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
-  color: rgba(255,255,255,.85); padding: 4px 10px; border-radius: 6px;
-}
-.dt-hero-right { flex-shrink: 0; }
-.dt-amount-card {
-  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-  border-radius: var(--r-lg); padding: 22px 28px; min-width: 220px;
-  backdrop-filter: blur(10px); text-align: center;
-}
-.dt-ac-label {
-  font-size: 10px; font-weight: 700; color: rgba(255,255,255,.6);
-  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
-}
-.dt-ac-value {
-  font-size: 30px; font-weight: 900; color: #fff;
-  letter-spacing: -1px; line-height: 1; margin-bottom: 14px;
-}
-.dt-ac-bar-wrap {
-  height: 5px; background: rgba(255,255,255,0.15);
-  border-radius: 99px; overflow: hidden; margin-bottom: 6px;
-}
-.dt-ac-bar-fill {
-  height: 100%; border-radius: 99px; background: rgba(255,255,255,0.7);
-  animation: awBarIn 1.2s cubic-bezier(.4,0,.2,1) both;
-}
-.dt-ac-note { font-size: 10px; color: rgba(255,255,255,.5); }
-
-.dt-hero-tl {
-  display: flex; align-items: center; background: rgba(0,0,0,0.15); border-top: 1px solid rgba(255,255,255,0.1);
-  padding: 16px 40px; position: relative; z-index: 1;
-}
-.dt-htl-node { display: flex; align-items: center; gap: 12px; flex: 1; }
-.dt-htl-dot {
-  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff;
-}
-.dt-htl-dot--start { background: rgba(255,255,255,0.2);  border: 1px solid rgba(255,255,255,0.3); }
-.dt-htl-dot--eff   { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.35); }
-.dt-htl-dot--end   { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); }
-.dt-htl-lbl {
-  display: block; font-size: 9px; font-weight: 700; color: rgba(255,255,255,.55);
-  text-transform: uppercase; letter-spacing: .5px;
-}
-.dt-htl-val { display: block; font-size: 13px; font-weight: 700; color: #fff; }
-.dt-htl-connector { flex: 0 0 48px; display: flex; align-items: center; gap: 2px; padding: 0 4px; }
-.dt-htl-line { flex: 1; height: 1px; background: rgba(255,255,255,0.2); }
-.dt-htl-arrow { font-size: 9px; color: rgba(255,255,255,.3); }
-
-/* ── Tabs ── */
-.dt-tabs {
-  display: flex; align-items: center; gap: 4px; background: var(--white); border: 1px solid #e4e9f2;
-  border-radius: var(--r-lg); padding: 6px; margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04); animation: awUp .38s ease both; flex-wrap: wrap;
-}
-.dt-tab {
-  display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 10px;
-  border: none; background: transparent; font-size: 13px; font-weight: 700; color: var(--slate-500);
-  cursor: pointer; position: relative; transition: all .18s; white-space: nowrap;
-}
-.dt-tab:hover { background: var(--slate-50); color: var(--slate-900); }
-.dt-tab--active {
-  background: var(--brand-lt) !important; color: var(--brand) !important;
-  box-shadow: 0 2px 8px rgba(84,67,173,0.12);
-}
-.dt-tab--amber.dt-tab--active { background: var(--amber-lt) !important; color: var(--amber) !important; }
-.dt-tab-count {
-  background: var(--brand); color: #fff; font-size: 10px; font-weight: 800;
-  padding: 2px 7px; border-radius: 99px; min-width: 18px; text-align: center;
-}
-.dt-tab-pulse {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--amber-mid);
-  animation: awPulse 1.6s ease-in-out infinite;
-}
-
-/* ── Panels ── */
-.dt-panel { animation: awUp .3s ease both; }
-.dt-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
-
-/* Generic card */
-.dt-card {
-  background: var(--white); border: 1px solid #e4e9f2; border-radius: var(--r-lg); padding: 24px 26px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-}
-.dt-card--full { margin-bottom: 18px; }
-.dt-card-hdr { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-.dt-card-ico {
-  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 16px;
-}
-.dt-ico--indigo { background: #e0e7ff; color: #4f46e5; }
-.dt-ico--teal   { background: #ccfbf1; color: #0d9488; }
-.dt-ico--violet { background: #f3e8ff; color: #9333ea; }
-.dt-ico--blue   { background: #dbeafe; color: #2563eb; }
-.dt-ico--green  { background: var(--green-lt); color: var(--green); }
-.dt-ico--slate  { background: var(--slate-100); color: var(--slate-500); }
-.dt-card-title { font-size: 15px; font-weight: 800; color: var(--slate-900); margin-bottom: 2px; }
-.dt-card-sub   { font-size: 12px; color: var(--slate-500); }
-
-/* Field list */
-.dt-field-list { display: flex; flex-direction: column; }
-.dt-field-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 11px 0; border-bottom: 1px solid #f1f5f9;
-}
-.dt-field-row:last-child { border-bottom: none; padding-bottom: 0; }
-.dt-fl { font-size: 12px; font-weight: 600; color: var(--slate-500); text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; }
-.dt-fv { font-size: 13px; font-weight: 700; color: var(--slate-900); text-align: right; }
-.dt-fv--brand { color: var(--brand); }
-.dt-fv--green { color: var(--green); font-size: 15px; font-weight: 900; }
-
-/* Compliance grid */
-.dt-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.dt-comp-tile {
-  background: var(--slate-50); border: 1px solid #eef1f8; border-radius: 10px; padding: 12px 14px;
-  transition: background .15s, transform .15s;
-}
-.dt-comp-tile:hover { background: #eef3ff; transform: translateY(-1px); }
-.dt-comp-lbl {
-  display: block; font-size: 9px; font-weight: 700; color: #94a3b8;
-  text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px;
-}
-.dt-comp-lbl i { font-size: 8px; margin-right: 3px; }
-.dt-comp-val { font-size: 13px; font-weight: 700; color: var(--slate-900); }
-
-/* Blockquote */
-.dt-blockquote {
-  display: flex; gap: 16px; background: #fafbff; border-radius: 10px; padding: 18px 20px;
-}
-.dt-bq-accent {
-  width: 4px; border-radius: 4px; flex-shrink: 0; background: linear-gradient(180deg, #9333ea, #c084fc);
-}
-.dt-bq-text { font-size: 14px; color: var(--slate-700); line-height: 1.8; font-style: italic; }
-
-/* ── Financial Tab ── */
-.dt-fin-hero {
-  background: linear-gradient(135deg, #1e1b4b, #312e81, #4338ca);
-  border-radius: var(--r-xl); padding: 32px 36px; display: flex; align-items: center; gap: 40px; margin-bottom: 18px;
-  box-shadow: 0 16px 48px rgba(67,56,202,0.3);
-}
-.dt-fin-eyebrow { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-.dt-fin-big { font-size: 42px; font-weight: 900; color: #fff; letter-spacing: -1.5px; line-height: 1; margin-bottom: 6px; }
-.dt-fin-caption { font-size: 12px; color: rgba(255,255,255,.5); }
-.dt-fin-hero-right { flex: 1; }
-.dt-fin-bar-label { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.6); margin-bottom: 8px; }
-.dt-fin-bar-track { height: 8px; background: rgba(255,255,255,0.15); border-radius: 99px; overflow: hidden; }
-.dt-fin-bar-fill { height: 100%; border-radius: 99px; animation: awBarIn 1.2s cubic-bezier(.4,0,.2,1) both; }
-.dt-fill--green { background: linear-gradient(90deg, #059669, #34d399); }
-.dt-fill--amber { background: linear-gradient(90deg, #d97706, #fbbf24); }
-.dt-fill--red   { background: linear-gradient(90deg, #dc2626, #f87171); }
-
-/* Date track */
-.dt-date-track { display: flex; flex-direction: column; }
-.dt-date-node { display: flex; align-items: center; gap: 14px; }
-.dt-date-line { width: 2px; height: 24px; background: var(--slate-200); margin-left: 16px; }
-.dt-dn-dot { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; }
-.dt-dn--start { background: var(--green-lt); color: var(--green); }
-.dt-dn--eff   { background: var(--brand-lt); color: var(--brand); }
-.dt-dn--end   { background: var(--red-lt);   color: var(--red); }
-.dt-dn-lbl { display: block; font-size: 10px; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: .4px; }
-.dt-dn-val { display: block; font-size: 14px; font-weight: 700; color: var(--slate-900); }
-
-/* ── Award Letter Tab ── */
-.dt-letter-meta { margin-left: auto; }
-.dt-letter-meta-chip {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #2563eb;
-  background: #dbeafe; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 6px;
-}
-.dt-letter-body {
-  background: #fdfdff; border: 1px solid #eef1f8; border-radius: 10px; padding: 28px 32px;
-  font-size: 14px; color: var(--slate-700); line-height: 1.9; min-height: 120px;
-}
-
-/* ── Attachments Tab ── */
-.dt-att-empty { text-align: center; padding: 56px 24px; }
-.dt-att-empty-icon {
-  width: 64px; height: 64px; border-radius: 18px; background: var(--slate-100);
-  display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--slate-500); margin: 0 auto 16px;
-}
-.dt-att-empty-title { font-size: 16px; font-weight: 800; color: var(--slate-900); margin-bottom: 6px; }
-.dt-att-empty-sub   { font-size: 13px; color: var(--slate-500); }
-.dt-att-list { display: flex; flex-direction: column; gap: 10px; }
-.dt-att-item {
-  display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 12px;
-  border: 1px solid #eef1f8; background: var(--slate-50); text-decoration: none; color: inherit; cursor: pointer;
-  transition: background .15s, transform .15s, box-shadow .15s;
-}
-.dt-att-item:hover {
-  background: #eef3ff; border-color: rgba(99,102,241,0.25); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(84,67,173,0.08);
-}
-.dt-att-icon-wrap {
-  width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; background: var(--brand-lt); border: 1px solid rgba(99,102,241,0.2);
-  display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--brand);
-}
-.dt-att-meta { flex: 1; min-width: 0; }
-.dt-att-name {
-  display: block; font-size: 14px; font-weight: 700; color: var(--slate-900);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
-}
-.dt-att-info { font-size: 11px; color: var(--slate-500); }
-.dt-att-dl {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--brand);
-  background: var(--brand-lt); border: 1px solid rgba(99,102,241,0.2); padding: 6px 14px; border-radius: 8px; white-space: nowrap; transition: background .15s;
-}
-.dt-att-item:hover .dt-att-dl { background: var(--brand); color: #fff; }
-
-/* ── RESPOND TAB ── */
-.dt-responded {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 72px 24px; text-align: center;
-}
-.dt-responded-icon {
-  width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 20px; position: relative;
-}
-.dt-responded-icon::after {
-  content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px dashed; animation: awSpin 12s linear infinite; opacity: .4;
-}
-.dt-ri--green { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #059669; box-shadow: 0 12px 32px rgba(5,150,105,0.2); }
-.dt-ri--green::after { border-color: #059669; }
-.dt-ri--red { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; box-shadow: 0 12px 32px rgba(220,38,38,0.2); }
-.dt-ri--red::after { border-color: #dc2626; }
-.dt-responded-title { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: -.3px; }
-.dt-responded-sub { font-size: 14px; color: #64748b; line-height: 1.65; max-width: 360px; }
-
-.dt-respond-wrap { display: flex; flex-direction: column; gap: 16px; }
-.dt-resp-alert {
-  display: flex; align-items: flex-start; gap: 14px; background: #fffdf5;
-  border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 12px; padding: 16px 18px;
-}
-.dt-resp-alert-icon {
-  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 15px;
-  background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; box-shadow: 0 4px 12px rgba(245,158,11,0.2);
-}
-.dt-resp-alert-title { font-size: 13px; font-weight: 800; color: #78350f; margin-bottom: 3px; }
-.dt-resp-alert-sub { font-size: 12px; color: #92400e; line-height: 1.6; }
-
-.dt-resp-recap {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  background: #f8fafc; border: 1px solid #e8edf5; border-radius: 12px; overflow: hidden;
-}
-.dt-resp-recap-field { padding: 14px 18px; border-right: 1px solid #e8edf5; }
-.dt-resp-recap-field:last-child { border-right: none; }
-.dt-resp-recap-lbl { display: block; font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px; }
-.dt-resp-recap-val { display: block; font-size: 14px; font-weight: 800; color: #0f172a; letter-spacing: -.2px; }
-.dt-resp-recap-val--green { color: #059669; }
-
-.dt-resp-form {
-  background: #ffffff; border: 1.5px solid #e8edf5; border-radius: 14px; padding: 18px 20px; transition: border-color .2s, box-shadow .2s;
-}
-.dt-resp-form:focus-within { border-color: #a78bfa; box-shadow: 0 0 0 4px rgba(167,139,250,0.12); }
-.dt-resp-form-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.dt-resp-lbl { font-size: 13px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; }
-.dt-req { color: #dc2626; margin-left: 2px; }
-.dt-resp-counter { font-size: 11px; font-weight: 600; color: #94a3b8; background: #f1f5f9; border-radius: 5px; padding: 2px 8px; }
-.dt-cnt--ok { color: #059669; background: #dcfce7; }
-.dt-resp-ta {
-  width: 100%; resize: vertical; min-height: 90px; border: 1.5px solid #e8edf5; border-radius: 10px; padding: 12px 14px;
-  font-size: 13px; color: #1e293b; background: #f8fafc; font-family: inherit; box-sizing: border-box; line-height: 1.65;
-  transition: border-color .15s, background .15s, box-shadow .15s;
-}
-.dt-resp-ta::placeholder { color: #94a3b8; }
-.dt-resp-ta:focus { outline: none; border-color: #a78bfa; background: #ffffff; box-shadow: 0 2px 8px rgba(167,139,250,0.1); }
-.dt-resp-hint { font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 5px; }
-.dt-resp-hint i { font-size: 10px; }
-
-.dt-resp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.dt-btn-accept, .dt-btn-decline {
-  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: 12px;
-  border: none; cursor: pointer; font-size: 14px; font-weight: 700; letter-spacing: -.1px;
-  transition: transform .18s ease, box-shadow .18s ease, background .15s ease;
-}
-.dt-btn-accept[disabled], .dt-btn-decline[disabled] { opacity: .4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
-
-.dt-btn-accept { background: #059669; color: #ffffff; box-shadow: 0 2px 8px rgba(5,150,105,0.22); }
-.dt-btn-accept:hover:not([disabled]) { background: #047857; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(5,150,105,0.3); }
-.dt-btn-accept:active:not([disabled]) { transform: translateY(0); box-shadow: none; }
-
-.dt-btn-decline { background: #ffffff; color: #dc2626; border: 1.5px solid #fca5a5; box-shadow: 0 2px 6px rgba(220,38,38,0.06); }
-.dt-btn-decline:hover:not([disabled]) { background: #fef2f2; border-color: #f87171; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(220,38,38,0.12); }
-.dt-btn-decline:active:not([disabled]) { transform: translateY(0); box-shadow: none; }
-.dt-btn-accept i, .dt-btn-decline i { font-size: 13px; opacity: .85; }
-
-/* ══ KEYFRAME ANIMATIONS ═════════════════════════════════════ */
-@keyframes awUp { from { opacity: 0; transform: translateY(18px); } to   { opacity: 1; transform: translateY(0); } }
-@keyframes awBarIn { from { width: 0 !important; } }
-@keyframes awPulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
-@keyframes awSpin { 100% { transform: rotate(360deg); } }
-
-/* ══ RESPONSIVE ══════════════════════════════════════════════ */
-@media (max-width: 1100px) {
-  .dt-two-col { grid-template-columns: 1fr; }
-  .dt-compliance-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 960px) {
-  .dt-fin-hero { flex-direction: column; gap: 20px; }
-  .dt-hero-inner { flex-direction: column; }
-  .dt-hero-right { width: 100%; }
-  .dt-amount-card { min-width: auto; width: 100%; }
-}
-@media (max-width: 768px) {
-  .aw-sidebar { display: none; }
-  .aw-detail { padding: 18px 16px 48px; }
-  .dt-hero-inner { padding: 22px 20px 18px; }
-  .dt-hero-tl { flex-wrap: wrap; gap: 12px; padding: 16px 20px; }
-  .dt-htl-connector { display: none; }
-  .dt-htl-node { flex: 0 0 calc(50% - 6px); }
-  .dt-resp-actions { flex-direction: column; }
-  .dt-resp-recap { flex-direction: column; }
-  .dt-resp-recap-field { border-right: none; border-bottom: 1px solid #f1f5f9; }
-  .dt-tabs { gap: 2px; }
-  .dt-tab { padding: 8px 12px; font-size: 12px; }
-}
-@media (max-width: 560px) {
-  .dt-compliance-grid { grid-template-columns: 1fr; }
-  .dt-resp-actions { grid-template-columns: 1fr; }  
-  .dt-hero-title { font-size: 26px; }
-  .dt-fin-big { font-size: 30px; }
-  .dt-topbar-crumb { display: none; }
+        <css>/* =========================================================&#13;
+   GATENOW · AWARD DETAIL&#13;
+   Service Portal widget · CSS / SCSS&#13;
+&#13;
+   Selectors are written out in full. The Service Portal Sass&#13;
+   compiler does not support parent selector concatenation.&#13;
+&#13;
+   The token block, the shell, the header, the tiles, the card,&#13;
+   the state chips and the buttons are lifted verbatim from My&#13;
+   Awards. Nothing was retuned, because the two pages are one&#13;
+   page as far as the reader is concerned and a detail view&#13;
+   that is half a shade off reads as a different product.&#13;
+&#13;
+   TYPE — identical to My Awards&#13;
+     tile      30  700  tabular   headline figures&#13;
+     title     26  700  -0.03em   page title&#13;
+     program   19  600  -0.018em  award heading&#13;
+     figure    24  700  tabular   the amount&#13;
+     body      15  400            supporting copy&#13;
+     data      14  600  tabular   dates&#13;
+     label     11  600   0.14em   uppercase small caps&#13;
+&#13;
+   ONE ADDITION over the list&#13;
+   Charts. They introduce no new colour: claimed is the accent&#13;
+   blue, paid is the same green already used where money has&#13;
+   moved, and the award ceiling is a dashed navy line, because&#13;
+   a limit is not a series and should not look like one.&#13;
+   ========================================================= */&#13;
+&#13;
+/* ---------- overflow overrides ----------&#13;
+   Service Portal wraps every widget in a panel that clips&#13;
+   anything leaving its box, which cuts off the sidebar tooltips.&#13;
+   Same block as the dashboard and My Awards, so all three&#13;
+   behave identically.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.panel,&#13;
+.panel-body,&#13;
+.sp-widget { overflow: visible !important; }&#13;
+&#13;
+.gn-layout { overflow: visible !important; }&#13;
+&#13;
+.aw-sidebar {&#13;
+  flex: 0 0 auto;&#13;
+  overflow: visible;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- typeface ---------- */&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 400;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 500;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 600;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+@font-face {&#13;
+  font-family: "Outfit";&#13;
+  font-style: normal;&#13;
+  font-weight: 700;&#13;
+  font-display: swap;&#13;
+  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- ink ---------- */&#13;
+$a-navy:   #0a2540;&#13;
+$a-ink-2:  rgba(10, 37, 64, 0.72);&#13;
+$a-ink-3:  rgba(10, 37, 64, 0.54);&#13;
+$a-ink-4:  rgba(10, 37, 64, 0.38);&#13;
+$a-line:   rgba(10, 37, 64, 0.10);&#13;
+$a-line-2: rgba(10, 37, 64, 0.06);&#13;
+$a-tint:   rgba(10, 37, 64, 0.03);&#13;
+&#13;
+/* ---------- accent ---------- */&#13;
+$a-blue:    #1560e0;&#13;
+$a-blue-dk: #0f4cbb;&#13;
+$a-blue-1:  rgba(21, 96, 224, 0.08);&#13;
+$a-blue-2:  rgba(21, 96, 224, 0.16);&#13;
+&#13;
+/* ---------- state ---------- */&#13;
+$a-soon:   #0d7d8c;&#13;
+$a-good:   #1f8a63;&#13;
+$a-good-1: rgba(31, 138, 99, 0.10);&#13;
+$a-warn:   #a4741f;&#13;
+$a-warn-1: rgba(164, 116, 31, 0.10);&#13;
+$a-warn-2: rgba(164, 116, 31, 0.26);&#13;
+&#13;
+/* the one destructive colour, used only on decline */&#13;
+$a-stop:   #b8394a;&#13;
+$a-stop-1: rgba(184, 57, 74, 0.08);&#13;
+$a-stop-2: rgba(184, 57, 74, 0.28);&#13;
+&#13;
+$a-white: #ffffff;&#13;
+$a-page:  #f4f6fb;&#13;
+$a-ease:  cubic-bezier(0.45, 0.05, 0.25, 1);&#13;
+&#13;
+$a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PAGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-layout {&#13;
+  display: flex;&#13;
+  align-items: stretch;&#13;
+  min-height: 100vh;&#13;
+  background: $a-page;&#13;
+  font-family: $a-font;&#13;
+}&#13;
+&#13;
+/* Without min-width: 0 a flex child refuses to shrink below its&#13;
+   own content width, and slides under the rail rather than&#13;
+   narrowing. That is the usual cause of a stubborn overlap once&#13;
+   the widths are right. */&#13;
+.gaw {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  overflow: visible;&#13;
+}&#13;
+&#13;
+.gaw {&#13;
+  min-height: 100vh;&#13;
+  padding: 30px 38px 72px;&#13;
+  background: $a-page;&#13;
+  font-family: $a-font;&#13;
+  color: $a-navy;&#13;
+  -webkit-font-smoothing: antialiased;&#13;
+}&#13;
+&#13;
+.gaw *,&#13;
+.gaw *::before,&#13;
+.gaw *::after { box-sizing: border-box; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEADER&#13;
+&#13;
+   Same bar as My Awards, with the back link taking the place&#13;
+   of the search box. The title carries the award number rather&#13;
+   than the word "Award" on its own, because the reader arrived&#13;
+   here from a list of them.&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 16px 24px;&#13;
+  margin-bottom: 26px;&#13;
+}&#13;
+&#13;
+.gaw-top__left {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 10px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gaw .gaw-top__title {&#13;
+  margin: 0;&#13;
+  font-size: 26px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.03em;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-top__right {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+}&#13;
+&#13;
+.gaw-back {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  align-self: flex-start;&#13;
+  gap: 9px;&#13;
+  height: 30px;&#13;
+  padding: 0 11px 0 7px;&#13;
+  border-radius: 9px;&#13;
+  background: transparent;&#13;
+  color: $a-ink-3;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  text-decoration: none;&#13;
+  transition: background 0.4s $a-ease, color 0.4s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-back:hover,&#13;
+.gaw-back:focus {&#13;
+  background: rgba(255, 255, 255, 0.7);&#13;
+  color: $a-navy;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gaw-back__arrow {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 20px;&#13;
+  height: 20px;&#13;
+  border-radius: 50%;&#13;
+  border: 1px solid $a-line;&#13;
+  transition: transform 0.4s $a-ease, border-color 0.4s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-back:hover .gaw-back__arrow {&#13;
+  transform: translateX(-3px);&#13;
+  border-color: $a-blue-2;&#13;
+}&#13;
+&#13;
+.gaw-avatar {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 42px;&#13;
+  height: 42px;&#13;
+  border-radius: 12px;&#13;
+  background: #1560e0;&#13;
+  color: $a-white;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.03em;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NOT AVAILABLE&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-blank {&#13;
+  max-width: 520px;&#13;
+  margin: 70px auto;&#13;
+  padding: 52px 34px 46px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 18px;&#13;
+  background: $a-white;&#13;
+  text-align: center;&#13;
+}&#13;
+&#13;
+.gaw-blank__mark {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 58px;&#13;
+  height: 58px;&#13;
+  margin: 0 auto 20px;&#13;
+  border-radius: 50%;&#13;
+  background: $a-blue-1;&#13;
+  color: $a-blue;&#13;
+  font-size: 22px;&#13;
+}&#13;
+&#13;
+.gaw .gaw-blank__title {&#13;
+  margin: 0;&#13;
+  font-size: 21px;&#13;
+  font-weight: 700;&#13;
+  letter-spacing: -0.024em;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw .gaw-blank__text {&#13;
+  max-width: 44ch;&#13;
+  margin: 11px auto 24px;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.64;&#13;
+  color: $a-ink-3;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   THE HERO&#13;
+&#13;
+   The list card, opened out. Same rail, same state chip, same&#13;
+   figure block on the right, so the row the reader clicked and&#13;
+   the page they land on are visibly the same object.&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-card {&#13;
+  position: relative;&#13;
+  padding: 22px 26px 20px 28px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 16px;&#13;
+  background: $a-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+}&#13;
+&#13;
+.gaw-hero { margin-bottom: 24px; }&#13;
+&#13;
+/* the rail states where the award stands without another badge */&#13;
+.gaw-card__rail {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  width: 3px;&#13;
+}&#13;
+&#13;
+.gaw-card--pending .gaw-card__rail  { background: $a-warn; }&#13;
+.gaw-card--active .gaw-card__rail   { background: $a-blue; }&#13;
+.gaw-card--done .gaw-card__rail     { background: $a-good; }&#13;
+.gaw-card--declined .gaw-card__rail { background: rgba(10, 37, 64, 0.16); }&#13;
+&#13;
+/* an award waiting on a decision is the only thing here with a&#13;
+   cost attached to ignoring it, so it is the only one tinted */&#13;
+.gaw-card--pending { background: linear-gradient(180deg, rgba(164, 116, 31, 0.04) 0%, $a-white 42%); }&#13;
+&#13;
+.gaw-card__head {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) 220px;&#13;
+  gap: 26px;&#13;
+  align-items: start;&#13;
+  padding-bottom: 18px;&#13;
+  margin-bottom: 16px;&#13;
+  border-bottom: 1px solid $a-line-2;&#13;
+}&#13;
+&#13;
+.gaw-card__lead { min-width: 0; }&#13;
+&#13;
+.gaw-card__top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px;&#13;
+  margin-bottom: 10px;&#13;
+}&#13;
+&#13;
+.gaw-state {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 7px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+}&#13;
+&#13;
+.gaw-state__dot {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gaw-state--pending  { color: $a-warn; }&#13;
+.gaw-state--active   { color: $a-blue-dk; }&#13;
+.gaw-state--done     { color: $a-good; }&#13;
+.gaw-state--declined { color: $a-ink-4; }&#13;
+&#13;
+.gaw-state--pending .gaw-state__dot  { background: $a-warn; }&#13;
+.gaw-state--active .gaw-state__dot   { background: $a-blue; }&#13;
+.gaw-state--done .gaw-state__dot     { background: $a-good; }&#13;
+.gaw-state--declined .gaw-state__dot {&#13;
+  background: transparent;&#13;
+  box-shadow: inset 0 0 0 1.5px rgba(10, 37, 64, 0.28);&#13;
+}&#13;
+&#13;
+.gaw-card__meta {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-card__sep { color: rgba(10, 37, 64, 0.22); }&#13;
+&#13;
+.gaw-wait {&#13;
+  padding: 3px 9px;&#13;
+  border: 1px solid $a-warn-2;&#13;
+  border-radius: 6px;&#13;
+  background: $a-warn-1;&#13;
+  color: $a-warn;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+/* the one place the detail page departs from the list: the&#13;
+   program name is the subject of this page rather than one row&#13;
+   among ten, so it takes the page-title size */&#13;
+.gaw .gaw-hero__program {&#13;
+  margin: 0;&#13;
+  max-width: 34ch;&#13;
+  font-size: 26px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.2;&#13;
+  letter-spacing: -0.03em;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw .gaw-card__title {&#13;
+  max-width: 68ch;&#13;
+  margin: 8px 0 0;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.55;&#13;
+  color: $a-ink-2;&#13;
+}&#13;
+&#13;
+.gaw .gaw-card__hint {&#13;
+  margin: 8px 0 0;&#13;
+  font-size: 13.5px;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-card--declined .gaw-hero__program { color: $a-ink-3; }&#13;
+&#13;
+&#13;
+/* ---------- the amount ---------- */&#13;
+&#13;
+.gaw-card__figure {&#13;
+  text-align: right;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gaw-figure__label {&#13;
+  display: block;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-figure__value {&#13;
+  display: block;&#13;
+  margin-top: 8px;&#13;
+  font-size: 24px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.1;&#13;
+  letter-spacing: -0.03em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-figure__note {&#13;
+  display: block;&#13;
+  margin-top: 7px;&#13;
+  font-size: 11.5px;&#13;
+  line-height: 1.5;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- foot ---------- */&#13;
+&#13;
+.gaw-card__foot {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 16px 24px;&#13;
+}&#13;
+&#13;
+.gaw .gaw-facts {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 8px 30px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gaw-fact {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 4px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gaw .gaw-fact dt {&#13;
+  margin: 0;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw .gaw-fact dd {&#13;
+  margin: 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-acts {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 8px;&#13;
+}&#13;
+&#13;
+/* what stands where the two buttons stood, once the decision&#13;
+   has been made */&#13;
+.gaw-done {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  padding: 9px 14px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 10px;&#13;
+  background: $a-tint;&#13;
+}&#13;
+&#13;
+.gaw-done__mark {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 30px;&#13;
+  height: 30px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 50%;&#13;
+  font-size: 12px;&#13;
+}&#13;
+&#13;
+.gaw-card--active .gaw-done__mark {&#13;
+  background: $a-good-1;&#13;
+  color: $a-good;&#13;
+}&#13;
+&#13;
+.gaw-card--declined .gaw-done__mark {&#13;
+  background: rgba(10, 37, 64, 0.06);&#13;
+  color: $a-ink-3;&#13;
+}&#13;
+&#13;
+.gaw-done__body {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 2px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gaw-done__title {&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.01em;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-done__note {&#13;
+  font-size: 11.5px;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   TILES&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-tiles {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, minmax(0, 1fr));&#13;
+  gap: 16px;&#13;
+  margin-bottom: 24px;&#13;
+}&#13;
+&#13;
+.gaw-tile {&#13;
+  position: relative;&#13;
+  padding: 20px 22px 22px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 16px;&#13;
+  background: $a-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+  transition: transform 0.5s $a-ease, box-shadow 0.5s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-tile:hover {&#13;
+  transform: translateY(-2px);&#13;
+  box-shadow: 0 14px 32px rgba(10, 37, 64, 0.08);&#13;
+}&#13;
+&#13;
+.gaw-tile__rule {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  left: 0;&#13;
+  height: 2px;&#13;
+  background: $a-blue-2;&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gaw-tile.is-alert .gaw-tile__rule { background: $a-warn-2; }&#13;
+&#13;
+.gaw .gaw-tile__label {&#13;
+  margin: 0;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw .gaw-tile__value {&#13;
+  margin: 12px 0 0;&#13;
+  font-size: 30px;&#13;
+  font-weight: 700;&#13;
+  line-height: 1.05;&#13;
+  letter-spacing: -0.034em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+/* the response tile carries words rather than a figure, so it&#13;
+   sizes down to sit level with the numbers beside it */&#13;
+.gaw-tile--pending .gaw-tile__value {&#13;
+  font-size: 22px;&#13;
+  letter-spacing: -0.026em;&#13;
+}&#13;
+&#13;
+.gaw .gaw-tile__note {&#13;
+  margin: 8px 0 0;&#13;
+  font-size: 12.5px;&#13;
+  line-height: 1.5;&#13;
+  color: $a-ink-3;&#13;
+}&#13;
+&#13;
+.gaw-tile.is-alert .gaw-tile__note {&#13;
+  color: $a-warn;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PANELS&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-panel {&#13;
+  padding: 22px 24px 24px;&#13;
+  margin-bottom: 24px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 16px;&#13;
+  background: $a-white;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+}&#13;
+&#13;
+.gaw-panel__head {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 12px 22px;&#13;
+  margin-bottom: 24px;&#13;
+}&#13;
+&#13;
+.gaw .gaw-panel__title {&#13;
+  margin: 0;&#13;
+  font-size: 19px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.018em;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw .gaw-panel__hint {&#13;
+  margin: 6px 0 0;&#13;
+  max-width: 66ch;&#13;
+  font-size: 13.5px;&#13;
+  line-height: 1.55;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw .gaw-panel__hint--tight { margin: 0 0 18px; }&#13;
+&#13;
+.gaw .gaw-panel__empty {&#13;
+  margin: 0;&#13;
+  padding: 24px 0 6px;&#13;
+  font-size: 14px;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-chip {&#13;
+  padding: 6px 12px;&#13;
+  border-radius: 999px;&#13;
+  background: $a-tint;&#13;
+  font-size: 12.5px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-ink-3;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gaw-chip--open    { background: $a-blue-1;  color: $a-blue-dk; }&#13;
+.gaw-chip--closing { background: $a-warn-1;  color: $a-warn; }&#13;
+.gaw-chip--over    { background: $a-stop-1;  color: $a-stop; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   THE AWARD WINDOW&#13;
+&#13;
+   Two dates, one track, and today marked at its real position.&#13;
+   An award with three weeks left is a different thing from one&#13;
+   with eleven months left, and two dates on their own do not&#13;
+   say which without the reader doing the arithmetic.&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-win { padding-top: 6px; }&#13;
+&#13;
+.gaw-win__track {&#13;
+  position: relative;&#13;
+  display: block;&#13;
+  height: 10px;&#13;
+  border-radius: 999px;&#13;
+  background: $a-tint;&#13;
+  box-shadow: inset 0 0 0 1px $a-line-2;&#13;
+}&#13;
+&#13;
+.gaw-win__fill {&#13;
+  display: block;&#13;
+  height: 100%;&#13;
+  border-radius: 999px;&#13;
+  background: rgba(21, 96, 224, 0.5);&#13;
+  transform-origin: left center;&#13;
+}&#13;
+&#13;
+.gaw-win__now {&#13;
+  position: absolute;&#13;
+  top: 50%;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: center;&#13;
+  transform: translate(-50%, -50%);&#13;
+}&#13;
+&#13;
+.gaw-win__pin {&#13;
+  width: 3px;&#13;
+  height: 22px;&#13;
+  border-radius: 2px;&#13;
+  background: $a-navy;&#13;
+  box-shadow: 0 0 0 3px $a-white;&#13;
+}&#13;
+&#13;
+.gaw-win__today {&#13;
+  position: absolute;&#13;
+  top: 20px;&#13;
+  padding: 3px 8px;&#13;
+  border-radius: 6px;&#13;
+  background: $a-navy;&#13;
+  color: $a-white;&#13;
+  font-size: 9.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.1em;&#13;
+  text-transform: uppercase;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gaw-win__ends {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  gap: 20px;&#13;
+  margin-top: 34px;&#13;
+}&#13;
+&#13;
+.gaw-win__end {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  gap: 4px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gaw-win__end--right { text-align: right; }&#13;
+&#13;
+.gaw-win__label {&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-win__date {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- the pace line ----------&#13;
+&#13;
+   One sentence rather than a panel of its own: time elapsed&#13;
+   set against money drawn. Both percentages are already on the&#13;
+   page; the comparison between them is the thing nobody makes&#13;
+   on their own, and it does not need a chart to say.&#13;
+   ----------------------------------------------------------- */&#13;
+&#13;
+.gaw .gaw-pace {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  gap: 9px;&#13;
+  margin: 22px 0 0;&#13;
+  padding-top: 16px;&#13;
+  border-top: 1px solid $a-line-2;&#13;
+  font-size: 13.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $a-ink-3;&#13;
+}&#13;
+&#13;
+.gaw-pace__mark {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  margin-top: 8px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gaw-pace__mark--open    { background: $a-good; }&#13;
+.gaw-pace__mark--closing { background: $a-warn; }&#13;
+.gaw-pace__mark--over    { background: $a-stop; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   THE RECORD&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-block {&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 16px;&#13;
+  background: $a-white;&#13;
+  overflow: hidden;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);&#13;
+}&#13;
+&#13;
+/* the same pill tabs as My Awards, sat on a tinted strip so&#13;
+   they read as the head of the card rather than as free&#13;
+   buttons floating on white */&#13;
+.gaw-tabs {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px;&#13;
+}&#13;
+&#13;
+.gaw-tabs--record {&#13;
+  padding: 12px 16px;&#13;
+  border-bottom: 1px solid $a-line-2;&#13;
+  background: rgba(10, 37, 64, 0.02);&#13;
+  flex-wrap: nowrap;&#13;
+  overflow-x: auto;&#13;
+  -webkit-overflow-scrolling: touch;&#13;
+}&#13;
+&#13;
+.gaw-tab {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  height: 38px;&#13;
+  padding: 0 14px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  color: $a-ink-2;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+  flex-shrink: 0;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.4s $a-ease, border-color 0.4s $a-ease, color 0.4s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-tab:hover {&#13;
+  background: rgba(255, 255, 255, 0.7);&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-tab.is-on {&#13;
+  background: $a-white;&#13;
+  border-color: $a-line;&#13;
+  color: $a-navy;&#13;
+  font-weight: 600;&#13;
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);&#13;
+}&#13;
+&#13;
+.gaw-tab__count {&#13;
+  font-size: 12.5px;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-block__body { padding: 24px 26px 30px; }&#13;
+&#13;
+.gaw .gaw-sub {&#13;
+  margin: 0 0 16px;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.14em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-blue;&#13;
+}&#13;
+&#13;
+.gaw .gaw-sub + .gaw-kvs + .gaw-sub {&#13;
+  margin-top: 30px;&#13;
+  padding-top: 26px;&#13;
+  border-top: 1px solid $a-line-2;&#13;
+}&#13;
+&#13;
+.gaw .gaw-kvs {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(2, minmax(0, 1fr));&#13;
+  gap: 16px 34px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gaw-kv { min-width: 0; }&#13;
+&#13;
+.gaw .gaw-kv dt {&#13;
+  margin: 0 0 5px;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw .gaw-kv dd {&#13;
+  margin: 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1.5;&#13;
+  letter-spacing: -0.008em;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+  word-break: break-word;&#13;
+}&#13;
+&#13;
+/* said rather than left blank, so nobody wonders whether it&#13;
+   failed to load */&#13;
+.gaw .gaw-kv dd.is-blank {&#13;
+  font-weight: 400;&#13;
+  font-style: italic;&#13;
+  font-variant-numeric: normal;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-prose { margin-top: 26px; }&#13;
+&#13;
+.gaw .gaw-prose__label {&#13;
+  margin: 0 0 7px;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+/* the line breaks the author typed are kept */&#13;
+.gaw .gaw-prose__text {&#13;
+  margin: 0;&#13;
+  max-width: 76ch;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.7;&#13;
+  color: $a-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+.gaw .gaw-empty {&#13;
+  margin: 0;&#13;
+  padding: 48px 0;&#13;
+  text-align: center;&#13;
+  font-size: 14.5px;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   THE AWARD LETTER&#13;
+&#13;
+   Set as a letter rather than as a field value, because that&#13;
+   is what it is. Wider leading, a measure that stops at 68&#13;
+   characters, and a rule under it carrying the reference.&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-letter {&#13;
+  max-width: 72ch;&#13;
+  padding: 30px 34px 26px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 14px;&#13;
+  background: linear-gradient(180deg, $a-tint 0%, $a-white 120px);&#13;
+}&#13;
+&#13;
+.gaw .gaw-letter__text {&#13;
+  margin: 0;&#13;
+  max-width: 68ch;&#13;
+  font-size: 15.5px;&#13;
+  line-height: 1.85;&#13;
+  color: $a-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+.gaw .gaw-letter__foot {&#13;
+  margin: 26px 0 0;&#13;
+  padding-top: 16px;&#13;
+  border-top: 1px solid $a-line-2;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   CLAIMS TABLE&#13;
+&#13;
+   A table only where the data is genuinely tabular. Four&#13;
+   columns, no rules between rows, the amount right-aligned and&#13;
+   tabular so the digits line up down the column.&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-rows {&#13;
+  display: grid;&#13;
+  gap: 2px;&#13;
+}&#13;
+&#13;
+.gaw-rows__head {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) 120px;&#13;
+  align-items: center;&#13;
+  gap: 16px;&#13;
+  padding: 0 14px 10px;&#13;
+  border-bottom: 1px solid $a-line-2;&#13;
+  font-size: 10.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.12em;&#13;
+  text-transform: uppercase;&#13;
+  color: $a-ink-4;&#13;
+}&#13;
+&#13;
+.gaw-rows__row {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) 120px;&#13;
+  align-items: center;&#13;
+  gap: 16px;&#13;
+  padding: 14px;&#13;
+  border-radius: 10px;&#13;
+  transition: background 0.4s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-rows__row:hover { background: $a-tint; }&#13;
+&#13;
+.gaw-rows__num { text-align: right; }&#13;
+&#13;
+.gaw-rows__ref {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-rows__when {&#13;
+  font-size: 13.5px;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-ink-3;&#13;
+}&#13;
+&#13;
+.gaw-rows__amount {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  font-variant-numeric: tabular-nums;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-pill {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  padding: 4px 10px;&#13;
+  border-radius: 999px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gaw-pill--paid      { background: $a-good-1; color: $a-good; }&#13;
+.gaw-pill--approved  { background: $a-blue-1; color: $a-blue-dk; }&#13;
+.gaw-pill--submitted { background: $a-tint;   color: $a-ink-2; }&#13;
+.gaw-pill--rejected  { background: $a-stop-1; color: $a-stop; }&#13;
+.gaw-pill--other     { background: $a-tint;   color: $a-ink-3; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   WORK NOTES&#13;
+&#13;
+   The box sits above the thread rather than below it, so it is&#13;
+   not at the bottom of a long history.&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-write {&#13;
+  padding: 16px;&#13;
+  margin-bottom: 24px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 13px;&#13;
+  background: $a-tint;&#13;
+}&#13;
+&#13;
+.gaw-write textarea {&#13;
+  width: 100%;&#13;
+  padding: 12px 14px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 10px;&#13;
+  background: $a-white;&#13;
+  font-family: inherit;&#13;
+  font-size: 15px;&#13;
+  line-height: 1.65;&#13;
+  color: $a-navy;&#13;
+  resize: vertical;&#13;
+  transition: border-color 0.4s $a-ease, box-shadow 0.4s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-write textarea:focus {&#13;
+  outline: 0;&#13;
+  border-color: rgba(21, 96, 224, 0.45);&#13;
+  box-shadow: 0 0 0 3px $a-blue-1;&#13;
+}&#13;
+&#13;
+.gaw-write textarea::placeholder { color: $a-ink-4; }&#13;
+&#13;
+.gaw-write__foot {&#13;
+  display: flex;&#13;
+  justify-content: flex-end;&#13;
+  margin-top: 12px;&#13;
+}&#13;
+&#13;
+.gaw .gaw-locked {&#13;
+  margin: 0 0 24px;&#13;
+  padding: 14px 16px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-radius: 11px;&#13;
+  background: $a-tint;&#13;
+  font-size: 13.5px;&#13;
+  color: $a-ink-3;&#13;
+}&#13;
+&#13;
+.gaw .gaw-thread {&#13;
+  display: grid;&#13;
+  gap: 10px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gaw .gaw-thread li {&#13;
+  padding: 14px 16px 15px;&#13;
+  border: 1px solid $a-line;&#13;
+  border-left: 3px solid $a-line;&#13;
+  border-radius: 0 12px 12px 0;&#13;
+  background: $a-white;&#13;
+}&#13;
+&#13;
+/* the applicant's own notes sit on the accent side of the&#13;
+   thread, which is what makes it read as a conversation rather&#13;
+   than as a log */&#13;
+.gaw .gaw-thread li.is-mine {&#13;
+  border-left-color: $a-blue;&#13;
+  background: $a-blue-1;&#13;
+}&#13;
+&#13;
+.gaw-thread__who {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  justify-content: space-between;&#13;
+  gap: 14px;&#13;
+  margin-bottom: 8px;&#13;
+}&#13;
+&#13;
+.gaw-thread__name {&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.008em;&#13;
+  color: $a-navy;&#13;
+}&#13;
+&#13;
+.gaw-thread__when {&#13;
+  font-size: 11.5px;&#13;
+  color: $a-ink-4;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gaw .gaw-thread__body {&#13;
+  margin: 0;&#13;
+  max-width: 74ch;&#13;
+  font-size: 14.5px;&#13;
+  line-height: 1.68;&#13;
+  color: $a-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BUTTONS&#13;
+   ========================================================= */&#13;
+&#13;
+.gaw-btn {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  height: 40px;&#13;
+  padding: 0 17px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 10px;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  white-space: nowrap;&#13;
+  cursor: pointer;&#13;
+  text-decoration: none;&#13;
+  transition: background 0.4s $a-ease, border-color 0.4s $a-ease, color 0.4s $a-ease;&#13;
+}&#13;
+&#13;
+.gaw-btn--primary {&#13;
+  background: $a-blue;&#13;
+  border-color: $a-blue;&#13;
+  color: $a-white;&#13;
+}&#13;
+&#13;
+.gaw-btn--primary:hover,&#13;
+.gaw-btn--primary:focus {&#13;
+  background: $a-blue-dk;&#13;
+  border-color: $a-blue-dk;&#13;
+  color: $a-white;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+/* Declining cannot be undone, so it does not look like every&#13;
+   other button on the page. It is not filled either, because a&#13;
+   solid red next to a solid blue is a coin toss at speed. */&#13;
+.gaw-btn--danger {&#13;
+  border-color: $a-stop-2;&#13;
+  color: $a-stop;&#13;
+}&#13;
+&#13;
+.gaw-btn--danger:hover,&#13;
+.gaw-btn--danger:focus {&#13;
+  background: $a-stop-1;&#13;
+  border-color: $a-stop;&#13;
+  color: $a-stop;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gaw-btn--ghost {&#13;
+  border-color: $a-line;&#13;
+  color: $a-ink-2;&#13;
+}&#13;
+&#13;
+.gaw-btn--ghost:hover,&#13;
+.gaw-btn--ghost:focus {&#13;
+  border-color: $a-blue-2;&#13;
+  color: $a-blue-dk;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gaw-btn--quiet { color: $a-ink-3; }&#13;
+&#13;
+.gaw-btn--quiet:hover,&#13;
+.gaw-btn--quiet:focus {&#13;
+  color: $a-navy;&#13;
+  text-decoration: none;&#13;
+}&#13;
+&#13;
+.gaw-btn:disabled {&#13;
+  opacity: 0.5;&#13;
+  cursor: default;&#13;
+}&#13;
+&#13;
+.gaw-btn:focus-visible,&#13;
+.gaw-tab:focus-visible,&#13;
+.gaw-back:focus-visible {&#13;
+  outline: 2px solid $a-blue;&#13;
+  outline-offset: 2px;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gawRise {&#13;
+    from { opacity: 0; transform: translateY(14px); }&#13;
+    to   { opacity: 1; transform: translateY(0); }&#13;
+  }&#13;
+&#13;
+  @keyframes gawDrawX {&#13;
+    from { transform: scaleX(0); }&#13;
+    to   { transform: scaleX(1); }&#13;
+  }&#13;
+&#13;
+  @keyframes gawPin {&#13;
+    from { opacity: 0; transform: translate(-50%, -50%) scaleY(0.3); }&#13;
+    to   { opacity: 1; transform: translate(-50%, -50%) scaleY(1); }&#13;
+  }&#13;
+&#13;
+  .gaw-top  { animation: gawRise 0.6s $a-ease backwards; }&#13;
+  .gaw-hero { animation: gawRise 0.6s $a-ease 0.06s backwards; }&#13;
+  .gaw-blank { animation: gawRise 0.6s $a-ease 0.08s backwards; }&#13;
+&#13;
+  .gaw-tile { animation: gawRise 0.62s $a-ease backwards; }&#13;
+&#13;
+  .gaw-tile--value   { animation-delay: 0.12s; }&#13;
+  .gaw-tile--pending { animation-delay: 0.18s; }&#13;
+  .gaw-tile--active  { animation-delay: 0.24s; }&#13;
+  .gaw-tile--done    { animation-delay: 0.30s; }&#13;
+&#13;
+  .gaw-tile__rule { animation: gawDrawX 0.7s $a-ease 0.34s backwards; }&#13;
+&#13;
+  .gaw-panel { animation: gawRise 0.6s $a-ease 0.3s backwards; }&#13;
+  .gaw-block { animation: gawRise 0.6s $a-ease 0.44s backwards; }&#13;
+&#13;
+  .gaw-win__fill { animation: gawDrawX 0.85s $a-ease 0.4s backwards; }&#13;
+  .gaw-win__now  { animation: gawPin 0.5s $a-ease 0.72s backwards; }&#13;
+&#13;
+  .gaw .gaw-thread li { animation: gawRise 0.45s $a-ease backwards; }&#13;
+  .gaw-rows__row      { animation: gawRise 0.4s $a-ease backwards; }&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 1200px) {&#13;
+&#13;
+  .gaw { padding: 26px 24px 64px; }&#13;
+&#13;
+  .gaw-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+}&#13;
+&#13;
+@media (max-width: 900px) {&#13;
+&#13;
+  .gaw { padding: 22px 16px 56px; }&#13;
+&#13;
+  .gaw .gaw-top__title { font-size: 22px; }&#13;
+&#13;
+  .gaw-tiles { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+  /* the amount moves under the heading rather than being&#13;
+     squeezed into a column too narrow to hold it */&#13;
+  .gaw-card__head {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 16px;&#13;
+  }&#13;
+&#13;
+  .gaw .gaw-hero__program {&#13;
+    font-size: 22px;&#13;
+    max-width: none;&#13;
+  }&#13;
+&#13;
+  .gaw-card__figure {&#13;
+    text-align: left;&#13;
+    padding-top: 14px;&#13;
+    border-top: 1px solid $a-line-2;&#13;
+  }&#13;
+&#13;
+  .gaw-card__foot {&#13;
+    align-items: flex-start;&#13;
+    flex-direction: column;&#13;
+  }&#13;
+&#13;
+  .gaw-acts { width: 100%; }&#13;
+&#13;
+  .gaw-btn { flex: 1; }&#13;
+&#13;
+  .gaw-done { width: 100%; }&#13;
+&#13;
+  .gaw .gaw-kvs { grid-template-columns: minmax(0, 1fr); }&#13;
+&#13;
+  .gaw-block__body { padding: 20px 16px 26px; }&#13;
+&#13;
+  .gaw-letter { padding: 22px 20px 20px; }&#13;
+&#13;
+  /* the claims table stops being a table and becomes a stack,&#13;
+     because four columns at 320px is four columns of nothing */&#13;
+  .gaw-rows__head { display: none; }&#13;
+&#13;
+  .gaw-rows__row {&#13;
+    grid-template-columns: minmax(0, 1fr) auto;&#13;
+    gap: 6px 12px;&#13;
+    padding: 14px;&#13;
+    border: 1px solid $a-line;&#13;
+    border-radius: 12px;&#13;
+  }&#13;
+}&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+  .gaw * { transition: none; }&#13;
+  .gaw-tile:hover { transform: none; }&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -539,583 +1606,1516 @@
         <name>My Award Details</name>
         <option_schema/>
         <public>false</public>
-        <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[(function() {
-    data.sideBar = $sp.getWidget('sidebar_dashboard');
-    data.list_page = options.list_page_id || 'my_award_list';
+        <roles>x_enno_gatenow.service_applicant_user,x_enno_gatenow.grant_awards_user</roles>
+        <script><![CDATA[(function () {
 
-    var currentUser = gs.getUserID();
-    var sysId = $sp.getParameter('sys_id') || (input && input.target_id);
+  /* =========================================================
+     GATENOW · AWARD DETAIL
+     Service Portal widget · Server script
 
-    if (!sysId)
-        return;
+     Reached from My Awards, which links to this page as
+     ?id=my_award_detail&sys_id=<award>.
 
-    /* 1. HANDLE STATUS UPDATE */
-    if (input && input.action === 'update_award_choice' && input.target_id && input.new_status) {
-        var normalizedStatus = String(input.new_status || '').toLowerCase();
+     Three things happen here that do not happen on the list:
+     the whole award record is read, the two decisions are made
+     with a reason attached, and work notes are written and read
+     back as a conversation.
 
-        if (['acknowledged', 'pending', 'rejected'].indexOf(normalizedStatus) > -1) {
-            var awardUpdateGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-            if (awardUpdateGR.get(input.target_id)) {
-                awardUpdateGR.setValue('applicant_response', normalizedStatus);
+     STATE VALUES
+     applicant_response holds the raw values pending /
+     acknowledged / rejected, exactly as My Awards writes them.
+     Nothing here matches on display labels, because a label
+     changes the day someone edits the choice list.
 
-                if (input.comment_submission && String(input.comment_submission).trim()) {
-                    awardUpdateGR.work_notes = String(input.comment_submission).trim();
-                }
+     WORK NOTES
+     Written by assigning to the journal field, which is what
+     makes ServiceNow create the sys_journal_field row and show
+     the entry in the activity stream on the form. Read back
+     from sys_journal_field directly rather than parsed out of
+     getJournalEntry, because the journal string separates
+     entries with a header line and nothing else, so a note
+     containing a newline — which they all do — cannot be split
+     back out reliably.
 
-                awardUpdateGR.update();
-            }
+     Every write re-reads the record and checks ownership first.
+     Being handed a sys_id is not entitlement.
+     ========================================================= */
+
+  var APPLICANT = 'x_enno_gatenow_service_applicants';
+  var AWARD     = 'x_enno_gatenow_grant_awards';
+  var PROGRAM   = 'x_enno_gatenow_grant_program';
+  var PROJECT   = 'x_enno_gatenow_project';
+  var CLAIM     = 'x_enno_gatenow_reimbursement';
+
+  var me = gs.getUserID();
+
+  data.success = false;
+  data.error   = '';
+  data.saved   = '';
+
+  if (typeof input === 'undefined' || input === null) input = {};
+
+  function opt(name, fallback) {
+    var v = options[name];
+    return (v === null || v === undefined || v === '') ? fallback : v.toString();
+  }
+
+  function param(key, dflt) {
+    try {
+      if (input && input[key] !== undefined && input[key] !== null) return input[key];
+    } catch (e) { /* fall through */ }
+    return dflt;
+  }
+
+  function lower(v) {
+    return (v === null || v === undefined) ? '' : ('' + v).toLowerCase().trim();
+  }
+
+  function toGDT(value) {
+    if (!value) return null;
+    var s = '' + value;
+    if (s.length === 10) s += ' 00:00:00';
+    try { return new GlideDateTime(s); } catch (e) { return null; }
+  }
+
+  function fmtDate(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try { return g.getDate().getByFormat('d MMM yyyy'); } catch (e) { return '' + value; }
+  }
+
+  function fmtWhen(value) {
+    var g = toGDT(value);
+    if (!g) return '';
+    try {
+      return g.getDate().getByFormat('d MMM yyyy') + ', ' +
+             g.getDisplayValue().split(' ')[1].substring(0, 5);
+    } catch (e) { return fmtDate(value); }
+  }
+
+  function daysUntil(value) {
+    var g = toGDT(value);
+    if (!g) return null;
+    return Math.round((g.getNumericValue() - new GlideDateTime().getNumericValue()) / 86400000);
+  }
+
+  function num(raw) {
+    if (raw === null || raw === undefined || raw === '') return 0;
+    var s = '' + raw;
+    if (s.indexOf(';') !== -1) s = s.split(';').pop();
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function commas(n) {
+    var s = '' + Math.round(n);
+    var out = '';
+    var c = 0;
+    for (var i = s.length - 1; i >= 0; i--) {
+      out = s.charAt(i) + out;
+      c++;
+      if (c % 3 === 0 && i > 0) out = ',' + out;
+    }
+    return out;
+  }
+
+  function fmtFull(n)  { return n > 0 ? '$' + commas(n) : '$0'; }
+
+  function fmtShort(n) {
+    if (!n) return '$0';
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000)    return '$' + Math.round(n / 1000) + 'K';
+    return '$' + commas(n);
+  }
+
+
+  /* names that are not on every version of a table are read
+     through pick(), which skips the ones that do not exist.
+     Nothing here throws because a column is missing. */
+  function pick(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
         }
+      } catch (e) { /* next */ }
     }
+    return '';
+  }
 
-    /* 2. IDENTIFY THE APPLICANT (SECURITY CHECK) */
-    var applicantIds = [];
-    var applicantLookupGR = new GlideRecordSecure('x_enno_gatenow_service_applicants');
-    applicantLookupGR.addQuery('user', currentUser);
-    applicantLookupGR.query();
-
-    while (applicantLookupGR.next()) {
-        applicantIds.push(applicantLookupGR.getUniqueValue());
-    }
-
-    /* 3. FETCH SINGLE AWARD DATA */
-    if (applicantIds.length > 0) {
-        var awardGR = new GlideRecordSecure('x_enno_gatenow_grant_awards');
-        awardGR.addQuery('sys_id', sysId);
-        awardGR.addQuery('applicant', 'IN', applicantIds.join(','));
-        awardGR.query();
-
-        if (awardGR.next()) {
-            var rawResponse = String(awardGR.getValue('applicant_response') || '').toLowerCase();
-
-            var attachments = [];
-            var attachmentGR = new GlideRecordSecure('sys_attachment');
-            attachmentGR.addQuery('table_name', 'x_enno_gatenow_grant_awards');
-            attachmentGR.addQuery('table_sys_id', sysId);
-            attachmentGR.query();
-
-            while (attachmentGR.next()) {
-                attachments.push({
-                    sys_id: attachmentGR.getUniqueValue(),
-                    file_name: attachmentGR.getDisplayValue('file_name'),
-                    content_type: attachmentGR.getDisplayValue('content_type'),
-                    size_bytes: parseInt(attachmentGR.getValue('size_bytes') || 0, 10),
-                    download_link: '/sys_attachment.do?sys_id=' + attachmentGR.getUniqueValue()
-                });
-            }
-
-            data.selectedAward = {
-                sys_id: awardGR.getUniqueValue(),
-                number: awardGR.getDisplayValue('number'),
-                program_name: awardGR.getDisplayValue('program_name'),
-                proposal_number: awardGR.getDisplayValue('applicant'),
-                effective_date_of_award: awardGR.getDisplayValue('effective_date_of_award'),
-                award_start_date: awardGR.getDisplayValue('award_start_date'),
-                award_end_date: awardGR.getDisplayValue('award_end_date'),
-                award_amount: parseFloat(awardGR.getValue('build_grant_amount') || 0),
-                applicant_response: rawResponse,
-                applicant_response_display: awardGR.getDisplayValue('applicant_response'),
-                grant_program_id: awardGR.getDisplayValue('grant_program'),
-                decision_reason: awardGR.getDisplayValue('decision_reason'),
-                award_letter: awardGR.getValue('award_letter'),
-                fain: awardGR.getDisplayValue('fain'),
-                assistance_listing: awardGR.getDisplayValue('assistance_listing'),
-                funding_opportunity_number: awardGR.getDisplayValue('funding_opportunity_number'),
-                attachments: attachments,
-                work_notes: ''
-            };
+  function pickDisplay(gr, names) {
+    for (var i = 0; i < names.length; i++) {
+      try {
+        if (gr.isValidField(names[i])) {
+          var v = gr.getDisplayValue(names[i]);
+          if (v !== null && v !== undefined && v !== '') return v;
         }
+      } catch (e) { /* next */ }
     }
+    return '';
+  }
+
+  /* the award letter is an HTML field and belongs on screen as
+     paragraphs, so the markup is reduced to text and line breaks
+     rather than injected */
+  function text(raw) {
+    if (!raw) return '';
+    return ('' + raw)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+
+  /* ============================================================
+     CHROME
+
+     Same shell as My Awards, so the rail behaves identically
+     across the two pages.
+     ============================================================ */
+
+  data.sideBar = $sp.getWidget(opt('sidebar_widget', 'sidebar'));
+
+  var u = gs.getUser();
+  var fn = u.getFirstName() || '';
+  var ln = u.getLastName() || '';
+  data.userInitials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() ||
+                      (u.getDisplayName() || 'U').substring(0, 2).toUpperCase();
+
+  data.pages = {
+    awards  : opt('awards_page', 'my_awards'),
+    project : opt('project_page', 'x_enno_gatenow_project_detail'),
+    programs: opt('programs_page', 'x_enno_gatenow_programs')
+  };
+
+
+  /* ============================================================
+     WHICH AWARD, AND MAY THEY SEE IT
+
+     My Awards links with sys_id. A widget option or an embedded
+     call may use award_id. Reading one and giving up is how a
+     detail page ends up saying "not available" about a record
+     the list just showed.
+     ============================================================ */
+
+  function resolveId() {
+    var found = '';
+
+    function consider(value) {
+      if (found) return;
+      if (value === null || value === undefined) return;
+      var v = ('' + value).trim();
+      if (v.length === 32) found = v;
+    }
+
+    try { consider(options.sys_id); }   catch (e) {}
+    try { consider(options.award_id); } catch (e) {}
+
+    try {
+      if (typeof input !== 'undefined' && input) {
+        consider(input.sys_id);
+        consider(input.award_id);
+      }
+    } catch (e) {}
+
+    consider($sp.getParameter('sys_id'));
+    consider($sp.getParameter('award_id'));
+
+    return found;
+  }
+
+  var awardId = resolveId();
+
+  data.found = false;
+
+  var aw = new GlideRecordSecure(AWARD);
+  var applicantId = '';
+
+  if (!awardId) {
+
+    data.error = gs.getMessage('No award was passed to this page.');
+    gs.warn('[AwardDetail] no award id on options, input or the URL');
+
+  } else if (!aw.get(awardId)) {
+
+var exists = false;
+var probe = new GlideRecordSecure(AWARD);
+try {
+  if (probe.get(awardId)) {
+    exists = true;
+  }
+} catch (e) { /* leave exists false */ }
+
+    data.error = exists
+      ? gs.getMessage('You do not have read access to that award.')
+      : gs.getMessage('That award no longer exists.');
+
+    gs.warn('[AwardDetail] ' + awardId + ' not readable by ' + gs.getUserName() +
+            (exists ? ' (read ACL is refusing it)' : ' (record not found)'));
+
+  } else {
+
+    applicantId = aw.getValue('applicant');
+    var owns = false;
+
+    /* The award points at an application and the application
+       carries the user. An application with no user on it is
+       treated as not owned rather than as owned by everyone,
+       and logged, because that is a data problem worth seeing
+       rather than a hole worth leaving open. */
+    if (!applicantId) {
+      gs.warn('[AwardDetail] award ' + awardId + ' has no applicant set');
+    } else {
+      var apCheck = new GlideRecordSecure(APPLICANT);
+      if (!apCheck.get(applicantId)) {
+        gs.warn('[AwardDetail] applicant ' + applicantId + ' not readable');
+      } else if (apCheck.getValue('user') === me) {
+        owns = true;
+      }
+    }
+
+    if (!owns) {
+      data.error = gs.getMessage('That award is not linked to one of your applications.');
+      gs.warn('[AwardDetail] ' + me + ' attempted to open ' + awardId);
+    } else {
+      data.found = true;
+    }
+  }
+
+  if (!data.found) {
+    data.t = {
+      missing: gs.getMessage('Award not available'),
+      back   : gs.getMessage('Back to my awards')
+    };
+    return;
+  }
+
+
+  /* ============================================================
+     WRITE ACTIONS
+
+     Raw choice values, matching what My Awards writes:
+     pending -> acknowledged, or pending -> rejected.
+     ============================================================ */
+
+  var action = String(param('action', ''));
+
+  /* the journal field to write to. work_notes on the award is
+     the intent; comments is only a fallback for an instance
+     where the field was never added. */
+  function journalField(gr) {
+    try { if (gr.isValidField('work_notes')) return 'work_notes'; } catch (e) {}
+    try { if (gr.isValidField('comments'))   return 'comments'; } catch (e) {}
+    return '';
+  }
+
+  /* Assigning to the journal field is what makes the platform
+     create the sys_journal_field row, so the note appears in the
+     activity stream on the form as well as in the thread below.
+     setValue on a journal field does not do this. */
+  function writeNote(gr, body) {
+    if (!body) return false;
+    var f = journalField(gr);
+    if (!f) {
+      gs.info('[AwardDetail] no journal field on ' + AWARD);
+      return false;
+    }
+    try {
+      gr[f] = body;
+      return true;
+    } catch (e) {
+      gs.info('[AwardDetail] journal not writable: ' + e.message);
+      return false;
+    }
+  }
+
+  function decide(toState, okState) {
+
+    var current = lower(aw.getValue('applicant_response'));
+
+    if (current !== 'pending') {
+      data.error = gs.getMessage('This award is no longer waiting on you. Refresh to see where it stands.');
+      return;
+    }
+
+    aw.setValue('applicant_response', toState);
+
+    /* The decision goes into the journal as well as the field,
+       so the record reads as a history rather than leaving the
+       reader to work out when the answer was given. */
+    var reason = ('' + param('reason', '')).trim();
+
+    writeNote(aw, (okState === 'acknowledged'
+      ? gs.getMessage('Award accepted by the applicant.')
+      : gs.getMessage('Award declined by the applicant.')) +
+      (reason ? '\n\n' + reason : ''));
+
+    if (aw.update()) {
+
+      /* the application follows the award, so the rest of the
+         portal agrees with this page */
+      if (applicantId) {
+        try {
+          var app = new GlideRecordSecure(APPLICANT);
+          if (app.get(applicantId)) {
+            app.setValue('state', okState === 'acknowledged'
+              ? 'award_acknowledged' : 'declined_by_applicant');
+            app.update();
+          }
+        } catch (e) {
+          gs.error('[AwardDetail] application state not updated: ' + e.message);
+        }
+      }
+
+   data.success = true;
+data.saved   = okState;
+
+/* read the record back so the page shows what was actually
+   written rather than what we hoped */
+if (aw.get(awardId)) {
+  /* refreshed; nothing else to do here */
+}
+
+    } else {
+      data.error = gs.getMessage('The decision did not save. Nothing has changed, try again.');
+    }
+  }
+
+  if (action === 'acknowledge') decide('acknowledged', 'acknowledged');
+  if (action === 'decline')     decide('rejected', 'rejected');
+
+  if (action === 'add_note') {
+
+    var note = ('' + param('note', '')).trim();
+
+    if (!note) {
+      data.error = gs.getMessage('There was nothing to send.');
+    } else if (!writeNote(aw, note)) {
+      data.error = gs.getMessage('This award has no work notes field to write to.');
+  } else if (aw.update()) {
+  data.success = true;
+  data.saved = 'note';
+  if (aw.get(awardId)) {
+    /* refreshed; nothing else to do here */
+  }
+} else {
+      data.error = gs.getMessage('The message did not send. Try again.');
+    }
+  }
+
+
+  /* ============================================================
+     THE AWARD
+
+     Same three states as My Awards, with the same labels, so a
+     row on the list and this page never disagree.
+     ============================================================ */
+
+  var STATE_MAP = {
+    pending: {
+      key  : 'pending',
+      label: gs.getMessage('Waiting on you'),
+      hint : gs.getMessage('Accept or decline to move this forward')
+    },
+    acknowledged: {
+      key  : 'active',
+      label: gs.getMessage('Accepted'),
+      hint : gs.getMessage('The project opens once the program team sets it up')
+    },
+    rejected: {
+      key  : 'declined',
+      label: gs.getMessage('Declined'),
+      hint : gs.getMessage('You turned this award down')
+    }
+  };
+
+  var rawState = lower(aw.getValue('applicant_response'));
+  var meta = STATE_MAP[rawState] || {
+    key  : 'pending',
+    label: aw.getDisplayValue('applicant_response') || gs.getMessage('Waiting on you'),
+    hint : gs.getMessage('Accept or decline to move this forward')
+  };
+
+  var amount   = num(aw.getValue('build_grant_amount'));
+  var startRaw = aw.getValue('award_start_date');
+  var endRaw   = aw.getValue('award_end_date');
+
+  data.award = {
+    sysId : aw.getUniqueValue(),
+    number: aw.getValue('number'),
+
+    program  : aw.getDisplayValue('program_name'),
+    category : aw.getDisplayValue('grant_program'),
+    programId: aw.getValue('grant_program'),
+
+    state     : meta.key,
+    stateLabel: meta.label,
+    stateHint : meta.hint,
+    rawState  : rawState,
+    canAct    : (rawState === 'pending'),
+
+    value    : amount,
+    valueText: fmtFull(amount),
+    valueShort: fmtShort(amount),
+
+    /* identifiers, which matter to an applicant only when they
+       have to quote one on a form somewhere */
+    opportunity: pick(aw, ['funding_opportunity_number']),
+    fain       : pick(aw, ['fain']),
+    listing    : pick(aw, ['assistance_listing']),
+    procurement: pick(aw, ['procurement_request_number']),
+
+    startDate    : fmtDate(startRaw),
+    effectiveDate: fmtDate(pick(aw, ['effective_date_of_award'])),
+    federalDate  : fmtDate(pick(aw, ['federal_award_date'])),
+    endDate      : fmtDate(endRaw),
+
+    decisionReason: text(pick(aw, ['decision_reason'])),
+    letter        : text(pick(aw, ['award_letter'])),
+
+    created: fmtWhen(aw.getValue('sys_created_on')),
+    moved  : fmtWhen(aw.getValue('sys_updated_on'))
+  };
+
+  /* how long it has been sitting there, which is the one number
+     that makes a pending award feel like a pending award */
+  data.award.waitingDays = (rawState === 'pending')
+    ? Math.abs(daysUntil(aw.getValue('sys_created_on')) || 0)
+    : null;
+
+
+  /* ---------- the award window ----------
+
+     Two dates and a today marker. An award with three weeks left
+     is a different thing from one with eleven months left, and
+     the two dates on their own do not say which without the
+     reader doing the arithmetic.
+     ------------------------------------------------------- */
+
+  data.window = null;
+
+  if (startRaw && endRaw) {
+
+    var span = daysUntil(endRaw) - daysUntil(startRaw);
+    var left = daysUntil(endRaw);
+
+    if (span && span > 0) {
+
+      var gone = 0 - daysUntil(startRaw);
+      var pct  = Math.max(0, Math.min(100, Math.round((gone / span) * 100)));
+
+      var tone, note;
+
+      if (left < 0) {
+        tone = 'over';
+        note = Math.abs(left) + ' ' +
+               (Math.abs(left) === 1 ? gs.getMessage('day past the end date')
+                                     : gs.getMessage('days past the end date'));
+      } else if (left <= 30) {
+        tone = 'closing';
+        note = left + ' ' + (left === 1 ? gs.getMessage('day left') : gs.getMessage('days left'));
+      } else {
+        tone = 'open';
+        note = left + ' ' + gs.getMessage('days left');
+      }
+
+      data.window = { pct: pct, days: span, left: left, tone: tone, note: note };
+    }
+  }
+
+
+  /* ============================================================
+     THE PROJECT AND ITS CLAIMS
+
+     Same project lookup My Awards uses — the project points at
+     the applicant through x_enno_gatenow_applicant.
+     ============================================================ */
+
+  data.project = null;
+
+  var projectIds = [];
+
+  try {
+    var pj = new GlideRecordSecure(PROJECT);
+    pj.addQuery('x_enno_gatenow_applicant', applicantId);
+    pj.query();
+
+    while (pj.next()) {
+      projectIds.push(pj.getUniqueValue());
+      if (!data.project) {
+        data.project = {
+          sysId: pj.getUniqueValue(),
+          name : pj.getValue('project_name') || pj.getValue('number'),
+          number: pj.getValue('number'),
+          state: pickDisplay(pj, ['state', 'status'])
+        };
+      }
+    }
+  } catch (e) {
+    gs.info('[AwardDetail] project unreadable: ' + e.message);
+  }
+
+  var claimRows = [];
+
+  var CLAIM_DATES  = ['submitted_date', 'submission_date', 'claim_date', 'request_date', 'sys_created_on'];
+  var CLAIM_AMOUNT = ['amount_requested', 'amount', 'requested_amount'];
+
+  function statusKey(display) {
+    var s = lower(display);
+    if (s.indexOf('paid') !== -1)   return 'paid';
+    if (s.indexOf('reject') !== -1 ||
+        s.indexOf('denied') !== -1) return 'rejected';
+    if (s.indexOf('approv') !== -1) return 'approved';
+    if (s.indexOf('submit') !== -1 ||
+        s.indexOf('review') !== -1 ||
+        s.indexOf('pending') !== -1) return 'submitted';
+    return 'other';
+  }
+
+  if (projectIds.length) {
+    try {
+      var cl = new GlideRecordSecure(CLAIM);
+      cl.addQuery('project', 'IN', projectIds.join(','));
+      cl.orderBy('sys_created_on');
+      cl.query();
+
+      while (cl.next()) {
+
+        var stDisplay = pickDisplay(cl, ['status', 'state']) || gs.getMessage('Unknown');
+        var whenRaw   = pick(cl, CLAIM_DATES) || cl.getValue('sys_created_on');
+        var amt       = num(pick(cl, CLAIM_AMOUNT));
+
+        claimRows.push({
+          sysId : cl.getUniqueValue(),
+          number: cl.getValue('number') || cl.getUniqueValue().substring(0, 8),
+          status: stDisplay,
+          key   : statusKey(stDisplay),
+          raw   : whenRaw,
+          date  : fmtDate(whenRaw),
+          amount: amt,
+          amountText: fmtFull(amt)
+        });
+      }
+    } catch (e) {
+      gs.info('[AwardDetail] claims unreadable: ' + e.message);
+    }
+  }
+
+  /* newest first on screen, oldest first for the running total,
+     so the table and the curve each get the order they want */
+  data.claims = claimRows.slice().reverse();
+
+
+  /* ---------- what has been drawn down ----------
+
+     An award is a ceiling, not a payment. What matters after
+     acceptance is how much of it has actually come back.
+     ------------------------------------------------------- */
+
+  var claimedTotal = 0;
+  var paidTotal    = 0;
+  var liveClaims   = 0;
+
+  for (var ci = 0; ci < claimRows.length; ci++) {
+    /* a rejected claim is not money in flight */
+    if (claimRows[ci].key === 'rejected') continue;
+    claimedTotal += claimRows[ci].amount;
+    liveClaims++;
+    if (claimRows[ci].key === 'paid') paidTotal += claimRows[ci].amount;
+  }
+
+  data.draw = null;
+
+  if (amount > 0 && claimRows.length) {
+    data.draw = {
+      awardText  : fmtShort(amount),
+      claimed    : claimedTotal,
+      claimedText: fmtShort(claimedTotal),
+      claimedFull: fmtFull(claimedTotal),
+      paid       : paidTotal,
+      paidText   : fmtShort(paidTotal),
+      paidFull   : fmtFull(paidTotal),
+      claims     : liveClaims,
+      remainingText: fmtShort(Math.max(0, amount - claimedTotal)),
+      claimedPct : Math.min(100, Math.round((claimedTotal / amount) * 100)),
+      paidPct    : Math.min(100, Math.round((paidTotal / amount) * 100)),
+      /* claiming more than the award is worth flagging rather
+         than clamping quietly */
+      over       : claimedTotal > amount
+    };
+  }
+
+
+  /* ============================================================
+     THE PROGRAM AND THE APPLICATION
+     ============================================================ */
+
+  data.program = null;
+
+  var progMin = 0;
+  var progMax = 0;
+
+  if (data.award.programId) {
+    try {
+      var pg = new GlideRecordSecure(PROGRAM);
+      if (pg.get(data.award.programId)) {
+
+        progMin = num(pick(pg, ['min_award']));
+        progMax = num(pick(pg, ['max_award']));
+
+        data.program = {
+          number  : pg.getValue('number'),
+          name    : pick(pg, ['program_name']) || pg.getDisplayValue('number'),
+          category: pg.getDisplayValue('category'),
+          manager : pg.getDisplayValue('program_manager'),
+          agency  : pickDisplay(pg, ['agency', 'department', 'awarding_agency']),
+          state   : pickDisplay(pg, ['state', 'status']),
+          synopsis: text(pick(pg, ['synopsis', 'program_description'])),
+          eligibility: text(pick(pg, ['eligibility', 'eligibility_criteria'])),
+          terms   : text(pick(pg, ['terms_and_conditions'])),
+          minAward: fmtFull(progMin),
+          maxAward: fmtFull(progMax),
+          totalFunding: (function () {
+            var tf = num(pick(pg, ['total_funding', 'total_program_funding', 'funding_amount']));
+            return tf ? fmtFull(tf) : '';
+          })(),
+          openDate : fmtDate(pick(pg, ['open_date', 'opening_date', 'start_date'])),
+          closeDate: fmtDate(pick(pg, ['close_date', 'closing_date', 'end_date']))
+        };
+      }
+    } catch (e) {
+      gs.info('[AwardDetail] program unreadable: ' + e.message);
+    }
+  }
+
+  data.application = null;
+
+  var requestedNum = 0;
+
+  try {
+    var ap = new GlideRecordSecure(APPLICANT);
+    if (ap.get(applicantId)) {
+
+      requestedNum = num(pick(ap, ['requested_budget']));
+
+      var addressBits = [
+        pick(ap, ['street', 'address', 'address_line_1']),
+        pick(ap, ['city']),
+        pickDisplay(ap, ['state_province', 'province']),
+        pick(ap, ['zip', 'postal_code', 'zip_code']),
+        pickDisplay(ap, ['country'])
+      ];
+
+      data.application = {
+        number   : ap.getValue('number'),
+        title    : pick(ap, ['proposal_title', 'short_description']),
+        summary  : text(pick(ap, ['proposal_summary', 'project_summary', 'description'])),
+        requested: requestedNum ? fmtFull(requestedNum) : '',
+        submitted: fmtDate(ap.getValue('submission_date')),
+        decided  : fmtDate(pick(ap, ['decision_date', 'reviewed_date'])),
+        state    : ap.getDisplayValue('state'),
+        organisation: pick(ap, ['organization']),
+        orgType  : pickDisplay(ap, ['organization_type', 'org_type', 'entity_type']),
+        ein      : pick(ap, ['ein', 'tax_id', 'duns', 'uei']),
+        contact  : [pick(ap, ['first_name']), pick(ap, ['last_name'])]
+                     .filter(function (x) { return !!x; }).join(' '),
+        email    : pick(ap, ['email']),
+        phone    : pick(ap, ['phone_number']),
+        website  : pick(ap, ['website', 'web_site', 'url']),
+        address  : addressBits.filter(function (x) { return !!x; }).join(', ')
+      };
+    }
+  } catch (e) {
+    gs.info('[AwardDetail] application unreadable: ' + e.message);
+  }
+
+
+  /* ============================================================
+     WORK NOTES
+
+     Read from sys_journal_field so a note containing newlines
+     survives, and so the thread here is the same set of entries
+     the activity stream shows on the form.
+     ============================================================ */
+
+  data.notes = [];
+
+  try {
+
+    var jr = new GlideRecordSecure('sys_journal_field');
+    jr.addQuery('element_id', awardId);
+    jr.addQuery('element', 'IN', 'work_notes,comments');
+    jr.orderByDesc('sys_created_on');
+    jr.setLimit(80);
+    jr.query();
+
+    while (jr.next()) {
+
+      var byId    = jr.getValue('sys_created_by');
+      var whenRaw2 = jr.getValue('sys_created_on');
+
+      data.notes.push({
+        sysId: jr.getUniqueValue(),
+        body : ('' + jr.getValue('value')).trim(),
+        by   : byId,
+        /* the applicant's own notes sit on the accent side of
+           the thread, which is what makes it read as a
+           conversation rather than as a log */
+        mine : (byId === gs.getUserName()),
+        when : fmtWhen(whenRaw2),
+        ago  : (function () {
+                 var d = daysUntil(whenRaw2);
+                 if (d === null) return '';
+                 var days = Math.abs(d);
+                 if (days === 0) return gs.getMessage('today');
+                 if (days === 1) return gs.getMessage('yesterday');
+                 return days + ' ' + gs.getMessage('days ago');
+               })()
+      });
+    }
+
+  } catch (e) {
+    gs.info('[AwardDetail] journal unreadable: ' + e.message);
+  }
+
+  data.canWriteNotes = true;
+
+  try {
+    data.canWriteNotes = !!journalField(aw) && aw.canWrite();
+  } catch (e) { /* leave it on and let the write fail loudly */ }
+
+
+  /* ============================================================
+     TILES
+
+     Same four-across shape and the same figure scale as My
+     Awards, so the two pages read as one product.
+     ============================================================ */
+
+  data.tiles = [
+    {
+      key  : 'value',
+      label: gs.getMessage('Award amount'),
+      value: fmtShort(amount),
+      note : data.application && data.application.requested
+               ? data.application.requested + ' ' + gs.getMessage('requested')
+               : gs.getMessage('as set on the award record')
+    },
+    {
+      key  : 'pending',
+      label: gs.getMessage('Your response'),
+      value: meta.label,
+      note : rawState === 'pending'
+               ? (data.award.waitingDays > 0
+                    ? gs.getMessage('waiting') + ' ' + data.award.waitingDays + ' ' + gs.getMessage('days')
+                    : gs.getMessage('nothing sent yet'))
+               : gs.getMessage('recorded') + ' ' + data.award.moved,
+      alert: rawState === 'pending'
+    },
+    {
+      key  : 'active',
+      label: gs.getMessage('Award window'),
+      value: data.window ? data.window.pct + '%' : '—',
+      note : data.window ? data.window.note : gs.getMessage('no start and end date set')
+    },
+    {
+      key  : 'done',
+      label: gs.getMessage('Drawn down'),
+      value: data.draw ? data.draw.claimedText : '—',
+      note : data.draw
+               ? data.draw.paidText + ' ' + gs.getMessage('paid across') + ' ' +
+                 data.draw.claims + ' ' +
+                 (data.draw.claims === 1 ? gs.getMessage('claim') : gs.getMessage('claims'))
+               : (rawState === 'acknowledged' ? gs.getMessage('nothing claimed yet')
+                                              : gs.getMessage('claims open once accepted'))
+    }
+  ];
+
+
+  /* ============================================================
+     PACE
+
+     The one derived reading left on this page, and it is a
+     sentence rather than a chart.
+
+     There used to be four charts here and then one. They were
+     all measuring drawdown, which is a project concern rather
+     than an award concern: it is empty for every pending and
+     declined award — which is most of the reason anyone opens
+     this page — and it duplicates something the project page
+     owns and shows better. The claimed and paid figures are
+     still on the Overview tab and every individual claim is in
+     the Claims tab, so nothing was lost except the drawing.
+     ============================================================ */
+
+  /* ---------- pace ----------
+
+     Time elapsed against money drawn. Both percentages are
+     already on the page; the comparison between them is the
+     thing nobody makes on their own, and it is one sentence
+     rather than a panel.
+     ------------------------------------------------------- */
+
+  data.pace = { show: false, tone: 'open', note: '' };
+
+  if (data.window && rawState === 'acknowledged' && amount > 0) {
+
+    var elapsed = data.window.pct;
+    var drawn   = Math.round(Math.min(100, (claimedTotal / amount) * 100));
+    var gap     = drawn - elapsed;
+
+    if (gap >= 12) {
+      data.pace = {
+        show: true, tone: 'closing',
+        note: drawn + '% ' + gs.getMessage('of the award has been claimed against') + ' ' +
+              elapsed + '% ' + gs.getMessage('of the award period. At this rate the funds run out before the end date.')
+      };
+    } else if (gap <= -12) {
+      data.pace = {
+        show: true, tone: 'over',
+        note: elapsed + '% ' + gs.getMessage('of the award period has passed and') + ' ' +
+              drawn + '% ' + gs.getMessage('of the award has been claimed. Unclaimed funds are usually returned at the end date.')
+      };
+    } else {
+      data.pace = {
+        show: true, tone: 'open',
+        note: drawn + '% ' + gs.getMessage('claimed against') + ' ' + elapsed + '% ' +
+              gs.getMessage('of the award period elapsed.')
+      };
+    }
+  }
+
+
+  /* ============================================================
+     COPY
+     ============================================================ */
+
+  data.t = {
+    title  : opt('label_title', gs.getMessage('Award')),
+    back   : gs.getMessage('Back to my awards'),
+    missing: gs.getMessage('Award not available'),
+
+    accept     : gs.getMessage('Accept award'),
+    decline    : gs.getMessage('Decline'),
+    viewProject: gs.getMessage('Open project'),
+
+    acceptTitle : gs.getMessage('Accept this award?'),
+    acceptText  : gs.getMessage('Accepting starts the project and commits you to the reporting schedule attached to this program.'),
+    acceptYes   : gs.getMessage('Yes, accept it'),
+    declineTitle: gs.getMessage('Decline this award?'),
+    declineText : gs.getMessage('This cannot be undone. The funding will be released to another applicant.'),
+    declineYes  : gs.getMessage('Yes, decline it'),
+    keep        : gs.getMessage('Go back'),
+
+    reasonLabel: gs.getMessage('Add a note for the program office'),
+    reasonHint : gs.getMessage('Optional. Whatever you write goes onto the award record as a work note.'),
+
+    answered: gs.getMessage('Your response is recorded'),
+    accepted: gs.getMessage('Award accepted'),
+    declined: gs.getMessage('Award declined'),
+    noteSent: gs.getMessage('Work note added'),
+    failed  : gs.getMessage('That did not work'),
+    ok      : gs.getMessage('OK'),
+
+    waitingFor: gs.getMessage('Waiting'),
+    days      : gs.getMessage('days'),
+    day       : gs.getMessage('day'),
+    awarded   : gs.getMessage('Awarded'),
+
+    tabOverview: gs.getMessage('Overview'),
+    tabLetter  : gs.getMessage('Award letter'),
+    tabProgram : gs.getMessage('Program'),
+    tabApp     : gs.getMessage('Applicant'),
+    tabClaims  : gs.getMessage('Claims'),
+    tabNotes   : gs.getMessage('Work notes'),
+
+    windowTitle: gs.getMessage('The award window'),
+    windowHint : gs.getMessage('From the start date to the end date, with today marked'),
+    windowNone : gs.getMessage('Set a start and an end date on the award and this fills in.'),
+    windowStart: gs.getMessage('Starts'),
+    windowEnd  : gs.getMessage('Ends'),
+    today      : gs.getMessage('Today'),
+
+
+
+    claimedLbl: gs.getMessage('Claimed'),
+    paidLbl   : gs.getMessage('Paid'),
+
+
+
+    money      : gs.getMessage('The money'),
+    awardAmount: gs.getMessage('Award amount'),
+    dates      : gs.getMessage('Key dates'),
+    awardStart : gs.getMessage('Award start'),
+    effective  : gs.getMessage('Effective date'),
+    federal    : gs.getMessage('Federal award date'),
+    awardEnd   : gs.getMessage('Award end'),
+    created    : gs.getMessage('Award raised'),
+    lastUpdated: gs.getMessage('Last change'),
+
+    ids        : gs.getMessage('Reference numbers'),
+    reference  : gs.getMessage('Award number'),
+    opportunity: gs.getMessage('Funding opportunity number'),
+    fain       : gs.getMessage('FAIN'),
+    listing    : gs.getMessage('Assistance listing'),
+    procurement: gs.getMessage('Procurement request number'),
+
+    decision  : gs.getMessage('Decision reason'),
+    letterNone: gs.getMessage('No award letter has been attached to this award.'),
+
+    progIdent  : gs.getMessage('The program'),
+    progName   : gs.getMessage('Program'),
+    progNumber : gs.getMessage('Program number'),
+    progCat    : gs.getMessage('Category'),
+    progManager: gs.getMessage('Program manager'),
+    progAgency : gs.getMessage('Awarding agency'),
+    progState  : gs.getMessage('Program status'),
+    progRange  : gs.getMessage('Award range'),
+    progTotal  : gs.getMessage('Total program funding'),
+    progOpen   : gs.getMessage('Opens'),
+    progClose  : gs.getMessage('Closes'),
+    progSynopsis: gs.getMessage('About the program'),
+    progEligibility: gs.getMessage('Eligibility'),
+    progTerms  : gs.getMessage('Terms and conditions'),
+    progNone   : gs.getMessage('The program record could not be read.'),
+
+    appSub      : gs.getMessage('The application'),
+    applicantSub: gs.getMessage('The applicant'),
+    appNumber   : gs.getMessage('Application'),
+    appTitle    : gs.getMessage('Proposal title'),
+    appSummary  : gs.getMessage('Proposal summary'),
+    appRequested: gs.getMessage('You requested'),
+    appAwarded  : gs.getMessage('You were awarded'),
+    appSubmitted: gs.getMessage('Submitted'),
+    appDecided  : gs.getMessage('Decision made'),
+    appState    : gs.getMessage('Current state'),
+    appOrg      : gs.getMessage('Organisation'),
+    appOrgType  : gs.getMessage('Organisation type'),
+    appEin      : gs.getMessage('Tax or entity ID'),
+    appContact  : gs.getMessage('Contact'),
+    appEmail    : gs.getMessage('Email'),
+    appPhone    : gs.getMessage('Phone'),
+    appAddress  : gs.getMessage('Address'),
+    appWebsite  : gs.getMessage('Website'),
+    appNone     : gs.getMessage('The application record could not be read.'),
+
+    project    : gs.getMessage('Project'),
+    claimsHint : gs.getMessage('Every reimbursement claim raised against the project attached to this award.'),
+    claimsNone : gs.getMessage('No claims have been raised against this award yet.'),
+    claimRef   : gs.getMessage('Claim'),
+    claimDate  : gs.getMessage('Raised'),
+    claimStatus: gs.getMessage('Status'),
+    claimAmount: gs.getMessage('Amount'),
+
+    notesHint   : gs.getMessage('Anything written here is saved as a work note on the award record, so the program office sees it in the activity stream.'),
+    notesNone   : gs.getMessage('Nothing has been written on this award yet.'),
+    notesPlace  : gs.getMessage('Write a work note to the program office'),
+    notesSend   : gs.getMessage('Add work note'),
+    notesSending: gs.getMessage('Sending'),
+    notesLocked : gs.getMessage('You do not have permission to write on this award.'),
+    notesYou    : gs.getMessage('You'),
+
+    none  : gs.getMessage('Not provided'),
+    notSet: gs.getMessage('Not set')
+  };
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-03-31 07:00:33</sys_created_on>
         <sys_id>2e44fb00eb4407d0520dfbdffdc0cd06</sys_id>
-        <sys_mod_count>35</sys_mod_count>
+        <sys_mod_count>45</sys_mod_count>
         <sys_name>My Award Details</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_2e44fb00eb4407d0520dfbdffdc0cd06</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-06-04 09:58:59</sys_updated_on>
-        <template><![CDATA[<div class="gn-layout">
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-02 11:37:00</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · AWARD DETAIL
+     Service Portal widget · HTML template
+
+     Reached from My Awards. Same shell, same rail, same header,
+     so the two pages are one page as far as the reader is
+     concerned.
+
+     The decision sits in the hero rather than at the bottom of
+     a tab, because an award waiting on an answer is the only
+     thing on this page with a cost attached to ignoring it.
+     ========================================================= -->
+
+<div class="gn-layout">
+
+  <!-- SIDEBAR -->
   <div class="aw-sidebar">
     <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
-  <main class="aw-detail" ng-if="data.selectedAward">
+  <main class="gaw">
 
-    <div class="dt-topbar">
-      <button class="dt-back" ng-click="c.backToList()">
-        <i class="fa fa-chevron-left"></i> My Awards
-      </button>
-
-      <div class="dt-topbar-crumb">
-        <span class="dt-crumb-prog">{{data.selectedAward.program_name}}</span>
-        <span class="dt-crumb-sep">/</span>
-        <span class="dt-crumb-num">{{data.selectedAward.number}}</span>
-      </div>
-
-      <div class="dt-topbar-badge"
-           ng-class="{
-             'dt-badge--green': data.selectedAward.applicant_response === 'acknowledged',
-             'dt-badge--amber': data.selectedAward.applicant_response === 'pending',
-             'dt-badge--red': data.selectedAward.applicant_response === 'rejected'
-           }">
-        <i class="fa fa-check-circle" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
-        <i class="fa fa-clock-o" ng-if="data.selectedAward.applicant_response === 'pending'"></i>
-        <i class="fa fa-times-circle" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
-        {{data.selectedAward.applicant_response_display}}
-      </div>
+    <!-- ═══════════════ NOT AVAILABLE ═══════════════ -->
+    <div class="gaw-blank" ng-if="!c.data.found">
+      <span class="gaw-blank__mark" aria-hidden="true"><i class="fa fa-lock"></i></span>
+      <p class="gaw-blank__title">{{c.data.t.missing}}</p>
+      <p class="gaw-blank__text" ng-if="c.data.error">{{c.data.error}}</p>
+      <a class="gaw-btn gaw-btn--ghost" ng-href="?id={{c.data.pages.awards}}">{{c.data.t.back}}</a>
     </div>
 
-    <div class="dt-hero"
-         ng-class="{
-           'dt-hero--green': data.selectedAward.applicant_response === 'acknowledged',
-           'dt-hero--amber': data.selectedAward.applicant_response === 'pending',
-           'dt-hero--red': data.selectedAward.applicant_response === 'rejected'
-         }">
-      <div class="dt-hero-glow"></div>
 
-      <div class="dt-hero-inner">
-        <div class="dt-hero-left">
-          <div class="dt-hero-icon-wrap">
-            <i class="fa fa-trophy"></i>
-          </div>
+    <div ng-if="c.data.found">
 
-          <div class="dt-hero-text">
-            <p class="dt-hero-eyebrow">
-              <i class="fa fa-certificate"></i> Grant Award &nbsp;·&nbsp; GateNow
-            </p>
-            <h1 class="dt-hero-title">{{data.selectedAward.number}}</h1>
-            <p class="dt-hero-subtitle">{{data.selectedAward.program_name}}</p>
+      <!-- ═══════════════ HEADER ═══════════════ -->
+      <header class="gaw-top">
 
-            <div class="dt-hero-tags">
-              <span class="dt-hero-tag" ng-if="data.selectedAward.grant_program_id">
-                <i class="fa fa-sitemap"></i> {{data.selectedAward.grant_program_id}}
-              </span>
-              <span class="dt-hero-tag" ng-if="data.selectedAward.fain">
-                <i class="fa fa-barcode"></i> FAIN: {{data.selectedAward.fain}}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="dt-hero-right">
-          <div class="dt-amount-card">
-            <p class="dt-ac-label">Build Grant Amount</p>
-            <p class="dt-ac-value">{{data.selectedAward.award_amount | currency:'$':2}}</p>
-            <div class="dt-ac-bar-wrap">
-              <div class="dt-ac-bar-fill" ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
-            </div>
-            <p class="dt-ac-note">Relative to highest award</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="dt-hero-tl">
-        <div class="dt-htl-node">
-          <div class="dt-htl-dot dt-htl-dot--start">
-            <i class="fa fa-play-circle"></i>
-          </div>
-          <div class="dt-htl-info">
-            <span class="dt-htl-lbl">Award Start</span>
-            <span class="dt-htl-val">{{data.selectedAward.award_start_date || '—'}}</span>
-          </div>
-        </div>
-
-        <div class="dt-htl-connector">
-          <div class="dt-htl-line"></div>
-          <span class="dt-htl-arrow">▶</span>
-        </div>
-
-        <div class="dt-htl-node">
-          <div class="dt-htl-dot dt-htl-dot--eff">
-            <i class="fa fa-star"></i>
-          </div>
-          <div class="dt-htl-info">
-            <span class="dt-htl-lbl">Effective Date</span>
-            <span class="dt-htl-val">{{data.selectedAward.effective_date_of_award || '—'}}</span>
-          </div>
-        </div>
-
-        <div class="dt-htl-connector">
-          <div class="dt-htl-line"></div>
-          <span class="dt-htl-arrow">▶</span>
-        </div>
-
-        <div class="dt-htl-node">
-          <div class="dt-htl-dot dt-htl-dot--end">
-            <i class="fa fa-flag-checkered"></i>
-          </div>
-          <div class="dt-htl-info">
-            <span class="dt-htl-lbl">Award End</span>
-            <span class="dt-htl-val">{{data.selectedAward.award_end_date || '—'}}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="dt-tabs">
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'overview'}" ng-click="c.setDetailTab('overview')">
-        <i class="fa fa-th-large"></i> Overview
-      </button>
-
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'financial'}" ng-click="c.setDetailTab('financial')">
-        <i class="fa fa-dollar"></i> Financial
-      </button>
-
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'letter'}" ng-click="c.setDetailTab('letter')">
-        <i class="fa fa-envelope-open-o"></i> Award Letter
-      </button>
-
-      <button class="dt-tab" ng-class="{'dt-tab--active': c.detailTab === 'attachments'}" ng-click="c.setDetailTab('attachments')">
-        <i class="fa fa-paperclip"></i> Attachments
-        <span class="dt-tab-count" ng-if="data.selectedAward.attachments.length > 0">
-          {{data.selectedAward.attachments.length}}
-        </span>
-      </button>
-
-      <button class="dt-tab dt-tab--amber"
-              ng-class="{'dt-tab--active': c.detailTab === 'respond'}"
-              ng-click="c.setDetailTab('respond')">
-        <i class="fa fa-pencil-square-o"></i> Respond
-        <span class="dt-tab-pulse" ng-if="data.selectedAward.applicant_response === 'pending'"></span>
-      </button>
-    </div>
-
-    <div class="dt-panel" ng-if="c.detailTab === 'overview'">
-      <div class="dt-two-col">
-        <div class="dt-card">
-          <div class="dt-card-hdr">
-            <div class="dt-card-ico dt-ico--indigo"><i class="fa fa-id-badge"></i></div>
-            <div>
-              <h3 class="dt-card-title">Primary Identifiers</h3>
-              <p class="dt-card-sub">Core references</p>
-            </div>
-          </div>
-
-          <div class="dt-field-list">
-            <div class="dt-field-row">
-              <span class="dt-fl">Award Number</span>
-              <span class="dt-fv dt-fv--brand">{{data.selectedAward.number}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">Applicant</span>
-              <span class="dt-fv">{{data.selectedAward.proposal_number || '—'}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">Grant Program</span>
-              <span class="dt-fv dt-fv--brand">{{data.selectedAward.grant_program_id || '—'}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">Program Name</span>
-              <span class="dt-fv">{{data.selectedAward.program_name || '—'}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">Funding Opp #</span>
-              <span class="dt-fv">{{data.selectedAward.funding_opportunity_number || '—'}}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="dt-card">
-          <div class="dt-card-hdr">
-            <div class="dt-card-ico dt-ico--teal"><i class="fa fa-shield"></i></div>
-            <div>
-              <h3 class="dt-card-title">Compliance IDs</h3>
-              <p class="dt-card-sub">Regulatory references</p>
-            </div>
-          </div>
-
-          <div class="dt-compliance-grid">
-            <div class="dt-comp-tile">
-              <span class="dt-comp-lbl"><i class="fa fa-barcode"></i> FAIN</span>
-              <span class="dt-comp-val">{{data.selectedAward.fain || '—'}}</span>
-            </div>
-            <div class="dt-comp-tile">
-              <span class="dt-comp-lbl"><i class="fa fa-list-alt"></i> Assistance Listing</span>
-              <span class="dt-comp-val">{{data.selectedAward.assistance_listing || '—'}}</span>
-            </div>
-           
-        
-          </div>
-        </div>
-      </div>
-
-      <div class="dt-card dt-card--full">
-        <div class="dt-card-hdr">
-          <div class="dt-card-ico dt-ico--violet"><i class="fa fa-commenting-o"></i></div>
-          <div>
-            <h3 class="dt-card-title">Decision Reason</h3>
-            <p class="dt-card-sub">Rationale from the program office</p>
-          </div>
-        </div>
-
-        <div class="dt-blockquote">
-          <div class="dt-bq-accent"></div>
-          <p class="dt-bq-text">{{data.selectedAward.decision_reason || 'No rationale provided.'}}</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="dt-panel" ng-if="c.detailTab === 'financial'">
-      <div class="dt-fin-hero">
-        <div class="dt-fin-hero-left">
-          <p class="dt-fin-eyebrow">Total Grant Value</p>
-          <p class="dt-fin-big">{{data.selectedAward.award_amount | currency:'$':2}}</p>
-          <p class="dt-fin-caption">Build Grant Amount as approved by program office</p>
-        </div>
-
-        <div class="dt-fin-hero-right">
-          <div class="dt-fin-bar-label">
-            <span>Award vs. Max</span>
-            <span>{{c.amountPercent(data.selectedAward)}}%</span>
-          </div>
-
-          <div class="dt-fin-bar-track">
-            <div class="dt-fin-bar-fill"
-                 ng-class="{
-                   'dt-fill--green': data.selectedAward.applicant_response === 'acknowledged',
-                   'dt-fill--amber': data.selectedAward.applicant_response === 'pending',
-                   'dt-fill--red': data.selectedAward.applicant_response === 'rejected'
-                 }"
-                 ng-style="{'width': c.amountPercent(data.selectedAward) + '%'}"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="dt-two-col">
-        <div class="dt-card">
-          <div class="dt-card-hdr">
-            <div class="dt-card-ico dt-ico--green"><i class="fa fa-bank"></i></div>
-            <div>
-              <h3 class="dt-card-title">Financial References</h3>
-              <p class="dt-card-sub">Award funding details</p>
-            </div>
-          </div>
-
-          <div class="dt-field-list">
-            <div class="dt-field-row">
-              <span class="dt-fl">Build Grant Amount</span>
-              <span class="dt-fv dt-fv--green">{{data.selectedAward.award_amount | currency:'$':2}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">FAIN</span>
-              <span class="dt-fv">{{data.selectedAward.fain || '—'}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">Assistance Listing</span>
-              <span class="dt-fv">{{data.selectedAward.assistance_listing || '—'}}</span>
-            </div>
-            <div class="dt-field-row">
-              <span class="dt-fl">Funding Opp #</span>
-              <span class="dt-fv">{{data.selectedAward.funding_opportunity_number || '—'}}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="dt-card">
-          <div class="dt-card-hdr">
-            <div class="dt-card-ico dt-ico--indigo"><i class="fa fa-calendar"></i></div>
-            <div>
-              <h3 class="dt-card-title">Award Period</h3>
-              <p class="dt-card-sub">Key dates</p>
-            </div>
-          </div>
-
-          <div class="dt-date-track">
-            <div class="dt-date-node">
-              <div class="dt-dn-dot dt-dn--start"><i class="fa fa-play-circle"></i></div>
-              <div class="dt-dn-body">
-                <span class="dt-dn-lbl">Start Date</span>
-                <span class="dt-dn-val">{{data.selectedAward.award_start_date || '—'}}</span>
-              </div>
-            </div>
-
-            <div class="dt-date-line"></div>
-
-            <div class="dt-date-node">
-              <div class="dt-dn-dot dt-dn--eff"><i class="fa fa-star"></i></div>
-              <div class="dt-dn-body">
-                <span class="dt-dn-lbl">Effective Date</span>
-                <span class="dt-dn-val">{{data.selectedAward.effective_date_of_award || '—'}}</span>
-              </div>
-            </div>
-
-            <div class="dt-date-line"></div>
-
-            <div class="dt-date-node">
-              <div class="dt-dn-dot dt-dn--end"><i class="fa fa-flag-checkered"></i></div>
-              <div class="dt-dn-body">
-                <span class="dt-dn-lbl">End Date</span>
-                <span class="dt-dn-val">{{data.selectedAward.award_end_date || '—'}}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="dt-panel" ng-if="c.detailTab === 'letter'">
-      <div class="dt-card dt-card--full">
-        <div class="dt-card-hdr">
-          <div class="dt-card-ico dt-ico--blue"><i class="fa fa-envelope-open-o"></i></div>
-          <div>
-            <h3 class="dt-card-title">Award Letter</h3>
-            <p class="dt-card-sub">Official communication from the agency</p>
-          </div>
-          <div class="dt-letter-meta">
-            <span class="dt-letter-meta-chip">
-              <i class="fa fa-file-text-o"></i> Official Document
+        <div class="gaw-top__left">
+          <a class="gaw-back" ng-href="?id={{c.data.pages.awards}}">
+            <span class="gaw-back__arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 6l-6 6 6 6"></path>
+              </svg>
             </span>
-          </div>
-        </div>
-
-        <div class="dt-letter-body" ng-bind-html="data.selectedAward.award_letter"></div>
-      </div>
-    </div>
-
-    <div class="dt-panel" ng-if="c.detailTab === 'attachments'">
-      <div class="dt-card dt-card--full">
-        <div class="dt-card-hdr">
-          <div class="dt-card-ico dt-ico--slate"><i class="fa fa-paperclip"></i></div>
-          <div>
-            <h3 class="dt-card-title">Attachments</h3>
-            <p class="dt-card-sub">
-              {{data.selectedAward.attachments.length}} file{{data.selectedAward.attachments.length !== 1 ? 's' : ''}} attached to this record
-            </p>
-          </div>
-        </div>
-
-        <div class="dt-att-empty" ng-if="data.selectedAward.attachments.length === 0">
-          <div class="dt-att-empty-icon"><i class="fa fa-folder-open-o"></i></div>
-          <p class="dt-att-empty-title">No attachments</p>
-          <p class="dt-att-empty-sub">No files have been uploaded to this award record.</p>
-        </div>
-
-        <div class="dt-att-list" ng-if="data.selectedAward.attachments.length > 0">
-          <a class="dt-att-item"
-             ng-repeat="att in data.selectedAward.attachments"
-             ng-href="{{att.download_link}}"
-             target="_blank"
-             ng-click="$event.stopPropagation()">
-            <div class="dt-att-icon-wrap">
-              <i class="fa {{c.fileIcon(att.content_type)}}"></i>
-            </div>
-            <div class="dt-att-meta">
-              <span class="dt-att-name">{{att.file_name}}</span>
-              <span class="dt-att-info">{{att.content_type}} &nbsp;·&nbsp; {{c.formatSize(att.size_bytes)}}</span>
-            </div>
-            <div class="dt-att-action">
-              <span class="dt-att-dl"><i class="fa fa-download"></i> Download</span>
-            </div>
+            {{c.data.t.back}}
           </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="dt-panel" ng-if="c.detailTab === 'respond'">
-
-      <div class="dt-responded" ng-if="data.selectedAward.applicant_response !== 'pending'">
-        <div class="dt-responded-icon"
-             ng-class="{
-               'dt-ri--green': data.selectedAward.applicant_response === 'acknowledged',
-               'dt-ri--red': data.selectedAward.applicant_response === 'rejected'
-             }">
-          <i class="fa fa-check" ng-if="data.selectedAward.applicant_response === 'acknowledged'"></i>
-          <i class="fa fa-times" ng-if="data.selectedAward.applicant_response === 'rejected'"></i>
+          <h1 class="gaw-top__title">{{c.data.t.title}} {{c.data.award.number}}</h1>
         </div>
 
-        <h3 class="dt-responded-title">
-          {{data.selectedAward.applicant_response === 'acknowledged' ? 'Award Acknowledged' : 'Award Rejected'}}
-        </h3>
+        <div class="gaw-top__right">
+          <span class="gaw-avatar">{{c.data.userInitials}}</span>
+        </div>
 
-        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'acknowledged'">
-          Thank you. You have successfully <strong>accepted</strong> the terms of this award.
-        </p>
+      </header>
 
-        <p class="dt-responded-sub" ng-if="data.selectedAward.applicant_response === 'rejected'">
-          You have <strong>declined</strong> this award. The program office has been notified of your decision.
-        </p>
-      </div>
 
-      <div class="dt-respond-wrap" ng-if="data.selectedAward.applicant_response === 'pending'">
+      <!-- ═══════════════ HERO ═══════════════
 
-        <div class="dt-resp-alert">
-          <div class="dt-resp-alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
+           The same card the list draws, opened out: the same
+           rail, the same state chip, the same figure block on
+           the right, the same two buttons.
+           ═══════════════════════════════════════ -->
+      <section class="gaw-card gaw-hero" ng-class="'gaw-card--' + c.data.award.state">
+
+        <span class="gaw-card__rail" aria-hidden="true"></span>
+
+        <div class="gaw-card__head">
+
+          <div class="gaw-card__lead">
+
+            <span class="gaw-card__top">
+              <span class="gaw-state" ng-class="'gaw-state--' + c.data.award.state">
+                <span class="gaw-state__dot" aria-hidden="true"></span>{{c.data.award.stateLabel}}
+              </span>
+              <span class="gaw-card__meta">
+                <span ng-if="c.data.award.category">{{c.data.award.category}}</span>
+                <span class="gaw-card__sep" ng-if="c.data.award.category" aria-hidden="true">&middot;</span>
+                <span>{{c.data.award.number}}</span>
+              </span>
+              <span class="gaw-wait"
+                    ng-if="c.data.award.state === 'pending' && c.data.award.waitingDays > 0">
+                {{c.data.t.waitingFor}} {{c.data.award.waitingDays}}
+                {{c.data.award.waitingDays === 1 ? c.data.t.day : c.data.t.days}}
+              </span>
+            </span>
+
+            <h2 class="gaw-hero__program">{{c.data.award.program}}</h2>
+            <p class="gaw-card__title" ng-if="c.data.application.title">{{c.data.application.title}}</p>
+            <p class="gaw-card__hint">{{c.data.award.stateHint}}</p>
+
+          </div>
+
+          <div class="gaw-card__figure">
+            <span class="gaw-figure__label">{{c.data.t.awarded}}</span>
+            <span class="gaw-figure__value">{{c.data.award.valueText}}</span>
+            <span class="gaw-figure__note" ng-if="c.data.application.requested">
+              {{c.data.application.requested}} {{c.data.t.appRequested | lowercase}}
+            </span>
+          </div>
+
+        </div>
+
+        <div class="gaw-card__foot">
+
+          <dl class="gaw-facts">
+            <div class="gaw-fact" ng-if="c.data.award.startDate">
+              <dt>{{c.data.t.awardStart}}</dt><dd>{{c.data.award.startDate}}</dd>
+            </div>
+            <div class="gaw-fact" ng-if="c.data.award.endDate">
+              <dt>{{c.data.t.awardEnd}}</dt><dd>{{c.data.award.endDate}}</dd>
+            </div>
+            <div class="gaw-fact" ng-if="c.data.award.moved">
+              <dt>{{c.data.t.lastUpdated}}</dt><dd>{{c.data.award.moved}}</dd>
+            </div>
+            <div class="gaw-fact" ng-if="c.data.project.name">
+              <dt>{{c.data.t.project}}</dt><dd>{{c.data.project.name}}</dd>
+            </div>
+          </dl>
+
+          <div class="gaw-acts">
+
+            <button type="button" class="gaw-btn gaw-btn--primary"
+                    ng-if="c.data.award.canAct"
+                    ng-disabled="c.busy"
+                    ng-click="c.accept()">
+              {{c.busy === 'acknowledge' ? '…' : c.data.t.accept}}
+            </button>
+
+            <button type="button" class="gaw-btn gaw-btn--danger"
+                    ng-if="c.data.award.canAct"
+                    ng-disabled="c.busy"
+                    ng-click="c.decline()">
+              {{c.data.t.decline}}
+            </button>
+
+            <span class="gaw-done" ng-if="!c.data.award.canAct">
+              <span class="gaw-done__mark" aria-hidden="true">
+                <i class="fa" ng-class="c.data.award.state === 'active' ? 'fa-check' : 'fa-times'"></i>
+              </span>
+              <span class="gaw-done__body">
+                <span class="gaw-done__title">{{c.data.t.answered}}</span>
+                <span class="gaw-done__note">{{c.data.award.stateLabel}} &middot; {{c.data.award.moved}}</span>
+              </span>
+            </span>
+
+            <a class="gaw-btn gaw-btn--ghost"
+               ng-if="c.data.project.sysId"
+               ng-href="?id={{c.data.pages.project}}&sys_id={{c.data.project.sysId}}">
+              {{c.data.t.viewProject}}
+            </a>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ═══════════════ TILES ═══════════════ -->
+      <section class="gaw-tiles">
+        <article class="gaw-tile"
+                 ng-repeat="t in c.data.tiles track by t.key"
+                 ng-class="['gaw-tile--' + t.key, {'is-alert': t.alert}]">
+          <span class="gaw-tile__rule" aria-hidden="true"></span>
+          <p class="gaw-tile__label">{{t.label}}</p>
+          <p class="gaw-tile__value">{{t.value}}</p>
+          <p class="gaw-tile__note">{{t.note}}</p>
+        </article>
+      </section>
+
+
+      <!-- ═══════════════ THE AWARD WINDOW ═══════════════
+
+           The one visual on the page, and the only one that is
+           populated whatever state the award is in. Two dates
+           and a today marker: an award with three weeks left is
+           a different thing from one with eleven months left,
+           and the two dates on their own do not say which
+           without the reader doing the arithmetic.
+           ═══════════════════════════════════════════════ -->
+      <section class="gaw-panel" ng-if="c.data.window">
+
+        <header class="gaw-panel__head">
           <div>
-            <p class="dt-resp-alert-title">Action Required</p>
-            <p class="dt-resp-alert-sub">
-              Please review this award carefully and submit your response. Your comments will be shared with the program office.
-            </p>
+            <h2 class="gaw-panel__title">{{c.data.t.windowTitle}}</h2>
+            <p class="gaw-panel__hint">{{c.data.t.windowHint}}</p>
           </div>
-        </div>
+          <span class="gaw-chip" ng-class="'gaw-chip--' + c.data.window.tone">{{c.data.window.note}}</span>
+        </header>
 
-        <div class="dt-resp-recap">
-          <div class="dt-resp-recap-field">
-            <span class="dt-resp-recap-lbl">Program</span>
-            <span class="dt-resp-recap-val">{{data.selectedAward.program_name}}</span>
-          </div>
-          <div class="dt-resp-recap-field">
-            <span class="dt-resp-recap-lbl">Award #</span>
-            <span class="dt-resp-recap-val">{{data.selectedAward.number}}</span>
-          </div>
-          <div class="dt-resp-recap-field">
-            <span class="dt-resp-recap-lbl">Amount</span>
-            <span class="dt-resp-recap-val dt-resp-recap-val--green">
-              {{data.selectedAward.award_amount | currency:'$':0}}
+        <div class="gaw-win">
+
+          <span class="gaw-win__track">
+            <span class="gaw-win__fill" ng-style="{width: c.data.window.pct + '%'}"></span>
+            <span class="gaw-win__now" ng-style="{left: c.data.window.pct + '%'}">
+              <span class="gaw-win__pin" aria-hidden="true"></span>
+              <span class="gaw-win__today">{{c.data.t.today}}</span>
             </span>
-          </div>
-        </div>
+          </span>
 
-        <div class="dt-resp-form">
-          <div class="dt-resp-form-hdr">
-            <label class="dt-resp-lbl">
-              Your Response Comments <span class="dt-req">*</span>
-            </label>
-            <span class="dt-resp-counter"
-                  ng-class="(data.selectedAward.work_notes || '').length < 10 ? 'dt-cnt--low' : 'dt-cnt--ok'">
-              {{(data.selectedAward.work_notes || '').length}} / 4000
+          <div class="gaw-win__ends">
+            <span class="gaw-win__end">
+              <span class="gaw-win__label">{{c.data.t.windowStart}}</span>
+              <span class="gaw-win__date">{{c.data.award.startDate}}</span>
+            </span>
+            <span class="gaw-win__end gaw-win__end--right">
+              <span class="gaw-win__label">{{c.data.t.windowEnd}}</span>
+              <span class="gaw-win__date">{{c.data.award.endDate}}</span>
             </span>
           </div>
 
-          <textarea class="dt-resp-ta"
-                    rows="6"
-                    ng-model="data.selectedAward.work_notes"
-                    placeholder="Describe your decision clearly (minimum 10 characters)…"></textarea>
+        </div>
 
-          <div ng-if="(data.selectedAward.work_notes || '').length < 10"
-               style="color: #d9534f; margin-top: 8px; font-weight: bold; font-size: 13px;">
-            <i class="fa fa-info-circle"></i> Please enter at least 10 characters to enable response buttons.
+        <!-- one sentence: time elapsed set against money drawn.
+             Both figures are already on the page; the comparison
+             between them is the thing nobody makes on their own,
+             and it does not need a chart to say. -->
+        <p class="gaw-pace" ng-if="c.data.pace.show">
+          <span class="gaw-pace__mark" ng-class="'gaw-pace__mark--' + c.data.pace.tone" aria-hidden="true"></span>
+          {{c.data.pace.note}}
+        </p>
+
+      </section>
+
+
+      <!-- ═══════════════ THE RECORD ═══════════════ -->
+      <section class="gaw-block">
+
+        <nav class="gaw-tabs gaw-tabs--record" role="tablist">
+          <button type="button" class="gaw-tab"
+                  ng-repeat="t in c.tabs track by t.key"
+                  ng-class="{'is-on': c.isTab(t.key)}"
+                  ng-click="c.setTab(t.key)"
+                  role="tab"
+                  ng-attr-aria-selected="{{c.isTab(t.key)}}">
+            {{t.label}}
+            <span class="gaw-tab__count" ng-if="t.count()">{{t.count()}}</span>
+          </button>
+        </nav>
+
+        <div class="gaw-block__body">
+
+          <!-- overview -->
+          <div ng-if="c.isTab('overview')">
+
+            <h4 class="gaw-sub">{{c.data.t.money}}</h4>
+
+            <dl class="gaw-kvs">
+              <div class="gaw-kv"><dt>{{c.data.t.awardAmount}}</dt><dd>{{c.data.award.valueText}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appRequested}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.requested}">{{c.data.application.requested || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.claimedLbl}}</dt>
+                <dd ng-class="{'is-blank': !c.data.draw}">{{c.data.draw ? c.data.draw.claimedFull : c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.paidLbl}}</dt>
+                <dd ng-class="{'is-blank': !c.data.draw}">{{c.data.draw ? c.data.draw.paidFull : c.data.t.none}}</dd></div>
+            </dl>
+
+            <h4 class="gaw-sub">{{c.data.t.dates}}</h4>
+
+            <dl class="gaw-kvs">
+              <div class="gaw-kv"><dt>{{c.data.t.awardStart}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.startDate}">{{c.data.award.startDate || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.effective}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.effectiveDate}">{{c.data.award.effectiveDate || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.federal}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.federalDate}">{{c.data.award.federalDate || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.awardEnd}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.endDate}">{{c.data.award.endDate || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.created}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.created}">{{c.data.award.created || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.lastUpdated}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.moved}">{{c.data.award.moved || c.data.t.notSet}}</dd></div>
+            </dl>
+
+            <h4 class="gaw-sub">{{c.data.t.ids}}</h4>
+
+            <dl class="gaw-kvs">
+              <div class="gaw-kv"><dt>{{c.data.t.reference}}</dt><dd>{{c.data.award.number}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.opportunity}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.opportunity}">{{c.data.award.opportunity || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.fain}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.fain}">{{c.data.award.fain || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.listing}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.listing}">{{c.data.award.listing || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.procurement}}</dt>
+                <dd ng-class="{'is-blank': !c.data.award.procurement}">{{c.data.award.procurement || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appNumber}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.number}">{{c.data.application.number || c.data.t.none}}</dd></div>
+            </dl>
+
+            <div class="gaw-prose" ng-if="c.data.award.decisionReason">
+              <p class="gaw-prose__label">{{c.data.t.decision}}</p>
+              <p class="gaw-prose__text">{{c.data.award.decisionReason}}</p>
+            </div>
+
           </div>
 
-          <p class="dt-resp-hint" style="margin-top: 10px;">
-            <i class="fa fa-lock"></i> Your response is confidential and sent directly to the program office.
-          </p>
+          <!-- the award letter -->
+          <div ng-if="c.isTab('letter')">
+
+            <!-- set as a letter rather than as a field value,
+                 because that is what it is -->
+            <article class="gaw-letter" ng-if="c.data.award.letter">
+              <p class="gaw-letter__text">{{c.data.award.letter}}</p>
+              <footer class="gaw-letter__foot">
+                {{c.data.award.number}}<span ng-if="c.data.program.name"> &middot; {{c.data.program.name}}</span>
+              </footer>
+            </article>
+
+            <p class="gaw-empty" ng-if="!c.data.award.letter">{{c.data.t.letterNone}}</p>
+
+          </div>
+
+          <!-- the program -->
+          <div ng-if="c.isTab('program')">
+
+            <h4 class="gaw-sub">{{c.data.t.progIdent}}</h4>
+
+            <dl class="gaw-kvs">
+              <div class="gaw-kv"><dt>{{c.data.t.progName}}</dt><dd>{{c.data.program.name}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progNumber}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.number}">{{c.data.program.number || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progCat}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.category}">{{c.data.program.category || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progManager}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.manager}">{{c.data.program.manager || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progAgency}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.agency}">{{c.data.program.agency || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progState}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.state}">{{c.data.program.state || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progRange}}</dt>
+                <dd>{{c.data.program.minAward}} &ndash; {{c.data.program.maxAward}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progTotal}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.totalFunding}">{{c.data.program.totalFunding || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progOpen}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.openDate}">{{c.data.program.openDate || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.progClose}}</dt>
+                <dd ng-class="{'is-blank': !c.data.program.closeDate}">{{c.data.program.closeDate || c.data.t.notSet}}</dd></div>
+            </dl>
+
+            <div class="gaw-prose" ng-if="c.data.program.synopsis">
+              <p class="gaw-prose__label">{{c.data.t.progSynopsis}}</p>
+              <p class="gaw-prose__text">{{c.data.program.synopsis}}</p>
+            </div>
+
+            <div class="gaw-prose" ng-if="c.data.program.eligibility">
+              <p class="gaw-prose__label">{{c.data.t.progEligibility}}</p>
+              <p class="gaw-prose__text">{{c.data.program.eligibility}}</p>
+            </div>
+
+            <div class="gaw-prose" ng-if="c.data.program.terms">
+              <p class="gaw-prose__label">{{c.data.t.progTerms}}</p>
+              <p class="gaw-prose__text">{{c.data.program.terms}}</p>
+            </div>
+
+          </div>
+
+          <!-- the applicant -->
+          <div ng-if="c.isTab('applicant')">
+
+            <h4 class="gaw-sub">{{c.data.t.appSub}}</h4>
+
+            <dl class="gaw-kvs">
+              <div class="gaw-kv"><dt>{{c.data.t.appNumber}}</dt><dd>{{c.data.application.number}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appState}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.state}">{{c.data.application.state || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appRequested}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.requested}">{{c.data.application.requested || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appAwarded}}</dt><dd>{{c.data.award.valueText}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appSubmitted}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.submitted}">{{c.data.application.submitted || c.data.t.notSet}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appDecided}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.decided}">{{c.data.application.decided || c.data.t.notSet}}</dd></div>
+            </dl>
+
+            <h4 class="gaw-sub">{{c.data.t.applicantSub}}</h4>
+
+            <dl class="gaw-kvs">
+              <div class="gaw-kv"><dt>{{c.data.t.appContact}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.contact}">{{c.data.application.contact || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appOrg}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.organisation}">{{c.data.application.organisation || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appOrgType}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.orgType}">{{c.data.application.orgType || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appEin}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.ein}">{{c.data.application.ein || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appEmail}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.email}">{{c.data.application.email || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appPhone}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.phone}">{{c.data.application.phone || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appAddress}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.address}">{{c.data.application.address || c.data.t.none}}</dd></div>
+              <div class="gaw-kv"><dt>{{c.data.t.appWebsite}}</dt>
+                <dd ng-class="{'is-blank': !c.data.application.website}">{{c.data.application.website || c.data.t.none}}</dd></div>
+            </dl>
+
+            <div class="gaw-prose" ng-if="c.data.application.title">
+              <p class="gaw-prose__label">{{c.data.t.appTitle}}</p>
+              <p class="gaw-prose__text">{{c.data.application.title}}</p>
+            </div>
+
+            <div class="gaw-prose" ng-if="c.data.application.summary">
+              <p class="gaw-prose__label">{{c.data.t.appSummary}}</p>
+              <p class="gaw-prose__text">{{c.data.application.summary}}</p>
+            </div>
+
+          </div>
+
+          <!-- claims -->
+          <div ng-if="c.isTab('claims')">
+
+            <p class="gaw-panel__hint gaw-panel__hint--tight">{{c.data.t.claimsHint}}</p>
+
+            <div class="gaw-rows">
+              <div class="gaw-rows__head">
+                <span>{{c.data.t.claimRef}}</span>
+                <span>{{c.data.t.claimDate}}</span>
+                <span>{{c.data.t.claimStatus}}</span>
+                <span class="gaw-rows__num">{{c.data.t.claimAmount}}</span>
+              </div>
+              <div class="gaw-rows__row" ng-repeat="cl in c.data.claims track by cl.sysId">
+                <span class="gaw-rows__ref">{{cl.number}}</span>
+                <span class="gaw-rows__when">{{cl.date}}</span>
+                <span><span class="gaw-pill" ng-class="'gaw-pill--' + cl.key">{{cl.status}}</span></span>
+                <span class="gaw-rows__num gaw-rows__amount">{{cl.amountText}}</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- work notes -->
+          <div ng-if="c.isTab('notes')">
+
+            <p class="gaw-panel__hint gaw-panel__hint--tight">{{c.data.t.notesHint}}</p>
+
+            <!-- writing sits above the thread, so the box is not
+                 at the bottom of a long history -->
+            <div class="gaw-write" ng-if="c.data.canWriteNotes">
+              <textarea rows="3"
+                        ng-model="c.note"
+                        placeholder="{{c.data.t.notesPlace}}"
+                        ng-disabled="c.busy === 'add_note'"></textarea>
+              <div class="gaw-write__foot">
+                <button type="button" class="gaw-btn gaw-btn--primary"
+                        ng-disabled="!c.note || c.busy" ng-click="c.sendNote()">
+                  {{c.busy === 'add_note' ? c.data.t.notesSending : c.data.t.notesSend}}
+                </button>
+              </div>
+            </div>
+
+            <p class="gaw-locked" ng-if="!c.data.canWriteNotes">{{c.data.t.notesLocked}}</p>
+
+            <ol class="gaw-thread" ng-if="c.data.notes.length">
+              <li ng-repeat="n in c.data.notes track by n.sysId" ng-class="{'is-mine': n.mine}">
+                <span class="gaw-thread__who">
+                  <span class="gaw-thread__name">{{n.mine ? c.data.t.notesYou : n.by}}</span>
+                  <span class="gaw-thread__when" title="{{n.when}}">{{n.ago}}</span>
+                </span>
+                <p class="gaw-thread__body">{{n.body}}</p>
+              </li>
+            </ol>
+
+            <p class="gaw-empty" ng-if="!c.data.notes.length">{{c.data.t.notesNone}}</p>
+
+          </div>
+
         </div>
 
-        <div class="dt-resp-actions">
-          <button class="dt-btn-accept"
-                  ng-disabled="(data.selectedAward.work_notes || '').length < 10 || c.submitting"
-                  ng-click="c.updateChoice(data.selectedAward, 'acknowledged')">
-            <i class="fa fa-check"></i>
-            Accept Award
-          </button>
+      </section>
 
-          <button class="dt-btn-decline"
-                  ng-disabled="(data.selectedAward.work_notes || '').length < 10 || c.submitting"
-                  ng-click="c.updateChoice(data.selectedAward, 'rejected')">
-            <i class="fa fa-times"></i>
-            Decline Award
-          </button>
-        </div>
-      </div>
     </div>
 
   </main>
+
 </div>]]></template>
     </sp_widget>
 </record_update>
