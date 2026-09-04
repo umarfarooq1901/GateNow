@@ -2,87 +2,71 @@
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
         <client_script><![CDATA[api.controller = function($scope, $location, $anchorScroll, $window, $timeout) {
-  var c = this;
-  c.modal = { show: false };
-
-  // Only allow same-app relative navigation (e.g. "?id=dashboard" or
-  // "/dashboard"). Rejects absolute URLs (http://, https://, //) so
-  // c.data.dashboardUrl can never send the browser off-site even if
-  // it were ever tampered with upstream.
-  function isSafeRelativeUrl(url) {
-    if (typeof url !== 'string' || url === '') return false;
-    if (/^https?:\/\//i.test(url)) return false; // absolute URL
-    if (url.indexOf('//') === 0) return false;    // protocol-relative
-    if (url.indexOf('\\') !== -1) return false;   // backslash tricks
-    return true;
-  }
-
-  c.checkLoginAndRedirect = function(event) {
-    event.preventDefault();
-    if (!c.data.isLoggedIn) {
-      c.modal = {
-        show: true,
-        type: 'info',
-        title: 'Authentication Required',
-        message: 'You are not logged in. Please log in first to access the dashboard.',
-        confirmLabel: 'Okay',
-        confirmAction: function() { c.modal.show = false; }
-      };
-    } else if (!c.data.hasAwardRole) {
-      c.modal = {
-        show: true,
-        type: 'info',
-        title: 'Access Restricted',
-        message: 'Your application hasn\'t been awarded a grant yet. Once you\'re awarded, you\'ll be able to access the dashboard.',
-        confirmLabel: 'Okay',
-        confirmAction: function() { c.modal.show = false; }
-      };
-    } else {
-      c.modal = {
-        show: true,
-        type: 'success',
-        title: 'Dashboard Access',
-        message: 'You\'re logged in and your application has been awarded — you can now view your dashboard.',
-        confirmLabel: 'Go to Dashboard',
-        confirmAction: function() {
-          if (isSafeRelativeUrl(c.data.dashboardUrl)) {
-            $location.url(c.data.dashboardUrl);
-          } else {
-            console.warn('checkLoginAndRedirect: unsafe or missing dashboardUrl, aborting redirect.');
-          }
-        }
-      };
-    }
-  };
-
-  c.logout = function(event) {
-    if (event) event.preventDefault();
-    c.modal = {
-      show: true,
-      type: 'info',
-      title: 'Logged Out',
-      message: 'You have been logged out successfully.',
-      confirmLabel: 'Okay',
-      confirmAction: function() {
-        c.modal.show = false;
-        $location.url('/?id=applicant_home');
-      }
-    };
-  };
-
-  c.onSecondary = function(event) {
-    var target = c.data.secondaryUrl;
-    if (!target || target.charAt(0) !== '#') return;
-    event.preventDefault();
-    var id = target.substring(1);
-    var el = document.getElementById(id);
-    if (el && el.scrollIntoView) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      $location.hash(id);
-      $anchorScroll();
-    }
-  };
+ var c = this;
+ c.modal = { show: false };
+ // Allow only same-app relative URLs
+ function isSafeRelativeUrl(url) {
+   if (typeof url !== 'string' || url === '') return false;
+   if (/^https?:\/\//i.test(url)) return false;
+   if (url.indexOf('//') === 0) return false;
+   if (url.indexOf('\\') !== -1) return false;
+   return true;
+ }
+ c.checkLoginAndRedirect = function(event) {
+   event.preventDefault();
+   // User is not logged in
+   if (!c.data.isLoggedIn) {
+     c.modal = {
+       show: true,
+       type: 'info',
+       title: 'Authentication Required',
+       message: 'You are not logged in. Please log in first to access the dashboard.',
+       confirmLabel: 'Okay',
+       confirmAction: function() {
+         c.modal.show = false;
+       }
+     };
+     return;
+   }
+   // Any logged-in user can access the dashboard
+   if (isSafeRelativeUrl(c.data.dashboardUrl)) {
+     $location.url(c.data.dashboardUrl);
+   } else {
+     console.warn(
+       'checkLoginAndRedirect: unsafe or missing dashboardUrl, aborting redirect.'
+     );
+   }
+ };
+ c.logout = function(event) {
+   if (event) event.preventDefault();
+   c.modal = {
+     show: true,
+     type: 'info',
+     title: 'Logged Out',
+     message: 'You have been logged out successfully.',
+     confirmLabel: 'Okay',
+     confirmAction: function() {
+       c.modal.show = false;
+       $location.url('/?id=applicant_home');
+     }
+   };
+ };
+ c.onSecondary = function(event) {
+   var target = c.data.secondaryUrl;
+   if (!target || target.charAt(0) !== '#') return;
+   event.preventDefault();
+   var id = target.substring(1);
+   var el = document.getElementById(id);
+   if (el && el.scrollIntoView) {
+     el.scrollIntoView({
+       behavior: 'smooth',
+       block: 'start'
+     });
+   } else {
+     $location.hash(id);
+     $anchorScroll();
+   }
+ };
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* =========================================================
@@ -482,48 +466,31 @@ $gnl-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Hel
         <public>true</public>
         <roles/>
         <script><![CDATA[(function() {
-  data.headlineOne       = options.headline_one        || 'Win the funding';
-  data.headlineTwoLead   = options.headline_two_lead   || 'Skip the';
-  data.headlineTwoAccent = options.headline_two_accent || 'paperwork';
-  data.subhead           = options.subhead             || 'Everything you need to find the right funding, apply with confidence, and manage your grant journey all in one place, from your first application through award and beyond.';
-  data.primaryLabel      = options.primary_label       || 'See what\'s open';
-  data.primaryUrl        = options.primary_url         || '?id=opportunities';
-  data.dashboardLabel    = options.dashboard_label     || 'Dashboard';
-  data.dashboardUrl      = options.dashboard_url       || '?id=applicant_dashboard';
-  data.registerUrl       = options.register_url        || '?id=applicant_intake';
-
-  // Access control checks
-  data.isLoggedIn = gs.getSession().isLoggedIn();
-  data.hasAwardRole = false;
-
-  if (data.isLoggedIn) {
-    // Query the actual role-assignment table directly instead of
-    // gs.getUser().hasRole(), because hasRole() silently returns true
-    // for ANY admin user on non-elevated roles — regardless of who
-    // they are — which is why both System Administrator and muneesa
-    // (both admins) were incorrectly getting dashboard access.
-    var gr = new GlideRecordSecure('sys_user_has_role');
-    gr.addQuery('user', gs.getUserID());
-    gr.addQuery('role.name', 'x_enno_gatenow.grant_awards_user');
-    gr.query();
-    if (gr.next()) {
-      data.hasAwardRole = true;
-    }
-  }
+ data.headlineOne       = options.headline_one        || 'Win the funding';
+ data.headlineTwoLead   = options.headline_two_lead   || 'Skip the';
+ data.headlineTwoAccent = options.headline_two_accent || 'paperwork';
+ data.subhead            = options.subhead             || 'Everything you need to find the right funding, apply with confidence, and manage your grant journey all in one place, from your first application through award and beyond.';
+ data.primaryLabel       = options.primary_label       || 'See what\'s open';
+ data.primaryUrl         = options.primary_url         || '?id=opportunities';
+ data.dashboardLabel     = options.dashboard_label     || 'Dashboard';
+ data.dashboardUrl       = options.dashboard_url       || '?id=applicant_dashboard';
+ data.registerUrl        = options.register_url        || '?id=applicant_intake';
+ // Check only whether the user is logged in
+ data.isLoggedIn = gs.getSession().isLoggedIn();
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-19 08:35:12</sys_created_on>
         <sys_id>b04a42572f4b7210d2a0d68fcea4e3cf</sys_id>
-        <sys_mod_count>104</sys_mod_count>
+        <sys_mod_count>109</sys_mod_count>
         <sys_name>Hero Section Applicant</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b04a42572f4b7210d2a0d68fcea4e3cf</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-02 11:28:55</sys_updated_on>
+        <sys_updated_on>2026-09-04 16:15:37</sys_updated_on>
         <template><![CDATA[<section class="gnl-hero">
   <div class="gnl-hero__inner">
     <h1 class="gnl-title">

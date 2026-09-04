@@ -126,8 +126,8 @@
       overall_health: '',
       executive_summary: '',
       comments: '',
-      achievements_last_month: '',
-      key_activities_next_month: '',
+      last_week_s_achievements: '',
+      key_activities_planned: '',
       schedule: '', comments_on_schedule: '',
       cost: '', comments_on_cost: '',
       resources: '', resource_comments: '',
@@ -2537,8 +2537,8 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         rec.setValue('overall_health', param('overall_health', ''));
         rec.setValue('executive_summary', param('executive_summary', ''));
         rec.setValue('comments', param('comments', ''));
-        rec.setValue('achievements_last_month', param('achievements_last_month', ''));
-        rec.setValue('key_activities_next_month', param('key_activities_next_month', ''));
+        rec.setValue('last_week_s_achievements', param('last_week_s_achievements', ''));
+        rec.setValue('key_activities_planned', param('key_activities_planned', ''));
 
         rec.setValue('schedule', param('schedule', ''));
         rec.setValue('comments_on_schedule', param('comments_on_schedule', ''));
@@ -2594,8 +2594,8 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         chg.setValue('category', param('category', ''));
         chg.setValue('priority', param('priority', ''));
         chg.setValue('impact', param('impact', ''));
-        chg.setValue('proposed_change', param('proposed_change', ''));
-        chg.setValue('reason_for_change', param('reason_for_change', ''));
+        chg.setValue('description', param('proposed_change', ''));
+        chg.setValue('business_justification', param('reason_for_change', ''));
 
         /* Submitting is the act of requesting. Leaving it at Not
            Yet Requested would file something nobody looks at. */
@@ -2753,8 +2753,8 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           scope    : dScope,
           summary  : text(rp.getValue('executive_summary')),
           comments : text(rp.getValue('comments')),
-          achieved : text(rp.getValue('achievements_last_month')),
-          nextUp   : text(rp.getValue('key_activities_next_month')),
+          achieved : text(rp.getValue('last_week_s_achievements')),
+          nextUp   : text(rp.getValue('key_activities_planned')),
           cSchedule: text(rp.getValue('comments_on_schedule')),
           cCost    : text(rp.getValue('comments_on_cost')),
           cResource: text(rp.getValue('resource_comments')),
@@ -3322,14 +3322,14 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-08-19 08:10:57</sys_created_on>
         <sys_id>44bc4ee193fa0b10d444c9b877373ce1</sys_id>
-        <sys_mod_count>51</sys_mod_count>
+        <sys_mod_count>56</sys_mod_count>
         <sys_name>Report &amp; Change Requests</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_44bc4ee193fa0b10d444c9b877373ce1</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-02 11:46:42</sys_updated_on>
+        <sys_updated_on>2026-09-04 08:35:28</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · REPORTS AND CHANGE REQUESTS
      Service Portal widget · HTML template
@@ -3814,12 +3814,12 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 
             <div class="grc-field grc-field--half">
               <label for="grc_r_ach">{{c.data.t.fAchieved}}</label>
-              <textarea id="grc_r_ach" rows="3" ng-model="c.report.achievements_last_month"></textarea>
+              <textarea id="grc_r_ach" rows="3" ng-model="c.report.last_week_s_achievements"></textarea>
             </div>
 
             <div class="grc-field grc-field--half">
               <label for="grc_r_next">{{c.data.t.fNextUp}}</label>
-              <textarea id="grc_r_next" rows="3" ng-model="c.report.key_activities_next_month"></textarea>
+              <textarea id="grc_r_next" rows="3" ng-model="c.report.key_activities_planned"></textarea>
             </div>
 
             <div class="grc-field grc-field--full">

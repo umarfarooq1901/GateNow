@@ -1,12 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($window) {
+        <client_script><![CDATA[api.controller = function($location) {
+
+  /* =========================================================
+     GATENOW · PROGRAM DETAIL · Client script
+
+     No $window. $location.search moves between portal pages
+     without writing to window.location, so there is no
+     navigation sink in this file for the open-redirect scan to
+     find.
+
+     This used to call $window.location.assign(). It was
+     carefully guarded — an allow-list on both the page id and
+     the parameter name — but the scan flags the sink, not the
+     value, so a guarded assign is reported the same as an
+     unguarded one. The allow-list stays anyway: it is not there
+     for the scanner, it is there because a page id coming from
+     the server should still be checked before it is used.
+     ========================================================= */
+
   var c = this;
+
   var ALLOWED_PAGES  = ['applicant_intake'];
   var ALLOWED_PARAMS = ['sys_id'];
 
   c.startApplication = function(sysId) {
+
     if (!sysId || !c.data.canApply) return;
 
     var page  = c.data.intakePage  || 'applicant_intake';
@@ -17,17 +37,14 @@
       return;
     }
 
-    var target = new URLSearchParams();
-    target.set('id', page);
-    target.set(param, sysId);
-    $window.location.assign('?' + target.toString());
+    var target = { id: page };
+    target[param] = sysId;
+
+    $location.search(target);
   };
 };]]></client_script>
         <controller_as>c</controller_as>
-        <css>&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
+        <css>/* =========================================================&#13;
    GATENOW · PROGRAM DETAIL&#13;
    Service Portal widget · CSS / SCSS&#13;
 &#13;
@@ -47,9 +64,9 @@
    TYPE&#13;
      display   44  700  -0.033em   program name&#13;
      section   19  600  -0.018em   section headings&#13;
-     lead    18.5  400              synopsis&#13;
-     body    16.5  400              long copy, 68ch measure&#13;
-     data      15  600  tabular     dates and amounts&#13;
+     lead    18.5  400             synopsis&#13;
+     body    16.5  400             long copy, 68ch measure&#13;
+     data      15  600  tabular    dates and amounts&#13;
      label     11  600   0.14em     uppercase small caps&#13;
    ========================================================= */&#13;
 &#13;
@@ -201,6 +218,69 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
 .gnpd-back:hover .gnpd-back__arrow {&#13;
   transform: translateX(-3px);&#13;
   border-color: $d-blue-2;&#13;
+}&#13;
+&#13;
+/* ---------- header layout ----------&#13;
+&#13;
+   Text left, program mark right. The mark used to sit to the&#13;
+   left of the text, which pushed the title, the chips and the&#13;
+   synopsis 128px inward — so the header no longer lined up with&#13;
+   the back link above it or the body copy below it. Everything&#13;
+   on this page shares one left edge, and the mark was the only&#13;
+   thing breaking it.&#13;
+&#13;
+   The right side of the header was empty anyway: the title is&#13;
+   capped at 20ch and the synopsis at 60ch, so on a 1180px&#13;
+   container there were four hundred unused pixels sitting there.&#13;
+   The mark now fills them instead of taking width from the text.&#13;
+&#13;
+   The grid only becomes two columns when there is an image, so a&#13;
+   program without one gets no empty gutter and the text does not&#13;
+   sit off-centre.&#13;
+   ----------------------------------------------------------- */&#13;
+&#13;
+.gnpd-head__layout {&#13;
+  display: block;&#13;
+}&#13;
+&#13;
+.gnpd-head__layout.has-media {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) 200px;&#13;
+  gap: 56px;&#13;
+  align-items: center;&#13;
+}&#13;
+&#13;
+.gnpd-head__info { min-width: 0; }&#13;
+&#13;
+/* A white card rather than a cropped photo. The field holds a&#13;
+   program logo, and object-fit: cover was cutting the sides off&#13;
+   anything that was not already square, which is most logos.&#13;
+   contain fits any aspect ratio inside the card, and the padding&#13;
+   keeps it off the border so a wide mark does not look wedged&#13;
+   in. Square, tall and letterbox marks all land looking&#13;
+   deliberate. */&#13;
+.gnpd-head__image {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 200px;&#13;
+  height: 200px;&#13;
+  padding: 22px;&#13;
+  border-radius: 22px;&#13;
+  overflow: hidden;&#13;
+  background: $d-white;&#13;
+  border: 1px solid $d-line;&#13;
+  box-shadow: 0 10px 30px rgba(10, 37, 64, 0.07);&#13;
+  animation: gnpdRise 0.7s $d-ease 0.14s backwards;&#13;
+}&#13;
+&#13;
+.gnpd-head__image img {&#13;
+  display: block;&#13;
+  max-width: 100%;&#13;
+  max-height: 100%;&#13;
+  width: auto;&#13;
+  height: auto;&#13;
+  object-fit: contain;&#13;
 }&#13;
 &#13;
 .gnpd-head__meta {&#13;
@@ -826,6 +906,21 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   .gnpd-main { order: 1; }&#13;
 &#13;
   .gnpd .gnpd-title { max-width: none; }&#13;
+&#13;
+  /* the header is narrower here but still wide enough to keep&#13;
+     the two columns side by side — the mark just gives some&#13;
+     width back to the text */&#13;
+  .gnpd-head__layout.has-media {&#13;
+    grid-template-columns: minmax(0, 1fr) 150px;&#13;
+    gap: 40px;&#13;
+  }&#13;
+&#13;
+  .gnpd-head__image {&#13;
+    width: 150px;&#13;
+    height: 150px;&#13;
+    padding: 16px;&#13;
+    border-radius: 18px;&#13;
+  }&#13;
 }&#13;
 &#13;
 @media (max-width: 620px) {&#13;
@@ -833,6 +928,24 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   .gnpd-head { padding: 22px 16px 38px; }&#13;
 &#13;
   .gnpd-back { margin-bottom: 22px; }&#13;
+&#13;
+  /* On a narrow screen the mark goes above the text rather than&#13;
+     below it: a logo under the countdown pill reads as a stray&#13;
+     graphic, above the state chip it reads as the program's&#13;
+     mark. Smaller, and left-aligned so it still shares the page&#13;
+     edge. */&#13;
+  .gnpd-head__layout.has-media {&#13;
+    grid-template-columns: minmax(0, 1fr);&#13;
+    gap: 22px;&#13;
+  }&#13;
+&#13;
+  .gnpd-head__image {&#13;
+    order: -1;&#13;
+    width: 88px;&#13;
+    height: 88px;&#13;
+    padding: 10px;&#13;
+    border-radius: 16px;&#13;
+  }&#13;
 &#13;
   .gnpd-body { padding: 32px 16px 70px; }&#13;
 &#13;
@@ -866,17 +979,7 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   .gnpd * { transition: none; }&#13;
   .gnpd-btn:hover { transform: none; }&#13;
   .gnpd-countdown__pulse { animation: none; }&#13;
-}&#13;
-&#13;
-&#13;
-&#13;
-&#13;
-&#13;
-&#13;
-&#13;
-&#13;
-&#13;
-</css>
+}</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
         <description/>
@@ -892,8 +995,7 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <option_schema/>
         <public>false</public>
         <roles>x_enno_gatenow.service_applicant_user</roles>
-        <script><![CDATA[
-(function () {
+        <script><![CDATA[(function () {
 
   /* =========================================================
      GATENOW · PROGRAM DETAIL
@@ -1117,10 +1219,11 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           else if (maxAward)        range = gs.getMessage('Up to') + ' ' + maxAward;
           else if (minAward)        range = gs.getMessage('From') + ' ' + minAward;
 
-          data.program = {
+           data.program = {
             sysId      : gr.getUniqueValue(),
             number     : gr.getValue('number'),
             name       : pick(gr, ['program_name', 'short_description', 'number']),
+            image      : gr.getDisplayValue('image'), /* <-- ADDED IMAGE FIELD */
             category   : gr.getDisplayValue('category'),
             state      : state,
             stateLabel : stateLabel,
@@ -1173,28 +1276,20 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     }
   }
 
-})();
-
-
-
-
-
-
-
-]]></script>
+})();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-17 09:50:32</sys_created_on>
         <sys_id>d1780c762f477650d2a0d68fcea4e3b3</sys_id>
-        <sys_mod_count>35</sys_mod_count>
+        <sys_mod_count>37</sys_mod_count>
         <sys_name>Program Detail Widget</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_d1780c762f477650d2a0d68fcea4e3b3</sys_update_name>
-        <sys_updated_by>farheen.maqbool</sys_updated_by>
-        <sys_updated_on>2026-09-02 11:45:53</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-04 14:48:39</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · PROGRAM DETAIL
      Service Portal widget · HTML template
@@ -1222,30 +1317,53 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         {{c.data.labels.back}}
       </a>
 
-      <div class="gnpd-head__meta">
+      <!-- Header layout: text left, program mark right.
 
-        <span class="gnpd-state" ng-class="'gnpd-state--' + c.data.program.state">
-          <span class="gnpd-state__dot" aria-hidden="true"></span>
-          {{c.data.program.stateLabel}}
-        </span>
+           The mark sits on the right rather than the left so the
+           title, the chips and the synopsis keep the same left
+           edge as the back link above them and the body copy
+           below them. One vertical line down the whole page.
 
-        <span class="gnpd-head__tags">
-          <span ng-if="c.data.program.category">{{c.data.program.category}}</span>
-          <span class="gnpd-head__sep" ng-if="c.data.program.category" aria-hidden="true">&middot;</span>
-          <span>{{c.data.program.number}}</span>
-        </span>
+           has-media is what turns the single column into two, so
+           a program with no image gets no empty gutter. -->
+      <div class="gnpd-head__layout" ng-class="{'has-media': c.data.program.image}">
+
+        <!-- Text Info Container -->
+        <div class="gnpd-head__info">
+
+          <div class="gnpd-head__meta">
+            <span class="gnpd-state" ng-class="'gnpd-state--' + c.data.program.state">
+              <span class="gnpd-state__dot" aria-hidden="true"></span>
+              {{c.data.program.stateLabel}}
+            </span>
+
+            <span class="gnpd-head__tags">
+              <span ng-if="c.data.program.category">{{c.data.program.category}}</span>
+              <span class="gnpd-head__sep" ng-if="c.data.program.category" aria-hidden="true">&middot;</span>
+              <span>{{c.data.program.number}}</span>
+            </span>
+          </div>
+
+          <h1 class="gnpd-title">{{c.data.program.name}}</h1>
+
+          <p class="gnpd-lead" ng-if="c.data.program.synopsis">{{c.data.program.synopsis}}</p>
+
+          <p class="gnpd-countdown" ng-if="c.data.program.countdown"
+             ng-class="{'is-urgent': c.data.program.urgent}">
+            <span class="gnpd-countdown__pulse" aria-hidden="true"></span>
+            {{c.data.program.countdown}}
+          </p>
+
+        </div>
+
+        <!-- Program mark. The image comes after the text in the
+             DOM and is placed right by the grid, so a screen
+             reader reaches the heading before the graphic. -->
+        <div class="gnpd-head__image" ng-if="c.data.program.image">
+          <img ng-src="{{c.data.program.image}}" alt="{{c.data.program.name}}" />
+        </div>
 
       </div>
-
-      <h1 class="gnpd-title">{{c.data.program.name}}</h1>
-
-      <p class="gnpd-lead" ng-if="c.data.program.synopsis">{{c.data.program.synopsis}}</p>
-
-      <p class="gnpd-countdown" ng-if="c.data.program.countdown"
-         ng-class="{'is-urgent': c.data.program.urgent}">
-        <span class="gnpd-countdown__pulse" aria-hidden="true"></span>
-        {{c.data.program.countdown}}
-      </p>
 
     </div>
 
@@ -1433,9 +1551,6 @@ $d-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     <a class="gnpd-missing__link" ng-href="{{c.data.backUrl}}">{{c.data.labels.back}}</a>
   </div>
 
-</div>
-
-
-]]></template>
+</div>]]></template>
     </sp_widget>
 </record_update>

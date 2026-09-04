@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($location) {
+        <client_script><![CDATA[api.controller = function($location, spUtil) {
 
   /* =========================================================
      GATENOW · FUNDING PROGRAMS (dashboard) · Client script
@@ -22,8 +22,6 @@
 
   var PER_PAGE = c.data.pageSize || 10;
 
-  /* Open first, because that is the only tab an applicant can
-     act on. The old default was also open, which was right. */
   c.tabs = [
     { key: 'open',   label: 'Open now' },
     { key: 'soon',   label: 'Opening soon' },
@@ -59,8 +57,6 @@
         return (b.fund || 0) - (a.fund || 0);
       });
     } else {
-      /* closing date, soonest first, and programs with no date
-         fall to the bottom rather than the top */
       out.sort(function(a, b) {
         return ('' + a.closeSort).localeCompare('' + b.closeSort);
       });
@@ -85,8 +81,6 @@
     return Math.min(c.page * PER_PAGE, matching().length);
   };
 
-  /* any change to what is filtered sends you back to page one,
-     otherwise you land on an empty page four */
   function reset() { c.page = 1; }
 
   c.onChange = function() { reset(); };
@@ -127,8 +121,6 @@
   c.prev = function() { c.goto(c.page - 1); };
   c.next = function() { c.goto(c.page + 1); };
 
-  /* first and last always reachable, current page keeps a
-     neighbour either side, gaps collapse to an ellipsis */
   c.pages = function() {
     var n = c.pageCount();
     var p = c.page;
@@ -159,16 +151,10 @@
   /* =====================================================
      NAVIGATION
 
-     Uses Angular's $location service instead of $window.location
-     so navigation stays inside the Service Portal SPA router
-     rather than issuing a raw browser redirect. This also
-     resolves the "Open Redirections" cert scan finding, since
-     that rule matches on $window.location.href assignment.
-
-     Page identifiers (c.data.pages.detail / c.data.pages.intake)
-     are widget options set by admins in Studio, not client
-     input — the regex guard below simply ensures only expected
-     page-id-shaped strings are ever used to build the route.
+     Both "Program details" and "Start application" now use
+     full page navigation so the target page/widget actually
+     loads. This avoids the $location.search() bug where the
+     URL changes but Service Portal does not re-render.
      ===================================================== */
 
   function safePageId(id, fallback) {
@@ -180,15 +166,22 @@
     return '?id=' + page + '&sys_id=' + encodeURIComponent(sysId || '');
   };
 
+  c.applyUrl = function(sysId) {
+    var page = safePageId(c.data.pages && c.data.pages.intake, 'intake');
+    return '?id=' + page + '&sys_id=' + encodeURIComponent(sysId || '');
+  };
+
   c.startApplication = function(sysId) {
     if (!sysId) return;
 
     var page = safePageId(c.data.pages && c.data.pages.intake, 'intake');
+    var target = '?id=' + page + '&sys_id=' + encodeURIComponent(sysId);
 
-    $location.path('/').search({
-      id: page,
-      sys_id: sysId
-    });
+    // Use spUtil.redirect for a real page load (preferred)
+    spUtil.redirect(target);
+
+    // If spUtil.redirect is not available on your instance, use:
+    // window.location.href = target;
   };
 
 };]]></client_script>
@@ -1736,14 +1729,14 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-20 10:05:57</sys_created_on>
         <sys_id>a0b0fb350fb68b10712b6af300d1b25b</sys_id>
-        <sys_mod_count>127</sys_mod_count>
+        <sys_mod_count>134</sys_mod_count>
         <sys_name>Funding Programs</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_a0b0fb350fb68b10712b6af300d1b25b</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-02 15:23:16</sys_updated_on>
+        <sys_updated_on>2026-09-03 09:16:55</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · FUNDING PROGRAMS (dashboard)
      Service Portal widget · HTML template
@@ -1972,10 +1965,11 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         </dl>
 
         <div class="gfp-row__act">
-          <button type="button" class="gfp-btn" ng-if="p.canApply"
-                  ng-click="c.startApplication(p.sysId)">
-            {{c.data.labels.apply}}
-          </button>
+          <a ng-if="p.canApply"
+   ng-href="{{c.applyUrl(p.sysId)}}"
+   class="gfp-btn">
+  {{c.data.labels.apply}}
+</a>
           <a class="gfp-btn gfp-btn--ghost" ng-href="{{c.detailUrl(p.sysId)}}">
             {{c.data.labels.details}}
           </a>

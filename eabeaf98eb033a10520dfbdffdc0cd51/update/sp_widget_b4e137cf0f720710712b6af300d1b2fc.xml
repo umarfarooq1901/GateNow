@@ -1284,18 +1284,35 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   function moveTo(sysId, fromState, toState, failMsg) {
     if (!sysId) { data.error = gs.getMessage('Nothing to update.'); return; }
     
-    var gr = new GlideRecordSecure(AWARD);
-    if (!gr.get(sysId)) {
-      data.error = gs.getMessage('That award could not be found.');
-      return;
+    // 1. Gather all applications owned by the logged-in user
+    var applicantIds = [];
+    var appGr = new GlideRecordSecure(APPLICANT);
+    appGr.addQuery('user', me); 
+    appGr.query();
+    
+    while (appGr.next()) {
+      applicantIds.push(appGr.getUniqueValue());
     }
     
-    var appGr = new GlideRecordSecure(APPLICANT);
-    if (!appGr.get(gr.getValue('applicant')) || appGr.getValue('user') !== me) {
+    if (applicantIds.length === 0) {
       data.error = gs.getMessage('That award does not belong to you.');
       return;
     }
     
+    // 2. Query the award, forcing it to match one of the user's applications
+    var gr = new GlideRecordSecure(AWARD);
+    gr.addQuery('sys_id', sysId);
+    gr.addQuery('applicant', 'IN', applicantIds.join(','));
+    gr.setLimit(1);
+    gr.query();
+    
+    // If no record is found, they either don't own it or it doesn't exist
+    if (!gr.next()) {
+      data.error = gs.getMessage('That award does not belong to you.');
+      return;
+    }
+    
+    // 3. Proceed with the state update
     if (lower(gr.getValue('applicant_response')) !== fromState) {
       data.error = failMsg;
       return;
@@ -1536,14 +1553,14 @@ $a-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-24 07:23:34</sys_created_on>
         <sys_id>b4e137cf0f720710712b6af300d1b2fc</sys_id>
-        <sys_mod_count>48</sys_mod_count>
+        <sys_mod_count>52</sys_mod_count>
         <sys_name>My Award</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_b4e137cf0f720710712b6af300d1b2fc</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-02 09:33:01</sys_updated_on>
+        <sys_updated_on>2026-09-03 17:43:54</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · MY AWARDS
      Service Portal widget · HTML template

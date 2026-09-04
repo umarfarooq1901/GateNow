@@ -81,6 +81,15 @@
       second typeface next to the one every other widget uses.
       The rail inherits Outfit like everything else.
 
+   5. Brand mark + name are now a real click target.
+      They sit inside a single .gsb-brand__link so the whole
+      lockup can navigate home, keyboard and screen reader
+      accessible, without disturbing the flex layout the old
+      .gsb-brand row already had. Click/tap has NO visual
+      highlight (no background flash, no opacity dim, no
+      outline on mouse/touch); a focus ring appears only for
+      keyboard navigation via :focus-visible.
+
    Also: the indigo shadow was the old palette. Everything here
    is the same navy and the same accent blue as the pages.
    ========================================================= */
@@ -240,9 +249,57 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   height: 36px;
   flex-shrink: 0;
   border-radius: 10px;
-  
+
   color: $s-white;
   box-shadow: 0 6px 14px rgba(21, 96, 224, 0.28);
+}
+
+/* Wraps the mark + name so the whole lockup is one clickable,
+   keyboard-focusable "go home" control — same flex recipe
+   .gsb-brand used to apply directly to its children, just one
+   level deeper now.
+
+   Deliberately NO hover/active state here: no background,
+   no opacity dim, no outline on click. -webkit-tap-highlight
+   is killed for the mobile flash, user-select is off so a
+   double-click/tap doesn't select the text, and the only
+   visible ring left is :focus-visible for keyboard users. */
+.gsb-brand__link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.gsb-brand__link,
+.gsb-brand__link:link,
+.gsb-brand__link:visited,
+.gsb-brand__link:hover,
+.gsb-brand__link:active,
+.gsb-brand__link:focus {
+  background: transparent;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* keyboard-only focus ring — mouse and touch clicks stay clean */
+.gsb-brand__link:focus-visible {
+  outline: 2px solid $s-blue;
+  outline-offset: 3px;
+}
+
+.gsb.is-tight .gsb-brand__link {
+  justify-content: center;
 }
 
 .gsb-brand__name {
@@ -254,6 +311,7 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   letter-spacing: -0.024em;
   color: $s-navy;
   transition: opacity 0.2s $s-ease;
+  pointer-events: none; /* clicks always resolve on .gsb-brand__link */
 }
 
 .gsb.is-tight .gsb-brand {
@@ -730,7 +788,7 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <description/>
         <docs/>
         <field_list/>
-        <has_preview>false</has_preview>
+        <has_preview>true</has_preview>
         <id>sidebar</id>
         <internal>false</internal>
         <link><![CDATA[function link(scope, element, attrs, controller) {
@@ -966,14 +1024,14 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>Sheeba.showkat</sys_created_by>
         <sys_created_on>2026-08-20 11:25:51</sys_created_on>
         <sys_id>dfa240c60f3a8b10712b6af300d1b2e1</sys_id>
-        <sys_mod_count>125</sys_mod_count>
+        <sys_mod_count>135</sys_mod_count>
         <sys_name>Sidebar</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dfa240c60f3a8b10712b6af300d1b2e1</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-02 15:26:44</sys_updated_on>
+        <sys_updated_by>farheen.maqbool</sys_updated_by>
+        <sys_updated_on>2026-09-03 08:32:48</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · SIDEBAR
      Service Portal widget · HTML template
@@ -983,19 +1041,31 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
      single stroke weight rather than a mix of Font Awesome and
      hand drawn paths, which is why the old rail had two visual
      languages in one column.
+
+     UPDATE: brand mark + name are now a clickable "go home"
+     control, wired through the same c.go() handler every other
+     nav item already uses (see c.data.groups[0].items[0] —
+     assumed to be the Overview item; swap for c.data.homeItem
+     if your controller exposes one explicitly).
      ========================================================= -->
 
 <nav class="gsb" ng-class="{'is-tight': c.tight}" aria-label="{{c.data.t.brand}}">
 
   <!-- ═══════════════ BRAND ═══════════════ -->
- 
+
   <header class="gsb-brand">
 
-    <span class="gsb-brand__mark" aria-hidden="true">
-      <img src="x_enno_gatenow.sidebar%20logo.png" width="20" height="20" alt="GateNow Logo" />
-    </span>
+    <a class="gsb-brand__link"
+       ng-href="https://ven08761.service-now.com/applicant"
+       aria-label="{{c.data.t.brand}} — go to home">
 
-    <span class="gsb-brand__name">{{c.data.t.brand}}</span>
+      <span class="gsb-brand__mark" aria-hidden="true">
+        <img src="x_enno_gatenow.sidebar%20logo.png" width="20" height="20" alt="" />
+      </span>
+
+      <span class="gsb-brand__name">{{c.data.t.brand}}</span>
+
+    </a>
 
     <button type="button" class="gsb-toggle"
             ng-click="c.toggle()"

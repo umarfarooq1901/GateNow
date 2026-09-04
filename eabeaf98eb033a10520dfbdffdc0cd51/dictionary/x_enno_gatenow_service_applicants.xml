@@ -17,7 +17,7 @@
         </element>
         <element label="Submission date" max_length="40" name="submission_date" read_only="true" type="glide_date"/>
         <element calculation="(function calculatedFieldValue(current) {&#10;&#10;// If grant_review is set, show that status; otherwise show empty message&#10;if (!gr.grant_review.nil()) {&#10;    return gr.grant_review.getDisplayValue('status');&#10;}&#10;return 'No Review Assigned';&#10;&#10;&#10;})(current);" label="Status" max_length="40" name="status" read_only="true" type="string" virtual="true"/>
-        <element label="User" max_length="40" name="user" read_only="true" reference="sys_user" type="reference"/>
+        <element label="User" max_length="40" name="user" reference="sys_user" type="reference"/>
         <element choice="1" label="State" max_length="40" name="state" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Review Completed" sequence="3" value="review_completed"/>
@@ -81,7 +81,6 @@
         </element>
         <element label="Last name" mandatory="true" max_length="40" name="last_name" read_only="true" type="string"/>
         <element label="Phone Number" max_length="40" name="phone_number" read_only="true" type="string"/>
-        <element label="Project Goals and Objectives" mandatory="true" max_length="4000" name="project_goals_and_objectives" read_only="true" type="string"/>
         <element choice="1" label="Marital status" max_length="40" name="marital_status" read_only="true" type="choice">
             <choice>
                 <element inactive_on_update="false" label="Divorced" sequence="2" value="Divorced"/>

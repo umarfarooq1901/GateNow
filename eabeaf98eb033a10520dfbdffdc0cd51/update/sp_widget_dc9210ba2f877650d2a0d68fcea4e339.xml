@@ -47,6 +47,19 @@
         (c.data.Url instead of c.data.applicationStatusUrl) that
         would have thrown on every successful submit and left
         the applicant stuck - fixed below.
+
+     6. Step rail desync (check+number both showing, highlight
+        stuck on the wrong step).
+        is-on, is-done, is-ahead and the check-vs-number mark
+        used to each be computed inline in the template by
+        calling c.isDone(s.n) / c.stepShowsCheck(s.n) separately
+        in different bindings on every digest. That let the rail
+        highlight and the check/number mark disagree with each
+        other and with the panel. refreshStepFlags() now computes
+        all four flags for every step, once per change, and
+        stores them directly on the step object; the template
+        binds to those stored flags instead of calling functions.
+        c.stepShowsCheck is gone - nothing calls it anymore.
      ========================================================= */
 
   var c = this;
@@ -195,13 +208,32 @@
 
   c.isDone = function(n) { return c.completedSteps.indexOf(n) !== -1; };
 
-  /* One predicate drives both the tick and the number, so they can
-     never appear together. A step shows a tick once it is completed
-     AND you have moved off it; the step you are standing on always
-     shows its number, even after it has been completed. */
-  c.stepShowsCheck = function(n) {
-    return c.isDone(n) && c.currentStep !== n;
-  };
+  /* Single source of truth for the rail. Computes is-on, is-done,
+     is-ahead and the check-vs-number mark for every step in one
+     pass and stores them on the step object itself, so the rail
+     highlight and the check/number mark are always reading the
+     exact same values in the same digest - they can never
+     disagree with each other or with the panel's c.currentStep. */
+/* Single source of truth for the rail. Wrapped in $timeout to force 
+     AngularJS to instantly repaint the blue highlight on the active step. */
+function refreshStepFlags() {
+    /* Create a deep copy of the array */
+    var updatedSteps = angular.copy(c.steps);
+    
+    angular.forEach(updatedSteps, function(s) {
+      s.done      = c.isDone(s.n);
+      s.on        = Number(c.currentStep) === Number(s.n);
+      s.ahead     = Number(s.n) > Number(c.currentStep) && !s.done;
+      s.showCheck = s.done && !s.on;
+    });
+    
+    /* Re-assigning the array inside a timeout forces Angular to instantly repaint the side rail */
+    $timeout(function() {
+      c.steps = updatedSteps;
+    });
+  }
+
+  refreshStepFlags();
 
   c.progress = function() {
     return Math.round((c.completedSteps.length / c.totalSteps) * 100);
@@ -253,9 +285,9 @@
       if (empty(c.form[field])) { c.errors[field] = msg; ok = false; }
     }
 
-    if (step === 1) {
+if (step === 1) {
       need('first_name', c.data.t.eFirst);
-      need('middle_name', c.data.t.eMiddle);
+      /* need('middle_name', c.data.t.eMiddle); -- REMOVED to make optional */
       need('last_name', c.data.t.eLast);
 
       if (empty(c.form.email)) { c.errors.email = c.data.t.eEmail; ok = false; }
@@ -352,6 +384,7 @@
     markDone(c.currentStep);
     c.currentStep++;
     c.errors = {};
+    refreshStepFlags();
     toTop();
   };
 
@@ -359,6 +392,7 @@
     if (c.currentStep <= 1 || c.saving) return;
     c.errors = {};
     c.currentStep--;
+    refreshStepFlags();
     toTop();
   };
 
@@ -375,6 +409,7 @@
 
     c.errors = {};
     c.currentStep = step;
+    refreshStepFlags();
     toTop();
   };
 
@@ -929,6 +964,14 @@
     color: var(--gni-ink-54);
     font-size: 12px;
     font-weight: 700;
+
+    /* Defensive fallback: the check icon and the step-number span
+       are meant to be template-level mutually exclusive (bound to
+       the single s.showCheck flag computed in the client script).
+       This rule is a belt-and-suspenders guard so that if the two
+       ever end up in the DOM together, the number never shows on
+       top of / underneath the check. */
+    i.fa-check + span { display: none; }
   }
   .gni-step__body { display: flex; flex-direction: column; min-width: 0; }
   .gni-step__name { font-size: 13.5px; font-weight: 600; color: var(--gni-ink-70); }
@@ -2016,30 +2059,17 @@ function categoryOf(programId) {
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-17 10:39:56</sys_created_on>
         <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
-        <sys_mod_count>90</sys_mod_count>
+        <sys_mod_count>102</sys_mod_count>
         <sys_name>Applicant_form</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2026-09-02 11:40:24</sys_updated_on>
+        <sys_updated_by>Sheeba.showkat</sys_updated_by>
+        <sys_updated_on>2026-09-03 08:29:02</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · APPLICANT INTAKE
      Service Portal widget · HTML template
-
-     Document upload no longer depends on ng-file-upload, which is
-     not part of the Service Portal AngularJS bundle. With the
-     library absent, ngf-select / ngf-drop never bound, so the
-     picker never opened and dropped files were ignored. Documents
-     now uses a native <input type="file">; the client controller
-     wires the change / drag / drop events itself once the step
-     renders, so it works in any portal.
-
-     The "Your proposal" step is removed entirely. Documents is
-     now step 4 of 5, Review and submit is step 5 of 5. Submit no
-     longer shows a success banner - it redirects straight to the
-     application status page.
      ========================================================= -->
 
 <div class="gni" ng-class="{'is-blocked': c.formBlocked}">
@@ -2089,8 +2119,8 @@ function categoryOf(programId) {
                                'is-ahead': s.n > c.currentStep && !c.isDone(s.n)}"
                     ng-click="c.goToStep(s.n)">
               <span class="gni-step__mark" aria-hidden="true">
-                <i class="fa fa-check" ng-if="c.stepShowsCheck(s.n)"></i>
-                <span ng-if="!c.stepShowsCheck(s.n)">{{s.n}}</span>
+                <i class="fa fa-check" ng-if="c.isDone(s.n) && c.currentStep !== s.n"></i>
+                <span ng-if="!(c.isDone(s.n) && c.currentStep !== s.n)">{{s.n}}</span>
               </span>
               <span class="gni-step__body">
                 <span class="gni-step__name">{{s.label}}</span>
@@ -2143,8 +2173,9 @@ function categoryOf(programId) {
             <span class="gni-err" ng-if="c.errors.first_name">{{c.errors.first_name}}</span>
           </div>
 
+          <!-- Middle Name - Labeled as Optional -->
           <div class="gni-field gni-field--third">
-            <label for="gni_middle">{{c.data.t.middleName}}</label>
+            <label for="gni_middle">{{c.data.t.middleName}} <span style="font-weight: normal; color: var(--gni-ink-54);">(Optional)</span></label>
             <input id="gni_middle" type="text" ng-model="c.form.middle_name"
                    ng-class="{'has-error': c.errors.middle_name}">
             <span class="gni-err" ng-if="c.errors.middle_name">{{c.errors.middle_name}}</span>
@@ -2264,13 +2295,13 @@ function categoryOf(programId) {
           <div class="gni-field gni-field--full">
             <label for="gni_program">{{c.data.t.program}}</label>
             <div class="gni-pick">
+              <!-- Disabled so it is read-only, icon removed -->
               <select id="gni_program" ng-model="c.form.grant_program"
-                      ng-class="{'has-error': c.errors.grant_program}">
+                      ng-class="{'has-error': c.errors.grant_program}" disabled>
                 <option value="">{{c.data.t.choose}}</option>
                 <option ng-repeat="p in c.data.programs track by p.sys_id"
                         value="{{p.sys_id}}">{{p.name}}{{p.number ? '  ·  ' + p.number : ''}}</option>
               </select>
-              <i class="fa fa-angle-down" aria-hidden="true"></i>
             </div>
             <span class="gni-note" ng-if="c.form.program_category">
               {{c.data.t.category}}: <strong>{{c.form.program_category}}</strong>
@@ -2331,37 +2362,19 @@ function categoryOf(programId) {
 
 
         <!-- ═══ 4 · DOCUMENTS ═══ -->
-        <div class="gni-fields" ng-if="c.currentStep === 4">
-
+        <div class="gni-fields" ng-show="c.currentStep == 4">
           <div class="gni-field--full">
-
-            <!-- Native file input + dropzone. No ng-file-upload
-                 dependency: the controller wires change / drag /
-                 drop itself once this step renders. -->
-            <div class="gni-drop"
-                 ng-class="{'is-over': c.isDragging, 'has-error': c.errors.documents}">
-
+            <div class="gni-drop" ng-class="{'is-over': c.isDragging, 'has-error': c.errors.documents}">
               <span class="gni-drop__mark" aria-hidden="true"><i class="fa fa-cloud-upload"></i></span>
               <p class="gni-drop__title">{{c.data.t.dropTitle}}</p>
               <p class="gni-drop__text">{{c.data.t.dropText}}</p>
-
-              <input type="file"
-                     class="gni-file-input"
-                     multiple
-                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                     style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);margin:-1px;border:0;">
-
-              <button type="button"
-                      class="gni-btn gni-btn--ghost gni-drop__btn"
-                      ng-click="c.pickFiles()">
+              <input type="file" class="gni-file-input" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);margin:-1px;border:0;">
+              <button type="button" class="gni-btn gni-btn--ghost gni-drop__btn" ng-click="c.pickFiles()">
                 <i class="fa fa-paperclip" aria-hidden="true"></i>
                 {{c.data.t.chooseFiles}}
               </button>
-
             </div>
-
             <span class="gni-err" ng-if="c.errors.documents">{{c.errors.documents}}</span>
-
             <ul class="gni-files" ng-if="c.uploadedFiles.length">
               <li class="gni-file" ng-repeat="f in c.uploadedFiles track by ($index + f.name)">
                 <span class="gni-file__mark" aria-hidden="true"><i class="fa fa-file-o"></i></span>
@@ -2369,85 +2382,62 @@ function categoryOf(programId) {
                   <span class="gni-file__name">{{f.name}}</span>
                   <span class="gni-file__size">{{c.formatFileSize(f.size)}}</span>
                 </span>
-                <button type="button" class="gni-file__x" ng-click="c.removeFile($index)"
-                        aria-label="{{c.data.t.remove}}">
+                <button type="button" class="gni-file__x" ng-click="c.removeFile($index)" aria-label="{{c.data.t.remove}}">
                   <i class="fa fa-times" aria-hidden="true"></i>
                 </button>
               </li>
             </ul>
-
           </div>
-
         </div>
 
-
         <!-- ═══ 5 · REVIEW ═══ -->
-        <div class="gni-review" ng-if="c.currentStep === 5">
-
+        <div class="gni-review" ng-show="c.currentStep == 5">
           <div class="gni-recap" ng-repeat="g in c.recap() track by g.step">
-
             <header class="gni-recap__head">
               <h3 class="gni-recap__title">{{g.title}}</h3>
-              <button type="button" class="gni-recap__edit" ng-click="c.goToStep(g.step)">
-                {{c.data.t.edit}}
-              </button>
+              <button type="button" class="gni-recap__edit" ng-click="c.goToStep(g.step)">{{c.data.t.edit}}</button>
             </header>
-
             <dl class="gni-recap__rows">
               <div class="gni-recap__row" ng-repeat="r in g.rows track by $index">
                 <dt>{{r.label}}</dt>
                 <dd ng-class="{'is-blank': !r.value}">{{r.value || c.data.t.notGiven}}</dd>
               </div>
             </dl>
-
           </div>
-
           <div class="gni-recap">
             <header class="gni-recap__head">
               <h3 class="gni-recap__title">{{c.data.t.documents}}</h3>
               <button type="button" class="gni-recap__edit" ng-click="c.goToStep(4)">{{c.data.t.edit}}</button>
             </header>
-            <p class="gni-recap__files" ng-if="c.uploadedFiles.length">
-              {{c.uploadedFiles.length}} {{c.data.t.filesAttached}}
-            </p>
+            <p class="gni-recap__files" ng-if="c.uploadedFiles.length">{{c.uploadedFiles.length}} {{c.data.t.filesAttached}}</p>
             <p class="gni-recap__files is-blank" ng-if="!c.uploadedFiles.length">{{c.data.t.noFiles}}</p>
           </div>
-
           <label class="gni-confirm">
             <input type="checkbox" ng-model="c.confirmed">
             <span>{{c.data.t.confirm}}</span>
           </label>
           <span class="gni-err" ng-if="c.errors.confirmed">{{c.errors.confirmed}}</span>
-
         </div>
-
 
         <!-- ── actions ── -->
         <footer class="gni-actions">
-
-          <button type="button" class="gni-btn gni-btn--ghost"
-                  ng-click="c.prevStep()" ng-disabled="c.currentStep === 1 || c.saving">
+          <button type="button" class="gni-btn gni-btn--ghost" ng-click="c.prevStep()" ng-disabled="c.currentStep === 1 || c.saving">
             {{c.data.t.back}}
           </button>
-
+          
           <div class="gni-actions__right">
-
-            <button type="button" class="gni-btn gni-btn--primary"
-                    ng-if="c.currentStep < c.totalSteps"
-                    ng-click="c.nextStep()" ng-disabled="c.saving">
+            <!-- CONTINUED BUTTON -->
+            <button type="button" class="gni-btn gni-btn--primary" ng-show="c.currentStep != 5" ng-click="c.nextStep()" ng-disabled="c.saving">
               {{c.data.t.continue}}
               <i class="fa fa-arrow-right" aria-hidden="true"></i>
             </button>
 
-            <button type="button" class="gni-btn gni-btn--primary"
-                    ng-if="c.currentStep === c.totalSteps"
-                    ng-click="c.submit()" ng-disabled="c.saving">
+            <!-- SUBMIT BUTTON -->
+            <button type="button" class="gni-btn gni-btn--primary" ng-show="c.currentStep == 5" ng-click="c.submit()" ng-disabled="c.saving">
               <span ng-if="!c.saving">{{c.data.t.submit}}</span>
               <span ng-if="c.saving">{{c.data.t.submitting}}</span>
             </button>
-
           </div>
-
         </footer>
 
         <div class="gni-progressbar" ng-if="c.uploadProgress > 0">
