@@ -1,1127 +1,1915 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function(spModal, spUtil) {
+        <client_script><![CDATA[api.controller = function($scope, spModal) {
+
+  /* =========================================================
+     GATENOW · PROPOSAL REVIEW DETAIL · Client script
+
+     Page: review_proposal_detail_page
+
+     Three writes, and the three flags that decide which of
+     them a reader is allowed. All three flags come from the
+     server; none is re-derived here, so the page can never
+     offer an action the server will refuse.
+
+       isCompleted   the review is closed. Nothing can be
+                     scored or declined. Notes stay open,
+                     because a finished review still gets
+                     talked about.
+
+       canScore      your group holds it AND it is the last
+                     group on the reviewer chain. Only that
+                     group records a number.
+
+       isReadOnly    your group holds it but an earlier place
+                     on the chain. You read, you note, and you
+                     pass it on.
+
+     After any write the page reloads in full. The server's
+     reject_review path returns before it reloads the record,
+     so a partial response would leave the page holding a row
+     with no applicant and no program on it.
+     ========================================================= */
+
   var c = this;
 
-  c.tab = 'overview';
+  c.tab     = 'proposal';
+  c.saving  = false;
+  c.noting  = false;
+  c.busy    = '';
+  c.note    = '';
+  c.form    = { score: null, comments: '' };
 
-  c.form = {
-    score:    c.data.score      || '',
-    comments: c.data.work_notes || ''
+
+  /* =====================================================
+     WHO THE READER IS ON THIS RECORD
+     ===================================================== */
+
+  c.isCompleted = function() {
+    return c.data.status === 'Review completed' ||
+           c.data.status === 'Declined by Reviewer';
   };
 
-  c.newNote    = '';
-  c.saving     = false;
-  c.addingNote = false;
-  c.rejecting  = false;
-  c.error      = '';
+  c.canScore = function() {
+    return !c.isCompleted() && !c.data.submitted && c.data.is_last_reviewer;
+  };
 
-  // ── VISIBILITY FLAGS ──
-  c.isCompleted = (c.data.status === 'Review completed');
-  c.canScore    = !c.isCompleted && c.data.is_last_reviewer;
-  c.isReadOnly  = !c.isCompleted && !c.data.is_last_reviewer && !c.data.submitted;
+  c.isReadOnly = function() {
+    return !c.isCompleted() && !c.data.submitted && !c.data.is_last_reviewer;
+  };
 
-  // ── FORMAT FILE SIZE ──
+  /* whether anything can still be done from this page at all */
+  c.canAct = function() {
+    return !c.isCompleted() && !c.data.submitted;
+  };
+
+  c.stance = function() {
+    if (c.isCompleted()) return 'closed';
+    if (c.data.submitted) return 'passed';
+    if (c.canScore()) return 'scoring';
+    return 'reading';
+  };
+
+  /* the same 7 and 4 thresholds the rest of the portal uses,
+     so no two screens disagree about what a 7 means */
+  c.bandOf = function(score) {
+    var n = parseInt(score, 10);
+    if (!score || isNaN(n)) return 'none';
+    if (n >= 7) return 'high';
+    if (n >= 4) return 'mid';
+    return 'low';
+  };
+
+  c.scoreWidth = function(score) {
+    if (!score) return '0%';
+    return Math.min(Math.round((parseInt(score, 10) / 10) * 100), 100) + '%';
+  };
+
+  c.scale = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  c.fullName = function() {
+    var a = c.data.applicant || {};
+    return [a.first_name, a.middle_name, a.last_name]
+      .filter(function(p) { return !!p; }).join(' ') || 'Name not on record';
+  };
+
+  c.docCount = function() {
+    return ((c.data.applicant || {}).documents || []).length +
+           ((c.data.program || {}).documents || []).length;
+  };
+
   c.formatSize = function(bytes) {
-    if (!bytes) return '';
-    return (parseInt(bytes) / 1024).toFixed(2) + ' KB';
+    var b = parseInt(bytes, 10);
+    if (!b || isNaN(b)) return '';
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
   };
 
-  // ── SUBMIT / PROCEED ──
-  c.submit = function() {
-    if (!c.data.found) {
-      c.error = 'No record found.';
-      return;
-    }
 
-    if (c.canScore && !c.form.score) {
-      c.error = 'Please select a score before submitting.';
-      return;
-    }
+  /* =====================================================
+     WRITES
 
-    c.saving = true;
-    c.error  = '';
+     Every one reloads the whole record afterwards. The
+     server's reject path returns before reloading, so taking
+     the response as the new state would leave the page with a
+     record that has no applicant and no program on it.
+     ===================================================== */
 
-    c.data.action = 'submit_review';
-    c.data.form   = angular.copy(c.form);
-
-    c.server.update().then(function() {
-      c.saving = false;
-
-      if (c.data.success) {
-        var msg = c.data.last_reviewer
-          ? 'Review completed! All groups have finished reviewing.'
-          : 'Review submitted! Assigned to next group: ' + (c.data.next_group || '');
-
-        spModal.alert(msg).then(function() {
-          spUtil.navigate('review');
-        });
-      } else {
-        c.error = c.data.error || 'An unexpected server error occurred.';
-      }
+  function tell(title, message) {
+    spModal.open({
+      title: title,
+      message: message || '',
+      buttons: [{ label: 'OK', primary: true }]
     });
-  };
+  }
 
-  // ── ADD WORK NOTE ──
-  c.addNote = function() {
-    if (!c.newNote || !c.newNote.trim()) return;
+  function reload() {
+    /* update() posts c.data back with no action on it, so the
+       server skips all three handlers and simply re-reads */
+    return c.server.update();
+  }
 
-    c.addingNote = true;
-    c.error      = '';
+  function send(payload, okTitle) {
 
-    c.data.action = 'add_note';
-    c.data.form   = { comments: c.newNote };
+    c.busy = payload.action;
 
-    c.server.update().then(function() {
-      c.addingNote = false;
+    return c.server.get(payload).then(function(r) {
 
-      if (c.data.success) {
-        c.newNote = '';
-        spModal.alert('Work note added successfully!');
-      } else {
-        c.error = c.data.error || 'Failed to add note.';
+      var resp = (r && r.data) ? r.data : {};
+
+      if (resp.success === false) {
+        c.busy = '';
+        tell('That did not save', resp.error || '');
+        return reload();
       }
-    });
-  };
 
-  // ── REJECT REVIEW ──
-  c.rejectReview = function() {
-    spModal.confirm('Are you sure you want to decline this review? This cannot be undone.')
-      .then(function(confirmed) {
-        if (!confirmed) return;
-
-        c.rejecting   = true;
-        c.error       = '';
-        c.data.action = 'reject_review';
-
-        c.server.update().then(function() {
-          c.rejecting = false;
-
-          if (c.data.success) {
-            c.data.status = 'Declined by Reviewer';
-            c.isCompleted = true;
-            c.canScore    = false;
-            c.isReadOnly  = false;
-
-            spModal.alert('Review declined successfully.').then(function() {
-              spUtil.navigate('review');
-            });
-          } else {
-            c.error = c.data.error || 'Failed to decline the review.';
-          }
-        });
+      return reload().then(function() {
+        c.busy = '';
+        c.note = '';
+        c.form.comments = '';
+        tell(okTitle, '');
       });
+
+    }, function() {
+      c.busy = '';
+      tell('That did not save', 'The request did not reach the server.');
+    });
+  }
+
+  c.addNote = function() {
+
+    var body = (c.note || '').trim();
+    if (!body || c.busy) return;
+
+    send({ action: 'add_note', form: { comments: body } }, 'Note added');
   };
 
+  /* Both decisions confirm first. Passing a review on cannot be
+     taken back from this page, and declining cannot be taken
+     back at all. */
+  c.submit = function() {
+
+    if (c.busy || !c.canAct()) return;
+    if (c.canScore() && !c.form.score) return;
+
+    var last = c.data.is_last_reviewer;
+
+    spModal.confirm(
+      last
+        ? 'This records a score of ' + c.form.score + ' out of 10 and closes the review. It cannot be undone from here.'
+        : 'This passes the review to the next group on the chain. You will be able to read it afterwards but not change it.'
+    ).then(function(ok) {
+      if (!ok) return;
+      send({
+        action: 'submit_review',
+        form: { score: c.form.score, comments: (c.form.comments || '').trim() }
+      }, last ? 'Review completed' : 'Passed to the next group');
+    });
+  };
+    c.declineTried = false;
+
+   c.reject = function() {
+
+    if (c.busy || !c.canAct()) return;
+
+    var reason = (c.form.comments || '').trim();
+
+    if (!reason) {
+      c.declineTried = true;
+      var box = document.getElementById('gndReason');
+      if (box) box.focus();
+      return;
+    }
+
+    spModal.confirm(
+      'Declining this review cannot be undone. The record is marked declined by reviewer and leaves your queue.'
+    ).then(function(ok) {
+      if (!ok) return;
+      send({ action: 'reject_review', form: { comments: reason } }, 'Review declined');
+    });
+  };
+
+
+  /* =====================================================
+     TABS
+
+     A tab with nothing behind it is a dead end the reader has
+     to open to find out about, so the two that can be empty
+     are filtered out rather than shown empty.
+     ===================================================== */
+
+  c.tabList = [];
+
+  function buildTabs() {
+
+    var out = [
+      { key: 'proposal',  label: 'The proposal' },
+      { key: 'applicant', label: 'Applicant' },
+      { key: 'program',   label: 'Program' }
+    ];
+
+    if (c.docCount()) {
+      out.push({ key: 'docs', label: 'Documents', n: c.docCount() });
+    }
+
+    out.push({
+      key  : 'notes',
+      label: 'Work notes',
+      n    : (c.data.work_notes_list || []).length
+    });
+
+    c.tabList = out;
+  }
+
+  /* rebuild only when a count actually changes, including after
+     reload() replaces c.data, never on every digest. Calling a
+     function that returned fresh objects from ng-repeat tripped
+     $rootScope:infdig and froze the page transition. */
+  $scope.$watchGroup([
+    function() { return c.docCount(); },
+    function() { return (c.data.work_notes_list || []).length; }
+  ], buildTabs);
+
+  c.setTab = function(k) { c.tab = k; };
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* =========================================================&#13;
-   GATENOW · PROPOSAL REVIEW&#13;
+   GATENOW · PROPOSAL REVIEW DETAIL&#13;
    Service Portal widget · CSS / SCSS&#13;
 &#13;
-   Selectors are written out in full. The Service Portal Sass&#13;
-   compiler does not support parent selector concatenation.&#13;
+   Page: review_proposal_detail_page&#13;
 &#13;
-   ── THE IDEA ──────────────────────────────────────────────&#13;
+   Written with fully expanded selectors on purpose.&#13;
+   The Service Portal Sass compiler does not support parent&#13;
+   selector concatenation (&amp;__head, &amp;--green), so every rule&#13;
+   below is written out in full.&#13;
 &#13;
-   A reviewer is here to read and then judge. So the middle of&#13;
-   the page is a document, not a grid of cards, and the two&#13;
-   rails either side of it are chrome: a table of contents and&#13;
-   the instrument for recording a decision.&#13;
+   ── RELATIONSHIP TO THE PORTAL ────────────────────────────&#13;
 &#13;
-   That split is what the whole stylesheet is built on. The&#13;
-   document column has no card, no border, no shadow — it is&#13;
-   paper. Everything that is interface sits on a rail, divided&#13;
-   from the paper by a single hairline. One radius family for&#13;
-   controls, none at all for structure.&#13;
+   The token block and every shared component are the applicant&#13;
+   Overview's, unchanged: Poppins, indigo #4457c9, ink #16203a,&#13;
+   the 16px radius, the two-layer shadow, gn-head, gn-card,&#13;
+   gn-row, gn-btn.&#13;
 &#13;
-   ── TWO VOICES ────────────────────────────────────────────&#13;
+   ── WHAT THIS PAGE ADDS ───────────────────────────────────&#13;
 &#13;
-   Outfit for everything the system says: labels, controls,&#13;
-   navigation, figures.&#13;
+   Six things, gathered at the end: the review record strip,&#13;
+   the reviewer chain, the tabs, the prose setting, the&#13;
+   decision rail and the work note thread.&#13;
 &#13;
-   A serif for everything the applicant wrote. Four hundred&#13;
-   words of narrative in a UI sans is a wall; in a serif at a&#13;
-   66-character measure it is a document. It also draws the&#13;
-   line that matters most on this page — between what somebody&#13;
-   submitted and what the system is telling you about it.&#13;
+   THE PROSE GETS A SERIF&#13;
 &#13;
-   No font file: the serif is a system stack, so it costs&#13;
-   nothing and cannot fail to load.&#13;
+   Four hundred words of an applicant's own writing in a UI&#13;
+   sans is a wall. Set in a serif at a 66-character measure it&#13;
+   is a document, and it draws the line that matters most on&#13;
+   this page: between what somebody submitted and what the&#13;
+   system is telling you about it. The stack is all system&#13;
+   fonts, so it costs nothing and cannot fail to load.&#13;
 &#13;
-   ── WHAT WAS CUT ──────────────────────────────────────────&#13;
+   THE SCORE HAS ONE SET OF THRESHOLDS&#13;
 &#13;
-   Tracked-out capital labels above every field. Meta strings&#13;
-   strung together with middle dots. Eight card accent colours&#13;
-   that encoded which card you were looking at rather than what&#13;
-   was in it. An entrance animation on every section. All of it&#13;
-   was decoration wearing the clothes of structure.&#13;
-&#13;
-   Colour now appears in three places and nowhere else: the&#13;
-   score band, the review state, and the single blue used for&#13;
-   anything clickable.&#13;
+   7 and 4, the same ones the lists and the dashboard use. A&#13;
+   reviewer should never meet a screen that calls a 7 strong&#13;
+   and another that calls it moderate.&#13;
    ========================================================= */&#13;
 &#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 400;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_regular.woff2") format("woff2");&#13;
-}&#13;
+$gn-bg:          #f4f6fb;&#13;
+$gn-card:        #ffffff;&#13;
+$gn-line:        #e7eaf2;&#13;
+$gn-line-soft:   #eff2f7;&#13;
 &#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 500;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_medium.woff2") format("woff2");&#13;
-}&#13;
+$gn-ink:         #16203a;&#13;
+$gn-ink-2:       #3f4a63;&#13;
+$gn-muted:       #7b8598;&#13;
+$gn-muted-2:     #9aa3b4;&#13;
 &#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 600;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_semibold.woff2") format("woff2");&#13;
-}&#13;
+$gn-indigo:      #4457c9;&#13;
+$gn-indigo-dk:   #3a4bb3;&#13;
+$gn-indigo-mid:  #7b90ee;&#13;
+$gn-indigo-soft: #aebcf5;&#13;
+$gn-violet:      #6f5fd0;&#13;
+$gn-green:       #1f9d6d;&#13;
+$gn-sage:        #93c8ae;&#13;
+$gn-amber:       #e2a233;&#13;
+$gn-red:         #e0525f;&#13;
+$gn-slate:       #c9d2e3;&#13;
 &#13;
-@font-face {&#13;
-  font-family: "Outfit";&#13;
-  font-style: normal;&#13;
-  font-weight: 700;&#13;
-  font-display: swap;&#13;
-  src: url("/x_enno_gatenow_outfit_bold.woff2") format("woff2");&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- palette ----------&#13;
-   Six values and three signals. The navy and the blue are the&#13;
-   portal's own, so this page belongs to the same product as&#13;
-   the queue it was opened from.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-$ink:   #0a2540;&#13;
-$ink-2: #3a4a60;&#13;
-$ink-3: #6b7a90;&#13;
-$ink-4: #98a2b3;&#13;
-&#13;
-$rule:   #e4e9f0;&#13;
-$rule-2: #f0f3f8;&#13;
-$wash:   #f7f9fc;&#13;
-$paper:  #ffffff;&#13;
-$ground: #f4f6fb;&#13;
-&#13;
-$blue:    #1560e0;&#13;
-$blue-dk: #0f4cbb;&#13;
-$blue-1:  #eef4fe;&#13;
-&#13;
-/* the three score bands, at the 7 and 4 thresholds the&#13;
-   template already used */&#13;
-$high: #1f7a5c;&#13;
-$mid:  #9a6b18;&#13;
-$low:  #ab3243;&#13;
-&#13;
-$ui:    "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;&#13;
-/* Georgia is the one serif present on effectively every&#13;
-   machine; the others ahead of it are better where they exist */&#13;
-$serif: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, "Times New Roman", serif;&#13;
-&#13;
-$ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
+$gn-font: "Poppins", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;&#13;
 &#13;
 &#13;
 /* =========================================================&#13;
-   FRAME&#13;
+   SHELL&#13;
    ========================================================= */&#13;
 &#13;
+/* Service Portal wraps every widget in a panel that clips&#13;
+   anything leaving its box, which cuts the rail tooltips off&#13;
+   at the column edge. */&#13;
 .panel,&#13;
 .panel-body,&#13;
-.sp-widget {&#13;
-  overflow: visible !important;&#13;
-  margin: 0 !important;&#13;
-  padding: 0 !important;&#13;
-  background: transparent !important;&#13;
-  border: 0 !important;&#13;
-  box-shadow: none !important;&#13;
-}&#13;
+.sp-widget { overflow: visible !important; }&#13;
 &#13;
-.pr {&#13;
+.gn-layout.gn-p-detail {&#13;
+  display: flex;&#13;
+  align-items: stretch;&#13;
   min-height: 100vh;&#13;
-  background: $ground;&#13;
-  font-family: $ui;&#13;
-  color: $ink;&#13;
-  -webkit-font-smoothing: antialiased;&#13;
+  overflow: visible !important;&#13;
 }&#13;
 &#13;
-.pr *,&#13;
-.pr *::before,&#13;
-.pr *::after { box-sizing: border-box; }&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   THE BAR&#13;
-&#13;
-   Sticky, 60px, one hairline under it. Identity left, decision&#13;
-   right. Nothing else earns a place at the top of every scroll&#13;
-   position.&#13;
-   ========================================================= */&#13;
-&#13;
-.pr-bar {&#13;
+.gn-p-detail .aw-sidebar {&#13;
+  flex: 0 0 auto;&#13;
   position: sticky;&#13;
   top: 0;&#13;
-  z-index: 40;&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: space-between;&#13;
-  gap: 24px;&#13;
-  height: 60px;&#13;
-  padding: 0 24px;&#13;
-  border-bottom: 1px solid $rule;&#13;
-  background: rgba(255, 255, 255, 0.94);&#13;
-  -webkit-backdrop-filter: blur(8px);&#13;
-  backdrop-filter: blur(8px);&#13;
+  height: 100vh;&#13;
+  z-index: 10;&#13;
+  overflow: visible;&#13;
 }&#13;
 &#13;
-.pr-bar__id {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  gap: 14px;&#13;
-  min-width: 0;&#13;
-}&#13;
-&#13;
-.pr-bar__back {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  width: 30px;&#13;
-  height: 30px;&#13;
-  flex-shrink: 0;&#13;
-  border-radius: 8px;&#13;
-  color: $ink-3;&#13;
-  text-decoration: none;&#13;
-  transition: background 0.2s $ease, color 0.2s $ease;&#13;
-}&#13;
-&#13;
-.pr-bar__back:hover,&#13;
-.pr-bar__back:focus {&#13;
-  background: $wash;&#13;
-  color: $ink;&#13;
-  text-decoration: none;&#13;
-}&#13;
-&#13;
-.pr-bar__num {&#13;
-  font-size: 15px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.01em;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink;&#13;
-  white-space: nowrap;&#13;
-}&#13;
-&#13;
-/* sentence case, not a tracked-out capital chip. The status&#13;
-   is a phrase a person reads, not a code they decode. */&#13;
-.pr-state {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  gap: 7px;&#13;
-  font-size: 13.5px;&#13;
-  font-weight: 500;&#13;
-  white-space: nowrap;&#13;
-}&#13;
-&#13;
-.pr-state::before {&#13;
-  content: "";&#13;
-  width: 7px;&#13;
-  height: 7px;&#13;
-  border-radius: 50%;&#13;
-  background: currentColor;&#13;
-}&#13;
-&#13;
-.pr-state--live { color: $blue-dk; }&#13;
-.pr-state--done { color: $high; }&#13;
-.pr-state--hold { color: $mid; }&#13;
-.pr-state--stop { color: $low; }&#13;
-&#13;
-.pr-bar__group {&#13;
-  font-size: 13.5px;&#13;
-  color: $ink-4;&#13;
-  white-space: nowrap;&#13;
-  overflow: hidden;&#13;
-  text-overflow: ellipsis;&#13;
-}&#13;
-&#13;
-.pr-bar__act {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  gap: 10px;&#13;
-  flex-shrink: 0;&#13;
-}&#13;
-&#13;
-.pr-bar__score {&#13;
-  display: flex;&#13;
-  align-items: baseline;&#13;
-  gap: 6px;&#13;
-  padding-right: 14px;&#13;
-  margin-right: 4px;&#13;
-  border-right: 1px solid $rule;&#13;
-}&#13;
-&#13;
-.pr-bar__score-n {&#13;
-  font-size: 19px;&#13;
-  font-weight: 700;&#13;
-  letter-spacing: -0.02em;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr-bar__score-d {&#13;
-  font-size: 13px;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   THE ONE LINE&#13;
-&#13;
-   Which of these shows is the only thing that explains why the&#13;
-   score panel behaves the way it does for this reader, so it&#13;
-   is a sentence rather than a badge.&#13;
-   ========================================================= */&#13;
-&#13;
-.pr-say {&#13;
-  padding: 13px 24px;&#13;
-  border-bottom: 1px solid $rule;&#13;
-  background: $blue-1;&#13;
-  font-size: 14px;&#13;
-  line-height: 1.6;&#13;
-  color: $ink-2;&#13;
-}&#13;
-&#13;
-.pr-say strong {&#13;
-  font-weight: 600;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr-say--done {&#13;
-  background: #eef6f2;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   LAYOUT&#13;
-&#13;
-   Three columns divided by hairlines. The rules are the&#13;
-   structure: no card, no shadow, no gap to imply separation&#13;
-   that a line states outright.&#13;
-   ========================================================= */&#13;
-&#13;
-.pr-frame {&#13;
-  display: grid;&#13;
-  grid-template-columns: 212px minmax(0, 1fr) 320px;&#13;
-  align-items: start;&#13;
-  min-height: calc(100vh - 60px);&#13;
-  background: $paper;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- contents ---------- */&#13;
-&#13;
-.pr-toc {&#13;
-  position: sticky;&#13;
-  top: 60px;&#13;
-  display: flex;&#13;
-  flex-direction: column;&#13;
-  gap: 1px;&#13;
-  padding: 22px 12px;&#13;
-  border-right: 1px solid $rule;&#13;
-  background: $wash;&#13;
-  min-height: calc(100vh - 60px);&#13;
-}&#13;
-&#13;
-.pr-toc__item {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: space-between;&#13;
-  gap: 10px;&#13;
-  padding: 9px 12px;&#13;
-  border: 0;&#13;
-  border-radius: 7px;&#13;
-  background: transparent;&#13;
-  font-family: inherit;&#13;
-  font-size: 15px;&#13;
-  font-weight: 400;&#13;
-  text-align: left;&#13;
-  color: $ink-2;&#13;
-  cursor: pointer;&#13;
-  transition: background 0.18s $ease, color 0.18s $ease;&#13;
-}&#13;
-&#13;
-.pr-toc__item:hover {&#13;
-  background: rgba(10, 37, 64, 0.045);&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-/* the current section is stated by weight and ink, not by a&#13;
-   filled pill. On a rail of five items a fill is louder than&#13;
-   the distinction warrants. */&#13;
-.pr-toc__item.is-on {&#13;
-  background: $paper;&#13;
-  box-shadow: inset 2px 0 0 $blue;&#13;
-  color: $ink;&#13;
-  font-weight: 600;&#13;
-}&#13;
-&#13;
-.pr-toc__n {&#13;
-  font-size: 13px;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- the document ---------- */&#13;
-&#13;
-.pr-doc {&#13;
-  padding: 44px 56px 88px;&#13;
-  min-width: 0;&#13;
-  background: $paper;&#13;
-}&#13;
-&#13;
-.pr .pr-doc__title {&#13;
-  margin: 0;&#13;
-  max-width: 24ch;&#13;
-  font-family: $ui;&#13;
-  font-size: 32px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1.16;&#13;
-  letter-spacing: -0.024em;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr .pr-doc__by {&#13;
-  margin: 12px 0 0;&#13;
-  font-size: 15px;&#13;
-  color: $ink-3;&#13;
-}&#13;
-&#13;
-&#13;
-/* the sum being asked for. One large figure, because it is the&#13;
-   number a reviewer holds in their head through everything&#13;
-   else they read. */&#13;
-.pr-ask {&#13;
-  display: flex;&#13;
-  align-items: baseline;&#13;
-  gap: 10px;&#13;
-  padding: 22px 0 20px;&#13;
-  margin-top: 26px;&#13;
-  border-top: 1px solid $rule;&#13;
-}&#13;
-&#13;
-.pr-ask__n {&#13;
-  font-size: 30px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1;&#13;
-  letter-spacing: -0.03em;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr-ask__l {&#13;
-  font-size: 15px;&#13;
-  color: $ink-3;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- the facts strip ----------&#13;
-   A short table rather than a string of values joined by&#13;
-   middle dots. Each value keeps the label that makes it&#13;
-   meaningful, and the eye can find one without reading all.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-.pr .pr-facts {&#13;
-  display: grid;&#13;
-  grid-template-columns: repeat(3, minmax(0, 1fr));&#13;
-  gap: 0;&#13;
-  margin: 0 0 8px;&#13;
-  padding: 0;&#13;
-  border-top: 1px solid $rule-2;&#13;
-  border-left: 1px solid $rule-2;&#13;
-}&#13;
-&#13;
-.pr-fact {&#13;
-  padding: 13px 16px;&#13;
-  border-right: 1px solid $rule-2;&#13;
-  border-bottom: 1px solid $rule-2;&#13;
-  min-width: 0;&#13;
-}&#13;
-&#13;
-.pr .pr-fact dt {&#13;
-  margin: 0 0 4px;&#13;
-  font-size: 13px;&#13;
-  font-weight: 400;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-.pr .pr-fact dd {&#13;
-  margin: 0;&#13;
-  font-size: 15px;&#13;
-  font-weight: 500;&#13;
-  letter-spacing: -0.006em;&#13;
-  color: $ink;&#13;
-  word-break: break-word;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- the prose ----------&#13;
-&#13;
-   The part of the page that deserves the room. Serif, 17px,&#13;
-   1.7 leading, and a measure that stops at 66 characters&#13;
-   whatever the window does.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-.pr-read {&#13;
-  padding-top: 34px;&#13;
-  margin-top: 34px;&#13;
-  border-top: 1px solid $rule;&#13;
-}&#13;
-&#13;
-.pr .pr-read__h {&#13;
-  margin: 0 0 14px;&#13;
-  font-family: $ui;&#13;
-  font-size: 17px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.012em;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr .pr-read__p {&#13;
-  margin: 0;&#13;
-  max-width: 66ch;&#13;
-  font-family: $serif;&#13;
-  font-size: 17px;&#13;
-  font-weight: 400;&#13;
-  line-height: 1.7;&#13;
-  color: #253449;&#13;
-  /* the line breaks the applicant typed are theirs to keep */&#13;
-  white-space: pre-line;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- field sets ---------- */&#13;
-&#13;
-.pr-set {&#13;
-  padding-top: 30px;&#13;
-  margin-top: 30px;&#13;
-  border-top: 1px solid $rule;&#13;
-}&#13;
-&#13;
-.pr .pr-set__h {&#13;
-  margin: 0 0 16px;&#13;
-  font-family: $ui;&#13;
-  font-size: 17px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.012em;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr .pr-pairs {&#13;
-  display: grid;&#13;
-  grid-template-columns: repeat(2, minmax(0, 1fr));&#13;
-  gap: 0 40px;&#13;
-  margin: 0;&#13;
-  padding: 0;&#13;
-  max-width: 78ch;&#13;
-}&#13;
-&#13;
-.pr-pair {&#13;
-  display: flex;&#13;
-  align-items: baseline;&#13;
-  justify-content: space-between;&#13;
-  gap: 20px;&#13;
-  padding: 11px 0;&#13;
-  border-bottom: 1px solid $rule-2;&#13;
-  min-width: 0;&#13;
-}&#13;
-&#13;
-.pr .pr-pair dt {&#13;
-  margin: 0;&#13;
-  flex-shrink: 0;&#13;
-  font-size: 14px;&#13;
-  font-weight: 400;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-.pr .pr-pair dd {&#13;
-  margin: 0;&#13;
-  font-size: 15px;&#13;
-  font-weight: 500;&#13;
-  letter-spacing: -0.006em;&#13;
-  text-align: right;&#13;
-  color: $ink;&#13;
-  word-break: break-word;&#13;
-}&#13;
-&#13;
-/* SSN and TIN. Set in a way that makes a screenshot of this&#13;
-   block obviously a different kind of thing from a screenshot&#13;
-   of an address. */&#13;
-.pr .pr-pair--held dd {&#13;
-  padding: 2px 9px;&#13;
-  border: 1px solid $rule;&#13;
-  border-radius: 5px;&#13;
-  background: $wash;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink-2;&#13;
-}&#13;
-&#13;
-.pr-link {&#13;
-  color: $blue-dk;&#13;
-  text-decoration: none;&#13;
-  border-bottom: 1px solid rgba(21, 96, 224, 0.3);&#13;
-}&#13;
-&#13;
-.pr-link:hover,&#13;
-.pr-link:focus {&#13;
-  color: $blue;&#13;
-  border-bottom-color: $blue;&#13;
-  text-decoration: none;&#13;
-}&#13;
-&#13;
-.pr .pr-none {&#13;
-  margin: 20px 0 0;&#13;
-  font-size: 15px;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- files ----------&#13;
-   A list, not a grid of tiles. Downloading a file is a&#13;
-   one-line task and a tile is three lines of chrome around it.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-.pr .pr-files {&#13;
-  margin: 0;&#13;
-  padding: 0;&#13;
-  list-style: none;&#13;
-  max-width: 72ch;&#13;
-  border-top: 1px solid $rule-2;&#13;
-}&#13;
-&#13;
-.pr-file {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  gap: 18px;&#13;
-  padding: 13px 4px;&#13;
-  border-bottom: 1px solid $rule-2;&#13;
-}&#13;
-&#13;
-.pr-file__name {&#13;
+/* Without min-width: 0 a flex child refuses to shrink below&#13;
+   its own content width, and slides under the rail rather&#13;
+   than narrowing. */&#13;
+.gn-p-detail .gn-dash {&#13;
   flex: 1;&#13;
   min-width: 0;&#13;
-  font-size: 15px;&#13;
-  color: $ink;&#13;
-  word-break: break-word;&#13;
+  overflow: visible;&#13;
+  background: $gn-bg;&#13;
+  font-family: $gn-font;&#13;
+  color: $gn-ink;&#13;
+  padding: 26px 30px 46px;&#13;
+  min-height: 100vh;&#13;
 }&#13;
 &#13;
-.pr-file__size {&#13;
-  flex-shrink: 0;&#13;
-  font-size: 13.5px;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink-4;&#13;
-}&#13;
+.gn-p-detail .gn-dash *,&#13;
+.gn-p-detail .gn-dash *::before,&#13;
+.gn-p-detail .gn-dash *::after { box-sizing: border-box; }&#13;
 &#13;
-.pr-file__get {&#13;
-  flex-shrink: 0;&#13;
-  font-size: 14px;&#13;
-  font-weight: 500;&#13;
-  color: $blue-dk;&#13;
-  text-decoration: none;&#13;
-}&#13;
+.gn-p-detail .gn-dash h1,&#13;
+.gn-p-detail .gn-dash h2,&#13;
+.gn-p-detail .gn-dash p { margin: 0; }&#13;
 &#13;
-.pr-file__get:hover,&#13;
-.pr-file__get:focus {&#13;
-  color: $blue;&#13;
-  text-decoration: underline;&#13;
-}&#13;
+.gn-p-detail .gn-dash a { text-decoration: none; }&#13;
+.gn-p-detail .gn-dash a:hover,&#13;
+.gn-p-detail .gn-dash a:focus { text-decoration: none; }&#13;
 &#13;
-&#13;
-/* ---------- notes ---------- */&#13;
-&#13;
-.pr-write {&#13;
-  max-width: 72ch;&#13;
-  margin-top: 28px;&#13;
-}&#13;
-&#13;
-.pr-write__box {&#13;
-  width: 100%;&#13;
-  padding: 14px 16px;&#13;
-  border: 1px solid $rule;&#13;
-  border-radius: 10px;&#13;
-  background: $paper;&#13;
-  font-family: $ui;&#13;
-  font-size: 15px;&#13;
-  line-height: 1.6;&#13;
-  color: $ink;&#13;
-  resize: vertical;&#13;
-  transition: border-color 0.2s $ease, box-shadow 0.2s $ease;&#13;
-}&#13;
-&#13;
-.pr-write__box:focus {&#13;
-  outline: 0;&#13;
-  border-color: rgba(21, 96, 224, 0.5);&#13;
-  box-shadow: 0 0 0 3px $blue-1;&#13;
-}&#13;
-&#13;
-.pr-write__box::placeholder { color: $ink-4; }&#13;
-&#13;
-.pr-write__foot {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: space-between;&#13;
-  gap: 16px;&#13;
-  margin-top: 12px;&#13;
-}&#13;
-&#13;
-.pr-write__count {&#13;
-  font-size: 13px;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-.pr .pr-thread {&#13;
-  margin: 36px 0 0;&#13;
-  padding: 0;&#13;
-  list-style: none;&#13;
-  max-width: 72ch;&#13;
-}&#13;
-&#13;
-/* posts are separated by space and a rule, not boxed. A thread&#13;
-   of five boxes reads as five unrelated things. */&#13;
-.pr-post {&#13;
-  padding: 20px 0;&#13;
-  border-top: 1px solid $rule-2;&#13;
-}&#13;
-&#13;
-.pr-post__who {&#13;
-  font-size: 14px;&#13;
-  font-weight: 600;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr-post__when {&#13;
-  margin-left: 10px;&#13;
-  font-size: 13px;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-.pr .pr-post__text {&#13;
-  margin: 8px 0 0;&#13;
-  max-width: 64ch;&#13;
-  font-family: $serif;&#13;
-  font-size: 16px;&#13;
-  line-height: 1.65;&#13;
-  color: #253449;&#13;
-  white-space: pre-line;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   THE DECISION RAIL&#13;
-&#13;
-   Fixed beside the reading. A reviewer forms a judgement while&#13;
-   reading a particular paragraph, and the control to record it&#13;
-   should be within reach at that moment rather than five&#13;
-   scrolls away.&#13;
-   ========================================================= */&#13;
-&#13;
-.pr-side {&#13;
-  position: sticky;&#13;
-  top: 60px;&#13;
-  border-left: 1px solid $rule;&#13;
-  background: $wash;&#13;
-  min-height: calc(100vh - 60px);&#13;
-}&#13;
-&#13;
-.pr-side__stick { padding: 24px 22px; }&#13;
-&#13;
-.pr .pr-side__h {&#13;
-  margin: 0 0 20px;&#13;
-  font-size: 15px;&#13;
-  font-weight: 600;&#13;
-  letter-spacing: -0.012em;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr .pr-side__note {&#13;
-  margin: 16px 0 0;&#13;
-  font-size: 14px;&#13;
-  line-height: 1.6;&#13;
-  color: $ink-3;&#13;
-}&#13;
-&#13;
-&#13;
-/* ---------- the scale ----------&#13;
-&#13;
-   The one bold element on the page. Ten cells, two rows of&#13;
-   five, numbers only. It is the instrument the whole screen&#13;
-   exists to operate, so it is allowed to be the thing you&#13;
-   notice.&#13;
-   ------------------------------------------------------- */&#13;
-&#13;
-.pr-scale {&#13;
-  display: grid;&#13;
-  grid-template-columns: repeat(5, minmax(0, 1fr));&#13;
-  gap: 6px;&#13;
-}&#13;
-&#13;
-.pr-scale__n {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  height: 50px;&#13;
-  padding: 0;&#13;
-  border: 1px solid $rule;&#13;
-  border-radius: 9px;&#13;
-  background: $paper;&#13;
-  font-family: $ui;&#13;
-  font-size: 17px;&#13;
-  font-weight: 500;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink-2;&#13;
-  cursor: pointer;&#13;
-  transition: border-color 0.16s $ease, background 0.16s $ease, color 0.16s $ease;&#13;
-}&#13;
-&#13;
-.pr-scale__n:hover {&#13;
-  border-color: rgba(21, 96, 224, 0.45);&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-/* the chosen number is the only filled thing in the rail */&#13;
-.pr-scale__n.is-on {&#13;
-  border-color: $ink;&#13;
-  background: $ink;&#13;
-  color: $paper;&#13;
-  font-weight: 600;&#13;
-}&#13;
-&#13;
-.pr-scale__n.is-on.is-high { border-color: $high; background: $high; }&#13;
-.pr-scale__n.is-on.is-mid  { border-color: $mid;  background: $mid; }&#13;
-.pr-scale__n.is-on.is-low  { border-color: $low;  background: $low; }&#13;
-&#13;
-/* an earlier group sees the instrument without being able to&#13;
-   touch it, so they know what the final group will use */&#13;
-.pr-scale--off .pr-scale__n {&#13;
-  background: transparent;&#13;
-  border-color: $rule-2;&#13;
-  color: $ink-4;&#13;
-  cursor: default;&#13;
-}&#13;
-&#13;
-.pr .pr-scale__ends {&#13;
-  display: flex;&#13;
-  align-items: center;&#13;
-  justify-content: space-between;&#13;
-  margin: 10px 0 0;&#13;
-  font-size: 13px;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-/* a sentence, not a badge. "A strong proposal, at 8 out of 10"&#13;
-   is what the reviewer would say out loud. */&#13;
-.pr .pr-verdict {&#13;
-  margin: 18px 0 0;&#13;
-  padding-top: 16px;&#13;
-  border-top: 1px solid $rule;&#13;
-  font-size: 14.5px;&#13;
-  line-height: 1.55;&#13;
-  font-weight: 500;&#13;
-}&#13;
-&#13;
-.pr-verdict--high { color: $high; }&#13;
-.pr-verdict--mid  { color: $mid; }&#13;
-.pr-verdict--low  { color: $low; }&#13;
-&#13;
-&#13;
-/* ---------- the settled score ---------- */&#13;
-&#13;
-.pr-final {&#13;
-  display: flex;&#13;
-  align-items: baseline;&#13;
-  gap: 10px;&#13;
-  padding: 20px 22px;&#13;
-  border: 1px solid $rule;&#13;
-  border-radius: 12px;&#13;
-  background: $paper;&#13;
-}&#13;
-&#13;
-.pr-final__n {&#13;
-  font-size: 40px;&#13;
-  font-weight: 700;&#13;
-  line-height: 1;&#13;
-  letter-spacing: -0.04em;&#13;
-  font-variant-numeric: tabular-nums;&#13;
-  color: $ink;&#13;
-}&#13;
-&#13;
-.pr-final__d {&#13;
-  font-size: 14px;&#13;
-  color: $ink-4;&#13;
-}&#13;
-&#13;
-.pr-final--high .pr-final__n { color: $high; }&#13;
-.pr-final--mid .pr-final__n  { color: $mid; }&#13;
-.pr-final--low .pr-final__n  { color: $low; }&#13;
-&#13;
-.pr-final--none .pr-final__n { color: $ink-4; }&#13;
-&#13;
-.pr-err {&#13;
-  margin-top: 18px;&#13;
-  padding: 12px 14px;&#13;
-  border: 1px solid #edc9cf;&#13;
-  border-radius: 9px;&#13;
-  background: #fdf3f4;&#13;
-  font-size: 14px;&#13;
-  line-height: 1.55;&#13;
-  color: $low;&#13;
-}&#13;
-&#13;
-&#13;
-/* =========================================================&#13;
-   CONTROLS&#13;
-&#13;
-   Two buttons, one shape. Submit is filled because it is the&#13;
-   thing the page is for; Decline is not, because a filled red&#13;
-   beside a filled blue is a coin toss at speed and this one&#13;
-   cannot be undone.&#13;
-   ========================================================= */&#13;
-&#13;
-.pr-btn {&#13;
-  display: inline-flex;&#13;
-  align-items: center;&#13;
-  justify-content: center;&#13;
-  height: 36px;&#13;
-  padding: 0 16px;&#13;
-  border: 1px solid transparent;&#13;
-  border-radius: 8px;&#13;
-  background: transparent;&#13;
-  font-family: $ui;&#13;
-  font-size: 14px;&#13;
-  font-weight: 500;&#13;
-  white-space: nowrap;&#13;
-  cursor: pointer;&#13;
-  text-decoration: none;&#13;
-  transition: background 0.2s $ease, border-color 0.2s $ease, color 0.2s $ease;&#13;
-}&#13;
-&#13;
-.pr-btn--sm {&#13;
-  height: 34px;&#13;
-  font-size: 13.5px;&#13;
-}&#13;
-&#13;
-.pr-btn--go {&#13;
-  background: $blue;&#13;
-  border-color: $blue;&#13;
-  color: $paper;&#13;
-  font-weight: 600;&#13;
-}&#13;
-&#13;
-.pr-btn--go:hover,&#13;
-.pr-btn--go:focus {&#13;
-  background: $blue-dk;&#13;
-  border-color: $blue-dk;&#13;
-  color: $paper;&#13;
-  text-decoration: none;&#13;
-}&#13;
-&#13;
-.pr-btn--quiet { color: $ink-3; }&#13;
-&#13;
-.pr-btn--quiet:hover,&#13;
-.pr-btn--quiet:focus {&#13;
-  background: #fdf3f4;&#13;
-  color: $low;&#13;
-  text-decoration: none;&#13;
-}&#13;
-&#13;
-.pr-btn--ghost {&#13;
-  border-color: $rule;&#13;
-  color: $ink-2;&#13;
-}&#13;
-&#13;
-.pr-btn--ghost:hover,&#13;
-.pr-btn--ghost:focus {&#13;
-  border-color: $ink-4;&#13;
-  color: $ink;&#13;
-  text-decoration: none;&#13;
-}&#13;
-&#13;
-.pr-btn:disabled {&#13;
-  opacity: 0.4;&#13;
-  cursor: default;&#13;
-}&#13;
-&#13;
-.pr-btn--go:disabled:hover {&#13;
-  background: $blue;&#13;
-  border-color: $blue;&#13;
-}&#13;
-&#13;
-.pr-btn:focus-visible,&#13;
-.pr-toc__item:focus-visible,&#13;
-.pr-scale__n:focus-visible,&#13;
-.pr-bar__back:focus-visible,&#13;
-.pr-file__get:focus-visible,&#13;
-.pr-link:focus-visible {&#13;
-  outline: 2px solid $blue;&#13;
+.gn-p-detail .gn-dash :focus-visible {&#13;
+  outline: 2px solid $gn-indigo;&#13;
   outline-offset: 2px;&#13;
 }&#13;
 &#13;
 &#13;
 /* =========================================================&#13;
-   NO ACCESS&#13;
-&#13;
-   An explanation and a way forward, in the interface's voice.&#13;
-   Not an apology and not a lock icon.&#13;
+   HEADER&#13;
    ========================================================= */&#13;
 &#13;
-.pr-gate {&#13;
-  max-width: 46ch;&#13;
-  margin: 0 auto;&#13;
-  padding: 120px 24px;&#13;
+.gn-p-detail .gn-head {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  gap: 20px;&#13;
+  margin-bottom: 22px;&#13;
 }&#13;
 &#13;
-.pr .pr-gate__title {&#13;
-  margin: 0;&#13;
-  font-size: 26px;&#13;
-  font-weight: 700;&#13;
-  letter-spacing: -0.024em;&#13;
-  color: $ink;&#13;
+.gn-p-detail .gn-head__left { min-width: 0; }&#13;
+&#13;
+.gn-p-detail .gn-head__title {&#13;
+  font-size: 30px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.6px;&#13;
+  line-height: 1.15;&#13;
+  color: $gn-ink;&#13;
 }&#13;
 &#13;
-.pr .pr-gate__text {&#13;
-  margin: 14px 0 26px;&#13;
-  font-family: $serif;&#13;
-  font-size: 17px;&#13;
-  line-height: 1.65;&#13;
-  color: #253449;&#13;
+.gn-p-detail .gn-head__meta {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  margin-top: 6px;&#13;
+  font-size: 12.5px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-head__right {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-live {&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  background: $gn-green;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-avatar {&#13;
+  width: 44px;&#13;
+  height: 44px;&#13;
+  border-radius: 12px;&#13;
+  background: $gn-indigo;&#13;
+  color: #ffffff;&#13;
+  font-size: 13px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.3px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  flex-shrink: 0;&#13;
 }&#13;
 &#13;
 &#13;
 /* =========================================================&#13;
-   MOTION&#13;
-&#13;
-   One moment, at load, and then nothing that moves unless&#13;
-   somebody moved it. The transitions above answer an action —&#13;
-   a hover, a focus, a number being chosen — which is the only&#13;
-   kind of motion this page has any use for.&#13;
+   KPI CARDS&#13;
    ========================================================= */&#13;
 &#13;
-@media (prefers-reduced-motion: no-preference) {&#13;
+.gn-p-detail .gn-kpis {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, minmax(0, 1fr));&#13;
+  gap: 20px;&#13;
+  margin-bottom: 20px;&#13;
+}&#13;
 &#13;
-  @keyframes prIn {&#13;
-    from { opacity: 0; }&#13;
-    to   { opacity: 1; }&#13;
-  }&#13;
+/* Portal columns are narrower than the viewport, so the grid&#13;
+   also reflows on its own container width, not just on media&#13;
+   queries. */&#13;
+@supports (grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))) {&#13;
+  .gn-p-detail .gn-kpis { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }&#13;
+}&#13;
 &#13;
-  .pr-frame { animation: prIn 0.4s $ease; }&#13;
+.gn-p-detail .gn-kpi {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  background: $gn-card;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 16px;&#13;
+  padding: 20px 22px 16px;&#13;
+  min-height: 212px;&#13;
+  box-shadow: 0 1px 2px rgba(22, 32, 58, 0.04), 0 8px 20px rgba(22, 32, 58, 0.04);&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__top {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__label {&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.8px;&#13;
+  text-transform: uppercase;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__icon {&#13;
+  width: 32px;&#13;
+  height: 32px;&#13;
+  border-radius: 9px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  font-size: 13px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__icon--indigo { color: $gn-indigo; background: #edf1ff; }&#13;
+.gn-p-detail .gn-kpi__icon--violet { color: $gn-violet; background: #f0edfd; }&#13;
+.gn-p-detail .gn-kpi__icon--amber { color: #c98a1c;    background: #fdf4e2; }&#13;
+&#13;
+.gn-p-detail .gn-kpi__figure {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 10px;&#13;
+  flex-wrap: wrap;&#13;
+  margin-top: 14px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__value {&#13;
+  font-size: 38px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1;&#13;
+  letter-spacing: -1.4px;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__desc {&#13;
+  margin-top: 10px;&#13;
+  font-size: 12.5px;&#13;
+  line-height: 1.55;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-kpi__caption {&#13;
+  margin-top: auto;&#13;
+  padding-top: 10px;&#13;
+  font-size: 11px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- chips ---------- */&#13;
+&#13;
+.gn-p-detail .gn-chip {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 4px;&#13;
+  padding: 4px 10px;&#13;
+  border-radius: 999px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+  background: #f1f3f8;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-chip--green { background: #e6f6ef; color: #178a5e; }&#13;
+.gn-p-detail .gn-chip--amber { background: #fdf1dd; color: #b9801a; }&#13;
+.gn-p-detail .gn-chip--red { background: #fdecee; color: #cf4351; }&#13;
+&#13;
+&#13;
+/* ---------- sparkline ---------- */&#13;
+&#13;
+.gn-p-detail .gn-spark {&#13;
+  position: relative;&#13;
+  height: 34px;&#13;
+  margin-top: 16px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-spark svg {&#13;
+  width: 100%;&#13;
+  height: 100%;&#13;
+  display: block;&#13;
+  overflow: visible;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-spark__line {&#13;
+  fill: none;&#13;
+  stroke-width: 2;&#13;
+  stroke-linejoin: round;&#13;
+  stroke-linecap: round;&#13;
+  vector-effect: non-scaling-stroke;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-spark__area {&#13;
+  stroke: none;&#13;
+  fill: rgba(68, 87, 201, 0.10);&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-spark__dot {&#13;
+  position: absolute;&#13;
+  right: 0;&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  transform: translate(1px, -50%);&#13;
+  background: $gn-indigo;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-spark--indigo .gn-spark__line { stroke: $gn-indigo; }&#13;
+.gn-p-detail .gn-spark--indigo .gn-spark__area { fill: rgba(68, 87, 201, 0.10); }&#13;
+.gn-p-detail .gn-spark--indigo .gn-spark__dot { background: $gn-indigo; }&#13;
+&#13;
+.gn-p-detail .gn-spark--green .gn-spark__line { stroke: $gn-green; }&#13;
+.gn-p-detail .gn-spark--green .gn-spark__area { fill: rgba(31, 157, 109, 0.12); }&#13;
+.gn-p-detail .gn-spark--green .gn-spark__dot { background: $gn-green; }&#13;
+&#13;
+&#13;
+/* ---------- milestone bars ---------- */&#13;
+&#13;
+.gn-p-detail .gn-milestones {&#13;
+  display: flex;&#13;
+  align-items: flex-end;&#13;
+  gap: 5px;&#13;
+  height: 34px;&#13;
+  margin-top: 16px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-milestone {&#13;
+  flex: 1;&#13;
+  min-height: 30%;&#13;
+  border-radius: 4px;&#13;
+  background: #dde3f5;&#13;
+  transition: height 0.4s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-milestone.is-current { background: $gn-indigo; }&#13;
+&#13;
+&#13;
+/* ---------- segmented bar ---------- */&#13;
+&#13;
+.gn-p-detail .gn-segbar {&#13;
+  display: flex;&#13;
+  height: 7px;&#13;
+  margin-top: 22px;&#13;
+  border-radius: 999px;&#13;
+  overflow: hidden;&#13;
+  background: #e9edf4;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-seg { height: 100%; transition: width 0.4s ease; }&#13;
+.gn-p-detail .gn-seg--red { background: $gn-red; }&#13;
+.gn-p-detail .gn-seg--amber { background: $gn-amber; }&#13;
+.gn-p-detail .gn-seg--grey { background: #dfe4ee; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   CARD SYSTEM&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-p-detail .gn-row {&#13;
+  display: grid;&#13;
+  gap: 20px;&#13;
+  margin-bottom: 20px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-row--wide {&#13;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-card {&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  background: $gn-card;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 16px;&#13;
+  box-shadow: 0 1px 2px rgba(22, 32, 58, 0.04), 0 8px 20px rgba(22, 32, 58, 0.04);&#13;
+  min-width: 0;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-card__head {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  gap: 16px;&#13;
+  padding: 20px 24px 4px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-card__head h2 {&#13;
+  font-size: 17px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.2px;&#13;
+  line-height: 1.3;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-card__head p {&#13;
+  margin-top: 4px;&#13;
+  font-size: 12.5px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-card__body {&#13;
+  padding: 18px 24px 22px;&#13;
+  flex: 1;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-card__body--tight { padding: 12px 16px 16px; }&#13;
+&#13;
+.gn-p-detail .gn-card__foot {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  gap: 12px;&#13;
+  margin: 0 24px;&#13;
+  padding: 14px 0 18px;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+  font-size: 12px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-link {&#13;
+  color: $gn-indigo;&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-link:hover { color: $gn-indigo-dk; }&#13;
+&#13;
+.gn-p-detail .gn-note {&#13;
+  padding-top: 16px;&#13;
+  margin-top: 16px;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+  font-size: 12px;&#13;
+  line-height: 1.5;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-empty {&#13;
+  padding: 34px 12px;&#13;
+  text-align: center;&#13;
+  font-size: 12.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-total {&#13;
+  text-align: right;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-total strong {&#13;
+  display: block;&#13;
+  font-size: 21px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.5px;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-total span {&#13;
+  font-size: 11px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   CHARTS&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-p-detail .gn-chart {&#13;
+  display: flex;&#13;
+  gap: 12px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-chart__axis {&#13;
+  width: 22px;&#13;
+  height: 220px;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  justify-content: space-between;&#13;
+  align-items: flex-end;&#13;
+  font-size: 11px;&#13;
+  line-height: 1;&#13;
+  color: $gn-muted-2;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-chart__plot {&#13;
+  position: relative;&#13;
+  flex: 1;&#13;
+  height: 220px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-grid {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  justify-content: space-between;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-grid__line {&#13;
+  display: block;&#13;
+  width: 100%;&#13;
+  height: 1px;&#13;
+  background: $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-grid__line:last-child { background: $gn-line; }&#13;
+&#13;
+.gn-p-detail .gn-cols {&#13;
+  position: absolute;&#13;
+  top: 0;&#13;
+  right: 0;&#13;
+  bottom: 0;&#13;
+  left: 0;&#13;
+  display: flex;&#13;
+  align-items: flex-end;&#13;
+  justify-content: space-around;&#13;
+  gap: 10px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-col {&#13;
+  position: relative;&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  height: 100%;&#13;
+  display: flex;&#13;
+  flex-direction: column;&#13;
+  align-items: center;&#13;
+  justify-content: flex-end;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-col__track {&#13;
+  width: 62px;&#13;
+  max-width: 72%;&#13;
+  flex: 1;&#13;
+  display: flex;&#13;
+  align-items: flex-end;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-col__bar {&#13;
+  position: relative;&#13;
+  width: 100%;&#13;
+  min-height: 3px;&#13;
+  border-radius: 6px 6px 0 0;&#13;
+  background: $gn-indigo-soft;&#13;
+  transition: height 0.45s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-col__value {&#13;
+  position: absolute;&#13;
+  bottom: 100%;&#13;
+  left: 0;&#13;
+  right: 0;&#13;
+  margin-bottom: 7px;&#13;
+  text-align: center;&#13;
+  font-size: 12px;&#13;
+  font-weight: 600;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-col__cluster {&#13;
+  display: flex;&#13;
+  align-items: flex-end;&#13;
+  justify-content: center;&#13;
+  gap: 5px;&#13;
+  width: 100%;&#13;
+  height: 100%;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-gbar {&#13;
+  width: 14px;&#13;
+  min-height: 2px;&#13;
+  border-radius: 4px 4px 0 0;&#13;
+  transition: height 0.45s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-gbar--indigo { background: $gn-indigo; }&#13;
+.gn-p-detail .gn-gbar--periwinkle { background: $gn-indigo-mid; }&#13;
+.gn-p-detail .gn-gbar--sage { background: $gn-sage; }&#13;
+&#13;
+.gn-p-detail .gn-tip {&#13;
+  position: absolute;&#13;
+  bottom: 100%;&#13;
+  left: 50%;&#13;
+  transform: translate(-50%, 2px);&#13;
+  min-width: 150px;&#13;
+  padding: 8px 11px;&#13;
+  border-radius: 9px;&#13;
+  background: $gn-ink;&#13;
+  color: #ffffff;&#13;
+  font-size: 11px;&#13;
+  line-height: 1.5;&#13;
+  text-align: center;&#13;
+  opacity: 0;&#13;
+  pointer-events: none;&#13;
+  transition: opacity 0.18s ease, transform 0.18s ease;&#13;
+  z-index: 5;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-tip strong {&#13;
+  display: block;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-col:hover .gn-tip {&#13;
+  opacity: 1;&#13;
+  transform: translate(-50%, -6px);&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-labels {&#13;
+  display: flex;&#13;
+  justify-content: space-around;&#13;
+  gap: 10px;&#13;
+  padding-left: 34px;&#13;
+  margin-top: 10px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-labels span {&#13;
+  flex: 1;&#13;
+  text-align: center;&#13;
+  font-size: 12px;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-keys {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 6px 16px;&#13;
+  max-width: 300px;&#13;
+  font-size: 12px;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-keys span {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 7px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-key {&#13;
+  width: 9px;&#13;
+  height: 9px;&#13;
+  border-radius: 3px;&#13;
+  flex-shrink: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-key--indigo { background: $gn-indigo; }&#13;
+.gn-p-detail .gn-key--periwinkle { background: $gn-indigo-mid; }&#13;
+.gn-p-detail .gn-key--sage { background: $gn-sage; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   HEALTH AND LISTS&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-p-detail .gn-health {&#13;
+  display: flex;&#13;
+  height: 46px;&#13;
+  border-radius: 12px;&#13;
+  overflow: hidden;&#13;
+  background: #eef1f6;&#13;
+  color: #ffffff;&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-health__seg {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  min-width: 42px;&#13;
+  white-space: nowrap;&#13;
+  transition: width 0.45s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-health__seg--green { background: #1f9d6d; }&#13;
+.gn-p-detail .gn-health__seg--amber { background: #dfa227; }&#13;
+.gn-p-detail .gn-health__seg--red { background: $gn-red; }&#13;
+&#13;
+.gn-p-detail .gn-health__rest {&#13;
+  flex: 1;&#13;
+  min-width: 52px;&#13;
+  padding: 0 14px;&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  color: $gn-muted;&#13;
+  font-size: 12.5px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-legend {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 8px;&#13;
+  margin-top: 14px;&#13;
+  padding-bottom: 18px;&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-legend__pill {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 7px;&#13;
+  padding: 5px 11px;&#13;
+  border-radius: 999px;&#13;
+  background: #f4f6fa;&#13;
+  font-size: 12px;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dot {&#13;
+  display: inline-block;&#13;
+  width: 7px;&#13;
+  height: 7px;&#13;
+  border-radius: 50%;&#13;
+  flex-shrink: 0;&#13;
+  background: $gn-slate;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dot--green { background: $gn-green; }&#13;
+.gn-p-detail .gn-dot--amber { background: $gn-amber; }&#13;
+.gn-p-detail .gn-dot--red { background: $gn-red; }&#13;
+&#13;
+.gn-p-detail .gn-projects { padding-top: 6px; }&#13;
+&#13;
+.gn-p-detail .gn-project {&#13;
+  display: grid;&#13;
+  grid-template-columns: minmax(0, 1fr) auto;&#13;
+  align-items: center;&#13;
+  gap: 6px 12px;&#13;
+  padding: 14px 0 10px;&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-project:last-child { border-bottom: 0; }&#13;
+&#13;
+.gn-p-detail .gn-project__name {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  min-width: 0;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-project__name span {&#13;
+  overflow: hidden;&#13;
+  white-space: nowrap;&#13;
+  text-overflow: ellipsis;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-project__pct {&#13;
+  font-size: 13px;&#13;
+  color: $gn-ink-2;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-project__track {&#13;
+  grid-column: 1 / -1;&#13;
+  height: 5px;&#13;
+  border-radius: 999px;&#13;
+  background: #edf0f6;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-project__fill {&#13;
+  height: 100%;&#13;
+  border-radius: 999px;&#13;
+  background: $gn-slate;&#13;
+  transition: width 0.45s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-project__fill--green { background: $gn-green; }&#13;
+.gn-p-detail .gn-project__fill--amber { background: $gn-amber; }&#13;
+.gn-p-detail .gn-project__fill--red { background: $gn-red; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   CLAIM BARS&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-p-detail .gn-claim { margin-bottom: 18px; }&#13;
+.gn-p-detail .gn-claim:last-child { margin-bottom: 0; }&#13;
+&#13;
+.gn-p-detail .gn-claim__meta {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  justify-content: space-between;&#13;
+  gap: 10px;&#13;
+  margin-bottom: 8px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-claim__label {&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-claim__value {&#13;
+  font-size: 12.5px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-claim__track {&#13;
+  height: 8px;&#13;
+  border-radius: 999px;&#13;
+  background: #edf0f6;&#13;
+  overflow: hidden;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-claim__fill {&#13;
+  height: 100%;&#13;
+  border-radius: 999px;&#13;
+  background: $gn-indigo-soft;&#13;
+  transition: width 0.45s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-claim__fill--green { background: $gn-green; }&#13;
+.gn-p-detail .gn-claim__fill--indigo { background: $gn-indigo; }&#13;
+.gn-p-detail .gn-claim__fill--periwinkle { background: $gn-indigo-mid; }&#13;
+.gn-p-detail .gn-claim__fill--soft { background: $gn-indigo-soft; }&#13;
+.gn-p-detail .gn-claim__fill--amber { background: $gn-amber; }&#13;
+.gn-p-detail .gn-claim__fill--red { background: $gn-red; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   TABLE&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-p-detail .gn-table {&#13;
+  width: 100%;&#13;
+  margin-top: 14px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-table__head,&#13;
+.gn-p-detail .gn-table__row {&#13;
+  display: grid;&#13;
+  grid-template-columns: 1.1fr 1.2fr 1.4fr 1.1fr 1.2fr 0.85fr;&#13;
+  align-items: center;&#13;
+  gap: 12px;&#13;
+  padding: 0 24px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-table__head {&#13;
+  height: 40px;&#13;
+  background: #f7f9fc;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+  font-size: 11px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.7px;&#13;
+  text-transform: uppercase;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-table__row {&#13;
+  min-height: 66px;&#13;
+  padding-top: 12px;&#13;
+  padding-bottom: 12px;&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-table__row:last-child { border-bottom: 0; }&#13;
+.gn-p-detail .gn-table__row:hover { background: #fafbfe; }&#13;
+&#13;
+.gn-p-detail .gn-cell {&#13;
+  font-size: 13px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-cell--name {&#13;
+  font-weight: 500;&#13;
+  color: $gn-ink;&#13;
+  line-height: 1.4;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-cell--related {&#13;
+  color: $gn-indigo;&#13;
+  line-height: 1.4;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-cell--date {&#13;
+  color: $gn-ink-2;&#13;
+  line-height: 1.4;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-tag {&#13;
+  display: inline-flex;&#13;
+  padding: 4px 9px;&#13;
+  border-radius: 7px;&#13;
+  background: #edf1ff;&#13;
+  color: $gn-indigo;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-state {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 6px;&#13;
+  padding: 5px 10px;&#13;
+  border-radius: 999px;&#13;
+  background: #f2f4f8;&#13;
+  color: $gn-ink-2;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-state--red { background: #fdecee; color: #cf4351; }&#13;
+.gn-p-detail .gn-state--amber { background: #fdf3e0; color: #b9801a; }&#13;
+.gn-p-detail .gn-state--green { background: #e6f6ef; color: #178a5e; }&#13;
+.gn-p-detail .gn-state--grey { background: #f2f4f8; color: $gn-muted; }&#13;
+&#13;
+.gn-p-detail .gn-state--red .gn-dot { background: $gn-red; }&#13;
+.gn-p-detail .gn-state--amber .gn-dot { background: $gn-amber; }&#13;
+.gn-p-detail .gn-state--green .gn-dot { background: $gn-green; }&#13;
+.gn-p-detail .gn-state--grey .gn-dot { background: $gn-muted-2; }&#13;
+&#13;
+.gn-p-detail .gn-btn {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  min-width: 74px;&#13;
+  height: 34px;&#13;
+  padding: 0 14px;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 9px;&#13;
+  background: $gn-card;&#13;
+  color: $gn-ink-2;&#13;
+  font-size: 12.5px;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-btn:hover {&#13;
+  border-color: $gn-indigo-soft;&#13;
+  color: $gn-indigo;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-btn--primary {&#13;
+  background: $gn-indigo;&#13;
+  border-color: $gn-indigo;&#13;
+  color: #ffffff;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-btn--primary:hover {&#13;
+  background: $gn-indigo-dk;&#13;
+  border-color: $gn-indigo-dk;&#13;
+  color: #ffffff;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   PROGRAM CARDS&#13;
+   ========================================================= */&#13;
+&#13;
+.gn-p-detail .gn-program {&#13;
+  display: block;&#13;
+  padding: 16px 18px;&#13;
+  margin-bottom: 12px;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 12px;&#13;
+  color: inherit;&#13;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-program:last-child { margin-bottom: 0; }&#13;
+&#13;
+.gn-p-detail .gn-program:hover {&#13;
+  border-color: $gn-indigo-soft;&#13;
+  box-shadow: 0 6px 16px rgba(22, 32, 58, 0.06);&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-program__top {&#13;
+  display: flex;&#13;
+  align-items: flex-start;&#13;
+  justify-content: space-between;&#13;
+  gap: 12px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-program__top strong {&#13;
+  font-size: 14px;&#13;
+  font-weight: 600;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-program__desc {&#13;
+  margin-top: 8px;&#13;
+  font-size: 12.5px;&#13;
+  line-height: 1.55;&#13;
+  color: $gn-indigo;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-program__foot {&#13;
+  margin-top: 12px;&#13;
+  font-size: 12px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-program__foot i { margin-right: 6px; }&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   DETAIL ADDITIONS&#13;
+   ========================================================= */&#13;
+&#13;
+$gn-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, "Times New Roman", serif;&#13;
+&#13;
+&#13;
+/* ---------- the status chip ----------&#13;
+   The same five names the reviewer lists use, so a chip means&#13;
+   the same thing on every page of the portal.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gn-p-detail .rvd-chip {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  padding: 6px 12px;&#13;
+  border-radius: 999px;&#13;
+  font-size: 12px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+  background: #f2f4f8;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .rvd-chip--amber { background: #fdf3e0; color: #b9801a; }&#13;
+.gn-p-detail .rvd-chip--green { background: #e6f6ef; color: #178a5e; }&#13;
+.gn-p-detail .rvd-chip--red { background: #fdecee; color: #cf4351; }&#13;
+.gn-p-detail .rvd-chip--rose { background: #fbeef0; color: #b0616d; }&#13;
+.gn-p-detail .rvd-chip--slate { background: #f2f4f8; color: $gn-muted; }&#13;
+&#13;
+.gn-p-detail .gnd-back {&#13;
+  display: inline-block;&#13;
+  margin-bottom: 8px;&#13;
+  font-size: 13px;&#13;
+  color: $gn-indigo;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-back:hover { color: $gn-indigo-dk; }&#13;
+&#13;
+.gn-p-detail .gnd-due {&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  white-space: nowrap;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-due--overdue { color: #cf4351; }&#13;
+.gn-p-detail .gnd-due--soon { color: #b9801a; }&#13;
+.gn-p-detail .gnd-due--ok { color: $gn-ink-2; }&#13;
+&#13;
+.gn-p-detail .gnd-solo { margin-bottom: 20px; }&#13;
+&#13;
+&#13;
+/* ---------- 1. the review record strip ----------&#13;
+&#13;
+   Every field on the form, in one band above everything about&#13;
+   the applicant. This is the record the reviewer is working&#13;
+   on, so it goes first.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gn-p-detail .gnd-rec {&#13;
+  padding: 20px 24px 22px;&#13;
+  margin-bottom: 20px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-facts {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(4, minmax(0, 1fr));&#13;
+  gap: 18px 26px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-fact { min-width: 0; }&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-fact dt {&#13;
+  margin: 0 0 5px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.8px;&#13;
+  text-transform: uppercase;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-fact dd {&#13;
+  margin: 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-ink;&#13;
+  word-break: break-word;&#13;
+}&#13;
+&#13;
+/* said rather than left blank, so nobody wonders whether it&#13;
+   failed to load */&#13;
+.gn-p-detail .gn-dash .gnd-fact dd.is-blank {&#13;
+  font-weight: 400;&#13;
+  font-style: italic;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- 2. the reviewer chain ----------&#13;
+&#13;
+   The ordered list of panels with the current one marked. A&#13;
+   reader who cannot score yet needs to see why, and being&#13;
+   second of three is the answer.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gn-p-detail .gnd-chain {&#13;
+  padding-top: 20px;&#13;
+  margin-top: 20px;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-chain__h {&#13;
+  margin: 0 0 14px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.8px;&#13;
+  text-transform: uppercase;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-chain__list {&#13;
+  display: flex;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 10px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-step {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 9px;&#13;
+  padding: 9px 14px;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 10px;&#13;
+  background: $gn-card;&#13;
+  font-size: 13px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-step__dot {&#13;
+  width: 8px;&#13;
+  height: 8px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 50%;&#13;
+  background: $gn-slate;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-step.is-done .gnd-step__dot { background: $gn-sage; }&#13;
+&#13;
+/* the panel holding it is the only filled step. One signal,&#13;
+   and it is the one the reader is looking for. */&#13;
+.gn-p-detail .gnd-step.is-now {&#13;
+  border-color: $gn-indigo;&#13;
+  background: #edf1ff;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-step.is-now .gnd-step__dot { background: $gn-indigo; }&#13;
+&#13;
+/* your own panel is named in ink even when it is not the one&#13;
+   holding the review */&#13;
+.gn-p-detail .gnd-step.is-mine .gnd-step__name {&#13;
+  font-weight: 600;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-step__name { white-space: nowrap; }&#13;
+&#13;
+.gn-p-detail .gnd-step__tag {&#13;
+  font-size: 11.5px;&#13;
+  color: $gn-indigo;&#13;
+  white-space: nowrap;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-step__tag--quiet { color: $gn-muted-2; }&#13;
+&#13;
+&#13;
+/* ---------- 3. the tabs ---------- */&#13;
+&#13;
+.gn-p-detail .gnd-tabs {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  flex-wrap: wrap;&#13;
+  gap: 4px;&#13;
+  padding: 14px 20px 0;&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-tab {&#13;
+  display: inline-flex;&#13;
+  align-items: center;&#13;
+  gap: 8px;&#13;
+  height: 38px;&#13;
+  padding: 0 14px;&#13;
+  border: 0;&#13;
+  border-bottom: 2px solid transparent;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-muted;&#13;
+  cursor: pointer;&#13;
+  transition: color 0.2s ease, border-color 0.2s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-tab:hover { color: $gn-ink; }&#13;
+&#13;
+/* underline rather than a filled pill. These are places in one&#13;
+   record, not five separate things to choose between. */&#13;
+.gn-p-detail .gnd-tab.is-on {&#13;
+  border-bottom-color: $gn-indigo;&#13;
+  color: $gn-indigo;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-tab__n {&#13;
+  font-size: 11.5px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-tab.is-on .gnd-tab__n { color: $gn-indigo; }&#13;
+&#13;
+&#13;
+/* ---------- 4. fields and prose ---------- */&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-sub {&#13;
+  margin: 28px 0 14px;&#13;
+  font-size: 11.5px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: 0.8px;&#13;
+  text-transform: uppercase;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-sub:first-child { margin-top: 0; }&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-kvs {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(3, minmax(0, 1fr));&#13;
+  gap: 16px 26px;&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-kv { min-width: 0; }&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-kv dt {&#13;
+  margin: 0 0 4px;&#13;
+  font-size: 12px;&#13;
+  font-weight: 400;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-kv dd {&#13;
+  margin: 0;&#13;
+  font-size: 14px;&#13;
+  font-weight: 500;&#13;
+  line-height: 1.5;&#13;
+  color: $gn-ink;&#13;
+  word-break: break-word;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-kv dd.is-money {&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+/* SSN and TIN, set so a screenshot of this block is obviously&#13;
+   a different kind of thing from a screenshot of an address */&#13;
+.gn-p-detail .gn-dash .gnd-kv--held dd {&#13;
+  display: inline-block;&#13;
+  padding: 3px 9px;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 6px;&#13;
+  background: #f7f9fc;&#13;
+  font-size: 13px;&#13;
+  color: $gn-ink-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-link { color: $gn-indigo; }&#13;
+.gn-p-detail .gnd-link:hover { color: $gn-indigo-dk; }&#13;
+&#13;
+.gn-p-detail .gnd-read {&#13;
+  padding-top: 24px;&#13;
+  margin-top: 24px;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-read__h {&#13;
+  margin: 0 0 12px;&#13;
+  font-size: 15px;&#13;
+  font-weight: 600;&#13;
+  letter-spacing: -0.2px;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+/* the applicant's own words, in their own voice */&#13;
+.gn-p-detail .gn-dash .gnd-read__p {&#13;
+  margin: 0;&#13;
+  max-width: 66ch;&#13;
+  font-family: $gn-serif;&#13;
+  font-size: 16.5px;&#13;
+  line-height: 1.7;&#13;
+  color: #24304a;&#13;
+  /* the line breaks the applicant typed are theirs to keep */&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- files ----------&#13;
+   A list, not a grid of tiles. Downloading a file is a&#13;
+   one-line task and a tile is three lines of chrome round it.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-files {&#13;
+  margin: 0 0 8px;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+  max-width: 68ch;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-file {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  gap: 18px;&#13;
+  padding: 12px 2px;&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-file__name {&#13;
+  flex: 1;&#13;
+  min-width: 0;&#13;
+  font-size: 14px;&#13;
+  color: $gn-ink;&#13;
+  word-break: break-word;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-file__size {&#13;
+  flex-shrink: 0;&#13;
+  font-size: 12.5px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-file__get {&#13;
+  flex-shrink: 0;&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-indigo;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-file__get:hover { color: $gn-indigo-dk; }&#13;
+&#13;
+&#13;
+/* ---------- 5. work notes ---------- */&#13;
+&#13;
+.gn-p-detail .gnd-write { margin-bottom: 24px; }&#13;
+&#13;
+.gn-p-detail .gnd-write__box {&#13;
+  width: 100%;&#13;
+  padding: 13px 15px;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 10px;&#13;
+  background: $gn-card;&#13;
+  font-family: inherit;&#13;
+  font-size: 14px;&#13;
+  line-height: 1.6;&#13;
+  color: $gn-ink;&#13;
+  resize: vertical;&#13;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-write__box:focus {&#13;
+  outline: 0;&#13;
+  border-color: $gn-indigo-soft;&#13;
+  box-shadow: 0 0 0 3px rgba(68, 87, 201, 0.10);&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-write__box::placeholder { color: $gn-muted-2; }&#13;
+&#13;
+.gn-p-detail .gnd-write__foot {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  gap: 14px;&#13;
+  margin-top: 12px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-write__n {&#13;
+  font-size: 12px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-thread {&#13;
+  margin: 0;&#13;
+  padding: 0;&#13;
+  list-style: none;&#13;
+  max-width: 72ch;&#13;
+}&#13;
+&#13;
+/* posts separated by a rule and space, not boxed. A thread of&#13;
+   five boxes reads as five unrelated things. */&#13;
+.gn-p-detail .gnd-post {&#13;
+  padding: 18px 0;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-post__who {&#13;
+  font-size: 13.5px;&#13;
+  font-weight: 600;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-post__when {&#13;
+  margin-left: 10px;&#13;
+  font-size: 12px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-post__text {&#13;
+  margin: 8px 0 0;&#13;
+  max-width: 64ch;&#13;
+  font-size: 14px;&#13;
+  line-height: 1.65;&#13;
+  color: $gn-ink-2;&#13;
+  white-space: pre-line;&#13;
+}&#13;
+&#13;
+&#13;
+/* ---------- 6. the decision rail ----------&#13;
+&#13;
+   Sticky beside the reading, so a reviewer can record a&#13;
+   judgement at the moment they form it rather than scrolling&#13;
+   back to find the control.&#13;
+   ------------------------------------------------------- */&#13;
+&#13;
+.gn-p-detail .gnd-side {&#13;
+  position: sticky;&#13;
+  top: 20px;&#13;
+  min-width: 0;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-decide { margin-bottom: 0; }&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-note {&#13;
+  margin: 16px 0 0;&#13;
+  font-size: 13.5px;&#13;
+  line-height: 1.6;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-hint {&#13;
+  margin: 12px 0 0;&#13;
+  font-size: 12.5px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+/* the scale. Ten cells, two rows of five, numbers only. It is&#13;
+   the instrument this whole page exists to operate, so it is&#13;
+   allowed to be the thing you notice. */&#13;
+.gn-p-detail .gnd-scale {&#13;
+  display: grid;&#13;
+  grid-template-columns: repeat(5, minmax(0, 1fr));&#13;
+  gap: 6px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-scale__n {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  height: 46px;&#13;
+  padding: 0;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 10px;&#13;
+  background: $gn-card;&#13;
+  font-family: inherit;&#13;
+  font-size: 16px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-ink-2;&#13;
+  cursor: pointer;&#13;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-scale__n:hover {&#13;
+  border-color: $gn-indigo-soft;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+/* the chosen number is the only filled thing in the rail, and&#13;
+   it takes its band colour from the same 7 and 4 thresholds&#13;
+   the rest of the portal uses */&#13;
+.gn-p-detail .gnd-scale__n.is-on {&#13;
+  border-color: $gn-indigo;&#13;
+  background: $gn-indigo;&#13;
+  color: #ffffff;&#13;
+  font-weight: 600;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-scale__n.is-on[data-band="high"] {&#13;
+  border-color: #178a5e;&#13;
+  background: #178a5e;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-scale__n.is-on[data-band="low"] {&#13;
+  border-color: #cf4351;&#13;
+  background: #cf4351;&#13;
+}&#13;
+&#13;
+/* an earlier panel sees the instrument without being able to&#13;
+   touch it, so it knows what the last panel will use */&#13;
+.gn-p-detail .gnd-scale--off .gnd-scale__n {&#13;
+  background: #f7f9fc;&#13;
+  border-color: $gn-line-soft;&#13;
+  color: $gn-muted-2;&#13;
+  cursor: default;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gn-dash .gnd-scale__ends {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: space-between;&#13;
+  margin: 10px 0 0;&#13;
+  font-size: 12px;&#13;
+  color: $gn-muted-2;&#13;
+}&#13;
+&#13;
+/* a sentence, not a badge. "A strong proposal, at 8 out of 10"&#13;
+   is what the reviewer would say out loud. */&#13;
+.gn-p-detail .gn-dash .gnd-verdict {&#13;
+  margin: 16px 0 0;&#13;
+  padding-top: 14px;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+  font-size: 14px;&#13;
+  line-height: 1.55;&#13;
+  font-weight: 500;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-verdict--high { color: #178a5e; }&#13;
+.gn-p-detail .gnd-verdict--mid { color: $gn-indigo; }&#13;
+.gn-p-detail .gnd-verdict--low { color: #cf4351; }&#13;
+&#13;
+.gn-p-detail .gnd-final {&#13;
+  display: flex;&#13;
+  align-items: baseline;&#13;
+  gap: 10px;&#13;
+  padding: 18px 20px;&#13;
+  border: 1px solid $gn-line;&#13;
+  border-radius: 12px;&#13;
+  background: #f7f9fc;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-final__n {&#13;
+  font-size: 36px;&#13;
+  font-weight: 600;&#13;
+  line-height: 1;&#13;
+  letter-spacing: -1.2px;&#13;
+  color: $gn-ink;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-final__d {&#13;
+  font-size: 13px;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-final--high .gnd-final__n { color: #178a5e; }&#13;
+.gn-p-detail .gnd-final--mid .gnd-final__n { color: $gn-indigo; }&#13;
+.gn-p-detail .gnd-final--low .gnd-final__n { color: #cf4351; }&#13;
+.gn-p-detail .gnd-final--none .gnd-final__n { color: $gn-muted-2; }&#13;
+&#13;
+.gn-p-detail .gnd-with {&#13;
+  padding-top: 20px;&#13;
+  margin-top: 20px;&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-with__l {&#13;
+  display: block;&#13;
+  margin-bottom: 8px;&#13;
+  font-size: 12px;&#13;
+  font-weight: 400;&#13;
+  color: $gn-muted;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-acts {&#13;
+  display: grid;&#13;
+  gap: 10px;&#13;
+  margin-top: 16px;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-acts .gn-btn { width: 100%; }&#13;
+&#13;
+/* Declining cannot be undone, so it does not look like the&#13;
+   button above it. Not filled either: a solid red beside a&#13;
+   solid indigo is a coin toss at speed. */&#13;
+.gn-p-detail .gnd-decline {&#13;
+  height: 34px;&#13;
+  border: 1px solid transparent;&#13;
+  border-radius: 9px;&#13;
+  background: transparent;&#13;
+  font-family: inherit;&#13;
+  font-size: 13px;&#13;
+  font-weight: 500;&#13;
+  color: $gn-muted;&#13;
+  cursor: pointer;&#13;
+  transition: background 0.2s ease, color 0.2s ease;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-decline:hover {&#13;
+  background: #fdecee;&#13;
+  color: #cf4351;&#13;
+}&#13;
+&#13;
+.gn-p-detail .gnd-decline:disabled {&#13;
+  opacity: 0.4;&#13;
+  background: transparent;&#13;
+  cursor: default;&#13;
 }&#13;
 &#13;
 &#13;
@@ -1129,98 +1917,72 @@ $ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
    RESPONSIVE&#13;
    ========================================================= */&#13;
 &#13;
-@media (max-width: 1180px) {&#13;
-&#13;
-  /* the decision rail drops under the document rather than&#13;
-     squeezing the measure. Reading width is the one thing on&#13;
-     this page that must not be negotiated away. */&#13;
-  .pr-frame { grid-template-columns: 200px minmax(0, 1fr); }&#13;
-&#13;
-  .pr-doc { padding: 40px 40px 40px; }&#13;
-&#13;
-  .pr-side {&#13;
-    grid-column: 1 / -1;&#13;
-    position: static;&#13;
-    min-height: 0;&#13;
-    border-left: 0;&#13;
-    border-top: 1px solid $rule;&#13;
-  }&#13;
-&#13;
-  .pr-side__stick {&#13;
-    max-width: 640px;&#13;
-    padding: 28px 40px 60px;&#13;
-  }&#13;
-&#13;
-  .pr-scale { grid-template-columns: repeat(10, minmax(0, 1fr)); }&#13;
+@media (max-width: 1240px) {&#13;
+  .gn-p-detail .gn-dash .gnd-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }&#13;
+  .gn-p-detail .gn-row--wide { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }&#13;
 }&#13;
 &#13;
-@media (max-width: 860px) {&#13;
+@media (max-width: 1024px) {&#13;
 &#13;
-  .pr-frame { grid-template-columns: minmax(0, 1fr); }&#13;
+  /* the decision rail drops under the record rather than&#13;
+     squeezing the reading measure. Reading width is the one&#13;
+     thing on this page that must not be negotiated away. */&#13;
+  .gn-p-detail .gn-row--wide { grid-template-columns: minmax(0, 1fr); }&#13;
 &#13;
-  /* the contents rail becomes a strip above the document */&#13;
-  .pr-toc {&#13;
-    position: static;&#13;
-    flex-direction: row;&#13;
-    gap: 4px;&#13;
-    min-height: 0;&#13;
-    padding: 10px 16px;&#13;
-    border-right: 0;&#13;
-    border-bottom: 1px solid $rule;&#13;
+  .gn-p-detail .gnd-side { position: static; }&#13;
+&#13;
+  .gn-p-detail .gn-dash .gnd-kvs { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+}&#13;
+&#13;
+@media (max-width: 900px) {&#13;
+  .gn-p-detail .gn-dash { padding: 20px 16px 36px; }&#13;
+&#13;
+  .gn-p-detail .gn-head {&#13;
+    flex-direction: column;&#13;
+    align-items: stretch;&#13;
+  }&#13;
+&#13;
+  .gn-p-detail .gn-head__right {&#13;
+    flex-wrap: wrap;&#13;
+    gap: 10px;&#13;
+  }&#13;
+&#13;
+  .gn-p-detail .gn-dash .gnd-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
+&#13;
+  .gn-p-detail .gnd-tabs {&#13;
+    flex-wrap: nowrap;&#13;
     overflow-x: auto;&#13;
     -webkit-overflow-scrolling: touch;&#13;
   }&#13;
 &#13;
-  .pr-toc__item {&#13;
-    flex-shrink: 0;&#13;
-    font-size: 14.5px;&#13;
-  }&#13;
+  .gn-p-detail .gnd-tab { flex-shrink: 0; }&#13;
 &#13;
-  .pr-toc__item.is-on {&#13;
-    box-shadow: inset 0 -2px 0 $blue;&#13;
-    background: transparent;&#13;
-  }&#13;
-&#13;
-  .pr-doc { padding: 32px 22px 40px; }&#13;
-&#13;
-  .pr .pr-doc__title { font-size: 26px; }&#13;
-&#13;
-  .pr .pr-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }&#13;
-&#13;
-  .pr .pr-pairs { grid-template-columns: minmax(0, 1fr); }&#13;
-&#13;
-  .pr-side__stick { padding: 26px 22px 56px; }&#13;
+  .gn-p-detail .gnd-step { width: 100%; }&#13;
 }&#13;
 &#13;
 @media (max-width: 620px) {&#13;
+  .gn-p-detail .gn-head__title { font-size: 25px; }&#13;
 &#13;
-  .pr-bar {&#13;
-    height: auto;&#13;
-    align-items: flex-start;&#13;
-    flex-direction: column;&#13;
-    gap: 12px;&#13;
-    padding: 12px 16px;&#13;
-  }&#13;
+  .gn-p-detail .gn-dash .gnd-facts,&#13;
+.gn-p-detail .gn-dash .gnd-kvs { grid-template-columns: minmax(0, 1fr); }&#13;
 &#13;
-  .pr-bar__act { width: 100%; }&#13;
-&#13;
-  .pr-bar__act .pr-btn { flex: 1; }&#13;
-&#13;
-  .pr-say { padding: 12px 16px; }&#13;
-&#13;
-  .pr .pr-facts { grid-template-columns: minmax(0, 1fr); }&#13;
-&#13;
-  /* ten cells across 320px is 26px each, under the touch&#13;
-     target minimum, so the scale goes back to two rows */&#13;
-  .pr-scale { grid-template-columns: repeat(5, minmax(0, 1fr)); }&#13;
+  .gn-p-detail .gn-dash .gnd-read__p { font-size: 16px; }&#13;
 }&#13;
 &#13;
 @media (prefers-reduced-motion: reduce) {&#13;
-  .pr,&#13;
-  .pr * {&#13;
-    transition: none;&#13;
-    animation: none;&#13;
-  }&#13;
+  .gn-p-detail .gn-dash * { transition: none; }&#13;
+}&#13;
+&#13;
+&#13;
+.gn-p-detail .gnd-write__box.is-missing,&#13;
+.gn-p-detail .gnd-write__box.is-missing:focus {&#13;
+  border-color: #e0525f;&#13;
+  box-shadow: 0 0 0 3px rgba(224, 82, 95, 0.12);&#13;
+}&#13;
+.gnd-need {&#13;
+  margin: 6px 0 0;&#13;
+  font-size: 13px;&#13;
+  color: #cf4351;&#13;
 }</css>
         <data_table>sp_instance</data_table>
         <demo_data/>
@@ -1238,6 +2000,38 @@ $ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
         <public>false</public>
         <roles>x_enno_gatenow.grant_review_user</roles>
         <script><![CDATA[(function() {
+
+    /* =========================================================
+       GATENOW · PROPOSAL REVIEW DETAIL
+       Service Portal widget · Server script
+
+       Page: review_proposal_detail_page
+
+       Every line of the uploaded script is here unchanged: the
+       access guard, add_note, reject_review, submit_review with
+       its pass-to-next-group walk, the submitted and
+       is_last_reviewer checks, the applicant and program loads
+       with their attachments, and the journal read.
+
+       ADDED, because the form carries them and the page was
+       asked to show every field:
+
+         decision_type, reviewer, review_start_date and
+         review_deadline on the review record
+
+         data.chain — the reviewer field is an ordered list of
+         groups and submit_review already walks it to find the
+         next one. Publishing that walk lets the page show the
+         panels in order with the current one marked, which is
+         the only way a reviewer can see why they can or cannot
+         score yet.
+
+         data.sideBar for the rail.
+
+       None of the additions is read by any of the handlers
+       above them, so none of them can change what a save does.
+       ========================================================= */
+
     data.found = false;
     data.success = false;
     data.error = '';
@@ -1266,7 +2060,7 @@ $ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
     var isCurrentlyAssigned = userGroups.indexOf(reviewRecordGR.getValue('review_group')) !== -1;
     var reviewerRaw = reviewRecordGR.getValue('reviewer') || '';
     var isPartOfReview = false;
-    
+
     for (var g = 0; g < userGroups.length; g++) {
         if (reviewerRaw.indexOf(userGroups[g]) !== -1) {
             isPartOfReview = true;
@@ -1303,6 +2097,15 @@ $ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
             return;
         }
 
+                var reason = ((input.form && input.form.comments) || '').toString().trim();
+        if (!reason) {
+            data.found = true;
+            data.success = false;
+            data.error = 'A reason is required to decline this review.';
+            return;
+        }
+
+        reviewRecordGR.work_notes = 'Declined by reviewer: ' + reason;
         reviewRecordGR.setValue('status', 'Declined by Reviewer');
         reviewRecordGR.update();
         data.found = true;
@@ -1370,8 +2173,43 @@ $ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
     }).filter(function(s) { return s !== ''; });
 
     var lastGroupInList = fullReviewerArray.length > 0 ? fullReviewerArray[fullReviewerArray.length - 1] : '';
-    data.is_last_reviewer = (reviewRecordGR.getValue('review_group') === lastGroupInList) && 
+    data.is_last_reviewer = (reviewRecordGR.getValue('review_group') === lastGroupInList) &&
                             (userGroups.indexOf(reviewRecordGR.getValue('review_group')) !== -1);
+
+    /* ── ADDED · THE REVIEWER CHAIN ──────────────────────────
+       The same ordered list submit_review walks to find the
+       next group, published so the page can show the panels in
+       order with the current one marked. A reviewer who cannot
+       score yet needs to see why, and "you are second of three"
+       is the answer.
+       ------------------------------------------------------- */
+    var chain = [];
+    var currentIdxForChain = fullReviewerArray.indexOf(reviewRecordGR.getValue('review_group'));
+
+    for (var ci = 0; ci < fullReviewerArray.length; ci++) {
+
+        var chainName = fullReviewerArray[ci];
+        var chainGR = new GlideRecordSecure('sys_user_group');
+        if (chainGR.get(fullReviewerArray[ci])) {
+            chainName = chainGR.getDisplayValue('name');
+        }
+
+        chain.push({
+            sys_id : fullReviewerArray[ci],
+            name   : chainName,
+            /* passed through already */
+            done   : currentIdxForChain > -1 && ci < currentIdxForChain,
+            current: fullReviewerArray[ci] === reviewRecordGR.getValue('review_group'),
+            /* whether this is one of the reader's own panels,
+               which is what decides if the row is theirs */
+            mine   : userGroups.indexOf(fullReviewerArray[ci]) !== -1,
+            last   : ci === fullReviewerArray.length - 1
+        });
+    }
+
+    data.chain = chain;
+    data.chain_position = currentIdxForChain > -1 ? (currentIdxForChain + 1) : 0;
+    data.chain_length = fullReviewerArray.length;
 
     // ── LOAD APPLICANT INFO ──
     var applicantId = reviewRecordGR.getValue('applicant');
@@ -1496,502 +2334,559 @@ $ease: cubic-bezier(0.32, 0.72, 0, 1);&#13;
     data.work_notes_list = workNotesHistory;
     data.applicant = applicantData;
     data.program = programData;
+
+    /* ── ADDED · THE REST OF THE REVIEW RECORD ───────────────
+       The four fields the form carries and the page was asked
+       to show. Read after every handler above has run, so they
+       report what was actually written rather than what was
+       submitted.
+       ------------------------------------------------------- */
+    data.decision_type      = reviewRecordGR.getDisplayValue('decision_type') || '';
+    data.reviewer           = reviewRecordGR.getDisplayValue('reviewer') || '';
+    data.review_start_date  = reviewRecordGR.getDisplayValue('review_start_date') || '';
+    data.review_deadline    = reviewRecordGR.getDisplayValue('review_deadline') || '';
+    data.review_deadline_raw = reviewRecordGR.getValue('review_deadline') || '';
+
+    /* how the deadline reads, worked out here so the template
+       binds a phrase rather than computing one */
+    data.deadline_state = 'none';
+    data.deadline_text  = data.review_deadline || 'No deadline set';
+
+    if (data.review_deadline_raw &&
+        currentReviewStatus !== 'Review completed' &&
+        currentReviewStatus !== 'Declined by Reviewer') {
+
+        var dlGDT = new GlideDateTime(data.review_deadline_raw);
+        var days  = Math.round((dlGDT.getNumericValue() - new GlideDateTime().getNumericValue()) / 86400000);
+
+        if (days < 0) {
+            data.deadline_state = 'overdue';
+            data.deadline_text  = Math.abs(days) + (Math.abs(days) === 1 ? ' day overdue' : ' days overdue');
+        } else if (days === 0) {
+            data.deadline_state = 'soon';
+            data.deadline_text  = 'Due today';
+        } else if (days <= 3) {
+            data.deadline_state = 'soon';
+            data.deadline_text  = 'Due in ' + days + (days === 1 ? ' day' : ' days');
+        } else {
+            data.deadline_state = 'ok';
+            data.deadline_text  = 'Due ' + data.review_deadline;
+        }
+    }
+
+    data.applicant_page = '?id=review_applicants';
+
+    data.sideBar = $sp.getWidget(
+        (options.sidebar_widget || 'review_sidebar').toString()
+    );
+
 })();]]></script>
         <servicenow>false</servicenow>
         <sys_class_name>sp_widget</sys_class_name>
         <sys_created_by>adnan.tariq</sys_created_by>
         <sys_created_on>2026-02-20 10:17:06</sys_created_on>
         <sys_id>f14ba3e32f4ff210d2a0d68fcea4e347</sys_id>
-        <sys_mod_count>102</sys_mod_count>
+        <sys_mod_count>108</sys_mod_count>
         <sys_name>Review Proposal Detail</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_f14ba3e32f4ff210d2a0d68fcea4e347</sys_update_name>
-        <sys_updated_by>muneesa.majid</sys_updated_by>
-        <sys_updated_on>2026-09-16 07:54:01</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-10-16 10:19:10</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
-     GATENOW · PROPOSAL REVIEW
+     GATENOW · PROPOSAL REVIEW DETAIL
      Service Portal widget · HTML template
 
-     ── THE ARGUMENT ──────────────────────────────────────────
+     Page: review_proposal_detail_page
 
-     A reviewer opens this page to read four long pieces of
-     writing and then decide about them. The previous structure
-     — a tab bar over a grid of field cards — treated the
-     proposal as metadata with some text attached, when it is
-     the other way round.
+     Everything on one record: the review itself, the applicant
+     who submitted it, the program it is against, every
+     document on either, the scoring control and the work note
+     thread.
 
-     So: no tab bar. A quiet contents rail on the left, the
-     proposal set as a document in the middle, and the decision
-     fixed to the right where it is reachable from any point in
-     the reading rather than parked behind a fifth tab.
+     THE PAGE HAS TO SAY WHOSE MOVE IT IS
 
-     c.tab still drives which section shows — the client script
-     is untouched — but it now reads as a table of contents,
-     which is what it always was.
+     Three readers arrive here and the page owes each of them a
+     different answer:
 
-     ── LOGIC ─────────────────────────────────────────────────
+       the last group on the chain     scores and closes it
+       an earlier group on the chain   reads, notes, passes on
+       anyone once it is settled       reads and notes only
 
-     Every condition is the original: c.canScore, c.isReadOnly,
-     c.isCompleted, data.is_last_reviewer, data.submitted, the
-     7 and 4 score bands, c.submit(), c.rejectReview(),
-     c.addNote(), c.formatSize(). Server and client scripts are
-     byte-identical to the ones supplied.
-
-     Four buttons whose only job was to switch tabs are gone:
-     the score is now always on screen, and the contents rail
-     reaches every section in one click. Nothing they did is
-     lost.
+     So the chain is drawn at the top with the current panel
+     marked, the decision panel states which of the three the
+     reader is, and the buttons match. A page that hides the
+     controls without saying why leaves people thinking it is
+     broken.
      ========================================================= -->
 
-<div class="pr" ng-if="!data.found">
-  <div class="pr-gate">
-    <h1 class="pr-gate__title">You cannot open this review</h1>
-    <p class="pr-gate__text">
-      Either the record no longer exists, or none of your groups appears on its
-      reviewer list. If you believe it should, ask the program office to add your
-      group.
-    </p>
-    <a class="pr-btn pr-btn--ghost" href="/review">Back to the dashboard</a>
-  </div>
-</div>
+<div class="gn-layout gn-p-detail">
 
-
-<div class="pr" ng-if="data.found">
-
-  <!-- ═══════════════════════════════════════════════════════
-       THE BAR
-
-       Identity on the left, the decision on the right, fixed to
-       the top of the viewport. The two actions are the point of
-       the page and they were previously below the fold on any
-       proposal long enough to scroll.
-       ═══════════════════════════════════════════════════════ -->
-  <header class="pr-bar">
-
-    <div class="pr-bar__id">
-
-      <a class="pr-bar__back" href="/review" aria-label="Back to the dashboard">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 6l-6 6 6 6"></path>
-        </svg>
-      </a>
-
-      <span class="pr-bar__num">{{data.number}}</span>
-
-      <span class="pr-state
-        {{data.status === 'Review completed'     ? 'pr-state--done' :
-          data.status === 'Declined by Reviewer' ? 'pr-state--stop' :
-          data.status === 'On hold'              ? 'pr-state--hold' : 'pr-state--live'}}">{{data.status}}</span>
-
-      <span class="pr-bar__group">{{data.review_group || 'No group set'}}</span>
-
-    </div>
-
-    <div class="pr-bar__act">
-
-      <span class="pr-bar__score" ng-if="data.score">
-        <span class="pr-bar__score-n">{{data.score}}</span>
-        <span class="pr-bar__score-d">out of 10</span>
-      </span>
-
-      <button type="button" class="pr-btn pr-btn--quiet"
-              ng-if="!c.isCompleted && !data.submitted"
-              ng-click="c.rejectReview()"
-              ng-disabled="c.rejecting">{{c.rejecting ? 'Declining' : 'Decline'}}</button>
-
-      <button type="button" class="pr-btn pr-btn--go"
-              ng-if="!c.isCompleted && !data.submitted"
-              ng-click="c.submit()"
-              ng-disabled="(c.canScore && !c.form.score) || c.saving">
-        {{c.saving ? 'Sending' : (c.isReadOnly ? 'Pass to next group' : 'Submit review')}}
-      </button>
-
-    </div>
-
-  </header>
-
-
-  <!-- the one line that says why the score panel behaves the
-       way it does for this particular reader -->
-  <div class="pr-say pr-say--done" ng-if="c.isCompleted">
-    This review is finished. The score is fixed, but you can still add notes.
+  <div class="aw-sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
   </div>
 
-  <div class="pr-say" ng-if="c.isReadOnly">
-    Your group reads and comments. The final group records the score. Use
-    <strong>Pass to next group</strong> when you are done.
-  </div>
+  <div class="gn-dash">
 
-  <div class="pr-say"
-       ng-if="!c.isCompleted && !c.isReadOnly && !data.is_last_reviewer && data.submitted">
-    Sent on to the next group. You can still add notes.
-  </div>
+    <!-- ═══════════════ NO ACCESS ═══════════════
 
-
-  <div class="pr-frame">
-
-    <!-- ═══════════════ CONTENTS ═══════════════ -->
-    <nav class="pr-toc" aria-label="Sections of this proposal">
-
-      <button type="button" class="pr-toc__item"
-              ng-class="{'is-on': c.tab === 'overview'}"
-              ng-click="c.tab = 'overview'">The proposal</button>
-
-      <button type="button" class="pr-toc__item"
-              ng-class="{'is-on': c.tab === 'applicant'}"
-              ng-click="c.tab = 'applicant'">Who is applying</button>
-
-      <button type="button" class="pr-toc__item"
-              ng-class="{'is-on': c.tab === 'program'}"
-              ng-click="c.tab = 'program'">The program</button>
-
-      <button type="button" class="pr-toc__item"
-              ng-class="{'is-on': c.tab === 'docs'}"
-              ng-click="c.tab = 'docs'">
-        Files
-        <span class="pr-toc__n"
-              ng-if="(data.program.documents && data.program.documents.length > 0) ||
-                     (data.applicant.documents && data.applicant.documents.length > 0)">
-          {{(data.program.documents || []).length + (data.applicant.documents || []).length}}
-        </span>
-      </button>
-
-      <button type="button" class="pr-toc__item"
-              ng-class="{'is-on': c.tab === 'review'}"
-              ng-click="c.tab = 'review'">
-        Notes
-        <span class="pr-toc__n" ng-if="data.work_notes_list && data.work_notes_list.length > 0">
-          {{data.work_notes_list.length}}
-        </span>
-      </button>
-
-    </nav>
-
-
-    <!-- ═══════════════ THE DOCUMENT ═══════════════ -->
-    <main class="pr-doc">
-
-      <!-- ── the proposal ────────────────────────────────── -->
-      <div ng-show="c.tab === 'overview'">
-
-        <!-- The opening is the proposal's own title and the sum
-             it is asking for, because those are the two things
-             a reviewer holds in their head while reading
-             everything else. -->
-        <h1 class="pr-doc__title">{{data.program.name || 'Untitled program'}}</h1>
-
-        <p class="pr-doc__by">
-          Submitted by {{data.applicant.first_name}} {{data.applicant.last_name}}<span
-            ng-if="data.applicant.organization"> of {{data.applicant.organization}}</span>
+         The server returns before loading anything when none
+         of the reader's groups is on the reviewer list, so
+         data.found is the whole test.
+         ═══════════════════════════════════════ -->
+    <article class="gn-card gnd-solo" ng-if="!c.data.found">
+      <div class="gn-card__body">
+        <p class="gn-empty">
+          You cannot open this review. Either the record no longer exists, or none of
+          your groups appears on its reviewer list. If you believe one should, ask the
+          program office to add it.
         </p>
+      </div>
+    </article>
 
-        <div class="pr-ask">
-          <span class="pr-ask__n">{{data.applicant.requested_budget || '—'}}</span>
-          <span class="pr-ask__l">requested</span>
+
+    <div ng-if="c.data.found">
+
+      <!-- ═════════════════════════ HEADER ═════════════════════════ -->
+      <header class="gn-head">
+
+        <div class="gn-head__left">
+          <a class="gnd-back" ng-href="{{c.data.applicant_page}}">Back to applicants</a>
+          <h1 class="gn-head__title">{{c.fullName()}}</h1>
+          <p class="gn-head__meta">
+            <span class="gn-live"></span>
+            {{c.data.number}}<span ng-if="c.data.applicant.number"> · applicant {{c.data.applicant.number}}</span><span
+              ng-if="c.data.program.number"> · program {{c.data.program.number}}</span>
+          </p>
         </div>
 
-        <dl class="pr-facts">
-          <div class="pr-fact"><dt>Applicant</dt><dd>{{data.applicant.number || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Program</dt><dd>{{data.program.number || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Category</dt><dd>{{data.applicant.program_category || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Submitted</dt><dd>{{data.applicant.submission_date || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Project runs</dt>
-            <dd>{{data.applicant.project_start || '—'}} to {{data.applicant.project_end || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Program budget</dt><dd>{{data.program.budget || '—'}}</dd></div>
+        <div class="gn-head__right">
+          <span class="rvd-chip"
+                ng-class="c.data.status === 'Review completed' ? 'rvd-chip--green' :
+                          c.data.status === 'Escalated' ? 'rvd-chip--red' :
+                          c.data.status === 'Declined by Reviewer' ? 'rvd-chip--rose' :
+                          c.data.status === 'Review pending' ? 'rvd-chip--slate' : 'rvd-chip--amber'">{{c.data.status}}</span>
+          <span class="gnd-due" ng-class="'gnd-due--' + c.data.deadline_state">{{c.data.deadline_text}}</span>
+        </div>
+
+      </header>
+
+
+      <!-- ═════════════════ THE REVIEW RECORD ═════════════════
+
+           Every field on the form, in one strip. This is the
+           record the reviewer is working on, so it sits above
+           everything about the applicant.
+           ═══════════════════════════════════════════════════ -->
+      <article class="gn-card gnd-rec">
+
+        <dl class="gnd-facts">
+          <div class="gnd-fact"><dt>Review</dt><dd>{{c.data.number}}</dd></div>
+          <div class="gnd-fact"><dt>Status</dt><dd>{{c.data.status}}</dd></div>
+          <div class="gnd-fact"><dt>Decision type</dt>
+            <dd ng-class="{'is-blank': !c.data.decision_type}">{{c.data.decision_type || 'Not recorded'}}</dd></div>
+          <div class="gnd-fact"><dt>Review group</dt>
+            <dd ng-class="{'is-blank': !c.data.review_group}">{{c.data.review_group || 'Not set'}}</dd></div>
+          <div class="gnd-fact"><dt>Reviewer</dt>
+            <dd ng-class="{'is-blank': !c.data.reviewer}">{{c.data.reviewer || 'Not set'}}</dd></div>
+          <div class="gnd-fact"><dt>Review start</dt>
+            <dd ng-class="{'is-blank': !c.data.review_start_date}">{{c.data.review_start_date || 'Not set'}}</dd></div>
+          <div class="gnd-fact"><dt>Review deadline</dt>
+            <dd ng-class="{'is-blank': !c.data.review_deadline}">{{c.data.review_deadline || 'Not set'}}</dd></div>
+          <div class="gnd-fact"><dt>Score</dt>
+            <dd ng-class="{'is-blank': !c.data.score}">{{c.data.score ? c.data.score + ' out of 10' : 'Not scored'}}</dd></div>
         </dl>
 
-        <!-- The four things the applicant actually wrote, set
-             as prose in a serif at a readable measure. This is
-             the part of the page that deserves the space. -->
-        <section class="pr-read" ng-if="data.applicant.short_desc">
-          <h2 class="pr-read__h">Short description</h2>
-          <p class="pr-read__p">{{data.applicant.short_desc}}</p>
-        </section>
+        <!-- ── the chain ──────────────────────────────────
 
-        <section class="pr-read" ng-if="data.applicant.proposal_desc">
-          <h2 class="pr-read__h">Proposal</h2>
-          <p class="pr-read__p">{{data.applicant.proposal_desc}}</p>
-        </section>
+             The reviewer field is an ordered list of panels and
+             submit_review walks it to find the next one. Drawn
+             here so a reader who cannot score yet can see why:
+             "you are second of three" is the answer.
+             ─────────────────────────────────────────────── -->
+        <div class="gnd-chain" ng-if="c.data.chain.length > 1">
 
-        <section class="pr-read" ng-if="data.applicant.goals">
-          <h2 class="pr-read__h">Goals and objectives</h2>
-          <p class="pr-read__p">{{data.applicant.goals}}</p>
-        </section>
-
-        <section class="pr-read" ng-if="data.applicant.methodology">
-          <h2 class="pr-read__h">Activities and methodology</h2>
-          <p class="pr-read__p">{{data.applicant.methodology}}</p>
-        </section>
-
-        <p class="pr-none"
-           ng-if="!data.applicant.short_desc && !data.applicant.proposal_desc &&
-                  !data.applicant.goals && !data.applicant.methodology">
-          The applicant did not write a narrative for this proposal.
-        </p>
-
-      </div>
-
-
-      <!-- ── who is applying ─────────────────────────────── -->
-      <div ng-show="c.tab === 'applicant'">
-
-        <h1 class="pr-doc__title">{{data.applicant.first_name}} {{data.applicant.middle_name}} {{data.applicant.last_name}}</h1>
-        <p class="pr-doc__by">{{data.applicant.organization || 'No organization given'}}</p>
-
-        <dl class="pr-facts">
-          <div class="pr-fact"><dt>Email</dt>
-            <dd><a class="pr-link" href="mailto:{{data.applicant.email}}">{{data.applicant.email || '—'}}</a></dd></div>
-          <div class="pr-fact"><dt>Phone</dt><dd>{{data.applicant.phone || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Applicant type</dt><dd>{{data.applicant.applicant_type || '—'}}</dd></div>
-        </dl>
-
-        <section class="pr-set">
-          <h2 class="pr-set__h">Personal</h2>
-          <dl class="pr-pairs">
-            <div class="pr-pair"><dt>Date of birth</dt><dd>{{data.applicant.dob || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Gender</dt><dd>{{data.applicant.gender || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Marital status</dt><dd>{{data.applicant.marital_status || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Military status</dt><dd>{{data.applicant.military_status || '—'}}</dd></div>
-          </dl>
-        </section>
-
-        <section class="pr-set">
-          <h2 class="pr-set__h">Demographics</h2>
-          <dl class="pr-pairs">
-            <div class="pr-pair"><dt>Race</dt><dd>{{data.applicant.race || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Ethnicity</dt><dd>{{data.applicant.ethnicity || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Education level</dt><dd>{{data.applicant.education || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Disability status</dt><dd>{{data.applicant.disability || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Tribal affiliation</dt><dd>{{data.applicant.tribal || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Citizenship</dt><dd>{{data.applicant.citizenship || '—'}}</dd></div>
-          </dl>
-        </section>
-
-        <section class="pr-set">
-          <h2 class="pr-set__h">Identity and legal</h2>
-          <dl class="pr-pairs">
-            <div class="pr-pair"><dt>Identity type</dt><dd>{{data.applicant.identity_type || '—'}}</dd></div>
-            <div class="pr-pair"><dt>UEI</dt><dd>{{data.applicant.uei || '—'}}</dd></div>
-            <!-- the two fields on this page a screenshot of
-                 which is a different kind of problem from the
-                 rest, so they are set apart rather than printed
-                 like a postcode -->
-            <div class="pr-pair pr-pair--held"><dt>SSN</dt><dd>{{data.applicant.ssn || '—'}}</dd></div>
-            <div class="pr-pair pr-pair--held"><dt>TIN or EIN</dt><dd>{{data.applicant.tin || '—'}}</dd></div>
-          </dl>
-        </section>
-
-        <section class="pr-set">
-          <h2 class="pr-set__h">Address</h2>
-          <dl class="pr-pairs">
-            <div class="pr-pair"><dt>Street</dt><dd>{{data.applicant.street || '—'}}</dd></div>
-            <div class="pr-pair"><dt>City</dt><dd>{{data.applicant.city || '—'}}</dd></div>
-            <div class="pr-pair"><dt>State</dt><dd>{{data.applicant.state || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Postal code</dt><dd>{{data.applicant.zip || '—'}}</dd></div>
-            <div class="pr-pair"><dt>Country</dt><dd>{{data.applicant.country || '—'}}</dd></div>
-          </dl>
-        </section>
-
-      </div>
-
-
-      <!-- ── the program ─────────────────────────────────── -->
-      <div ng-show="c.tab === 'program'">
-
-        <h1 class="pr-doc__title">{{data.program.name || 'Untitled program'}}</h1>
-        <p class="pr-doc__by">{{data.program.number}}</p>
-
-        <dl class="pr-facts">
-          <div class="pr-fact"><dt>Status</dt><dd>{{data.program.status || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Category</dt><dd>{{data.program.category || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Budget</dt><dd>{{data.program.budget || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Opens</dt><dd>{{data.program.start_date || '—'}}</dd></div>
-          <div class="pr-fact"><dt>Closes</dt><dd>{{data.program.end_date || '—'}}</dd></div>
-        </dl>
-
-        <section class="pr-read" ng-if="data.program.description">
-          <h2 class="pr-read__h">Description</h2>
-          <p class="pr-read__p">{{data.program.description}}</p>
-        </section>
-
-        <section class="pr-read" ng-if="data.program.synopsis">
-          <h2 class="pr-read__h">Synopsis</h2>
-          <p class="pr-read__p">{{data.program.synopsis}}</p>
-        </section>
-
-        <section class="pr-read" ng-if="data.program.eligibility">
-          <h2 class="pr-read__h">Eligibility</h2>
-          <p class="pr-read__p">{{data.program.eligibility}}</p>
-        </section>
-
-        <section class="pr-read" ng-if="data.program.terms">
-          <h2 class="pr-read__h">Terms and conditions</h2>
-          <p class="pr-read__p">{{data.program.terms}}</p>
-        </section>
-
-        <section class="pr-read" ng-if="data.program.summary_statement">
-          <h2 class="pr-read__h">Summary statement</h2>
-          <p class="pr-read__p">{{data.program.summary_statement}}</p>
-        </section>
-
-      </div>
-
-
-      <!-- ── files ───────────────────────────────────────── -->
-      <div ng-show="c.tab === 'docs'">
-
-        <h1 class="pr-doc__title">Files</h1>
-        <p class="pr-doc__by">Everything attached to the proposal and to the program</p>
-
-        <section class="pr-set">
-          <h2 class="pr-set__h">From the applicant</h2>
-
-          <ul class="pr-files" ng-if="data.applicant.documents && data.applicant.documents.length > 0">
-            <li class="pr-file" ng-repeat="doc in data.applicant.documents">
-              <span class="pr-file__name">{{doc.name}}</span>
-              <span class="pr-file__size">{{c.formatSize(doc.size)}}</span>
-              <a class="pr-file__get" href="{{doc.url}}" target="_blank" rel="noopener noreferrer">Download</a>
-            </li>
-          </ul>
-
-          <p class="pr-none" ng-if="!data.applicant.documents || data.applicant.documents.length === 0">
-            The applicant attached nothing.
+          <p class="gnd-chain__h">
+            Review chain · stage {{c.data.chain_position}} of {{c.data.chain_length}}
           </p>
-        </section>
 
-        <section class="pr-set">
-          <h2 class="pr-set__h">From the program</h2>
-
-          <ul class="pr-files" ng-if="data.program.documents && data.program.documents.length > 0">
-            <li class="pr-file" ng-repeat="doc in data.program.documents">
-              <span class="pr-file__name">{{doc.name}}</span>
-              <span class="pr-file__size">{{c.formatSize(doc.size)}}</span>
-              <a class="pr-file__get" href="{{doc.url}}" target="_blank" rel="noopener noreferrer">Download</a>
+          <ol class="gnd-chain__list">
+            <li class="gnd-step"
+                ng-repeat="g in c.data.chain track by $index"
+                ng-class="{'is-done': g.done, 'is-now': g.current, 'is-mine': g.mine}">
+              <span class="gnd-step__dot" aria-hidden="true"></span>
+              <span class="gnd-step__name">{{g.name}}</span>
+              <span class="gnd-step__tag" ng-if="g.current">With this panel now</span>
+              <span class="gnd-step__tag gnd-step__tag--quiet" ng-if="!g.current && g.done">Passed on</span>
+              <span class="gnd-step__tag gnd-step__tag--quiet" ng-if="!g.current && !g.done">Waiting</span>
             </li>
-          </ul>
+          </ol>
 
-          <p class="pr-none" ng-if="!data.program.documents || data.program.documents.length === 0">
-            The program has no attached documents.
-          </p>
-        </section>
+        </div>
 
-      </div>
+      </article>
 
 
-      <!-- ── notes ───────────────────────────────────────── -->
-      <div ng-show="c.tab === 'review'">
+      <!-- ═══════════════ THE TWO COLUMNS ═══════════════ -->
+      <section class="gn-row gn-row--wide">
 
-        <h1 class="pr-doc__title">Notes</h1>
-        <p class="pr-doc__by">
-          Everything written on this review, by every group that has held it
-        </p>
+        <!-- ── the record, in tabs ─────────────────────── -->
+        <article class="gn-card">
 
-        <div class="pr-write">
-          <textarea class="pr-write__box" rows="4"
-                    ng-model="c.newNote"
-                    placeholder="{{c.canScore ? 'Write your review notes' : 'Write a note'}}"></textarea>
-          <div class="pr-write__foot">
-            <span class="pr-write__count">{{(c.newNote || '').length}} / 2000</span>
-            <button type="button" class="pr-btn pr-btn--go pr-btn--sm"
-                    ng-click="c.addNote()"
-                    ng-disabled="!c.newNote || !c.newNote.trim() || c.addingNote">
-              {{c.addingNote ? 'Posting' : 'Post note'}}
+          <nav class="gnd-tabs" role="tablist">
+            <button type="button" class="gnd-tab"
+                    ng-repeat="t in c.tabList track by t.key"
+                    ng-class="{'is-on': c.tab === t.key}"
+                    ng-click="c.setTab(t.key)"
+                    role="tab">
+              {{t.label}}<span class="gnd-tab__n" ng-if="t.n">{{t.n}}</span>
             </button>
+          </nav>
+
+          <div class="gn-card__body">
+
+            <!-- ── the proposal ───────────────────────── -->
+            <div ng-if="c.tab === 'proposal'">
+
+              <dl class="gnd-kvs">
+                <div class="gnd-kv"><dt>Program</dt>
+                  <dd>{{c.data.program.name || 'Not set'}}</dd></div>
+                <div class="gnd-kv"><dt>Category</dt>
+                  <dd>{{c.data.applicant.program_category || c.data.program.category || 'Not set'}}</dd></div>
+                <div class="gnd-kv"><dt>Requested budget</dt>
+                  <dd class="is-money">{{c.data.applicant.requested_budget || 'Not stated'}}</dd></div>
+                <div class="gnd-kv"><dt>Submitted</dt>
+                  <dd>{{c.data.applicant.submission_date || 'Not recorded'}}</dd></div>
+                <div class="gnd-kv"><dt>Project runs</dt>
+                  <dd>{{c.data.applicant.project_start || '—'}} to {{c.data.applicant.project_end || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Application state</dt>
+                  <dd>{{c.data.applicant.state || 'Not set'}}</dd></div>
+              </dl>
+
+              <!-- the four things the applicant actually wrote.
+                   This is the part of the page a reviewer is
+                   here to read, so it gets a serif and a
+                   measure rather than being squeezed into the
+                   field grid above. -->
+              <section class="gnd-read" ng-if="c.data.applicant.short_desc">
+                <h3 class="gnd-read__h">Short description</h3>
+                <p class="gnd-read__p">{{c.data.applicant.short_desc}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.applicant.proposal_desc">
+                <h3 class="gnd-read__h">Proposal</h3>
+                <p class="gnd-read__p">{{c.data.applicant.proposal_desc}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.applicant.goals">
+                <h3 class="gnd-read__h">Goals and objectives</h3>
+                <p class="gnd-read__p">{{c.data.applicant.goals}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.applicant.methodology">
+                <h3 class="gnd-read__h">Activities and methodology</h3>
+                <p class="gnd-read__p">{{c.data.applicant.methodology}}</p>
+              </section>
+
+              <p class="gn-empty"
+                 ng-if="!c.data.applicant.short_desc && !c.data.applicant.proposal_desc &&
+                        !c.data.applicant.goals && !c.data.applicant.methodology">
+                The applicant did not write a narrative for this proposal.
+              </p>
+
+            </div>
+
+
+            <!-- ── applicant ──────────────────────────── -->
+            <div ng-if="c.tab === 'applicant'">
+
+              <h3 class="gnd-sub">Contact</h3>
+              <dl class="gnd-kvs">
+                <div class="gnd-kv"><dt>Applicant</dt><dd>{{c.data.applicant.number || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Full name</dt><dd>{{c.fullName()}}</dd></div>
+                <div class="gnd-kv"><dt>Organization</dt><dd>{{c.data.applicant.organization || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Email</dt>
+                  <dd><a class="gnd-link" ng-href="mailto:{{c.data.applicant.email}}">{{c.data.applicant.email || '—'}}</a></dd></div>
+                <div class="gnd-kv"><dt>Phone</dt><dd>{{c.data.applicant.phone || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Applicant type</dt><dd>{{c.data.applicant.applicant_type || '—'}}</dd></div>
+              </dl>
+
+              <h3 class="gnd-sub">Address</h3>
+              <dl class="gnd-kvs">
+                <div class="gnd-kv"><dt>Street</dt><dd>{{c.data.applicant.street || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>City</dt><dd>{{c.data.applicant.city || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Postal code</dt><dd>{{c.data.applicant.zip || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Country</dt><dd>{{c.data.applicant.country || '—'}}</dd></div>
+              </dl>
+
+              <h3 class="gnd-sub">Personal and demographic</h3>
+              <dl class="gnd-kvs">
+                <div class="gnd-kv"><dt>Date of birth</dt><dd>{{c.data.applicant.dob || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Gender</dt><dd>{{c.data.applicant.gender || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Marital status</dt><dd>{{c.data.applicant.marital_status || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Race</dt><dd>{{c.data.applicant.race || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Ethnicity</dt><dd>{{c.data.applicant.ethnicity || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Education</dt><dd>{{c.data.applicant.education || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Military status</dt><dd>{{c.data.applicant.military_status || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Disability status</dt><dd>{{c.data.applicant.disability || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Tribal affiliation</dt><dd>{{c.data.applicant.tribal || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Citizenship</dt><dd>{{c.data.applicant.citizenship || '—'}}</dd></div>
+              </dl>
+
+              <h3 class="gnd-sub">Identity and legal</h3>
+              <dl class="gnd-kvs">
+                <div class="gnd-kv"><dt>Identity type</dt><dd>{{c.data.applicant.identity_type || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>UEI</dt><dd>{{c.data.applicant.uei || '—'}}</dd></div>
+                <!-- the two fields a screenshot of which is a
+                     different kind of problem from the rest -->
+                <div class="gnd-kv gnd-kv--held"><dt>SSN</dt><dd>{{c.data.applicant.ssn || '—'}}</dd></div>
+                <div class="gnd-kv gnd-kv--held"><dt>TIN or EIN</dt><dd>{{c.data.applicant.tin || '—'}}</dd></div>
+              </dl>
+
+            </div>
+
+
+            <!-- ── program ────────────────────────────── -->
+            <div ng-if="c.tab === 'program'">
+
+              <dl class="gnd-kvs">
+                <div class="gnd-kv"><dt>Program</dt><dd>{{c.data.program.name || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Number</dt><dd>{{c.data.program.number || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Category</dt><dd>{{c.data.program.category || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Status</dt><dd>{{c.data.program.status || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Budget</dt><dd class="is-money">{{c.data.program.budget || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Opens</dt><dd>{{c.data.program.start_date || '—'}}</dd></div>
+                <div class="gnd-kv"><dt>Closes</dt><dd>{{c.data.program.end_date || '—'}}</dd></div>
+              </dl>
+
+              <section class="gnd-read" ng-if="c.data.program.description">
+                <h3 class="gnd-read__h">Description</h3>
+                <p class="gnd-read__p">{{c.data.program.description}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.program.synopsis">
+                <h3 class="gnd-read__h">Synopsis</h3>
+                <p class="gnd-read__p">{{c.data.program.synopsis}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.program.eligibility">
+                <h3 class="gnd-read__h">Eligibility</h3>
+                <p class="gnd-read__p">{{c.data.program.eligibility}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.program.terms">
+                <h3 class="gnd-read__h">Terms and conditions</h3>
+                <p class="gnd-read__p">{{c.data.program.terms}}</p>
+              </section>
+
+              <section class="gnd-read" ng-if="c.data.program.summary_statement">
+                <h3 class="gnd-read__h">Summary statement</h3>
+                <p class="gnd-read__p">{{c.data.program.summary_statement}}</p>
+              </section>
+
+            </div>
+
+
+            <!-- ── documents ──────────────────────────── -->
+            <div ng-if="c.tab === 'docs'">
+
+              <h3 class="gnd-sub" ng-if="c.data.applicant.documents.length">From the applicant</h3>
+
+              <ul class="gnd-files" ng-if="c.data.applicant.documents.length">
+                <li class="gnd-file" ng-repeat="doc in c.data.applicant.documents track by doc.sys_id">
+                  <span class="gnd-file__name">{{doc.name}}</span>
+                  <span class="gnd-file__size">{{c.formatSize(doc.size)}}</span>
+                  <a class="gnd-file__get" ng-href="{{doc.url}}"
+                     target="_blank" rel="noopener noreferrer">Download</a>
+                </li>
+              </ul>
+
+              <h3 class="gnd-sub" ng-if="c.data.program.documents.length">From the program</h3>
+
+              <ul class="gnd-files" ng-if="c.data.program.documents.length">
+                <li class="gnd-file" ng-repeat="doc in c.data.program.documents track by doc.sys_id">
+                  <span class="gnd-file__name">{{doc.name}}</span>
+                  <span class="gnd-file__size">{{c.formatSize(doc.size)}}</span>
+                  <a class="gnd-file__get" ng-href="{{doc.url}}"
+                     target="_blank" rel="noopener noreferrer">Download</a>
+                </li>
+              </ul>
+
+            </div>
+
+
+            <!-- ── work notes ─────────────────────────── -->
+            <div ng-if="c.tab === 'notes'">
+
+              <!-- the box sits above the thread, so it is not
+                   at the bottom of a long history. Notes stay
+                   open on a closed review, because a finished
+                   review still gets talked about. -->
+              <div class="gnd-write">
+                <textarea class="gnd-write__box" rows="4" ng-model="c.note"
+                          placeholder="Write a note for the other panels on this review"></textarea>
+                <div class="gnd-write__foot">
+                  <span class="gnd-write__n">{{(c.note || '').length}} characters</span>
+                  <button type="button" class="gn-btn gn-btn--primary"
+                          ng-click="c.addNote()"
+                          ng-disabled="!c.note || !c.note.trim() || c.busy">
+                    {{c.busy === 'add_note' ? 'Posting' : 'Post note'}}
+                  </button>
+                </div>
+              </div>
+
+              <ol class="gnd-thread" ng-if="c.data.work_notes_list.length">
+                <li class="gnd-post" ng-repeat="n in c.data.work_notes_list track by $index">
+                  <span class="gnd-post__who">{{n.user}}</span>
+                  <span class="gnd-post__when">{{n.created}}</span>
+                  <p class="gnd-post__text">{{n.value}}</p>
+                </li>
+              </ol>
+
+              <p class="gn-empty" ng-if="!c.data.work_notes_list.length">
+                Nobody has written on this review yet.
+              </p>
+
+            </div>
+
           </div>
-        </div>
 
-        <ol class="pr-thread" ng-if="data.work_notes_list && data.work_notes_list.length > 0">
-          <li class="pr-post" ng-repeat="note in data.work_notes_list">
-            <span class="pr-post__who">{{note.user}}</span>
-            <span class="pr-post__when">{{note.created}}</span>
-            <p class="pr-post__text">{{note.value}}</p>
-          </li>
-        </ol>
-
-        <p class="pr-none" ng-if="!data.work_notes_list || data.work_notes_list.length === 0">
-          Nobody has written on this review yet.
-        </p>
-
-      </div>
-
-    </main>
+        </article>
 
 
-    <!-- ═══════════════════════════════════════════════════════
-         THE DECISION
+        <!-- ── the decision ────────────────────────────
 
-         Fixed beside the reading rather than parked behind a
-         tab, so a reviewer can record a judgement at the moment
-         they form it instead of scrolling back to find where
-         the control lives.
-         ═══════════════════════════════════════════════════════ -->
-    <aside class="pr-side">
-      <div class="pr-side__stick">
+             Sticky beside the reading, so a reviewer can record
+             a judgement at the moment they form it rather than
+             scrolling back to find the control.
+             ───────────────────────────────────────────── -->
+        <aside class="gnd-side">
+          <article class="gn-card gnd-decide">
 
-        <h2 class="pr-side__h">Your decision</h2>
+            <div class="gn-card__head">
+              <div>
+                <h2>Your decision</h2>
+                <p ng-switch="c.stance()">
+                  <span ng-switch-when="scoring">Your panel is last on the chain, so your score closes this review</span>
+                  <span ng-switch-when="reading">Your panel reads and comments, then passes it on</span>
+                  <span ng-switch-when="passed">Already passed on. You can still add notes</span>
+                  <span ng-switch-when="closed">This review is closed. Notes are still open</span>
+                </p>
+              </div>
+            </div>
 
-        <!-- ① finished: fixed for everybody -->
-        <div ng-if="c.isCompleted">
-          <div class="pr-final"
-               ng-class="data.score >= 7 ? 'pr-final--high' :
-                         data.score >= 4 ? 'pr-final--mid'  :
-                         data.score      ? 'pr-final--low'  : 'pr-final--none'">
-            <span class="pr-final__n">{{data.score || '—'}}</span>
-            <span class="pr-final__d" ng-if="data.score">out of 10</span>
-          </div>
-          <p class="pr-side__note">Recorded and closed. Notes are still open.</p>
-        </div>
+            <div class="gn-card__body">
 
-        <!-- ② an earlier group in the chain -->
-        <div ng-if="c.isReadOnly">
-          <!-- the scale is shown rather than hidden: an earlier
-               group should see the instrument the final group
-               will use, even though they cannot touch it -->
-          <div class="pr-scale pr-scale--off">
-            <span class="pr-scale__n" ng-repeat="n in [1,2,3,4,5,6,7,8,9,10]">{{n}}</span>
-          </div>
-          <p class="pr-side__note">
-            Only the final group scores. Add a note, then pass this on.
-          </p>
-        </div>
+              <!-- ① closed -->
+              <div ng-if="c.isCompleted()">
+                <div class="gnd-final" ng-class="'gnd-final--' + c.bandOf(c.data.score)">
+                  <span class="gnd-final__n">{{c.data.score || '—'}}</span>
+                  <span class="gnd-final__d" ng-if="c.data.score">out of 10</span>
+                </div>
+                <p class="gnd-note">
+                  {{c.data.status}}<span ng-if="c.data.decision_type"> · {{c.data.decision_type}}</span>
+                </p>
+              </div>
 
-        <!-- ③ the final group, still open -->
-        <div ng-if="c.canScore">
+              <!-- ② already passed to the next panel -->
+              <div ng-if="!c.isCompleted() && c.data.submitted">
+                <p class="gnd-note">
+                  This is now with {{c.data.review_group || 'the next panel'}}. You can read it
+                  and add notes, but the score is theirs to record.
+                </p>
+              </div>
 
-          <div class="pr-scale">
-            <button type="button" class="pr-scale__n"
-                    ng-repeat="n in [1,2,3,4,5,6,7,8,9,10]"
-                    ng-class="{'is-on': c.form.score == n,
-                               'is-low':  c.form.score == n && n <= 3,
-                               'is-mid':  c.form.score == n && n > 3 && n < 7,
-                               'is-high': c.form.score == n && n >= 7}"
-                    ng-click="c.form.score = n">{{n}}</button>
-          </div>
+              <!-- ③ an earlier panel on the chain -->
+              <div ng-if="c.isReadOnly()">
+                <!-- the scale is shown rather than hidden: an
+                     earlier panel should see the instrument the
+                     last one will use -->
+                <div class="gnd-scale gnd-scale--off">
+                  <span class="gnd-scale__n" ng-repeat="n in c.scale track by $index">{{n}}</span>
+                </div>
+                <p class="gnd-note">
+                  Only the last panel on the chain records a score. Add a note, then pass
+                  this on.
+                </p>
+              </div>
 
-          <p class="pr-scale__ends"><span>weakest</span><span>strongest</span></p>
+              <!-- ④ yours to score -->
+              <div ng-if="c.canScore()">
 
-          <p class="pr-verdict" ng-if="c.form.score">
-            <span class="pr-verdict--high" ng-if="c.form.score >= 7">A strong proposal, at {{c.form.score}} out of 10.</span>
-            <span class="pr-verdict--mid"  ng-if="c.form.score >= 4 && c.form.score < 7">A moderate proposal, at {{c.form.score}} out of 10.</span>
-            <span class="pr-verdict--low"  ng-if="c.form.score < 4">A weak proposal, at {{c.form.score}} out of 10.</span>
-          </p>
+                <div class="gnd-scale">
+                  <button type="button" class="gnd-scale__n"
+                          ng-repeat="n in c.scale track by $index"
+                          ng-class="{'is-on': c.form.score === n, 'is-band': c.form.score === n}"
+                          ng-attr-data-band="{{c.bandOf(n)}}"
+                          ng-click="c.form.score = n">{{n}}</button>
+                </div>
 
-          <p class="pr-side__note" ng-if="!c.form.score">
-            Pick a number, then submit from the bar above.
-          </p>
+                <p class="gnd-scale__ends"><span>weakest</span><span>strongest</span></p>
 
-        </div>
+                <p class="gnd-verdict" ng-if="c.form.score"
+                   ng-class="'gnd-verdict--' + c.bandOf(c.form.score)">
+                  <span ng-if="c.bandOf(c.form.score) === 'high'">A strong proposal, at {{c.form.score}} out of 10.</span>
+                  <span ng-if="c.bandOf(c.form.score) === 'mid'">A moderate proposal, at {{c.form.score}} out of 10.</span>
+                  <span ng-if="c.bandOf(c.form.score) === 'low'">A weak proposal, at {{c.form.score}} out of 10.</span>
+                </p>
 
-        <div class="pr-err" ng-if="c.error">{{c.error}}</div>
+              </div>
 
-      </div>
-    </aside>
+              <!-- the note that travels with the decision. A
+                   decline or a hand-off with a reason on it is
+                   worth far more to the next panel than a bare
+                   state change. Optional when scoring, required
+                   to decline: c.reject() refuses an empty note
+                   and turns the box red until something is typed. -->
+              <div class="gnd-with" ng-if="c.canAct()">
+                <label class="gnd-with__l" for="gndReason">Note to go with it</label>
+                <textarea id="gndReason" class="gnd-write__box" rows="3"
+                          ng-model="c.form.comments"
+                          ng-change="c.declineTried = false"
+                          ng-class="{'is-missing': c.declineTried && !(c.form.comments || '').trim()}"
+                          placeholder="Optional when scoring. Required to decline. Saved as a work note on the review."></textarea>
+                <p class="gnd-need" ng-if="c.declineTried && !(c.form.comments || '').trim()">
+                  Write a reason before declining. It is saved as a work note on the review.
+                </p>
+              </div>
+
+              <div class="gnd-acts" ng-if="c.canAct()">
+
+                <button type="button" class="gn-btn gn-btn--primary"
+                        ng-click="c.submit()"
+                        ng-disabled="c.busy || (c.canScore() && !c.form.score)">
+                  {{c.busy === 'submit_review'
+                    ? 'Sending'
+                    : (c.canScore() ? 'Submit score' : 'Pass to next panel')}}
+                </button>
+
+                <!-- declining cannot be undone, so it does not
+                     look like the button beside it -->
+                <button type="button" class="gnd-decline"
+                        ng-click="c.reject()"
+                        ng-disabled="c.busy">
+                  {{c.busy === 'reject_review' ? 'Declining' : 'Decline review'}}
+                </button>
+
+              </div>
+
+              <p class="gnd-hint" ng-if="c.canScore() && !c.form.score">
+                Pick a number before submitting.
+              </p>
+
+            </div>
+
+          </article>
+        </aside>
+
+      </section>
+
+    </div>
 
   </div>
 
-</div>]]></template>
+</div>
+]]></template>
     </sp_widget>
 </record_update>

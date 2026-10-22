@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($rootScope, $location, $window) {
+        <client_script><![CDATA[api.controller = function($rootScope) {
 
   /* =========================================================
      GATENOW · SIDEBAR · Client script
@@ -10,6 +10,32 @@
      the page about it, rather than each page guessing. Any page
      hosting this widget listens for gnSidebar and sizes its
      column to match.
+
+     ── WHAT WAS REMOVED ──────────────────────────────────────
+
+     c.go(), and with it $location and $window.
+
+     It navigated with $location.search({ id: item.page }).
+     Service Portal runs Angular in HTML5 mode, so that changes
+     the page without tearing down the one you came from — the
+     two page DOMs end up stacked, two rails and two headers,
+     and only a refresh clears it.
+
+     The nav items are plain anchors now, with an href and
+     target="_self". Angular's link rewriting skips any anchor
+     carrying a target attribute, so the browser performs a
+     real navigation. That also means the keyboard, the middle
+     button and the context menu work without a line of script,
+     which is what the old tabindex and ng-keydown in the
+     template were standing in for.
+
+     It removes a navigation sink as well. $location and
+     window.location navigation is what the open-redirect scan
+     objects to; an href in markup is not.
+
+     The "already here, do nothing" guard went with it. The
+     active item is still marked, and clicking the page you are
+     on reloads it, which is what a link does everywhere else.
      ========================================================= */
 
   var c = this;
@@ -34,17 +60,6 @@
   /* say it once on load so a page rendered after the rail still
      gets the right width */
   announce();
-
-  c.go = function(item) {
-    if (!item || !item.page) return;
-
-    /* already here, so nothing to do. Reloading the page you are
-       on throws away scroll position for no reason. */
-    if (item.active) return;
-
-    $location.search({ id: item.page });
-  };
-
 };]]></client_script>
         <controller_as>c</controller_as>
         <css>/* =========================================================
@@ -1024,14 +1039,14 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>Sheeba.showkat</sys_created_by>
         <sys_created_on>2026-08-20 11:25:51</sys_created_on>
         <sys_id>dfa240c60f3a8b10712b6af300d1b2e1</sys_id>
-        <sys_mod_count>135</sys_mod_count>
+        <sys_mod_count>136</sys_mod_count>
         <sys_name>Sidebar</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dfa240c60f3a8b10712b6af300d1b2e1</sys_update_name>
-        <sys_updated_by>farheen.maqbool</sys_updated_by>
-        <sys_updated_on>2026-09-03 08:32:48</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-24 06:53:43</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · SIDEBAR
      Service Portal widget · HTML template
@@ -1042,11 +1057,46 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
      hand drawn paths, which is why the old rail had two visual
      languages in one column.
 
-     UPDATE: brand mark + name are now a clickable "go home"
-     control, wired through the same c.go() handler every other
-     nav item already uses (see c.data.groups[0].items[0] —
-     assumed to be the Overview item; swap for c.data.homeItem
-     if your controller exposes one explicitly).
+     ── WHAT CHANGED, AND WHY ─────────────────────────────────
+
+     1. Nav items are real links now.
+
+        They used to be <a> tags with an ng-click and no href.
+        An anchor without an href is not a link: the browser
+        gives it nothing, which is why this template needed
+        tabindex="0" and a hand-written ng-keydown to make
+        Enter work. Both are gone, along with middle-click,
+        open-in-new-tab and the status bar preview coming back
+        for free.
+
+     2. Every in-portal link carries target="_self".
+
+        Service Portal runs Angular in HTML5 mode, so
+        $location.search() and any plain same-origin anchor are
+        intercepted and routed internally. That re-renders
+        without tearing down the page you came from, and the
+        two page DOMs end up stacked — two rails, two headers,
+        fixed only by a refresh. Angular's link rewriting skips
+        any anchor carrying a target attribute, so these
+        perform a real navigation.
+
+        It is also not a script navigation sink, which is what
+        the open-redirect scan objects to in
+        $location/window.location navigation.
+
+     3. The brand link is relative.
+
+        It pointed at https://ven08761.service-now.com/applicant
+        by name. That breaks the moment the app is cloned to
+        test or prod. A root-relative path works on every
+        instance.
+
+     4. The logo has a leading slash.
+
+        "x_enno_gatenow.sidebar%20logo.png" resolved only
+        because /applicant?id=... happens to sit at the root.
+        The encoded space is kept because that is the attachment
+        name; the slash is what makes it resolve anywhere.
      ========================================================= -->
 
 <nav class="gsb" ng-class="{'is-tight': c.tight}" aria-label="{{c.data.t.brand}}">
@@ -1056,11 +1106,12 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
   <header class="gsb-brand">
 
     <a class="gsb-brand__link"
-       ng-href="https://ven08761.service-now.com/applicant"
+       target="_self"
+       href="/applicant"
        aria-label="{{c.data.t.brand}} — go to home">
 
       <span class="gsb-brand__mark" aria-hidden="true">
-        <img src="x_enno_gatenow.sidebar%20logo.png" width="20" height="20" alt="" />
+        <img src="/x_enno_gatenow.sidebar%20logo.png" width="20" height="20" alt="" />
       </span>
 
       <span class="gsb-brand__name">{{c.data.t.brand}}</span>
@@ -1090,12 +1141,15 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
       <ul class="gsb-list">
         <li ng-repeat="item in g.items track by item.key">
 
+          <!-- an href and a target, and nothing else. No
+               ng-click, no tabindex, no keydown handler: a
+               real anchor already answers the keyboard, the
+               middle button and the context menu. -->
           <a class="gsb-item"
+             target="_self"
+             ng-href="?id={{item.page}}"
              ng-class="{'is-on': item.active}"
-             ng-click="c.go(item)"
-             ng-attr-aria-current="{{item.active ? 'page' : undefined}}"
-             tabindex="0"
-             ng-keydown="($event.keyCode === 13) && c.go(item)">
+             ng-attr-aria-current="{{item.active ? 'page' : undefined}}">
 
             <span class="gsb-item__bar" aria-hidden="true"></span>
 
@@ -1189,6 +1243,8 @@ $s-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <span class="gsb-user__role">{{c.data.orgLine}}</span>
       </span>
 
+      <!-- no target: signing out leaves the portal, so Angular
+           was never intercepting it -->
       <a class="gsb-user__out" ng-href="{{c.data.logoutUrl}}" aria-label="{{c.data.t.signOut}}">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
              stroke="currentColor" stroke-width="1.8"

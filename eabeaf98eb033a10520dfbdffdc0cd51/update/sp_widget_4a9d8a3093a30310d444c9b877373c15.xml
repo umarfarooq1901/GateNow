@@ -1,0 +1,2648 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($window) {
+
+  var c = this;
+
+  var KEY = 'gn.reviewerRail.tight';
+
+  /* =========================================================
+     COLLAPSE / EXPAND STATE
+     ========================================================= */
+
+  function remembered() {
+    try {
+      return $window.sessionStorage.getItem(KEY) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function remember(v) {
+    try {
+      $window.sessionStorage.setItem(KEY, v ? '1' : '0');
+    } catch (e) {
+      /* Storage may be unavailable. */
+    }
+  }
+
+  c.tight = remembered();
+
+  c.toggle = function() {
+    c.tight = !c.tight;
+    remember(c.tight);
+  };
+
+
+  /* =========================================================
+     NAVIGATION
+     ========================================================= */
+
+  function configureNavigation() {
+
+    if (!c.data || !c.data.groups) {
+      return;
+    }
+
+    angular.forEach(c.data.groups, function(group) {
+
+      if (!group || !group.items) {
+        return;
+      }
+
+      angular.forEach(group.items, function(item) {
+
+        if (!item) {
+          return;
+        }
+
+        /*
+         * Reviewer Rail → Programs
+         *
+         * Always open the applicant portal's
+         * Opportunities page.
+         */
+        if (item.label === 'Programs') {
+          item.url = '/applicant?id=opportunities';
+        }
+
+      });
+
+    });
+
+  }
+
+  configureNavigation();
+
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* =========================================================&#13;
+   GATENOW · REVIEWER RAIL&#13;
+   Service Portal widget · CSS / SCSS&#13;
+   ========================================================= */&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   DESIGN TOKENS&#13;
+   ========================================================= */&#13;
+&#13;
+$gn-card:        #ffffff;&#13;
+$gn-line:        #e7eaf2;&#13;
+$gn-line-soft:   #eff2f7;&#13;
+&#13;
+$gn-ink:         #16203a;&#13;
+$gn-ink-2:       #3f4a63;&#13;
+$gn-muted:       #7b8598;&#13;
+$gn-muted-2:     #9aa3b4;&#13;
+&#13;
+$gn-indigo:      #4457c9;&#13;
+$gn-indigo-dk:   #3a4bb3;&#13;
+$gn-indigo-soft: #aebcf5;&#13;
+$gn-indigo-wash: #edf1ff;&#13;
+&#13;
+$gn-red:         #e0525f;&#13;
+$gn-red-wash:    #fdecee;&#13;
+$gn-red-line:    #f6d3d7;&#13;
+&#13;
+$gn-font: "Poppins", "Inter", "Segoe UI",&#13;
+          -apple-system, BlinkMacSystemFont,&#13;
+          Arial, sans-serif;&#13;
+&#13;
+$gnr-wide:  252px;&#13;
+$gnr-tight: 72px;&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   FRAME&#13;
+   ========================================================= */&#13;
+&#13;
+.panel,&#13;
+.panel-body,&#13;
+.sp-widget {&#13;
+&#13;
+  overflow: visible !important;&#13;
+  margin: 0 !important;&#13;
+  padding: 0 !important;&#13;
+  border: 0 !important;&#13;
+  background: transparent !important;&#13;
+  box-shadow: none !important;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr {&#13;
+&#13;
+  width: $gnr-wide;&#13;
+  height: 100%;&#13;
+&#13;
+  font-family: $gn-font;&#13;
+&#13;
+  transition: width 0.4s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight {&#13;
+&#13;
+  width: $gnr-tight;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr *,&#13;
+.gnr *::before,&#13;
+.gnr *::after {&#13;
+&#13;
+  box-sizing: border-box;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   INNER RAIL&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr__inner {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  flex-direction: column;&#13;
+&#13;
+  width: 100%;&#13;
+  height: 100%;&#13;
+&#13;
+  min-height: 100vh;&#13;
+&#13;
+  background: $gn-card;&#13;
+&#13;
+  border-right: 1px solid $gn-line;&#13;
+&#13;
+  overflow: visible;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BRAND&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr__brand {&#13;
+&#13;
+  position: relative;&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  justify-content: space-between;&#13;
+&#13;
+  gap: 10px;&#13;
+&#13;
+  height: 68px;&#13;
+&#13;
+  padding: 0 16px;&#13;
+&#13;
+  border-bottom: 1px solid $gn-line-soft;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BRAND LINK&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-mark {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  gap: 12px;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  color: $gn-ink;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-mark:hover,&#13;
+.gnr-mark:focus {&#13;
+&#13;
+  color: $gn-ink;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   GATENOW LOGO CONTAINER&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-mark__glyph {&#13;
+  display: flex;&#13;
+  align-items: center;&#13;
+  justify-content: center;&#13;
+  width: 36px;&#13;
+  height: 36px;&#13;
+  flex-shrink: 0;&#13;
+  border-radius: 10px;&#13;
+  background: $gn-card;&#13;
+  box-shadow: 0 6px 14px rgba(68, 87, 201, 0.22);&#13;
+  overflow: hidden;&#13;
+  transition: transform 0.35s ease;&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   GATENOW LOGO IMAGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-mark__logo {&#13;
+  display: block;&#13;
+  width: 26px;&#13;
+  height: 26px;&#13;
+  object-fit: contain;&#13;
+  border-radius: 0;&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-mark:hover .gnr-mark__glyph {&#13;
+&#13;
+  transform: scale(1.04);&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   BRAND TEXT&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-mark__text {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  flex-direction: column;&#13;
+&#13;
+  gap: 1px;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  white-space: nowrap;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  transition: opacity 0.28s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-mark__name {&#13;
+&#13;
+  font-size: 18px;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+  letter-spacing: -0.4px;&#13;
+&#13;
+  line-height: 1.2;&#13;
+&#13;
+  color: $gn-ink;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-mark__sub {&#13;
+&#13;
+  font-size: 10.5px;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+  letter-spacing: 0.8px;&#13;
+&#13;
+  text-transform: uppercase;&#13;
+&#13;
+  color: $gn-muted-2;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   COLLAPSE BUTTON&#13;
+   ========================================================= */&#13;
+&#13;
+/* sits on the rail's right edge, half in and half out, in&#13;
+   both states, like the applicant sidebar's toggle */&#13;
+.gnr-pull {&#13;
+&#13;
+  position: absolute;&#13;
+&#13;
+  top: 50%;&#13;
+&#13;
+  right: -13px;&#13;
+&#13;
+  margin-top: -13px;&#13;
+&#13;
+  z-index: 2;&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  width: 26px;&#13;
+&#13;
+  height: 26px;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+  border: 1px solid $gn-line;&#13;
+&#13;
+  border-radius: 50%;&#13;
+&#13;
+  background: $gn-card;&#13;
+&#13;
+  color: $gn-muted;&#13;
+&#13;
+  cursor: pointer;&#13;
+&#13;
+  box-shadow: 0 2px 8px rgba(22, 32, 58, 0.1);&#13;
+&#13;
+  transition:&#13;
+    background 0.25s ease,&#13;
+    color 0.25s ease,&#13;
+    border-color 0.25s ease,&#13;
+    transform 0.4s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-pull:hover {&#13;
+&#13;
+  background: $gn-indigo-wash;&#13;
+&#13;
+  border-color: $gn-indigo-soft;&#13;
+&#13;
+  color: $gn-indigo;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-pull {&#13;
+&#13;
+  transform: rotate(180deg);&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NAVIGATION&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr__scroll {&#13;
+&#13;
+  flex: 1;&#13;
+&#13;
+  min-height: 0;&#13;
+&#13;
+  padding: 16px 12px 10px;&#13;
+&#13;
+  overflow: visible;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-group {&#13;
+&#13;
+  margin-bottom: 22px;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr .gnr-group__label {&#13;
+&#13;
+  margin: 0 0 8px;&#13;
+&#13;
+  padding: 0 10px;&#13;
+&#13;
+  font-size: 11.5px;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+  letter-spacing: 0.8px;&#13;
+&#13;
+  text-transform: uppercase;&#13;
+&#13;
+  color: $gn-muted;&#13;
+&#13;
+  white-space: nowrap;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  transition: opacity 0.28s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr .gnr-group__list {&#13;
+&#13;
+  display: grid;&#13;
+&#13;
+  gap: 2px;&#13;
+&#13;
+  margin: 0;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+  list-style: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NAV ITEM&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item {&#13;
+&#13;
+  position: relative;&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  gap: 12px;&#13;
+&#13;
+  height: 42px;&#13;
+&#13;
+  padding: 0 12px;&#13;
+&#13;
+  border-radius: 10px;&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+  font-size: 14px;&#13;
+&#13;
+  font-weight: 500;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+  white-space: nowrap;&#13;
+&#13;
+  transition:&#13;
+    background 0.22s ease,&#13;
+    color 0.22s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item:hover,&#13;
+.gnr-item:focus {&#13;
+&#13;
+  background: #f7f9fc;&#13;
+&#13;
+  color: $gn-ink;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   ACTIVE ITEM&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item.is-here {&#13;
+&#13;
+  background: $gn-indigo-wash;&#13;
+&#13;
+  color: $gn-indigo;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item.is-here:hover,&#13;
+.gnr-item.is-here:focus {&#13;
+&#13;
+  background: #e4eaff;&#13;
+&#13;
+  color: $gn-indigo-dk;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   ACTIVE EDGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item__edge {&#13;
+&#13;
+  position: absolute;&#13;
+&#13;
+  top: 50%;&#13;
+&#13;
+  left: 0;&#13;
+&#13;
+  width: 3px;&#13;
+&#13;
+  height: 0;&#13;
+&#13;
+  border-radius: 0 3px 3px 0;&#13;
+&#13;
+  background: $gn-indigo;&#13;
+&#13;
+  transform: translateY(-50%);&#13;
+&#13;
+  transition: height 0.28s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item.is-here .gnr-item__edge {&#13;
+&#13;
+  height: 20px;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NAV ICON&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item__ico {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  width: 20px;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  color: $gn-muted;&#13;
+&#13;
+  transition: color 0.22s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item:hover .gnr-item__ico {&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item.is-here .gnr-item__ico {&#13;
+&#13;
+  color: $gn-indigo;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   NAV LABEL&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item__label {&#13;
+&#13;
+  flex: 1;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  text-overflow: ellipsis;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   COUNT BADGE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item__n {&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  min-width: 22px;&#13;
+&#13;
+  padding: 2px 8px;&#13;
+&#13;
+  border-radius: 999px;&#13;
+&#13;
+  background: #f1f3f8;&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+  font-size: 11.5px;&#13;
+&#13;
+  font-weight: 500;&#13;
+&#13;
+  text-align: center;&#13;
+&#13;
+  transition:&#13;
+    background 0.22s ease,&#13;
+    color 0.22s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item__n.is-alert {&#13;
+&#13;
+  background: $gn-red-wash;&#13;
+&#13;
+  color: #cf4351;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-item.is-here .gnr-item__n {&#13;
+&#13;
+  background: #ffffff;&#13;
+&#13;
+  color: $gn-indigo;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   OVERDUE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-alert {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  gap: 11px;&#13;
+&#13;
+  height: 42px;&#13;
+&#13;
+  margin: 0 12px 12px;&#13;
+&#13;
+  padding: 0 12px;&#13;
+&#13;
+  border: 1px solid $gn-red-line;&#13;
+&#13;
+  border-radius: 10px;&#13;
+&#13;
+  background: $gn-red-wash;&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+  white-space: nowrap;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  transition:&#13;
+    background 0.25s ease,&#13;
+    border-color 0.25s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-alert:hover,&#13;
+.gnr-alert:focus {&#13;
+&#13;
+  background: #fbe1e4;&#13;
+&#13;
+  border-color: #eebcc2;&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-alert__ico,&#13;
+.gnr-alert__icon {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  width: 20px;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  color: $gn-red;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-alert__body {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  flex-direction: column;&#13;
+&#13;
+  gap: 2px;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-alert__n {&#13;
+&#13;
+  font-size: 13px;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+  color: #cf4351;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-alert__sub {&#13;
+&#13;
+  font-size: 11px;&#13;
+&#13;
+  color: $gn-muted;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  text-overflow: ellipsis;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   FOOTER / USER&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr__foot {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  gap: 8px;&#13;
+&#13;
+  padding: 10px 12px 14px;&#13;
+&#13;
+  border-top: 1px solid $gn-line-soft;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   USER LINK&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-me {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  gap: 12px;&#13;
+&#13;
+  flex: 1;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  padding: 4px;&#13;
+&#13;
+  margin: -4px;&#13;
+&#13;
+  border-radius: 10px;&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+  white-space: nowrap;&#13;
+&#13;
+  transition: background 0.25s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-me:hover,&#13;
+.gnr-me:focus {&#13;
+&#13;
+  background: #f7f9fc;&#13;
+&#13;
+  color: $gn-ink-2;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   USER AVATAR&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-me__avatar {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  width: 34px;&#13;
+&#13;
+  height: 34px;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  border-radius: 10px;&#13;
+&#13;
+  background: $gn-indigo;&#13;
+&#13;
+  color: #ffffff;&#13;
+&#13;
+  font-size: 12.5px;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+  letter-spacing: 0.3px;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   USER TEXT&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-me__body {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  flex-direction: column;&#13;
+&#13;
+  gap: 1px;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-me__name {&#13;
+&#13;
+  font-size: 13.5px;&#13;
+&#13;
+  font-weight: 600;&#13;
+&#13;
+  letter-spacing: -0.1px;&#13;
+&#13;
+  color: $gn-ink;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  text-overflow: ellipsis;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-me__role {&#13;
+&#13;
+  font-size: 11.5px;&#13;
+&#13;
+  color: $gn-muted;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  text-overflow: ellipsis;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   SIGN OUT&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-out {&#13;
+&#13;
+  display: flex;&#13;
+&#13;
+  align-items: center;&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  width: 34px;&#13;
+&#13;
+  height: 34px;&#13;
+&#13;
+  flex-shrink: 0;&#13;
+&#13;
+  border-radius: 10px;&#13;
+&#13;
+  color: $gn-muted-2;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+  transition:&#13;
+    background 0.25s ease,&#13;
+    color 0.25s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr-out:hover,&#13;
+.gnr-out:focus {&#13;
+&#13;
+  background: $gn-red-wash;&#13;
+&#13;
+  color: #cf4351;&#13;
+&#13;
+  text-decoration: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   COLLAPSED STATE&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr.is-tight .gnr__brand {&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  gap: 0;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* the template uses __text and __copy, not __body, so those&#13;
+   are listed too. Sign-out hides in the narrow rail, as it&#13;
+   does on the applicant sidebar. */&#13;
+.gnr.is-tight .gnr-mark__text,&#13;
+.gnr.is-tight .gnr-item__label,&#13;
+.gnr.is-tight .gnr-item__n,&#13;
+.gnr.is-tight .gnr-alert__body,&#13;
+.gnr.is-tight .gnr-alert__text,&#13;
+.gnr.is-tight .gnr-me__body,&#13;
+.gnr.is-tight .gnr-me__copy,&#13;
+.gnr.is-tight .gnr-out {&#13;
+&#13;
+  /* flex, min-width and padding are zeroed too, otherwise the&#13;
+     hidden label (flex: 1) and count (min-width: 22px) still&#13;
+     take up room and push the icon off centre */&#13;
+  flex: 0 0 0;&#13;
+&#13;
+  width: 0;&#13;
+&#13;
+  min-width: 0;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+  margin: 0;&#13;
+&#13;
+  opacity: 0;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  pointer-events: none;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-mark {&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   COLLAPSED SECTION LABEL&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr.is-tight .gnr-group__label {&#13;
+&#13;
+  height: 1px;&#13;
+&#13;
+  margin: 0 6px 12px;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+  overflow: hidden;&#13;
+&#13;
+  background: $gn-line-soft;&#13;
+&#13;
+  color: transparent;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   COLLAPSED NAV ITEMS&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr.is-tight .gnr-item,&#13;
+.gnr.is-tight .gnr-me {&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  gap: 0;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-alert {&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  gap: 0;&#13;
+&#13;
+  padding: 0;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr__foot {&#13;
+&#13;
+  justify-content: center;&#13;
+&#13;
+  gap: 0;&#13;
+&#13;
+  padding: 10px 0 14px;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-me {&#13;
+&#13;
+  flex: 0 0 auto;&#13;
+&#13;
+  margin: 0;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   COLLAPSED BADGE DOT&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr.is-tight .gnr-item__ico {&#13;
+&#13;
+  position: relative;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-item.has-n .gnr-item__ico::after,&#13;
+.gnr.is-tight .gnr-item.has-alert .gnr-item__ico::after {&#13;
+&#13;
+  content: "";&#13;
+&#13;
+  position: absolute;&#13;
+&#13;
+  top: -1px;&#13;
+&#13;
+  right: -4px;&#13;
+&#13;
+  width: 7px;&#13;
+&#13;
+  height: 7px;&#13;
+&#13;
+  border-radius: 50%;&#13;
+&#13;
+  box-shadow: 0 0 0 2px $gn-card;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-item.has-n .gnr-item__ico::after {&#13;
+&#13;
+  background: $gn-indigo;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-item.has-alert .gnr-item__ico::after {&#13;
+&#13;
+  background: $gn-red;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight .gnr-item.is-here .gnr-item__ico::after {&#13;
+&#13;
+  box-shadow: 0 0 0 2px $gn-indigo-wash;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   TOOLTIPS&#13;
+   ========================================================= */&#13;
+&#13;
+/* .gnr-pull is left out on purpose: it is absolutely&#13;
+   positioned above, and listing it here overrode that and&#13;
+   pushed it outside the rail. */&#13;
+.gnr.is-tight .gnr-item,&#13;
+.gnr.is-tight .gnr-alert,&#13;
+.gnr.is-tight .gnr-me,&#13;
+.gnr.is-tight .gnr-out {&#13;
+&#13;
+  position: relative;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight [data-tip]::before {&#13;
+&#13;
+  content: attr(data-tip);&#13;
+&#13;
+  position: absolute;&#13;
+&#13;
+  top: 50%;&#13;
+&#13;
+  left: calc(100% + 12px);&#13;
+&#13;
+  z-index: 60;&#13;
+&#13;
+  padding: 8px 11px;&#13;
+&#13;
+  border-radius: 9px;&#13;
+&#13;
+  background: $gn-ink;&#13;
+&#13;
+  color: #ffffff;&#13;
+&#13;
+  font-size: 11.5px;&#13;
+&#13;
+  font-weight: 500;&#13;
+&#13;
+  white-space: nowrap;&#13;
+&#13;
+  opacity: 0;&#13;
+&#13;
+  transform:&#13;
+    translate(-5px, -50%);&#13;
+&#13;
+  pointer-events: none;&#13;
+&#13;
+  transition:&#13;
+    opacity 0.18s ease,&#13;
+    transform 0.18s ease;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+.gnr.is-tight [data-tip]:hover::before,&#13;
+.gnr.is-tight [data-tip]:focus-visible::before {&#13;
+&#13;
+  opacity: 1;&#13;
+&#13;
+  transform:&#13;
+    translate(0, -50%);&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   ACCESSIBILITY&#13;
+   ========================================================= */&#13;
+&#13;
+.gnr-item:focus-visible,&#13;
+.gnr-me:focus-visible,&#13;
+.gnr-out:focus-visible,&#13;
+.gnr-mark:focus-visible,&#13;
+.gnr-alert:focus-visible,&#13;
+.gnr-pull:focus-visible {&#13;
+&#13;
+  outline: 2px solid $gn-indigo;&#13;
+&#13;
+  outline-offset: -2px;&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   ENTRY ANIMATION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: no-preference) {&#13;
+&#13;
+  @keyframes gnrIn {&#13;
+&#13;
+    from {&#13;
+&#13;
+      opacity: 0;&#13;
+&#13;
+      transform: translateX(-8px);&#13;
+&#13;
+    }&#13;
+&#13;
+    to {&#13;
+&#13;
+      opacity: 1;&#13;
+&#13;
+      transform: translateX(0);&#13;
+&#13;
+    }&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr__brand {&#13;
+&#13;
+    animation:&#13;
+      gnrIn 0.4s ease backwards;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__label {&#13;
+&#13;
+    animation:&#13;
+      gnrIn 0.36s ease 0.06s backwards;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__list li {&#13;
+&#13;
+    animation:&#13;
+      gnrIn 0.36s ease backwards;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__list li:nth-child(1) {&#13;
+&#13;
+    animation-delay: 0.08s;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__list li:nth-child(2) {&#13;
+&#13;
+    animation-delay: 0.12s;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__list li:nth-child(3) {&#13;
+&#13;
+    animation-delay: 0.16s;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__list li:nth-child(n+4) {&#13;
+&#13;
+    animation-delay: 0.20s;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr-alert {&#13;
+&#13;
+    animation:&#13;
+      gnrIn 0.38s ease 0.24s backwards;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr__foot {&#13;
+&#13;
+    animation:&#13;
+      gnrIn 0.38s ease 0.28s backwards;&#13;
+&#13;
+  }&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   RESPONSIVE&#13;
+   ========================================================= */&#13;
+&#13;
+@media (max-width: 900px) {&#13;
+&#13;
+  .gnr,&#13;
+  .gnr.is-tight {&#13;
+&#13;
+    width: $gnr-tight;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-mark__text,&#13;
+  .gnr .gnr-item__label,&#13;
+  .gnr .gnr-item__n,&#13;
+  .gnr .gnr-alert__body,&#13;
+  .gnr .gnr-alert__text,&#13;
+  .gnr .gnr-me__body,&#13;
+  .gnr .gnr-me__copy,&#13;
+  .gnr .gnr-out {&#13;
+&#13;
+    flex: 0 0 0;&#13;
+&#13;
+    width: 0;&#13;
+&#13;
+    min-width: 0;&#13;
+&#13;
+    padding: 0;&#13;
+&#13;
+    margin: 0;&#13;
+&#13;
+    opacity: 0;&#13;
+&#13;
+    overflow: hidden;&#13;
+&#13;
+    pointer-events: none;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-group__label {&#13;
+&#13;
+    height: 1px;&#13;
+&#13;
+    margin: 0 6px 12px;&#13;
+&#13;
+    padding: 0;&#13;
+&#13;
+    overflow: hidden;&#13;
+&#13;
+    background: $gn-line-soft;&#13;
+&#13;
+    color: transparent;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr__brand {&#13;
+&#13;
+    justify-content: center;&#13;
+&#13;
+    gap: 0;&#13;
+&#13;
+    padding: 0;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-mark {&#13;
+&#13;
+    justify-content: center;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-pull {&#13;
+&#13;
+    display: none;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr__scroll {&#13;
+&#13;
+    padding-top: 16px;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-item,&#13;
+  .gnr .gnr-me {&#13;
+&#13;
+    justify-content: center;&#13;
+&#13;
+    gap: 0;&#13;
+&#13;
+    padding: 0;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-alert {&#13;
+&#13;
+    justify-content: center;&#13;
+&#13;
+    gap: 0;&#13;
+&#13;
+    padding: 0;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr__foot {&#13;
+&#13;
+    justify-content: center;&#13;
+&#13;
+    gap: 0;&#13;
+&#13;
+    padding: 10px 0 14px;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-me {&#13;
+&#13;
+    flex: 0 0 auto;&#13;
+&#13;
+    margin: 0;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-item__ico {&#13;
+&#13;
+    position: relative;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-item.has-n .gnr-item__ico::after,&#13;
+  .gnr .gnr-item.has-alert .gnr-item__ico::after {&#13;
+&#13;
+    content: "";&#13;
+&#13;
+    position: absolute;&#13;
+&#13;
+    top: -1px;&#13;
+&#13;
+    right: -4px;&#13;
+&#13;
+    width: 7px;&#13;
+&#13;
+    height: 7px;&#13;
+&#13;
+    border-radius: 50%;&#13;
+&#13;
+    box-shadow: 0 0 0 2px $gn-card;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-item.has-n .gnr-item__ico::after {&#13;
+&#13;
+    background: $gn-indigo;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-item.has-alert .gnr-item__ico::after {&#13;
+&#13;
+    background: $gn-red;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr .gnr-item.is-here .gnr-item__ico::after {&#13;
+&#13;
+    box-shadow:&#13;
+      0 0 0 2px $gn-indigo-wash;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr-item,&#13;
+  .gnr-alert,&#13;
+  .gnr-me,&#13;
+  .gnr-out {&#13;
+&#13;
+    position: relative;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr [data-tip]::before {&#13;
+&#13;
+    content: attr(data-tip);&#13;
+&#13;
+    position: absolute;&#13;
+&#13;
+    top: 50%;&#13;
+&#13;
+    left: calc(100% + 12px);&#13;
+&#13;
+    z-index: 60;&#13;
+&#13;
+    padding: 8px 11px;&#13;
+&#13;
+    border-radius: 9px;&#13;
+&#13;
+    background: $gn-ink;&#13;
+&#13;
+    color: #ffffff;&#13;
+&#13;
+    font-size: 11.5px;&#13;
+&#13;
+    font-weight: 500;&#13;
+&#13;
+    white-space: nowrap;&#13;
+&#13;
+    opacity: 0;&#13;
+&#13;
+    transform:&#13;
+      translate(-5px, -50%);&#13;
+&#13;
+    pointer-events: none;&#13;
+&#13;
+    transition:&#13;
+      opacity 0.18s ease,&#13;
+      transform 0.18s ease;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr [data-tip]:hover::before,&#13;
+  .gnr [data-tip]:focus-visible::before {&#13;
+&#13;
+    opacity: 1;&#13;
+&#13;
+    transform:&#13;
+      translate(0, -50%);&#13;
+&#13;
+  }&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+/* =========================================================&#13;
+   REDUCED MOTION&#13;
+   ========================================================= */&#13;
+&#13;
+@media (prefers-reduced-motion: reduce) {&#13;
+&#13;
+  .gnr,&#13;
+  .gnr * {&#13;
+&#13;
+    transition: none;&#13;
+&#13;
+    animation: none;&#13;
+&#13;
+  }&#13;
+&#13;
+&#13;
+  .gnr-mark:hover .gnr-mark__glyph {&#13;
+&#13;
+    transform: none;&#13;
+&#13;
+  }&#13;
+&#13;
+}&#13;
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>review_sidebar</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Review Sidebar</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.grant_review_user</roles>
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW · REVIEWER RAIL
+     Service Portal widget · Server script
+
+     Navigation for the reviewer portal, plus the two counts
+     worth carrying on it: how much is open, and how much of
+     that is late.
+
+     ── ITS OWN WIDGET ────────────────────────────────────────
+
+     The rail is separate from the dashboard that embeds it. A
+     rail built inside a dashboard means the dashboard owns
+     navigation for pages it knows nothing about, and adding a
+     page means editing a widget with no other reason to
+     change. Here every reviewer page drops in the same widget
+     and the menu is defined once.
+
+     ── THE COUNTS ────────────────────────────────────────────
+
+     GlideAggregate, not a walk of the table. The rail renders
+     on every page and must not cost a full read of the review
+     table each time one loads.
+
+     The two counts are scoped differently on purpose. "Open"
+     uses the reviewer field, the list of groups a review is
+     assigned to, so it means open across every panel this
+     person sits on. "Overdue" uses review_group, the panel
+     that currently holds it, because a review running late in
+     somebody else's queue is not theirs to chase.
+     ========================================================= */
+
+
+  var REVIEW = 'x_enno_gatenow_grant_review';
+
+  var DONE     = 'Review completed';
+  var DECLINED = 'Declined by Reviewer';
+
+  var me = gs.getUserID();
+
+
+  /* ============================================================
+     OPTIONS
+     ============================================================ */
+
+  function opt(name, fallback) {
+
+    var v = options[name];
+
+    return (v === null || v === undefined || v === '')
+      ? fallback
+      : v.toString();
+
+  }
+
+
+  /* ============================================================
+     URL HELPER
+     ============================================================ */
+
+  function url(pageId) {
+
+    return '?id=' + pageId;
+
+  }
+
+
+  /* ============================================================
+     WHO
+     ============================================================ */
+
+  var u = gs.getUser();
+
+  data.user = {
+
+    name:
+      u.getDisplayName() ||
+      gs.getUserName(),
+
+    title: '',
+
+    initials:
+      (
+        (u.getFirstName() || 'R').charAt(0) +
+        (u.getLastName()  || '').charAt(0)
+      ).toUpperCase()
+
+  };
+
+
+  try {
+
+    var ur =
+      new GlideRecordSecure('sys_user');
+
+    if (ur.get(me)) {
+
+      data.user.title =
+        ur.getValue('title') || '';
+
+    }
+
+  } catch (e) {
+
+    /* The job title is decoration, not a requirement. */
+
+  }
+
+
+  /* ============================================================
+     THE COUNTS
+     ============================================================ */
+
+  var groups = [];
+
+  try {
+
+    var gm =
+      new GlideRecordSecure('sys_user_grmember');
+
+    gm.addQuery('user', me);
+    gm.query();
+
+    while (gm.next()) {
+
+      groups.push(
+        gm.getValue('group')
+      );
+
+    }
+
+  } catch (e) {
+
+    gs.warn(
+      '[ReviewerRail] group membership unreadable: ' +
+      e.message
+    );
+
+  }
+
+
+  data.hasGroups =
+    groups.length > 0;
+
+
+  var open    = 0;
+  var overdue = 0;
+
+
+  if (groups.length) {
+
+
+    /* ==========================================================
+       DETERMINE REVIEWER FIELD
+       ========================================================== */
+
+    var useReviewer = false;
+
+    try {
+
+      var probe =
+        new GlideRecordSecure(REVIEW);
+
+      useReviewer =
+        probe.isValid() &&
+        probe.isValidField('reviewer');
+
+    } catch (e) {
+
+      /* Fall back to review_group below. */
+
+    }
+
+
+    /* ==========================================================
+       OPEN REVIEWS
+       ========================================================== */
+
+    try {
+
+      var ga =
+        new GlideAggregate(REVIEW);
+
+
+      /*
+       * reviewer is a list of groups, so the match is CONTAINS
+       * per group, OR'd on the QueryCondition.
+       */
+
+      if (useReviewer) {
+
+        var qc =
+          ga.addQuery(
+            'reviewer',
+            'CONTAINS',
+            groups[0]
+          );
+
+
+        for (
+          var i = 1;
+          i < groups.length;
+          i++
+        ) {
+
+          qc.addOrCondition(
+            'reviewer',
+            'CONTAINS',
+            groups[i]
+          );
+
+        }
+
+      } else {
+
+        ga.addQuery(
+          'review_group',
+          'IN',
+          groups.join(',')
+        );
+
+      }
+
+
+      ga.addQuery(
+        'status',
+        'NOT IN',
+        DONE + ',' + DECLINED
+      );
+
+      ga.addAggregate('COUNT');
+
+      ga.query();
+
+
+      if (ga.next()) {
+
+        open =
+          parseInt(
+            ga.getAggregate('COUNT'),
+            10
+          ) || 0;
+
+      }
+
+    } catch (e) {
+
+      gs.info(
+        '[ReviewerRail] open count unavailable: ' +
+        e.message
+      );
+
+    }
+
+
+    /* ==========================================================
+       OVERDUE REVIEWS
+       ========================================================== */
+
+    try {
+
+      var gd =
+        new GlideAggregate(REVIEW);
+
+
+      gd.addQuery(
+        'review_group',
+        'IN',
+        groups.join(',')
+      );
+
+      gd.addQuery(
+        'status',
+        'NOT IN',
+        DONE + ',' + DECLINED
+      );
+
+      gd.addQuery(
+        'review_deadline',
+        '<',
+        new GlideDateTime().getValue()
+      );
+
+      gd.addAggregate('COUNT');
+
+      gd.query();
+
+
+      if (gd.next()) {
+
+        overdue =
+          parseInt(
+            gd.getAggregate('COUNT'),
+            10
+          ) || 0;
+
+      }
+
+    } catch (e) {
+
+      gs.info(
+        '[ReviewerRail] overdue count unavailable: ' +
+        e.message
+      );
+
+    }
+
+  }
+
+
+  data.overdue = overdue;
+
+
+  /* ============================================================
+     CURRENT PAGE
+     ============================================================ */
+
+  var here =
+    '' +
+    ($sp.getParameter('id') || '');
+
+
+  /* ============================================================
+     PAGE CONFIGURATION
+     ============================================================ */
+
+  var pages = {
+
+    overview:
+      opt(
+        'review',
+        'review_home_page'
+      ),
+
+    queue:
+      opt(
+        'queue_page',
+        'review_applicants'
+      ),
+
+    completed:
+      opt(
+        'completed_page',
+        'completed_reviews'
+      ),
+
+    programs:
+      opt(
+        'programs_page',
+        'review_programs'
+      ),
+
+    profile:
+      opt(
+        'profile_page',
+        'user_profile'
+      )
+
+  };
+
+
+  /* ============================================================
+     STANDARD REVIEWER URLS
+     ============================================================ */
+
+  data.homeUrl =
+    url(pages.overview);
+
+  data.queueUrl =
+    url(pages.queue);
+
+  data.profileUrl =
+    url(pages.profile);
+
+
+  /* ============================================================
+     LOGOUT URL
+     
+     Same architecture as the working GateNow Applicant
+     Sidebar.
+
+     The authentication logout is handled by ServiceNow:
+
+       /logout.do
+
+     sysparm_goto_url tells ServiceNow where to go after
+     logout.
+
+     The current portal is detected dynamically instead of
+     hardcoding /review.
+     ============================================================ */
+
+  var portalSuffix = '';
+
+  try {
+
+    portalSuffix =
+      $sp.getPortalRecord().getValue('url_suffix') || '';
+
+  } catch (e) {
+
+    gs.info(
+      '[ReviewerRail] Unable to determine portal suffix: ' +
+      e.message
+    );
+
+  }
+
+
+  /*
+   * If the user is currently on a page such as:
+   *
+   * /review?id=review_applicants
+   *
+   * then after logout the redirect will return to that page.
+   *
+   * If there is no page id, return to the reviewer home page.
+   */
+
+  var redirectPage =
+    here
+      ? here
+      : pages.overview;
+
+
+  /*
+   * Build the same type of logout URL used by the
+   * working GateNow Sidebar.
+   */
+
+  if (portalSuffix) {
+
+    data.logoutUrl =
+      '/logout.do?sysparm_goto_url=/' +
+      portalSuffix +
+      '?id=' +
+      redirectPage;
+
+  } else {
+
+    /*
+     * Fallback in case the portal record cannot be read.
+     */
+
+    data.logoutUrl =
+      '/logout.do?sysparm_goto_url=/review?id=' +
+      redirectPage;
+
+  }
+
+
+  /* ============================================================
+     MENU
+
+     Page ids come from widget options so the rail can be
+     repointed without editing a script.
+
+     The current page is read from the URL rather than passed
+     in, so any page the rail is dropped on highlights itself
+     with no extra wiring.
+     ============================================================ */
+
+  data.groups = [
+
+    {
+      key  : 'review',
+      label: 'Review',
+
+      items: [
+
+        {
+          key: 'overview',
+
+          label: 'Overview',
+
+          icon: 'grid',
+
+          url:
+            url(pages.overview),
+
+          active:
+            here === pages.overview,
+
+          count: 0
+        },
+
+
+        {
+          key: 'queue',
+
+          label: 'My reviews',
+
+          icon: 'list',
+
+          url:
+            url(pages.queue),
+
+          active:
+            here === pages.queue,
+
+          /*
+           * The badge carries what is open, and overdue turns
+           * it red rather than adding a second badge.
+           */
+
+          count:
+            open,
+
+          alert:
+            overdue > 0
+        },
+
+
+        {
+          key: 'completed',
+
+          label: 'Completed',
+
+          icon: 'check',
+
+          url:
+            url(pages.completed),
+
+          active:
+            here === pages.completed,
+
+          count: 0
+        }
+
+      ]
+
+    },
+
+
+    {
+      key  : 'reference',
+
+      label: 'Reference',
+
+      items: [
+
+        {
+          key: 'programs',
+
+          label: 'Programs',
+
+          icon: 'folder',
+
+          /*
+           * Programs now opens the Applicant portal's
+           * Opportunities page.
+           */
+
+          url:
+            '/applicant?id=opportunities',
+
+          /*
+           * Since this page belongs to the Applicant portal,
+           * it will not normally be the active Reviewer Rail
+           * page.
+           */
+
+          active:
+            false,
+
+          count: 0
+
+        }
+
+      ]
+
+    }
+
+  ];
+
+
+  /* ============================================================
+     ACTIVE PAGE FALLBACK
+
+     A proposal detail page is reached from the queue, so it
+     lights the queue rather than leaving the rail with nothing
+     lit and the reader wondering where they are.
+     ============================================================ */
+
+  if (here) {
+
+    var lit = false;
+
+
+    for (
+      var g = 0;
+      g < data.groups.length;
+      g++
+    ) {
+
+      for (
+        var i2 = 0;
+        i2 < data.groups[g].items.length;
+        i2++
+      ) {
+
+        if (
+          data.groups[g].items[i2].active
+        ) {
+
+          lit = true;
+
+          break;
+
+        }
+
+      }
+
+    }
+
+
+    if (
+      !lit &&
+      here.indexOf('review') !== -1
+    ) {
+
+      for (
+        var g2 = 0;
+        g2 < data.groups.length;
+        g2++
+      ) {
+
+        for (
+          var i3 = 0;
+          i3 < data.groups[g2].items.length;
+          i3++
+        ) {
+
+          if (
+            data.groups[g2].items[i3].key === 'queue'
+          ) {
+
+            data.groups[g2].items[i3].active = true;
+
+          }
+
+        }
+
+      }
+
+    }
+
+  }
+
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-09-23 07:07:03</sys_created_on>
+        <sys_id>4a9d8a3093a30310d444c9b877373c15</sys_id>
+        <sys_mod_count>19</sys_mod_count>
+        <sys_name>Review Sidebar</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_4a9d8a3093a30310d444c9b877373c15</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-10-22 07:25:40</sys_updated_on>
+        <template><![CDATA[<nav class="gnr"
+     ng-class="{'is-tight': c.tight}"
+     aria-label="Reviewer navigation">
+
+  <div class="gnr__inner">
+
+    <!-- =====================================================
+         BRAND
+         ===================================================== -->
+
+    <header class="gnr__brand">
+
+      <a class="gnr-mark"
+         target="_self"
+         ng-href="{{c.data.homeUrl}}"
+         aria-label="Go to the review overview">
+
+        <span class="gnr-mark__glyph" aria-hidden="true">
+
+          <img
+            src="x_enno_gatenow.sidebar%20logo.png"
+            alt=""
+            class="gnr-mark__logo">
+
+        </span>
+
+      </a>
+
+
+      <!-- Collapse / Expand -->
+
+      <button type="button"
+              class="gnr-pull"
+              ng-click="c.toggle()"
+              ng-attr-aria-expanded="{{!c.tight}}"
+              aria-label="{{c.tight ? 'Expand the menu' : 'Collapse the menu'}}"
+              ng-attr-data-tip="{{c.tight ? 'Expand' : 'Collapse'}}">
+
+        <svg viewBox="0 0 24 24"
+             width="14"
+             height="14"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="2"
+             stroke-linecap="round"
+             stroke-linejoin="round">
+
+          <path d="M15 6l-6 6 6 6"></path>
+
+        </svg>
+
+      </button>
+
+    </header>
+
+
+    <!-- =====================================================
+         NAVIGATION
+         ===================================================== -->
+
+    <div class="gnr__scroll">
+
+      <section class="gnr-group"
+               ng-repeat="g in c.data.groups track by g.key">
+
+        <p class="gnr-group__label">
+          {{g.label}}
+        </p>
+
+
+        <ul class="gnr-group__list">
+
+          <li ng-repeat="n in g.items track by n.key">
+
+            <a class="gnr-item"
+               target="_self"
+               ng-class="{
+                 'is-here': n.active,
+                 'has-n': n.count > 0,
+                 'has-alert': n.alert
+               }"
+               ng-href="{{n.url}}"
+               ng-attr-aria-current="{{n.active ? 'page' : undefined}}"
+               ng-attr-data-tip="{{n.label}}">
+
+              <!-- Active indicator -->
+
+              <span class="gnr-item__edge"
+                    aria-hidden="true">
+              </span>
+
+
+              <!-- =================================================
+                   ICONS
+                   ================================================= -->
+
+              <span class="gnr-item__ico"
+                    ng-switch="n.icon"
+                    aria-hidden="true">
+
+
+                <!-- GRID / OVERVIEW -->
+
+                <svg ng-switch-when="grid"
+                     viewBox="0 0 24 24"
+                     width="18"
+                     height="18"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="1.8"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+
+                  <rect x="4" y="4" width="6" height="6" rx="1"></rect>
+                  <rect x="14" y="4" width="6" height="6" rx="1"></rect>
+                  <rect x="4" y="14" width="6" height="6" rx="1"></rect>
+                  <rect x="14" y="14" width="6" height="6" rx="1"></rect>
+
+                </svg>
+
+
+                <!-- LIST / MY REVIEWS -->
+
+                <svg ng-switch-when="list"
+                     viewBox="0 0 24 24"
+                     width="18"
+                     height="18"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="1.8"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+
+                  <line x1="8" y1="6" x2="20" y2="6"></line>
+                  <line x1="8" y1="12" x2="20" y2="12"></line>
+                  <line x1="8" y1="18" x2="20" y2="18"></line>
+
+                  <circle cx="4" cy="6" r="1"></circle>
+                  <circle cx="4" cy="12" r="1"></circle>
+                  <circle cx="4" cy="18" r="1"></circle>
+
+                </svg>
+
+
+                <!-- CHECK / COMPLETED -->
+
+                <svg ng-switch-when="check"
+                     viewBox="0 0 24 24"
+                     width="18"
+                     height="18"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="1.8"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+
+                  <circle cx="12" cy="12" r="8"></circle>
+
+                  <path d="M8.5 12.2l2.3 2.3 4.8-5"></path>
+
+                </svg>
+
+
+                <!-- FOLDER / PROGRAMS -->
+
+                <svg ng-switch-when="folder"
+                     viewBox="0 0 24 24"
+                     width="18"
+                     height="18"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="1.8"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+
+                  <path d="M3 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+
+                </svg>
+
+
+              </span>
+
+
+              <!-- =================================================
+                   LABEL
+                   ================================================= -->
+
+              <span class="gnr-item__label">
+                {{n.label}}
+              </span>
+
+
+              <!-- =================================================
+                   COUNT
+                   ================================================= -->
+
+              <span class="gnr-item__n"
+                    ng-if="n.count"
+                    ng-class="{'is-alert': n.alert}">
+
+                {{n.count}}
+
+              </span>
+
+            </a>
+
+          </li>
+
+        </ul>
+
+      </section>
+
+    </div>
+
+
+    <!-- =====================================================
+         OVERDUE ALERT
+         ===================================================== -->
+
+    <a class="gnr-alert"
+       target="_self"
+       ng-if="c.data.overdue"
+       ng-href="{{c.data.queueUrl}}"
+       ng-attr-data-tip="{{c.data.overdue}} overdue">
+
+      <span class="gnr-alert__icon"
+            aria-hidden="true">
+
+        <svg viewBox="0 0 24 24"
+             width="18"
+             height="18"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.8"
+             stroke-linecap="round"
+             stroke-linejoin="round">
+
+          <circle cx="12" cy="12" r="9"></circle>
+
+          <line x1="12"
+                y1="7"
+                x2="12"
+                y2="12">
+          </line>
+
+          <line x1="12"
+                y1="12"
+                x2="16"
+                y2="14">
+          </line>
+
+        </svg>
+
+      </span>
+
+
+      <span class="gnr-alert__text">
+        {{c.data.overdue}} overdue
+      </span>
+
+    </a>
+
+
+    <!-- =====================================================
+         FOOTER
+         ===================================================== -->
+
+    <footer class="gnr__foot">
+
+
+      <!-- ===================================================
+           USER PROFILE
+           =================================================== -->
+
+      <a class="gnr-me"
+         target="_self"
+         ng-href="{{c.data.profileUrl}}"
+         ng-attr-data-tip="{{c.data.user.name}}">
+
+        <span class="gnr-me__avatar">
+
+          {{c.data.user.initials}}
+
+        </span>
+
+
+        <span class="gnr-me__copy">
+
+          <span class="gnr-me__name">
+            {{c.data.user.name}}
+          </span>
+
+          <span class="gnr-me__title"
+                ng-if="c.data.user.title">
+
+            {{c.data.user.title}}
+
+          </span>
+
+        </span>
+
+      </a>
+
+
+      <!-- ===================================================
+           SIGN OUT
+
+           IMPORTANT:
+           Do NOT use:
+             href="?id=logout"
+
+           Do NOT use:
+             ng-click="c.logout()"
+
+           The URL comes from the Server Script.
+           =================================================== -->
+
+      <a class="gnr-out"
+         ng-href="{{c.data.logoutUrl}}"
+         aria-label="Sign out"
+         data-tip="Sign out">
+
+        <svg viewBox="0 0 24 24"
+             width="18"
+             height="18"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.8"
+             stroke-linecap="round"
+             stroke-linejoin="round"
+             aria-hidden="true">
+
+          <path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4">
+          </path>
+
+          <path d="M14 8l4 4-4 4">
+          </path>
+
+          <path d="M9 12h9">
+          </path>
+
+        </svg>
+
+      </a>
+
+
+    </footer>
+
+  </div>
+
+</nav>]]></template>
+    </sp_widget>
+</record_update>

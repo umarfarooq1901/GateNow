@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ux_client_script">
+    <sys_ux_client_script action="INSERT_OR_UPDATE">
+        <controller_preset/>
+        <includes/>
+        <macroponent display_value="Dashboard Overview">c39b6212eb07f210520dfbdffdc0cd52</macroponent>
+        <name>rt_risks/html</name>
+        <preset/>
+        <required_translations>[]</required_translations>
+        <script><![CDATA[/**
+ * @param {params} params
+ * @param {api} params.api
+ * @param {TransformApiHelpers} params.helpers
+ */
+function evaluateProperty({api, helpers}) {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const rows = id => ((api.data[id] || {}).results) || [];
+  const v = (r, f) => (r[f] && r[f].value) || '';
+  const dv = (r, f) => (r[f] && (r[f].displayValue || r[f].value)) || '';
+  const head = t => '<div style="font-size:16px;color:#2e3d49;padding-bottom:12px;margin-bottom:8px;border-bottom:1px solid #e3e7ea">' + esc(t) + '</div>';
+  const bars = (items, fmt) => {
+    const max = Math.max(1, ...items.map(i => i.n));
+    return '<table style="width:100%;border-collapse:collapse">' + items.map(i =>
+      '<tr><td style="width:160px;padding:7px 8px 7px 0;color:#4a5a66;font-size:14px">' + esc(i.l) + '</td>' +
+      '<td style="padding:7px 0"><div style="height:18px;border-radius:2px;background:' + i.c + ';width:' + Math.max(i.n ? 2 : 0, Math.round(i.n / max * 100)) + '%"></div></td>' +
+      '<td style="width:90px;padding:7px 0 7px 10px;text-align:right;color:#1d2b36;font-size:14px">' + esc(fmt ? fmt(i.n) : i.n) + '</td></tr>').join('') + '</table>';
+  };
+  const list = (items, empty) => items.length ? items.map((i, k) =>
+      '<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:14px;' + (k < items.length - 1 ? 'border-bottom:1px solid #eef1f3' : '') + '">' +
+      (i.href ? '<a href="' + i.href + '" style="color:#0a5ba8;text-decoration:none">' + esc(i.l) + '</a>' : '<span>' + esc(i.l) + '</span>') +
+      '<span style="white-space:nowrap;' + (i.red ? 'color:#c62828;font-weight:600' : 'color:#4a5a66') + '">' + esc(i.r) + '</span></div>').join('')
+    : '<div style="color:#6b7a85;font-size:14px;padding:8px 0">' + esc(empty) + '</div>';
+  const note = t => '<div style="font-size:12px;color:#6b7a85;margin-top:8px">' + esc(t) + '</div>';
+  const count = (rs, f) => rs.reduce((m, r) => (m[v(r, f)] = (m[v(r, f)] || 0) + 1, m), {});
+  const rec = (t, id) => '/x/enno/gatenow-workspace/record/' + t + '/' + id;
+  const c=count(rows('gn_risks'),'impact');
+  return head('Open risks by impact')+bars([['1','High','#e24b4a'],['2','Medium','#ef9f27'],['3','Low','#85b7eb']].map(o=>({l:o[1],n:c[o[0]]||0,c:o[2]})));
+}]]></script>
+        <script_api_version>2.0.0</script_api_version>
+        <sys_class_name>sys_ux_client_script</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-10-21 10:50:08</sys_created_on>
+        <sys_id>106d03710f409b10712b6af300d1b238</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>rt_risks/html</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ux_client_script_106d03710f409b10712b6af300d1b238</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-10-21 10:50:08</sys_updated_on>
+        <target>macroponent</target>
+        <type>transform</type>
+    </sys_ux_client_script>
+</record_update>

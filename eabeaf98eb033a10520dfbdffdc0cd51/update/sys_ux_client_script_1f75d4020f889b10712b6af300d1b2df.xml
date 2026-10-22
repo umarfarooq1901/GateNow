@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ux_client_script">
+    <sys_ux_client_script action="INSERT_OR_UPDATE">
+        <controller_preset/>
+        <includes/>
+        <macroponent display_value="Default">7aae1d04eb44c3d0520dfbdffdc0cdde</macroponent>
+        <name>gn_record_summary/html</name>
+        <preset/>
+        <required_translations>[]</required_translations>
+        <script><![CDATA[/**
+ * @param {params} params
+ * @param {api} params.api
+ * @param {TransformApiHelpers} params.helpers
+ */
+function evaluateProperty({api, helpers}) {
+  const B = ['#e6f1fb','#0c447c'], G = ['#eaf3de','#27500a'], Y = ['#faeeda','#633806'], R = ['#fcebeb','#791f1f'], N = ['#f1efe8','#444441'];
+  const IMPACT = {'1':R, '2':Y, '3':B};
+  const cfg = {
+    x_enno_gatenow_grant_program: { pills: [['status', {accepting_proposals:B, published:G, pending_approval:Y, rejected:R, program_closed:N, draft:N}]],
+      chips: [['Manager','program_manager'],['Closes','proposal_close_date'],['Award','award_type'],['Budget','program_budget']] },
+    x_enno_gatenow_service_applicants: { pills: [['state', {new:B, ready_for_review:B, review_in_progress:B, project_in_progress:B, review_completed:G, award_acknowledged:G, project_completed:G, award_pending:Y, declined_by_agency:N, declined_by_applicant:N, Cancelled:N}]],
+      chips: [['Program','program'],['Organization','organization'],['Type','applicant_type'],['Submitted','submission_date']] },
+    x_enno_gatenow_grant_review: { pills: [['status', {'Review pending':Y, 'Review in progress':B, 'Escalated':R, 'Review completed':G, 'Declined by Reviewer':N}]],
+      chips: [['Applicant','applicant'],['Program','program'],['Deadline','review_deadline'],['Score','score']] },
+    x_enno_gatenow_grant_awards: { pills: [['applicant_response', {pending:Y, acknowledged:G, rejected:N}]],
+      chips: [['Applicant','applicant'],['Program','grant_program'],['Amount','build_grant_amount'],['Starts','award_start_date'],['Ends','award_end_date']] },
+    x_enno_gatenow_project: { pills: [['phase', {Initiating:Y, Planning:Y, Executing:B, Delivering:B, Closing:G, cancelled:N}], ['status', {Green:G, Yellow:Y, Red:R}, 'Health ']],
+      chips: [['Project','project_name'],['Applicant','applicant'],['Program','program'],['Complete','percent_complete'],['Ends','planned_end_date']] },
+    x_enno_gatenow_risk: { pills: [['impact', IMPACT, 'Impact '], ['risk_status', {pending:Y, mitigate:B, avoid:B, transfer:B, accept:N, achieved:G, not_achieved:R}]],
+      chips: [['Project','project'],['Probability','probability'],['Rank','risk_rank'],['Due','due_date']] },
+    x_enno_gatenow_issue: { pills: [['impact', IMPACT, 'Impact ']],
+      chips: [['Project','project'],['Priority','priority'],['Due','due_date']] },
+    x_enno_gatenow_request_change: { pills: [['approval', {requested:Y, 'not requested':N, rejected:R, approved:G}], ['impact', IMPACT, 'Impact ']],
+      chips: [['Title','title'],['Project','project'],['Category','category'],['Priority','priority']] },
+    x_enno_gatenow_reimbursement: { pills: [['status', {Submitted:B, 'In review':B, Approved:G, Paid:G, Rejected:R}]],
+      chips: [['Program','program'],['Applicant','applicant'],['Requested','amount_requested'],['From','from'],['To','to'],['Assigned','assigned_to']] },
+    x_enno_gatenow_status_report: { pills: [['report_status', {'Baseline Report':B, 'Monthly Report':N, 'Final Report':G}]],
+      chips: [['Project','project'],['Date','status_date'],['Complete','percent_complete'],['Health','overall_health']] }
+  };
+  const c = cfg[api.context.props.table];
+  if (!c || api.context.props.sysId == -1) return '';
+  const f = (((api.data.record || {}).form) || {}).fields || {};
+  const dv = n => (f[n] && (f[n].displayValue || f[n].value)) || '';
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const pill = ([field, colors, prefix]) => {
+    const v = (f[field] && f[field].value) || '';
+    if (!v) return '';
+    const [bg, fg] = colors[v] || N;
+    return '<span style="background:' + bg + ';color:' + fg + ';padding:4px 12px;border-radius:12px;font-size:13px;font-weight:600;white-space:nowrap">' + esc((prefix || '') + dv(field)) + '</span>';
+  };
+  const val = n => { let x = dv(n); if (/^-+\s*None\s*-+$/i.test(x)) return ''; if (n === 'percent_complete' && x !== '') x = x + '%'; if (/amount|budget|requested/.test(n)) { const s = x.replace(/\.\d+$/, ''); return /^\D*0$/.test(s) ? '' : s; } return x; };
+  const chip = (l, v) => v ? '<span style="font-size:13px;color:#4a5a66;white-space:nowrap">' + l + ' <b style="color:#1d2b36;font-weight:600">' + esc(v) + '</b></span>' : '';
+  return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-top:6px">' + c.pills.map(pill).join('') + c.chips.map(([l, n]) => chip(l, val(n))).join('') + '</div>';
+}]]></script>
+        <script_api_version>2.0.0</script_api_version>
+        <sys_class_name>sys_ux_client_script</sys_class_name>
+        <sys_created_by>younis.khan</sys_created_by>
+        <sys_created_on>2026-10-21 16:05:11</sys_created_on>
+        <sys_id>1f75d4020f889b10712b6af300d1b2df</sys_id>
+        <sys_mod_count>3</sys_mod_count>
+        <sys_name>gn_record_summary/html</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sys_ux_client_script_1f75d4020f889b10712b6af300d1b2df</sys_update_name>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-10-21 16:20:22</sys_updated_on>
+        <target>macroponent</target>
+        <type>transform</type>
+    </sys_ux_client_script>
+</record_update>

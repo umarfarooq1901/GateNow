@@ -1,0 +1,2252 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function($scope, $location) {
+
+  /* =========================================================
+     GATENOW · REVIEW APPLICANTS · Client script
+
+     Page: review_applicants
+
+     Every function below is the uploaded controller's, carried
+     across unchanged: the four filters and the watch that
+     resets the page when any of them moves, categoryOptions,
+     programOptions, allStatuses, filteredProposals with its
+     rule that completed reviews do not appear, pagedProposals,
+     totalPages, pageNumbers, goToPage, prevPage, nextPage,
+     openRecord, scoreWidth, deadlineClass and statusChipClass.
+
+     deadlineClass and statusChipClass still return their
+     original rvd- class names. They are behaviour, not
+     presentation, so they are left exactly as they were and
+     the stylesheet defines those names in the portal's own
+     palette. Logic unchanged, appearance restyled.
+
+     WHAT IS NOT HERE
+
+     The dashboard-only parts of that controller: activeSection
+     and navTo, the sidebar toggle, the profile dropdown, the
+     Chart.js loader, the gauges and the rings. This page has no
+     charts and no sections, and the rail is its own widget
+     now, so carrying them would be carrying dead code.
+
+     c.logout is also gone. It called
+     window.location.assign(), which is the sink the
+     open-redirect scan reports; signing out is a plain anchor
+     to data.logoutUrl in the template instead, which needs no
+     script at all.
+     ========================================================= */
+
+  var c = this;
+
+  c.searchText     = '';
+  c.statusFilter   = '';
+  c.categoryFilter = '';
+  c.programFilter  = '';
+
+  c.proposalPage = 1;
+  c.pageSize     = 12;
+
+  $scope.$watchGroup(
+    ['c.searchText', 'c.statusFilter', 'c.categoryFilter', 'c.programFilter'],
+    function() {
+      c.proposalPage = 1;
+    }
+  );
+
+  c.categoryOptions = function() {
+
+    var seen = {}, opts = [];
+
+    (c.data.reviews || []).forEach(function(r) {
+      if (r.status !== 'Review completed' && r.program_category && !seen[r.program_category]) {
+        seen[r.program_category] = true;
+        opts.push(r.program_category);
+      }
+    });
+
+    return opts.sort();
+  };
+
+  c.programOptions = function() {
+
+    var seen = {}, opts = [];
+
+    (c.data.reviews || []).forEach(function(r) {
+      if (r.status !== 'Review completed' && r.program && !seen[r.program]) {
+        seen[r.program] = true;
+        opts.push(r.program);
+      }
+    });
+
+    return opts.sort();
+  };
+
+  c.allStatuses = ['Review pending', 'Review in progress', 'Review completed', 'Escalated', 'Declined by Reviewer'];
+
+  c.filteredProposals = function() {
+
+    return (c.data.reviews || []).filter(function(r) {
+
+      if (r.status === 'Review completed') return false;
+
+      if (c.statusFilter && r.status !== c.statusFilter) return false;
+      if (c.categoryFilter && r.program_category !== c.categoryFilter) return false;
+      if (c.programFilter && r.program !== c.programFilter) return false;
+
+      if (c.searchText) {
+
+        var txt = c.searchText.toLowerCase();
+
+        if (
+          (r.number || '').toLowerCase().indexOf(txt) === -1 &&
+          (r.program || '').toLowerCase().indexOf(txt) === -1 &&
+          (r.applicant || '').toLowerCase().indexOf(txt) === -1 &&
+          (r.program_category || '').toLowerCase().indexOf(txt) === -1
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  c.pagedProposals = function() {
+
+    var all   = c.filteredProposals();
+    var start = (c.proposalPage - 1) * c.pageSize;
+
+    return all.slice(start, start + c.pageSize);
+  };
+
+  c.totalPages = function() {
+    return Math.ceil(c.filteredProposals().length / c.pageSize) || 1;
+  };
+
+  c.pageNumbers = function() {
+
+    var total   = c.totalPages();
+    var current = c.proposalPage;
+    var pages   = [];
+
+    var start = Math.max(1, current - 2);
+    var end   = Math.min(total, current + 2);
+
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push('...');
+
+    for (var i = start; i <= end; i++) pages.push(i);
+
+    if (end < total - 1) pages.push('...');
+    if (end < total) pages.push(total);
+
+    return pages;
+  };
+
+  c.goToPage = function(p) {
+    if (p !== '...' && p >= 1 && p <= c.totalPages()) c.proposalPage = p;
+  };
+
+  c.prevPage = function() {
+    if (c.proposalPage > 1) c.proposalPage--;
+  };
+
+  c.nextPage = function() {
+    if (c.proposalPage < c.totalPages()) c.proposalPage++;
+  };
+
+  c.overdueReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.is_overdue;
+    });
+  };
+
+  c.dueSoonReviews = function() {
+    return (c.data.reviews || []).filter(function(r) {
+      return r.is_due_soon;
+    });
+  };
+
+  c.openRecord = function(rev) {
+
+    if (!rev || !rev['sys_id']) return;
+
+    $location.search({
+      id: 'review_proposal_detail_page',
+      sys_id: rev['sys_id']
+    });
+  };
+
+  c.scoreWidth = function(score) {
+    if (!score) return '0%';
+    return Math.min(Math.round((parseInt(score, 10) / 10) * 100), 100) + '%';
+  };
+
+  c.deadlineClass = function(rev) {
+    if (rev.is_overdue) return 'rvd-deadline--overdue';
+    if (rev.is_due_soon) return 'rvd-deadline--soon';
+    return 'rvd-deadline--ok';
+  };
+
+  c.statusChipClass = function(status) {
+    if (status === 'Review completed') return 'rvd-chip--green';
+    if (status === 'Escalated') return 'rvd-chip--red';
+    if (status === 'Declined by Reviewer') return 'rvd-chip--rose';
+    if (status === 'Review pending') return 'rvd-chip--slate';
+    return 'rvd-chip--amber';
+  };
+
+
+  /* =====================================================
+     TWO SENTENCES
+
+     Added, not changed. Both read the same data.stats the
+     server already builds; neither derives anything new.
+     ===================================================== */
+
+  c.headline = function() {
+
+    var s = c.data.stats || {};
+
+    if (!c.data.reviews || !c.data.reviews.length) return 'Nothing assigned to your groups';
+
+    var open = c.filteredProposals().length;
+    var out  = open + (open === 1 ? ' applicant awaiting review' : ' applicants awaiting review');
+
+    if (s.overdue) out += ' · ' + s.overdue + ' overdue';
+    else if (s.dueSoon) out += ' · ' + s.dueSoon + ' due within three days';
+
+    return out;
+  };
+
+  c.isFiltered = function() {
+    return !!(c.searchText || c.statusFilter || c.categoryFilter || c.programFilter);
+  };
+
+  c.clearFilters = function() {
+    c.searchText     = '';
+    c.statusFilter   = '';
+    c.categoryFilter = '';
+    c.programFilter  = '';
+  };
+};]]></client_script>
+        <controller_as>c</controller_as>
+        <css>/* =========================================================
+   GATENOW · REVIEW APPLICANTS
+   Service Portal widget · CSS / SCSS
+
+   Page: review_applicants
+
+   Written with fully expanded selectors on purpose.
+   The Service Portal Sass compiler does not support parent
+   selector concatenation (&amp;__head, &amp;--green), so every rule
+   below is written out in full.
+
+   ── RELATIONSHIP TO THE PORTAL ────────────────────────────
+
+   The token block and every shared component are the applicant
+   Overview's, unchanged: Poppins, indigo #4457c9, ink #16203a,
+   the 16px radius, the two-layer shadow, gn-head, gn-card,
+   gn-table, gn-btn.
+
+   ── THE rvd- CLASSES ──────────────────────────────────────
+
+   The controller's deadlineClass() and statusChipClass() are
+   logic, not presentation, so they were left exactly as they
+   were written and still return rvd-chip--green,
+   rvd-deadline--overdue and the rest. Those five names are
+   defined here in the portal's palette rather than the old
+   one, which is how the appearance changes without a line of
+   the controller moving.
+
+   ── THE ROW ───────────────────────────────────────────────
+
+   The applicant's name leads and the review reference sits
+   under it. This page answers "whose proposal am I reviewing",
+   and a reference number answers a different question.
+   ========================================================= */
+
+$gn-bg:          #f4f6fb;
+$gn-card:        #ffffff;
+$gn-line:        #e7eaf2;
+$gn-line-soft:   #eff2f7;
+
+$gn-ink:         #16203a;
+$gn-ink-2:       #3f4a63;
+$gn-muted:       #7b8598;
+$gn-muted-2:     #9aa3b4;
+
+$gn-indigo:      #4457c9;
+$gn-indigo-dk:   #3a4bb3;
+$gn-indigo-mid:  #7b90ee;
+$gn-indigo-soft: #aebcf5;
+$gn-violet:      #6f5fd0;
+$gn-green:       #1f9d6d;
+$gn-sage:        #93c8ae;
+$gn-amber:       #e2a233;
+$gn-red:         #e0525f;
+$gn-slate:       #c9d2e3;
+
+$gn-font: "Poppins", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+
+
+/* =========================================================
+   SHELL
+   ========================================================= */
+
+/* Service Portal wraps every widget in a panel that clips
+   anything leaving its box, which cuts the rail tooltips off
+   at the column edge. */
+.panel,
+.panel-body,
+.sp-widget { overflow: visible !important; }
+
+.gn-layout.gn-p-applicants {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  overflow: visible !important;
+}
+
+.gn-p-applicants .aw-sidebar {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 10;
+  overflow: visible;
+}
+
+/* Without min-width: 0 a flex child refuses to shrink below
+   its own content width, and slides under the rail rather
+   than narrowing. */
+.gn-p-applicants .gn-dash {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  background: $gn-bg;
+  font-family: $gn-font;
+  color: $gn-ink;
+  padding: 26px 30px 46px;
+  min-height: 100vh;
+}
+
+.gn-p-applicants .gn-dash *,
+.gn-p-applicants .gn-dash *::before,
+.gn-p-applicants .gn-dash *::after { box-sizing: border-box; }
+
+.gn-p-applicants .gn-dash h1,
+.gn-p-applicants .gn-dash h2,
+.gn-p-applicants .gn-dash p { margin: 0; }
+
+.gn-p-applicants .gn-dash a { text-decoration: none; }
+.gn-p-applicants .gn-dash a:hover,
+.gn-p-applicants .gn-dash a:focus { text-decoration: none; }
+
+.gn-p-applicants .gn-dash :focus-visible {
+  outline: 2px solid $gn-indigo;
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.gn-p-applicants .gn-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.gn-p-applicants .gn-head__left { min-width: 0; }
+
+.gn-p-applicants .gn-head__title {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-head__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-head__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.gn-p-applicants .gn-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $gn-green;
+  flex-shrink: 0;
+}
+
+.gn-p-applicants .gn-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: $gn-indigo;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   KPI CARDS
+   ========================================================= */
+
+.gn-p-applicants .gn-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* Portal columns are narrower than the viewport, so the grid
+   also reflows on its own container width, not just on media
+   queries. */
+@supports (grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))) {
+  .gn-p-applicants .gn-kpis { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+}
+
+.gn-p-applicants .gn-kpi {
+  display: flex;
+  flex-direction: column;
+  background: $gn-card;
+  border: 1px solid $gn-line;
+  border-radius: 16px;
+  padding: 20px 22px 16px;
+  min-height: 212px;
+  box-shadow: 0 1px 2px rgba(22, 32, 58, 0.04), 0 8px 20px rgba(22, 32, 58, 0.04);
+}
+
+.gn-p-applicants .gn-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gn-p-applicants .gn-kpi__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-kpi__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.gn-p-applicants .gn-kpi__icon--indigo { color: $gn-indigo; background: #edf1ff; }
+.gn-p-applicants .gn-kpi__icon--violet { color: $gn-violet; background: #f0edfd; }
+.gn-p-applicants .gn-kpi__icon--amber { color: #c98a1c;    background: #fdf4e2; }
+
+.gn-p-applicants .gn-kpi__figure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.gn-p-applicants .gn-kpi__value {
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -1.4px;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-kpi__desc {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-kpi__caption {
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 11px;
+  color: $gn-muted-2;
+}
+
+
+/* ---------- chips ---------- */
+
+.gn-p-applicants .gn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #f1f3f8;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .gn-chip--green { background: #e6f6ef; color: #178a5e; }
+.gn-p-applicants .gn-chip--amber { background: #fdf1dd; color: #b9801a; }
+.gn-p-applicants .gn-chip--red { background: #fdecee; color: #cf4351; }
+
+
+/* ---------- sparkline ---------- */
+
+.gn-p-applicants .gn-spark {
+  position: relative;
+  height: 34px;
+  margin-top: 16px;
+}
+
+.gn-p-applicants .gn-spark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.gn-p-applicants .gn-spark__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.gn-p-applicants .gn-spark__area {
+  stroke: none;
+  fill: rgba(68, 87, 201, 0.10);
+}
+
+.gn-p-applicants .gn-spark__dot {
+  position: absolute;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(1px, -50%);
+  background: $gn-indigo;
+}
+
+.gn-p-applicants .gn-spark--indigo .gn-spark__line { stroke: $gn-indigo; }
+.gn-p-applicants .gn-spark--indigo .gn-spark__area { fill: rgba(68, 87, 201, 0.10); }
+.gn-p-applicants .gn-spark--indigo .gn-spark__dot { background: $gn-indigo; }
+
+.gn-p-applicants .gn-spark--green .gn-spark__line { stroke: $gn-green; }
+.gn-p-applicants .gn-spark--green .gn-spark__area { fill: rgba(31, 157, 109, 0.12); }
+.gn-p-applicants .gn-spark--green .gn-spark__dot { background: $gn-green; }
+
+
+/* ---------- milestone bars ---------- */
+
+.gn-p-applicants .gn-milestones {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 34px;
+  margin-top: 16px;
+}
+
+.gn-p-applicants .gn-milestone {
+  flex: 1;
+  min-height: 30%;
+  border-radius: 4px;
+  background: #dde3f5;
+  transition: height 0.4s ease;
+}
+
+.gn-p-applicants .gn-milestone.is-current { background: $gn-indigo; }
+
+
+/* ---------- segmented bar ---------- */
+
+.gn-p-applicants .gn-segbar {
+  display: flex;
+  height: 7px;
+  margin-top: 22px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e9edf4;
+}
+
+.gn-p-applicants .gn-seg { height: 100%; transition: width 0.4s ease; }
+.gn-p-applicants .gn-seg--red { background: $gn-red; }
+.gn-p-applicants .gn-seg--amber { background: $gn-amber; }
+.gn-p-applicants .gn-seg--grey { background: #dfe4ee; }
+
+
+/* =========================================================
+   CARD SYSTEM
+   ========================================================= */
+
+.gn-p-applicants .gn-row {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.gn-p-applicants .gn-row--wide {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.gn-p-applicants .gn-card {
+  display: flex;
+  flex-direction: column;
+  background: $gn-card;
+  border: 1px solid $gn-line;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(22, 32, 58, 0.04), 0 8px 20px rgba(22, 32, 58, 0.04);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gn-p-applicants .gn-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 4px;
+}
+
+.gn-p-applicants .gn-card__head h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-card__head p {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-card__body {
+  padding: 18px 24px 22px;
+  flex: 1;
+}
+
+.gn-p-applicants .gn-card__body--tight { padding: 12px 16px 16px; }
+
+.gn-p-applicants .gn-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 24px;
+  padding: 14px 0 18px;
+  border-top: 1px solid $gn-line-soft;
+  font-size: 12px;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-link {
+  color: $gn-indigo;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-p-applicants .gn-link:hover { color: $gn-indigo-dk; }
+
+.gn-p-applicants .gn-note {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid $gn-line-soft;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $gn-muted-2;
+}
+
+.gn-p-applicants .gn-empty {
+  padding: 34px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: $gn-muted-2;
+}
+
+.gn-p-applicants .gn-total {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.gn-p-applicants .gn-total strong {
+  display: block;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-total span {
+  font-size: 11px;
+  color: $gn-muted-2;
+}
+
+
+/* =========================================================
+   CHARTS
+   ========================================================= */
+
+.gn-p-applicants .gn-chart {
+  display: flex;
+  gap: 12px;
+}
+
+.gn-p-applicants .gn-chart__axis {
+  width: 22px;
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 11px;
+  line-height: 1;
+  color: $gn-muted-2;
+  flex-shrink: 0;
+}
+
+.gn-p-applicants .gn-chart__plot {
+  position: relative;
+  flex: 1;
+  height: 220px;
+  min-width: 0;
+}
+
+.gn-p-applicants .gn-grid {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.gn-p-applicants .gn-grid__line {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: $gn-line-soft;
+}
+
+.gn-p-applicants .gn-grid__line:last-child { background: $gn-line; }
+
+.gn-p-applicants .gn-cols {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 10px;
+}
+
+.gn-p-applicants .gn-col {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.gn-p-applicants .gn-col__track {
+  width: 62px;
+  max-width: 72%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.gn-p-applicants .gn-col__bar {
+  position: relative;
+  width: 100%;
+  min-height: 3px;
+  border-radius: 6px 6px 0 0;
+  background: $gn-indigo-soft;
+  transition: height 0.45s ease;
+}
+
+.gn-p-applicants .gn-col__value {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 7px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .gn-col__cluster {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+}
+
+.gn-p-applicants .gn-gbar {
+  width: 14px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.45s ease;
+}
+
+.gn-p-applicants .gn-gbar--indigo { background: $gn-indigo; }
+.gn-p-applicants .gn-gbar--periwinkle { background: $gn-indigo-mid; }
+.gn-p-applicants .gn-gbar--sage { background: $gn-sage; }
+
+.gn-p-applicants .gn-tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, 2px);
+  min-width: 150px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: $gn-ink;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 5;
+}
+
+.gn-p-applicants .gn-tip strong {
+  display: block;
+  font-weight: 600;
+}
+
+.gn-p-applicants .gn-col:hover .gn-tip {
+  opacity: 1;
+  transform: translate(-50%, -6px);
+}
+
+.gn-p-applicants .gn-labels {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  padding-left: 34px;
+  margin-top: 10px;
+}
+
+.gn-p-applicants .gn-labels span {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .gn-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-width: 300px;
+  font-size: 12px;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .gn-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gn-p-applicants .gn-key {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.gn-p-applicants .gn-key--indigo { background: $gn-indigo; }
+.gn-p-applicants .gn-key--periwinkle { background: $gn-indigo-mid; }
+.gn-p-applicants .gn-key--sage { background: $gn-sage; }
+
+
+/* =========================================================
+   HEALTH AND LISTS
+   ========================================================= */
+
+.gn-p-applicants .gn-health {
+  display: flex;
+  height: 46px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #eef1f6;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.gn-p-applicants .gn-health__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  white-space: nowrap;
+  transition: width 0.45s ease;
+}
+
+.gn-p-applicants .gn-health__seg--green { background: #1f9d6d; }
+.gn-p-applicants .gn-health__seg--amber { background: #dfa227; }
+.gn-p-applicants .gn-health__seg--red { background: $gn-red; }
+
+.gn-p-applicants .gn-health__rest {
+  flex: 1;
+  min-width: 52px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $gn-muted;
+  font-size: 12.5px;
+}
+
+.gn-p-applicants .gn-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid $gn-line-soft;
+}
+
+.gn-p-applicants .gn-legend__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #f4f6fa;
+  font-size: 12px;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .gn-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: $gn-slate;
+}
+
+.gn-p-applicants .gn-dot--green { background: $gn-green; }
+.gn-p-applicants .gn-dot--amber { background: $gn-amber; }
+.gn-p-applicants .gn-dot--red { background: $gn-red; }
+
+.gn-p-applicants .gn-projects { padding-top: 6px; }
+
+.gn-p-applicants .gn-project {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 14px 0 10px;
+  border-bottom: 1px solid $gn-line-soft;
+}
+
+.gn-p-applicants .gn-project:last-child { border-bottom: 0; }
+
+.gn-p-applicants .gn-project__name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-project__name span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gn-p-applicants .gn-project__pct {
+  font-size: 13px;
+  color: $gn-ink-2;
+  white-space: nowrap;
+}
+
+.gn-p-applicants .gn-project__track {
+  grid-column: 1 / -1;
+  height: 5px;
+  border-radius: 999px;
+  background: #edf0f6;
+  overflow: hidden;
+}
+
+.gn-p-applicants .gn-project__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: $gn-slate;
+  transition: width 0.45s ease;
+}
+
+.gn-p-applicants .gn-project__fill--green { background: $gn-green; }
+.gn-p-applicants .gn-project__fill--amber { background: $gn-amber; }
+.gn-p-applicants .gn-project__fill--red { background: $gn-red; }
+
+
+/* =========================================================
+   CLAIM BARS
+   ========================================================= */
+
+.gn-p-applicants .gn-claim { margin-bottom: 18px; }
+.gn-p-applicants .gn-claim:last-child { margin-bottom: 0; }
+
+.gn-p-applicants .gn-claim__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.gn-p-applicants .gn-claim__label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-claim__value {
+  font-size: 12.5px;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-claim__track {
+  height: 8px;
+  border-radius: 999px;
+  background: #edf0f6;
+  overflow: hidden;
+}
+
+.gn-p-applicants .gn-claim__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: $gn-indigo-soft;
+  transition: width 0.45s ease;
+}
+
+.gn-p-applicants .gn-claim__fill--green { background: $gn-green; }
+.gn-p-applicants .gn-claim__fill--indigo { background: $gn-indigo; }
+.gn-p-applicants .gn-claim__fill--periwinkle { background: $gn-indigo-mid; }
+.gn-p-applicants .gn-claim__fill--soft { background: $gn-indigo-soft; }
+.gn-p-applicants .gn-claim__fill--amber { background: $gn-amber; }
+.gn-p-applicants .gn-claim__fill--red { background: $gn-red; }
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.gn-p-applicants .gn-table {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.gn-p-applicants .gn-table__head,
+.gn-p-applicants .gn-table__row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 1.4fr 1.1fr 1.2fr 0.85fr;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+}
+
+.gn-p-applicants .gn-table__head {
+  height: 40px;
+  background: #f7f9fc;
+  border-top: 1px solid $gn-line-soft;
+  border-bottom: 1px solid $gn-line-soft;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-table__row {
+  min-height: 66px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid $gn-line-soft;
+}
+
+.gn-p-applicants .gn-table__row:last-child { border-bottom: 0; }
+.gn-p-applicants .gn-table__row:hover { background: #fafbfe; }
+
+.gn-p-applicants .gn-cell {
+  font-size: 13px;
+  min-width: 0;
+}
+
+.gn-p-applicants .gn-cell--name {
+  font-weight: 500;
+  color: $gn-ink;
+  line-height: 1.4;
+}
+
+.gn-p-applicants .gn-cell--related {
+  color: $gn-indigo;
+  line-height: 1.4;
+}
+
+.gn-p-applicants .gn-cell--date {
+  color: $gn-ink-2;
+  line-height: 1.4;
+}
+
+.gn-p-applicants .gn-tag {
+  display: inline-flex;
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: #edf1ff;
+  color: $gn-indigo;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-p-applicants .gn-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f2f4f8;
+  color: $gn-ink-2;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gn-p-applicants .gn-state--red { background: #fdecee; color: #cf4351; }
+.gn-p-applicants .gn-state--amber { background: #fdf3e0; color: #b9801a; }
+.gn-p-applicants .gn-state--green { background: #e6f6ef; color: #178a5e; }
+.gn-p-applicants .gn-state--grey { background: #f2f4f8; color: $gn-muted; }
+
+.gn-p-applicants .gn-state--red .gn-dot { background: $gn-red; }
+.gn-p-applicants .gn-state--amber .gn-dot { background: $gn-amber; }
+.gn-p-applicants .gn-state--green .gn-dot { background: $gn-green; }
+.gn-p-applicants .gn-state--grey .gn-dot { background: $gn-muted-2; }
+
+.gn-p-applicants .gn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid $gn-line;
+  border-radius: 9px;
+  background: $gn-card;
+  color: $gn-ink-2;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.gn-p-applicants .gn-btn:hover {
+  border-color: $gn-indigo-soft;
+  color: $gn-indigo;
+}
+
+.gn-p-applicants .gn-btn--primary {
+  background: $gn-indigo;
+  border-color: $gn-indigo;
+  color: #ffffff;
+}
+
+.gn-p-applicants .gn-btn--primary:hover {
+  background: $gn-indigo-dk;
+  border-color: $gn-indigo-dk;
+  color: #ffffff;
+}
+
+
+/* =========================================================
+   PROGRAM CARDS
+   ========================================================= */
+
+.gn-p-applicants .gn-program {
+  display: block;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid $gn-line;
+  border-radius: 12px;
+  color: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gn-p-applicants .gn-program:last-child { margin-bottom: 0; }
+
+.gn-p-applicants .gn-program:hover {
+  border-color: $gn-indigo-soft;
+  box-shadow: 0 6px 16px rgba(22, 32, 58, 0.06);
+}
+
+.gn-p-applicants .gn-program__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gn-p-applicants .gn-program__top strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gn-program__desc {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: $gn-indigo;
+}
+
+.gn-p-applicants .gn-program__foot {
+  margin-top: 12px;
+  font-size: 12px;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gn-program__foot i { margin-right: 6px; }
+
+
+/* =========================================================
+   THE rvd- CLASSES
+
+   Named by the controller, painted here. Five of them, in the
+   portal's own palette: amber is in progress, green is
+   settled, red is trouble, rose is stood down, slate is not
+   started. The same five meanings the Overview's pipeline
+   chart uses.
+   ========================================================= */
+
+.gn-p-applicants .rvd-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #f2f4f8;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .rvd-chip--amber { background: #fdf3e0; color: #b9801a; }
+.gn-p-applicants .rvd-chip--green { background: #e6f6ef; color: #178a5e; }
+.gn-p-applicants .rvd-chip--red { background: #fdecee; color: #cf4351; }
+.gn-p-applicants .rvd-chip--rose { background: #fbeef0; color: #b0616d; }
+.gn-p-applicants .rvd-chip--slate { background: #f2f4f8; color: $gn-muted; }
+
+/* the deadline is text rather than a pill. It sits beside a
+   status pill in the next column, and two pills on one row
+   compete for the same glance. */
+.gn-p-applicants .rvd-deadline {
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: $gn-ink-2;
+}
+
+.gn-p-applicants .rvd-deadline--overdue { color: #cf4351; }
+.gn-p-applicants .rvd-deadline--soon { color: #b9801a; }
+.gn-p-applicants .rvd-deadline--ok { color: $gn-ink-2; }
+
+
+/* =========================================================
+   PAGE ADDITIONS
+
+   Four: the counts strip, the filter bar, the row details and
+   the pager. Everything else on this page is a component the
+   portal already had.
+   ========================================================= */
+
+
+/* ---------- 1. the counts ----------
+
+   A strip, not four cards. The list underneath is the point of
+   the page, and four shadowed cards above it would claim to be
+   the point instead.
+   ------------------------------------------------------- */
+
+.gn-p-applicants .gna-strip {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 18px 24px;
+  margin-bottom: 20px;
+}
+
+.gn-p-applicants .gna-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 2px 26px;
+  border-left: 1px solid $gn-line-soft;
+  min-width: 0;
+}
+
+.gn-p-applicants .gna-stat:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.gn-p-applicants .gna-stat__n {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.8px;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gna-stat__l {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: $gn-muted;
+  white-space: nowrap;
+}
+
+/* only the two figures that mean somebody should act take a
+   colour. A strip where every number is coloured is a strip
+   where none of them is. */
+.gn-p-applicants .gna-stat.is-alert .gna-stat__n { color: #cf4351; }
+.gn-p-applicants .gna-stat.is-warn .gna-stat__n { color: #b9801a; }
+
+.gn-p-applicants .gna-stat--quiet .gna-stat__n { color: $gn-muted; }
+
+
+/* ---------- 2. the filter bar ---------- */
+
+.gn-p-applicants .gna-bar {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.gn-p-applicants .gna-find {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 320px;
+  min-width: 240px;
+  margin: 0;
+}
+
+.gn-p-applicants .gna-find input {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px 0 36px;
+  border: 1px solid $gn-line;
+  border-radius: 9px;
+  background: $gn-card;
+  font-family: inherit;
+  font-size: 13px;
+  color: $gn-ink;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gn-p-applicants .gna-find input:focus {
+  outline: 0;
+  border-color: $gn-indigo-soft;
+  box-shadow: 0 0 0 3px rgba(68, 87, 201, 0.10);
+}
+
+.gn-p-applicants .gna-find input::placeholder { color: $gn-muted-2; }
+
+.gn-p-applicants .gna-find__ico {
+  position: absolute;
+  left: 14px;
+  font-size: 12px;
+  color: $gn-muted-2;
+  pointer-events: none;
+}
+
+.gn-p-applicants .gna-find__x {
+  position: absolute;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: $gn-muted-2;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.gn-p-applicants .gna-find__x:hover { color: $gn-ink; }
+
+/* a native select. A bespoke dropdown has to reimplement
+   keyboard handling, typeahead and the mobile picker, and does
+   none of them as well as the browser already does. */
+.gn-p-applicants .gna-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  font-weight: 400;
+}
+
+.gn-p-applicants .gna-pick__l {
+  font-size: 12px;
+  color: $gn-muted;
+  white-space: nowrap;
+}
+
+.gn-p-applicants .gna-pick select {
+  height: 36px;
+  max-width: 200px;
+  padding: 0 10px;
+  border: 1px solid $gn-line;
+  border-radius: 9px;
+  background: $gn-card;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: $gn-ink;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gn-p-applicants .gna-pick select:focus {
+  outline: 0;
+  border-color: $gn-indigo-soft;
+  box-shadow: 0 0 0 3px rgba(68, 87, 201, 0.10);
+}
+
+.gn-p-applicants .gna-reset {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: $gn-indigo;
+  cursor: pointer;
+}
+
+.gn-p-applicants .gna-reset:hover { text-decoration: underline; }
+
+
+/* ---------- 3. the row ---------- */
+
+.gn-p-applicants .gna-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: $gn-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* said rather than left blank, so nobody wonders whether it
+   failed to load */
+.gn-p-applicants .gna-sub--none {
+  font-style: italic;
+  color: $gn-muted-2;
+}
+
+.gn-p-applicants .gna-score {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: $gn-ink;
+  white-space: nowrap;
+}
+
+/* the denominator, always. A bare 7 invites the question seven
+   out of what, and the bar underneath answers it again. */
+.gn-p-applicants .gna-score__d {
+  font-size: 11px;
+  font-weight: 400;
+  color: $gn-muted-2;
+}
+
+.gn-p-applicants .gna-meter {
+  display: block;
+  width: 62px;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #edf0f6;
+  overflow: hidden;
+}
+
+.gn-p-applicants .gna-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: $gn-indigo-soft;
+  transition: width 0.4s ease;
+}
+
+/* late is a hairline at the edge rather than a tinted row. A
+   table where four rows are pink stops being a table. */
+.gn-p-applicants .gn-table__row.is-late { box-shadow: inset 3px 0 0 $gn-red; }
+
+
+/* ---------- 4. the pager ---------- */
+
+.gn-p-applicants .gna-pager {
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.gn-p-applicants .gna-pager__go {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gn-p-applicants .gna-pg {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: $gn-ink-2;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.gn-p-applicants .gna-pg:hover {
+  background: #f4f6fa;
+  color: $gn-ink;
+}
+
+.gn-p-applicants .gna-pg.is-on {
+  background: $gn-indigo;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* Previous and Next carry words rather than arrows. At the
+   foot of a table the reader is scanning text, and a word
+   needs no legend. */
+.gn-p-applicants .gna-pg--step {
+  padding: 0 12px;
+  color: $gn-muted;
+}
+
+.gn-p-applicants .gna-pg--step:hover { color: $gn-ink; }
+
+.gn-p-applicants .gna-pg.is-gap {
+  min-width: 18px;
+  padding: 0;
+  background: transparent;
+  color: $gn-muted-2;
+  cursor: default;
+}
+
+.gn-p-applicants .gna-pg:disabled {
+  opacity: 0.35;
+  background: transparent;
+  cursor: default;
+}
+
+.gn-p-applicants .gna-solo { margin-bottom: 20px; }
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1180px) {
+  .gn-p-applicants .gn-table__head,
+.gn-p-applicants .gn-table__row {
+    grid-template-columns: 1.3fr 1.2fr 1.1fr 0.8fr 0.9fr 0.8fr;
+    gap: 10px;
+    padding: 0 18px;
+  }
+
+  .gn-p-applicants .gna-stat { padding: 2px 18px; }
+}
+
+@media (max-width: 900px) {
+  .gn-p-applicants .gn-dash { padding: 20px 16px 36px; }
+
+  .gn-p-applicants .gn-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gn-p-applicants .gn-head__right { flex-wrap: wrap; }
+
+  .gn-p-applicants .gn-table__head { display: none; }
+
+  .gn-p-applicants .gn-table__row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 16px 20px;
+  }
+
+  .gn-p-applicants .gn-table__row .gn-cell::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10.5px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: $gn-muted-2;
+  }
+
+  .gn-p-applicants .gn-btn { width: 100%; }
+
+  .gn-p-applicants .gna-strip { padding: 16px; }
+
+  .gn-p-applicants .gna-stat {
+    flex: 1 1 42%;
+    padding: 10px 14px;
+    border-left: 0;
+    border-top: 1px solid $gn-line-soft;
+  }
+
+  .gn-p-applicants .gna-stat:first-child,
+.gn-p-applicants .gna-stat:nth-child(2) { border-top: 0; }
+
+  .gn-p-applicants .gna-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gn-p-applicants .gna-find { flex: 1 1 auto; }
+
+  .gn-p-applicants .gna-pick {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .gn-p-applicants .gna-pick select {
+    flex: 1;
+    max-width: none;
+  }
+
+  .gn-p-applicants .gna-reset {
+    margin-left: 0;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .gn-p-applicants .gn-head__title { font-size: 25px; }
+
+  .gn-p-applicants .gna-stat { flex: 1 1 100%; }
+
+  .gn-p-applicants .gna-stat:nth-child(2) { border-top: 1px solid $gn-line-soft; }
+
+  .gn-p-applicants .gna-pager {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gn-p-applicants .gn-dash * { transition: none; }
+}</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description/>
+        <docs/>
+        <field_list/>
+        <has_preview>false</has_preview>
+        <id>applicants_review</id>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+  
+}]]></link>
+        <name>Review Applicants</name>
+        <option_schema/>
+        <public>false</public>
+        <roles>x_enno_gatenow.grant_review_user</roles>
+        <script><![CDATA[(function () {
+
+  /* =========================================================
+     GATENOW · REVIEW APPLICANTS
+     Service Portal widget · Server script
+
+     Page: review_applicants
+
+     The logic below is the uploaded widget's, unchanged. Same
+     query, same OR block, same overdue and due-soon
+     thresholds, same per-row fields, same stats counters, same
+     save_review handler and its group check. Only the
+     whitespace is tidied and one line is added for the rail,
+     which the page shell needs and which reads nothing.
+
+     WHAT THE QUERY SAYS
+
+       review_group IN my groups AND status is in progress
+       OR  status is completed AND reviewer CONTAINS my group
+
+     So the page carries the work in front of this reviewer's
+     panels plus the completed records their panels were on.
+     The client then hides the completed ones from the list, so
+     what a reader sees here is the applicants still needing a
+     decision — and the completed rows stay in data for the
+     counters that sit above the list.
+     ========================================================= */
+
+  data.announcements = [];
+
+  /* ── Current user ────────────────────────────────────────── */
+
+  var userRecord = new GlideRecordSecure('sys_user');
+
+  if (userRecord.get(gs.getUserID())) {
+
+    data.currentUser = {
+      sys_id    : userRecord.getUniqueValue(),
+      name      : userRecord.getDisplayValue('name') || 'Reviewer',
+      first_name: userRecord.getValue('first_name') || '',
+      last_name : userRecord.getValue('last_name') || '',
+      email     : userRecord.getValue('email') || '',
+      title     : userRecord.getValue('title') || 'Grant Reviewer',
+      initials  : (userRecord.getValue('first_name') || 'R').charAt(0).toUpperCase() +
+                  (userRecord.getValue('last_name') || '').charAt(0).toUpperCase()
+    };
+
+  } else {
+
+    data.currentUser = {
+      sys_id    : '',
+      name      : 'Guest',
+      first_name: '',
+      last_name : '',
+      email     : '',
+      title     : '',
+      initials  : 'G'
+    };
+  }
+
+  data.logoutUrl   = '/login.do?logout=true';
+  data.profilePage = '?id=user_profile';
+  data.canRead     = true;
+  data.reviews     = [];
+
+  /* The one addition: the rail is its own widget and this page
+     hosts it. It reads nothing and changes nothing. */
+  data.sideBar = $sp.getWidget(
+    (options.sidebar_widget || 'review_sidebar').toString()
+  );
+
+  /* ── Property-driven URLs ────────────────────────────────── */
+
+  data.svgNS      = gs.getProperty('x_enno_gatenow.svg_namespace', 'http://www.w3.org/2000/svg');
+  data.chartJsUrl = gs.getProperty('x_enno_gatenow.chartjs_cdn_url', 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js');
+
+  /* ── Full stats object ───────────────────────────────────── */
+
+  data.stats = {
+    total     : 0,
+    inProgress: 0,
+    completed : 0,
+    escalated : 0,
+    declined  : 0,
+    pending   : 0,
+    overdue   : 0,
+    dueSoon   : 0
+  };
+
+  var userId = gs.getUserID();
+  var today  = new GlideDateTime();
+
+  /* ── Groups ──────────────────────────────────────────────── */
+
+  var groups = [];
+
+  var groupMembershipGr = new GlideRecordSecure('sys_user_grmember');
+  groupMembershipGr.addQuery('user', userId);
+  groupMembershipGr.query();
+
+  while (groupMembershipGr.next()) {
+    groups.push(groupMembershipGr.getValue('group'));
+  }
+
+  if (groups.length === 0) {
+    return;
+  }
+
+  /* ── Query reviews ───────────────────────────────────────── */
+
+  var grantReviewGr = new GlideRecordSecure('x_enno_gatenow_grant_review');
+
+  var qc = grantReviewGr.addQuery('review_group', 'IN', groups.join(','));
+  grantReviewGr.addQuery('status', 'Review in progress');
+
+  for (var i = 0; i < groups.length; i++) {
+    var orCond = qc.addOrCondition('status', 'Review completed');
+    orCond.addCondition('reviewer', 'CONTAINS', groups[i]);
+  }
+
+  grantReviewGr.orderBy('number');
+  grantReviewGr.query();
+
+  while (grantReviewGr.next()) {
+
+    var status = grantReviewGr.getDisplayValue('status');
+
+    var deadlineVal  = grantReviewGr.getValue('review_deadline') || '';
+    var deadlineDisp = deadlineVal ? grantReviewGr.getDisplayValue('review_deadline') : '';
+
+    var isOverdue = false;
+    var isDueSoon = false;
+
+    if (deadlineVal) {
+
+      var dl       = new GlideDateTime(deadlineVal);
+      var diffMs   = dl.getNumericValue() - today.getNumericValue();
+      var diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      if (diffDays < 0 && status !== 'Review completed' && status !== 'Declined by Reviewer') {
+        isOverdue = true;
+      } else if (diffDays >= 0 && diffDays <= 3 && status !== 'Review completed' && status !== 'Declined by Reviewer') {
+        isDueSoon = true;
+      }
+    }
+
+    var reviewerDisplay = grantReviewGr.getDisplayValue('reviewer') || '';
+
+    var programName     = '';
+    var programCategory = '';
+    var programNumber   = '';
+    var programSysId    = grantReviewGr.getValue('program');
+
+    if (programSysId) {
+      var programGr = new GlideRecordSecure('x_enno_gatenow_grant_program');
+      if (programGr.get(programSysId)) {
+        programName     = programGr.getDisplayValue('program_name') || '';
+        programCategory = programGr.getDisplayValue('category') || '';
+        programNumber   = programGr.getValue('number') || '';
+      }
+    }
+
+    var applicantName   = '';
+    var applicantNumber = '';
+    var applicantSysId  = grantReviewGr.getValue('applicant');
+
+    if (applicantSysId) {
+      var applicantGr = new GlideRecordSecure('x_enno_gatenow_service_applicants');
+      if (applicantGr.get(applicantSysId)) {
+        applicantName   = ((applicantGr.getValue('first_name') || '') + ' ' +
+                           (applicantGr.getValue('last_name') || '')).trim();
+        applicantNumber = applicantGr.getValue('number') || '';
+      }
+    }
+
+    /* Update stats */
+
+    data.stats.total++;
+
+    if (status === 'Review in progress')
+      data.stats.inProgress++;
+    else if (status === 'Review completed')
+      data.stats.completed++;
+    else if (status === 'Escalated')
+      data.stats.escalated++;
+    else if (status === 'Declined by Reviewer')
+      data.stats.declined++;
+    else if (status === 'Review pending')
+      data.stats.pending++;
+
+    if (isOverdue)
+      data.stats.overdue++;
+
+    if (isDueSoon)
+      data.stats.dueSoon++;
+
+    /* Push review data */
+
+    data.reviews.push({
+      sys_id          : grantReviewGr.getUniqueValue(),
+      number          : grantReviewGr.getValue('number') || '',
+      status          : status,
+      review_group    : grantReviewGr.getDisplayValue('review_group') || '',
+      reviewer        : reviewerDisplay,
+      score           : grantReviewGr.getValue('score') || '',
+      applicant       : applicantName,
+      applicant_number: applicantNumber,
+      program         : programName,
+      program_number  : programNumber,
+      program_category: programCategory,
+      decision_type   : grantReviewGr.getDisplayValue('decision_type') || '',
+      review_deadline : deadlineDisp,
+      deadline_raw    : deadlineVal,
+      is_overdue      : isOverdue,
+      is_due_soon     : isDueSoon
+    });
+  }
+
+  /* ── Save review ─────────────────────────────────────────── */
+
+  if (input && input.action === 'save_review' && input.review_sys_id) {
+
+    var reviewId = String(input.review_sys_id);
+    var form     = input.form || {};
+    var grUpdate = new GlideRecordSecure('x_enno_gatenow_grant_review');
+
+    if (grUpdate.get(reviewId)) {
+
+      if (groups.indexOf(grUpdate.getValue('review_group')) === -1) {
+        data.success = false;
+        data.error   = 'Not allowed.';
+        return;
+      }
+
+      if (form.decision_type)
+        grUpdate.setValue('decision_type', form.decision_type);
+
+      if (form.status)
+        grUpdate.setValue('status', form.status);
+
+      if (!gs.nil(form.score))
+        grUpdate.setValue('score', form.score);
+
+      if (!gs.nil(form.review_notes))
+        grUpdate.setValue('work_notes', form.review_notes);
+
+      grUpdate.update();
+      data.success = true;
+
+    } else {
+      data.success = false;
+      data.error   = 'Not found.';
+    }
+  }
+
+})();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>umar.farooq</sys_created_by>
+        <sys_created_on>2026-09-23 07:46:27</sys_created_on>
+        <sys_id>ca161efc93a30310d444c9b877373c02</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name>Review Applicants</sys_name>
+        <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
+        <sys_update_name>sp_widget_ca161efc93a30310d444c9b877373c02</sys_update_name>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-23 16:24:00</sys_updated_on>
+        <template><![CDATA[<!-- =========================================================
+     GATENOW · REVIEW APPLICANTS
+     Service Portal widget · HTML template
+
+     Page: review_applicants
+
+     Built from the portal's own components — gn-layout,
+     gn-head, gn-card, gn-table, gn-btn — so a reviewer arriving
+     from the Overview meets controls they have already
+     learned.
+
+     THE ROW LEADS WITH THE PERSON
+
+     This page answers "whose proposal am I reviewing", so the
+     applicant's name is the first thing on the row and the
+     review reference sits under it as the reference it is. The
+     earlier version led with REV0001038 and buried the name,
+     which is the right shape for a record list and the wrong
+     one for this page.
+
+     Every binding is the uploaded controller's. The three
+     helpers that return rvd- class names are used exactly as
+     they were written.
+     ========================================================= -->
+
+<div class="gn-layout gn-p-applicants">
+
+  <div class="aw-sidebar">
+    <sp-widget widget="data.sideBar"></sp-widget>
+  </div>
+
+  <div class="gn-dash">
+
+    <!-- ═════════════════════════════ HEADER ═════════════════════════════ -->
+    <header class="gn-head">
+
+      <div class="gn-head__left">
+        <h1 class="gn-head__title">Applicants to review</h1>
+        <p class="gn-head__meta">
+          <span class="gn-live"></span>
+          {{c.headline()}}
+        </p>
+      </div>
+
+      <div class="gn-head__right">
+        <a class="gn-avatar" ng-href="{{c.data.profilePage}}"
+           title="{{c.data.currentUser.name}}">{{c.data.currentUser.initials}}</a>
+      </div>
+
+    </header>
+
+
+    <!-- no group, no queue. The server returns early when a
+         reviewer belongs to none, so data.reviews is empty and
+         data.stats stays at zero. -->
+    <article class="gn-card gna-solo" ng-if="!c.data.reviews.length">
+      <div class="gn-card__body">
+        <p class="gn-empty">
+          Nothing is assigned to your groups. Reviews are assigned to groups rather than
+          to people, so proposals appear here once one of your panels is put on them.
+        </p>
+      </div>
+    </article>
+
+
+    <div ng-if="c.data.reviews.length">
+
+      <!-- ═════════════════════ THE THREE COUNTS ═════════════════════
+
+           Not a dashboard. Three figures the reader needs to
+           decide where to start, read straight off data.stats
+           and set as a strip rather than as cards, because the
+           list underneath is the point of the page.
+           ═══════════════════════════════════════════════════ -->
+      <article class="gn-card gna-strip">
+
+        <div class="gna-stat">
+          <span class="gna-stat__n">{{c.filteredProposals().length}}</span>
+          <span class="gna-stat__l">Awaiting review</span>
+        </div>
+
+        <div class="gna-stat" ng-class="{'is-alert': c.data.stats.overdue}">
+          <span class="gna-stat__n">{{c.data.stats.overdue}}</span>
+          <span class="gna-stat__l">Overdue</span>
+        </div>
+
+        <div class="gna-stat" ng-class="{'is-warn': c.data.stats.dueSoon}">
+          <span class="gna-stat__n">{{c.data.stats.dueSoon}}</span>
+          <span class="gna-stat__l">Due within 3 days</span>
+        </div>
+
+        <div class="gna-stat gna-stat--quiet">
+          <span class="gna-stat__n">{{c.data.stats.completed}}</span>
+          <span class="gna-stat__l">Completed by your panels</span>
+        </div>
+
+      </article>
+
+
+      <!-- ═══════════════ FILTERS ═══════════════
+
+           The four the controller already carries, in the order
+           a reviewer reaches for them. Search is widest because
+           it is used most.
+           ═══════════════════════════════════════ -->
+      <article class="gn-card gna-bar">
+
+        <label class="gna-find">
+          <i class="fa fa-search gna-find__ico"></i>
+          <input type="text" ng-model="c.searchText"
+                 placeholder="Search applicant, reference, program or category" />
+          <button type="button" class="gna-find__x"
+                  ng-if="c.searchText" ng-click="c.searchText = ''"
+                  aria-label="Clear the search">&times;</button>
+        </label>
+
+        <label class="gna-pick">
+          <span class="gna-pick__l">Status</span>
+          <select ng-model="c.statusFilter">
+            <option value="">Any status</option>
+            <option ng-repeat="s in c.allStatuses track by $index" value="{{s}}">{{s}}</option>
+          </select>
+        </label>
+
+        <label class="gna-pick" ng-if="c.programOptions().length > 1">
+          <span class="gna-pick__l">Program</span>
+          <select ng-model="c.programFilter">
+            <option value="">Every program</option>
+            <option ng-repeat="p in c.programOptions() track by $index" value="{{p}}">{{p}}</option>
+          </select>
+        </label>
+
+        <label class="gna-pick" ng-if="c.categoryOptions().length > 1">
+          <span class="gna-pick__l">Category</span>
+          <select ng-model="c.categoryFilter">
+            <option value="">Every category</option>
+            <option ng-repeat="cat in c.categoryOptions() track by $index" value="{{cat}}">{{cat}}</option>
+          </select>
+        </label>
+
+        <button type="button" class="gna-reset" ng-if="c.isFiltered()" ng-click="c.clearFilters()">
+          Clear filters
+        </button>
+
+      </article>
+
+
+      <!-- ═══════════════ THE LIST ═══════════════ -->
+      <article class="gn-card">
+
+        <div class="gn-card__head">
+          <div>
+            <h2>{{c.filteredProposals().length}}
+              {{c.filteredProposals().length === 1 ? 'applicant' : 'applicants'}}</h2>
+            <p>{{c.isFiltered() ? 'Filtered from those awaiting review' : 'Everything awaiting a decision from your panels'}}</p>
+          </div>
+        </div>
+
+        <div class="gn-table" ng-if="c.pagedProposals().length">
+
+          <div class="gn-table__head">
+            <span>Applicant</span>
+            <span>Program</span>
+            <span>Status</span>
+            <span>Score</span>
+            <span>Deadline</span>
+            <span>Action</span>
+          </div>
+
+          <div class="gn-table__row"
+               ng-repeat="rev in c.pagedProposals() track by rev.sys_id"
+               ng-class="{'is-late': rev.is_overdue}">
+
+            <!-- the person first, the reference under it -->
+            <span class="gn-cell gn-cell--name" data-label="Applicant">
+              {{rev.applicant || 'Name not on record'}}
+              <span class="gna-sub">{{rev.number}}<span
+                ng-if="rev.applicant_number"> · {{rev.applicant_number}}</span></span>
+            </span>
+
+            <span class="gn-cell gn-cell--related" data-label="Program">
+              {{rev.program || 'Not set'}}
+              <span class="gna-sub" ng-if="rev.program_category">{{rev.program_category}}</span>
+            </span>
+
+            <span class="gn-cell" data-label="Status">
+              <span class="rvd-chip" ng-class="c.statusChipClass(rev.status)">{{rev.status}}</span>
+              <span class="gna-sub" ng-if="rev.review_group">{{rev.review_group}}</span>
+            </span>
+
+            <!-- the score on the scale it was given on. A bare 7
+                 invites the question seven out of what. -->
+            <span class="gn-cell" data-label="Score">
+              <span class="gna-score" ng-if="rev.score">
+                {{rev.score}}<span class="gna-score__d">/10</span>
+              </span>
+              <span class="gna-meter" ng-if="rev.score">
+                <span class="gna-meter__fill" ng-style="{width: c.scoreWidth(rev.score)}"></span>
+              </span>
+              <span class="gna-sub gna-sub--none" ng-if="!rev.score">Not scored</span>
+            </span>
+
+            <span class="gn-cell" data-label="Deadline">
+              <span class="rvd-deadline" ng-class="c.deadlineClass(rev)">
+                {{rev.review_deadline || 'No deadline'}}
+              </span>
+            </span>
+
+            <span class="gn-cell" data-label="Action">
+              <button type="button" class="gn-btn gn-btn--primary"
+                      ng-click="c.openRecord(rev)">Review</button>
+            </span>
+
+          </div>
+
+        </div>
+
+        <p class="gn-empty" ng-if="!c.filteredProposals().length">
+          Nothing matches those filters. Widen one of them, or clear them all and start
+          again.
+        </p>
+
+
+        <!-- ═══════════════ PAGER ═══════════════ -->
+        <div class="gn-card__foot gna-pager" ng-if="c.totalPages() > 1">
+
+          <span>Page {{c.proposalPage}} of {{c.totalPages()}}</span>
+
+          <div class="gna-pager__go">
+
+            <button type="button" class="gna-pg gna-pg--step"
+                    ng-disabled="c.proposalPage === 1"
+                    ng-click="c.prevPage()">Previous</button>
+
+            <button type="button" class="gna-pg"
+                    ng-repeat="p in c.pageNumbers() track by $index"
+                    ng-class="{'is-on': p === c.proposalPage, 'is-gap': p === '...'}"
+                    ng-disabled="p === '...'"
+                    ng-click="c.goToPage(p)">{{p}}</button>
+
+            <button type="button" class="gna-pg gna-pg--step"
+                    ng-disabled="c.proposalPage === c.totalPages()"
+                    ng-click="c.nextPage()">Next</button>
+
+          </div>
+
+        </div>
+
+      </article>
+
+    </div>
+
+  </div>
+
+</div>]]></template>
+    </sp_widget>
+</record_update>

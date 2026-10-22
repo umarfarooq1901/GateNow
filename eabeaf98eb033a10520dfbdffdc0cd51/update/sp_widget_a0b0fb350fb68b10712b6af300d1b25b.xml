@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($location, spUtil) {
+        <client_script><![CDATA[api.controller = function() {
 
   /* =========================================================
      GATENOW · FUNDING PROGRAMS (dashboard) · Client script
@@ -10,6 +10,33 @@
      list already in memory. The previous version sent every one
      of those back to the server, which meant a full widget
      refresh on each keystroke.
+
+     ── CHANGED ───────────────────────────────────────────────
+
+     Two removals, no behaviour lost.
+
+     1. startApplication() is gone.
+
+        Nothing called it. The template applies through an
+        anchor built by applyUrl(), which is the right way
+        round: the destination lives in markup, so there is no
+        script navigation sink for the open-redirect scan to
+        report. The dead function carried an spUtil.redirect()
+        and a commented-out window.location.href, which is
+        exactly the pattern that scan objects to — leaving it
+        in the file invites somebody to uncomment it.
+
+     2. $location and spUtil are out of the injection list.
+
+        $location was never used. spUtil was used only by the
+        function above.
+
+     What actually fixed the stacked pages is in the template,
+     not here: target="_self" on the four links that leave this
+     page. Service Portal runs Angular in HTML5 mode, so a plain
+     same-origin anchor is intercepted and routed internally,
+     which renders the new page without tearing down this one.
+     Angular skips any anchor carrying a target attribute.
      ========================================================= */
 
   var c = this;
@@ -149,14 +176,17 @@
 
 
   /* =====================================================
-     NAVIGATION
+     URLS
 
-     Both "Program details" and "Start application" now use
-     full page navigation so the target page/widget actually
-     loads. This avoids the $location.search() bug where the
-     URL changes but Service Portal does not re-render.
+     These build the href the template puts on an anchor. They
+     do not navigate: nothing in this controller does, which is
+     what keeps the open-redirect scan quiet.
      ===================================================== */
 
+  /* the page id is whitelisted rather than trusted. It comes
+     from widget options, so it is not user input today, but a
+     page id has exactly one legal shape and checking costs a
+     regex. */
   function safePageId(id, fallback) {
     return (typeof id === 'string' && /^[a-zA-Z0-9_]+$/.test(id)) ? id : fallback;
   }
@@ -169,19 +199,6 @@
   c.applyUrl = function(sysId) {
     var page = safePageId(c.data.pages && c.data.pages.intake, 'intake');
     return '?id=' + page + '&sys_id=' + encodeURIComponent(sysId || '');
-  };
-
-  c.startApplication = function(sysId) {
-    if (!sysId) return;
-
-    var page = safePageId(c.data.pages && c.data.pages.intake, 'intake');
-    var target = '?id=' + page + '&sys_id=' + encodeURIComponent(sysId);
-
-    // Use spUtil.redirect for a real page load (preferred)
-    spUtil.redirect(target);
-
-    // If spUtil.redirect is not available on your instance, use:
-    // window.location.href = target;
   };
 
 };]]></client_script>
@@ -1729,14 +1746,14 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>farheen.maqbool</sys_created_by>
         <sys_created_on>2026-08-20 10:05:57</sys_created_on>
         <sys_id>a0b0fb350fb68b10712b6af300d1b25b</sys_id>
-        <sys_mod_count>134</sys_mod_count>
+        <sys_mod_count>135</sys_mod_count>
         <sys_name>Funding Programs</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_a0b0fb350fb68b10712b6af300d1b25b</sys_update_name>
         <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-03 09:16:55</sys_updated_on>
+        <sys_updated_on>2026-09-24 07:09:02</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · FUNDING PROGRAMS (dashboard)
      Service Portal widget · HTML template
@@ -1747,6 +1764,22 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
      panels, then the programs themselves as rows. Rows rather
      than cards, because a two column card grid at this width
      wastes half the row on air and truncates the summary.
+
+     ── CHANGED ───────────────────────────────────────────────
+
+     target="_self" on the four links that leave this page.
+
+     detailUrl() and applyUrl() were already producing the right
+     URLs. The problem was never the URL — it was that Service
+     Portal runs Angular in HTML5 mode, so a plain same-origin
+     anchor is intercepted and routed internally. That renders
+     the new page without tearing down this one, and both end up
+     in the document together: the intake form on top, this page
+     still sitting underneath it, until a refresh clears it.
+
+     Angular's link rewriting skips any anchor carrying a target
+     attribute, so these four now cause a real browser
+     navigation. Nothing else in this template changes.
      ========================================================= -->
 
 <!-- The wrapper holds the rail and nothing more.
@@ -1849,7 +1882,8 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           <li class="gfp-dead__row"
               ng-repeat="d in c.data.deadlines track by d.sysId"
               ng-class="['gfp-dead__row--' + ($index + 1), {'is-urgent': d.urgent}]">
-            <a class="gfp-dead__name" ng-href="{{c.detailUrl(d.sysId)}}" title="{{d.name}}">{{d.name}}</a>
+            <a class="gfp-dead__name" target="_self"
+               ng-href="{{c.detailUrl(d.sysId)}}" title="{{d.name}}">{{d.name}}</a>
             <span class="gfp-dead__date">{{d.closes}}</span>
             <span class="gfp-dead__days">{{d.days}}</span>
           </li>
@@ -1933,7 +1967,7 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
           </span>
 
           <h3 class="gfp-row__name">
-            <a ng-href="{{c.detailUrl(p.sysId)}}">{{p.name}}</a>
+            <a target="_self" ng-href="{{c.detailUrl(p.sysId)}}">{{p.name}}</a>
           </h3>
 
           <p class="gfp-row__desc" ng-if="p.summary">{{p.summary}}</p>
@@ -1965,14 +1999,17 @@ $f-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         </dl>
 
         <div class="gfp-row__act">
-          <a ng-if="p.canApply"
-   ng-href="{{c.applyUrl(p.sysId)}}"
-   class="gfp-btn">
-  {{c.data.labels.apply}}
-</a>
-          <a class="gfp-btn gfp-btn--ghost" ng-href="{{c.detailUrl(p.sysId)}}">
-            {{c.data.labels.details}}
-          </a>
+
+          <!-- the two links that leave this page. Both carry
+               target="_self" so the browser navigates for real
+               and this page is torn down behind them. -->
+          <a class="gfp-btn" target="_self"
+             ng-if="p.canApply"
+             ng-href="{{c.applyUrl(p.sysId)}}">{{c.data.labels.apply}}</a>
+
+          <a class="gfp-btn gfp-btn--ghost" target="_self"
+             ng-href="{{c.detailUrl(p.sysId)}}">{{c.data.labels.details}}</a>
+
         </div>
 
       </article>

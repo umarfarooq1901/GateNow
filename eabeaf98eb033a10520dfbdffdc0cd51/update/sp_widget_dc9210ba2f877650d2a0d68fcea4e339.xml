@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
     <sp_widget action="INSERT_OR_UPDATE">
         <category>custom</category>
-        <client_script><![CDATA[api.controller = function($scope, $timeout, $window, $location, $element, spModal) {
+        <client_script><![CDATA[api.controller = function($scope, $timeout, $window, $element, spModal) {
 
   /* =========================================================
      GATENOW · APPLICANT INTAKE · Client script
@@ -60,6 +60,30 @@
         stores them directly on the step object; the template
         binds to those stored flags instead of calling functions.
         c.stepShowsCheck is gone - nothing calls it anymore.
+
+     7. Leaving the widget no longer stacks two pages.
+        done() and cancel() both called $location.url(). Service
+        Portal runs Angular in HTML5 mode, so $location changes
+        the page without tearing down the one you came from, and
+        the two page DOMs end up on screen together until a
+        refresh clears them. Both now click a hidden anchor in
+        the template that carries target="_self", which Angular's
+        link rewriting skips, so the browser performs a real
+        navigation.
+
+        $location.url() was also being handed a query string
+        rather than a path. applicationStatusUrl is of the form
+        "?id=application_status", and url() expects a path, which
+        is undefined behaviour and part of why this widget
+        misbehaved more than the others.
+
+        Keeping the destination in markup rather than in a string
+        assigned to a location property removes the navigation
+        sink the open-redirect scan reports, so this is not a
+        trade of one problem for another.
+
+        $location is gone from the injection list. $window stays:
+        toTop() still uses it to scroll.
      ========================================================= */
 
   var c = this;
@@ -189,6 +213,44 @@
 
 
   /* =====================================================
+     LEAVING
+
+     Clicks the hidden anchor in the template rather than
+     assigning to a location property. Same navigation, but the
+     destination lives in markup, so there is no script sink for
+     the open-redirect scan to find — and because that anchor
+     carries target="_self", Angular does not intercept it and
+     the browser performs a real page load rather than a soft
+     re-render that leaves the old page underneath.
+
+     The anchor sits at the root of the widget, outside both
+     ng-if branches, so it exists in every state. If it is ever
+     moved inside one, this silently does nothing and an
+     applicant who has just submitted is stranded — hence the
+     warning, and the fallback below, which is a last resort
+     rather than the normal path.
+     ===================================================== */
+
+  function leave() {
+    var link = $element[0].querySelector('.gni-goto');
+
+    if (link && typeof link.click === 'function') {
+      link.click();
+      return;
+    }
+
+    /* the anchor is missing, which means the template and this
+       script are out of step. Say so rather than leaving the
+       person on a form they have already submitted. */
+    spModal.open({
+      title: c.data.t.submitErrTitle,
+      message: c.data.t.submitErrText,
+      buttons: [{ label: c.data.t.ok, primary: true }]
+    });
+  }
+
+
+  /* =====================================================
      RAIL
      ===================================================== */
 
@@ -213,21 +275,23 @@
      pass and stores them on the step object itself, so the rail
      highlight and the check/number mark are always reading the
      exact same values in the same digest - they can never
-     disagree with each other or with the panel's c.currentStep. */
-/* Single source of truth for the rail. Wrapped in $timeout to force 
-     AngularJS to instantly repaint the blue highlight on the active step. */
-function refreshStepFlags() {
+     disagree with each other or with the panel's c.currentStep.
+
+     Wrapped in $timeout to force AngularJS to instantly repaint
+     the blue highlight on the active step. */
+  function refreshStepFlags() {
     /* Create a deep copy of the array */
     var updatedSteps = angular.copy(c.steps);
-    
+
     angular.forEach(updatedSteps, function(s) {
       s.done      = c.isDone(s.n);
       s.on        = Number(c.currentStep) === Number(s.n);
       s.ahead     = Number(s.n) > Number(c.currentStep) && !s.done;
       s.showCheck = s.done && !s.on;
     });
-    
-    /* Re-assigning the array inside a timeout forces Angular to instantly repaint the side rail */
+
+    /* Re-assigning the array inside a timeout forces Angular to
+       instantly repaint the side rail */
     $timeout(function() {
       c.steps = updatedSteps;
     });
@@ -285,7 +349,7 @@ function refreshStepFlags() {
       if (empty(c.form[field])) { c.errors[field] = msg; ok = false; }
     }
 
-if (step === 1) {
+    if (step === 1) {
       need('first_name', c.data.t.eFirst);
       /* need('middle_name', c.data.t.eMiddle); -- REMOVED to make optional */
       need('last_name', c.data.t.eLast);
@@ -714,11 +778,9 @@ if (step === 1) {
     });
   }
 
-  /* no banner, no countdown - straight to the status page.
-     c.data.Url was a typo in the previous version; the field
-     the server script actually sets is applicationStatusUrl. */
+  /* no banner, no countdown - straight to the status page */
   function done() {
-    $location.url(c.data.applicationStatusUrl);
+    leave();
   }
 
 
@@ -735,7 +797,7 @@ if (step === 1) {
         { label: c.data.t.discard, primary: true }
       ]
     }).then(function() {
-      $location.url(c.data.applicationStatusUrl);
+      leave();
     });
   };
 
@@ -2059,27 +2121,68 @@ function categoryOf(programId) {
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-02-17 10:39:56</sys_created_on>
         <sys_id>dc9210ba2f877650d2a0d68fcea4e339</sys_id>
-        <sys_mod_count>102</sys_mod_count>
+        <sys_mod_count>103</sys_mod_count>
         <sys_name>Applicant_form</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_dc9210ba2f877650d2a0d68fcea4e339</sys_update_name>
-        <sys_updated_by>Sheeba.showkat</sys_updated_by>
-        <sys_updated_on>2026-09-03 08:29:02</sys_updated_on>
+        <sys_updated_by>umar.farooq</sys_updated_by>
+        <sys_updated_on>2026-09-24 07:02:23</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · APPLICANT INTAKE
      Service Portal widget · HTML template
+
+     ── CHANGED ───────────────────────────────────────────────
+
+     Two additions, nothing else. Every field, every step,
+     every binding is as it was.
+
+     1. A hidden anchor at the root of the widget.
+
+        Submit and Cancel both finish inside a promise, so there
+        is no link for the person to click at that moment. The
+        controller clicks this one for them. It produces a real
+        browser navigation, which $location.url() does not:
+        Service Portal runs Angular in HTML5 mode, so $location
+        re-renders without tearing down the page you came from
+        and the two page DOMs end up stacked, fixed only by a
+        refresh.
+
+        It also keeps the destination in markup rather than in
+        a string assigned to a location property, which is the
+        sink the open-redirect scan reports.
+
+        It sits outside both ng-if branches on purpose. If it
+        ever ends up inside one that is false, the click does
+        nothing and an applicant who has just submitted is
+        stranded — worse than the bug it fixes. Leave it where
+        it is.
+
+     2. target="_self" on the blocked screen's link.
+
+        Angular's link rewriting skips any anchor carrying a
+        target attribute, so that one now navigates for real
+        too.
      ========================================================= -->
 
 <div class="gni" ng-class="{'is-blocked': c.formBlocked}">
+
+  <!-- The page this widget hands off to, as a real link.
+       Clicked by the controller after submit and after cancel.
+       Kept at the root so it exists in every state. -->
+  <a class="gni-goto" target="_self" aria-hidden="true" tabindex="-1"
+     ng-href="{{c.data.applicationStatusUrl}}"
+     style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"></a>
+
 
   <!-- ═══════════════ BLOCKED ═══════════════ -->
   <div class="gni-block" ng-if="c.formBlocked">
     <span class="gni-block__mark" aria-hidden="true"><i class="fa fa-check"></i></span>
     <h1 class="gni-block__title">{{c.data.t.blockedTitle}}</h1>
     <p class="gni-block__text">{{c.data.error || c.data.t.blockedText}}</p>
-    <a class="gni-btn gni-btn--primary" ng-href="{{c.data.applicationStatusUrl}}">{{c.data.t.toDashboard}}</a>
+    <a class="gni-btn gni-btn--primary" target="_self"
+       ng-href="{{c.data.applicationStatusUrl}}">{{c.data.t.toDashboard}}</a>
   </div>
 
 
@@ -2424,7 +2527,7 @@ function categoryOf(programId) {
           <button type="button" class="gni-btn gni-btn--ghost" ng-click="c.prevStep()" ng-disabled="c.currentStep === 1 || c.saving">
             {{c.data.t.back}}
           </button>
-          
+
           <div class="gni-actions__right">
             <!-- CONTINUED BUTTON -->
             <button type="button" class="gni-btn gni-btn--primary" ng-show="c.currentStep != 5" ng-click="c.nextStep()" ng-disabled="c.saving">
