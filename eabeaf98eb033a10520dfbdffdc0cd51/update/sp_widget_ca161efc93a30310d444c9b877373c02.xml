@@ -1836,12 +1836,30 @@ $gn-font: "Poppins", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Ari
 
   var grantReviewGr = new GlideRecordSecure('x_enno_gatenow_grant_review');
 
-  var qc = grantReviewGr.addQuery('review_group', 'IN', groups.join(','));
+  /* Same rule as the Review Sidebar's "open" badge: every open review (pending,
+     in progress or escalated) on which one of the user's groups is a reviewer.
+     Escalated reviews were hidden before, so the badge and this list disagreed. */
+  var qc = grantReviewGr.addQuery('reviewer', 'CONTAINS', groups[0]);
+  for (var i = 1; i < groups.length; i++) {
+    qc.addOrCondition('reviewer', 'CONTAINS', groups[i]);
+  }
   grantReviewGr.addQuery('status', 'Review in progress');
 
-  for (var i = 0; i < groups.length; i++) {
-    var orCond = qc.addOrCondition('status', 'Review completed');
-    orCond.addCondition('reviewer', 'CONTAINS', groups[i]);
+  /* The list above holds open reviews only, so "completed by your panels" gets its own count. */
+  try {
+    var doneAgg = new GlideAggregate('x_enno_gatenow_grant_review');
+    var dq = doneAgg.addQuery('reviewer', 'CONTAINS', groups[0]);
+    for (var d = 1; d < groups.length; d++) {
+      dq.addOrCondition('reviewer', 'CONTAINS', groups[d]);
+    }
+    doneAgg.addQuery('status', 'Review completed');
+    doneAgg.addAggregate('COUNT');
+    doneAgg.query();
+    if (doneAgg.next()) {
+      data.stats.completed = parseInt(doneAgg.getAggregate('COUNT'), 10) || 0;
+    }
+  } catch (e) {
+    gs.info('[ReviewApplicants] completed count unavailable: ' + e.message);
   }
 
   grantReviewGr.orderBy('number');
@@ -1985,14 +2003,14 @@ $gn-font: "Poppins", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Ari
         <sys_created_by>umar.farooq</sys_created_by>
         <sys_created_on>2026-09-23 07:46:27</sys_created_on>
         <sys_id>ca161efc93a30310d444c9b877373c02</sys_id>
-        <sys_mod_count>1</sys_mod_count>
+        <sys_mod_count>5</sys_mod_count>
         <sys_name>Review Applicants</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_ca161efc93a30310d444c9b877373c02</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-23 16:24:00</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-10-22 09:11:02</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · REVIEW APPLICANTS
      Service Portal widget · HTML template
@@ -2038,8 +2056,8 @@ $gn-font: "Poppins", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Ari
       </div>
 
       <div class="gn-head__right">
-        <a class="gn-avatar" ng-href="{{c.data.profilePage}}"
-           title="{{c.data.currentUser.name}}">{{c.data.currentUser.initials}}</a>
+        <div class="gn-avatar" style="cursor:default"
+           title="{{c.data.currentUser.name}}">{{c.data.currentUser.initials}}</div>
       </div>
 
     </header>

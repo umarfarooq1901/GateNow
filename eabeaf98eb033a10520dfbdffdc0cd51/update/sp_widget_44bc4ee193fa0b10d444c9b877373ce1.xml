@@ -2475,6 +2475,8 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
     if (applicantIds.length) {
       var pj = new GlideRecordSecure(PROJECT);
       pj.addQuery('applicant', 'IN', applicantIds.join(','));
+      // applicants only see projects from the Planning phase on
+      pj.addEncodedQuery('phaseISNOTEMPTY^phase!=Initiating');
       pj.orderBy('project_name');
       pj.query();
 
@@ -3322,14 +3324,14 @@ $c-font: "Outfit", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helve
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-08-19 08:10:57</sys_created_on>
         <sys_id>44bc4ee193fa0b10d444c9b877373ce1</sys_id>
-        <sys_mod_count>56</sys_mod_count>
+        <sys_mod_count>57</sys_mod_count>
         <sys_name>Report &amp; Change Requests</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sp_widget_44bc4ee193fa0b10d444c9b877373ce1</sys_update_name>
-        <sys_updated_by>umar.farooq</sys_updated_by>
-        <sys_updated_on>2026-09-04 08:35:28</sys_updated_on>
+        <sys_updated_by>younis.khan</sys_updated_by>
+        <sys_updated_on>2026-10-23 08:38:51</sys_updated_on>
         <template><![CDATA[<!-- =========================================================
      GATENOW · REPORTS AND CHANGE REQUESTS
      Service Portal widget · HTML template

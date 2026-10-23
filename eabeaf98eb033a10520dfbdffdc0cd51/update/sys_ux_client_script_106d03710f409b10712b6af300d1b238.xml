@@ -12,42 +12,51 @@
  * @param {TransformApiHelpers} params.helpers
  */
 function evaluateProperty({api, helpers}) {
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const rows = id => ((api.data[id] || {}).results) || [];
   const v = (r, f) => (r[f] && r[f].value) || '';
-  const dv = (r, f) => (r[f] && (r[f].displayValue || r[f].value)) || '';
-  const head = t => '<div style="font-size:16px;color:#2e3d49;padding-bottom:12px;margin-bottom:8px;border-bottom:1px solid #e3e7ea">' + esc(t) + '</div>';
-  const bars = (items, fmt) => {
-    const max = Math.max(1, ...items.map(i => i.n));
-    return '<table style="width:100%;border-collapse:collapse">' + items.map(i =>
-      '<tr><td style="width:160px;padding:7px 8px 7px 0;color:#4a5a66;font-size:14px">' + esc(i.l) + '</td>' +
-      '<td style="padding:7px 0"><div style="height:18px;border-radius:2px;background:' + i.c + ';width:' + Math.max(i.n ? 2 : 0, Math.round(i.n / max * 100)) + '%"></div></td>' +
-      '<td style="width:90px;padding:7px 0 7px 10px;text-align:right;color:#1d2b36;font-size:14px">' + esc(fmt ? fmt(i.n) : i.n) + '</td></tr>').join('') + '</table>';
-  };
-  const list = (items, empty) => items.length ? items.map((i, k) =>
-      '<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:14px;' + (k < items.length - 1 ? 'border-bottom:1px solid #eef1f3' : '') + '">' +
-      (i.href ? '<a href="' + i.href + '" style="color:#0a5ba8;text-decoration:none">' + esc(i.l) + '</a>' : '<span>' + esc(i.l) + '</span>') +
-      '<span style="white-space:nowrap;' + (i.red ? 'color:#c62828;font-weight:600' : 'color:#4a5a66') + '">' + esc(i.r) + '</span></div>').join('')
-    : '<div style="color:#6b7a85;font-size:14px;padding:8px 0">' + esc(empty) + '</div>';
-  const note = t => '<div style="font-size:12px;color:#6b7a85;margin-top:8px">' + esc(t) + '</div>';
   const count = (rs, f) => rs.reduce((m, r) => (m[v(r, f)] = (m[v(r, f)] || 0) + 1, m), {});
-  const rec = (t, id) => '/x/enno/gatenow-workspace/record/' + t + '/' + id;
-  const c=count(rows('gn_risks'),'impact');
-  return head('Open risks by impact')+bars([['1','High','#e24b4a'],['2','Medium','#ef9f27'],['3','Low','#85b7eb']].map(o=>({l:o[1],n:c[o[0]]||0,c:o[2]})));
+  const head = t => '<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid #e3e7ea"><span style="font-size:16px;color:#2e3d49">' + t + '</span></div>';
+  const leg = items => '<div style="display:flex;justify-content:center;gap:18px;flex-wrap:wrap;font-size:12px;color:#4a5a66;margin-top:12px">' + items.map(i => '<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;background:' + i.c + ';display:inline-block"></span>' + i.l + '</span>').join('') + '</div>';
+  const nice = m => m <= 4 ? 4 : m <= 8 ? 8 : m <= 10 ? 10 : Math.ceil(m / 5) * 5;
+  const round = (items, center, pie) => {
+    const tot = items.reduce((s, i) => s + i.n, 0);
+    if (!tot) return '<div style="text-align:center;color:#6b7a85;font-size:13px;padding:40px 0">No data yet</div>';
+    let acc = 0; const stops = items.filter(i => i.n).map(i => { const a = acc / tot * 100; acc += i.n; return i.c + ' ' + a + '% ' + (acc / tot * 100) + '%'; }).join(', ');
+    const hole = pie ? '' : '<div style="grid-area:1/1;align-self:center;justify-self:center;width:96px;height:96px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:24px;color:#1d2b36;line-height:1.1">' + center[0] + '</span><span style="font-size:11px;color:#6b7a85">' + center[1] + '</span></div>';
+    const chart = '<div style="display:grid;width:160px;height:160px;flex:none"><div style="grid-area:1/1;width:160px;height:160px;border-radius:50%;background:conic-gradient(' + stops + ')"></div>' + hole + '</div>';
+    const list = '<div style="flex:1;min-width:170px;display:flex;flex-direction:column;gap:10px">' + items.map(i => '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#2e3d49"><span style="width:10px;height:10px;background:' + i.c + ';display:inline-block;flex:none"></span><span style="flex:1">' + i.l + '</span><b style="font-weight:600">' + i.n + '</b><span style="width:40px;text-align:right;color:#6b7a85">' + Math.round(i.n / tot * 100) + '%</span></div>').join('') + '</div>';
+    return '<div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap;justify-content:center;padding:4px 0">' + chart + list + '</div>';
+  };
+  const colChart = items => {
+    const max = nice(Math.max.apply(null, items.map(i => i.n).concat([1]))); const H = 150;
+    const axis = '<div style="display:flex;flex-direction:column;justify-content:space-between;height:' + H + 'px;font-size:10px;color:#6b7a85;text-align:right;padding-right:6px">' + [4,3,2,1,0].map(k => '<span style="line-height:0">' + Math.round(max * k / 4) + '</span>').join('') + '</div>';
+    const cols = items.map(i => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:' + H + 'px"><div style="width:60%;max-width:80px;height:' + Math.round(i.n / max * H) + 'px;background:' + i.c + ';display:flex;align-items:center;justify-content:center">' + (i.n ? '<span style="background:#c9d6e3;color:#1d2b36;font-size:10px;padding:1px 5px">' + i.n + '</span>' : '') + '</div></div>').join('');
+    const labels = '<div style="display:flex;margin-left:28px">' + items.map(i => '<span style="flex:1;text-align:center;font-size:11px;color:#4a5a66;padding-top:6px">' + i.l + '</span>').join('') + '</div>';
+    return '<div style="display:flex"><div style="width:28px">' + axis + '</div><div style="flex:1;display:flex;gap:8px;border-bottom:1px solid #9aa5ad;background:repeating-linear-gradient(to top,#e3e7ea 0 1px,transparent 1px ' + (H / 4) + 'px)">' + cols + '</div></div>' + labels;
+  };
+  const hbar = items => {
+    const max = nice(Math.max.apply(null, items.map(i => i.n).concat([1])));
+    const rowsHtml = items.map(i => '<div style="display:flex;align-items:center;height:40px"><span style="width:130px;flex:none;text-align:right;padding-right:10px;font-size:12px;color:#4a5a66">' + i.l + '</span><div style="flex:1;height:40px;display:flex;align-items:center;border-left:1px solid #9aa5ad;background:repeating-linear-gradient(90deg,#e3e7ea 0 1px,transparent 1px 25%)"><div style="height:24px;width:' + (i.n / max * 100) + '%;background:' + i.c + '"></div>' + (i.n ? '<span style="font-size:11px;color:#1d2b36;padding-left:6px">' + i.n + '</span>' : '') + '</div></div>').join('');
+    const ticks = '<div style="display:flex;margin-left:130px;font-size:10px;color:#6b7a85;padding-top:4px">' + [0,1,2,3,4].map(k => '<span style="flex:' + (k ? 1 : 0) + ';text-align:right">' + Math.round(max * k / 4) + '</span>').join('') + '</div>';
+    return rowsHtml + ticks;
+  };
+  const c = count(rows('gn_risks'), 'impact');
+  const items = [{l:'1 - High', n:c['1'] || 0, c:'#1A3FAE'}, {l:'2 - Medium', n:c['2'] || 0, c:'#4F7BE0'}, {l:'3 - Low', n:c['3'] || 0, c:'#B3C7F5'}];
+  return head('Open risks by impact') + round(items, null, true);
 }]]></script>
         <script_api_version>2.0.0</script_api_version>
         <sys_class_name>sys_ux_client_script</sys_class_name>
         <sys_created_by>younis.khan</sys_created_by>
         <sys_created_on>2026-10-21 10:50:08</sys_created_on>
         <sys_id>106d03710f409b10712b6af300d1b238</sys_id>
-        <sys_mod_count>0</sys_mod_count>
+        <sys_mod_count>4</sys_mod_count>
         <sys_name>rt_risks/html</sys_name>
         <sys_package display_value="GateNow" source="x_enno_gatenow">eabeaf98eb033a10520dfbdffdc0cd51</sys_package>
         <sys_policy/>
         <sys_scope display_value="GateNow">eabeaf98eb033a10520dfbdffdc0cd51</sys_scope>
         <sys_update_name>sys_ux_client_script_106d03710f409b10712b6af300d1b238</sys_update_name>
         <sys_updated_by>younis.khan</sys_updated_by>
-        <sys_updated_on>2026-10-21 10:50:08</sys_updated_on>
+        <sys_updated_on>2026-10-22 08:26:44</sys_updated_on>
         <target>macroponent</target>
         <type>transform</type>
     </sys_ux_client_script>
